@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,11 +28,13 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +49,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -597,12 +603,22 @@ fun PluginsListScreen(
     var showInstallDialog by remember { mutableStateOf(false) }
     var pluginPackageInput by remember { mutableStateOf("") }
     var installStatusMessage by remember { mutableStateOf<String?>(null) }
+    var activePluginsTab by remember { mutableStateOf("installed") } // "installed" vs "market"
+
+    val darkBg = Color(0xFF161719)
+    val cardBg = Color(0xFF212327)
+    val textPrimary = Color(0xFFEEEEEE)
+    val textSecondary = Color(0xFF9E9EA4)
+    val textMuted = Color(0xFF6E7077)
+    val accentBlue = Color(0xFF3875F6)
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(darkBg)
             .padding(16.dp)
     ) {
+        // 1. 顶部标题栏 + 右侧添加插件胶囊 (对齐官方 header + add button)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -610,19 +626,20 @@ fun PluginsListScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.plugins_title),
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = textPrimary
                 )
                 Text(
                     text = stringResource(R.string.plugins_subtitle),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = textMuted
                 )
             }
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF20283A),
                 onClick = { showInstallDialog = true },
-                modifier = Modifier.height(36.dp)
+                modifier = Modifier.height(34.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp),
@@ -631,91 +648,199 @@ fun PluginsListScreen(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = stringResource(R.string.action_add_plugin),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = accentBlue,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = stringResource(R.string.action_add_plugin),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = accentBlue
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.padding(8.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        androidx.compose.material3.Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            colors = androidx.compose.material3.CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+        // 2. 官方标准 Tab 切换栏 (已安装 Installed vs 发现 Market，对齐 ui-plugin-manager 规范)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (activePluginsTab == "installed") Color(0xFF2C2F36) else Color(0xFF212327),
+                onClick = { activePluginsTab = "installed" },
+                modifier = Modifier.height(32.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Widgets,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = "SDUI 原生插件示例",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = "JSON layout 声明 -> 原生 Compose 渲染",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = "已安装 (${surfaces.size})",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (activePluginsTab == "installed") FontWeight.Bold else FontWeight.Normal
+                        ),
+                        color = if (activePluginsTab == "installed") textPrimary else textSecondary
                     )
                 }
-                androidx.compose.material3.Button(onClick = onOpenSdui) {
-                    Text(stringResource(R.string.action_try))
+            }
+
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (activePluginsTab == "market") Color(0xFF2C2F36) else Color(0xFF212327),
+                onClick = { activePluginsTab = "market" },
+                modifier = Modifier.height(32.dp)
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "发现 (Plugin Market)",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (activePluginsTab == "market") FontWeight.Bold else FontWeight.Normal
+                        ),
+                        color = if (activePluginsTab == "market") textPrimary else textSecondary
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.padding(4.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        surfaces.forEach { item ->
-            androidx.compose.material3.Card(
+        if (activePluginsTab == "installed") {
+            // SDUI 原生插件特性卡片
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF20283A),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = androidx.compose.material3.CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                    .padding(vertical = 4.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (item.kind == SurfaceKind.OVERLAY) Icons.Default.Widgets else Icons.Default.Build,
+                        imageVector = Icons.Default.Widgets,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = accentBlue
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = item.title ?: item.pluginId,
-                            style = MaterialTheme.typography.titleMedium
+                            text = "SDUI 声明式原生插件",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = textPrimary
                         )
                         Text(
-                            text = "槽位: ${item.slot} | 类型: ${item.kind}",
+                            text = "JSON layout 声明 -> 客户端纯原生 Compose 渲染",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
+                            color = textMuted
                         )
                     }
-                    androidx.compose.material3.Button(onClick = { onOpenSurface(item) }) {
-                        Text(if (item.kind == SurfaceKind.OVERLAY) stringResource(R.string.action_open_overlay) else stringResource(R.string.action_open))
+                    Button(
+                        onClick = onOpenSdui,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accentBlue),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(stringResource(R.string.action_try))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 已安装插件列表 (深色圆角卡片)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(surfaces) { item ->
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = cardBg,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (item.kind == SurfaceKind.OVERLAY) Icons.Default.Widgets else Icons.Default.Build,
+                                contentDescription = null,
+                                tint = accentBlue
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.title ?: item.pluginId,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = textPrimary
+                                )
+                                Text(
+                                    text = "Slot: ${item.slot} · ${item.kind}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = textMuted
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = { onOpenSurface(item) },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text(
+                                    if (item.kind == SurfaceKind.OVERLAY) stringResource(R.string.action_open_overlay) else stringResource(R.string.action_open),
+                                    color = textPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // 发现页 (Market 清单展示)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    Text(
+                        text = "官方与社区精选扩展",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = textMuted
+                    )
+                }
+                item {
+                    Surface(shape = RoundedCornerShape(12.dp), color = cardBg, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("dsh-subscription-oauth", color = textPrimary, fontWeight = FontWeight.Bold)
+                                Text("官方订阅服务与额度 OAuth 认证扩展", color = textMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF2C2F36)) {
+                                Text("已安装", color = textSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            }
+                        }
+                    }
+                }
+                item {
+                    Surface(shape = RoundedCornerShape(12.dp), color = cardBg, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("dsh-plugin-whale-pet", color = textPrimary, fontWeight = FontWeight.Bold)
+                                Text("桌面鲸鱼桌宠与系统运行状态监控", color = textMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Button(
+                                onClick = { onInstallPlugin("dsh-plugin-whale-pet") },
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accentBlue),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(stringResource(R.string.action_install))
+                            }
+                        }
                     }
                 }
             }
@@ -730,14 +855,14 @@ fun PluginsListScreen(
                 installStatusMessage = null
             },
             title = {
-                Text(text = stringResource(R.string.plugin_dialog_title))
+                Text(text = stringResource(R.string.plugin_dialog_title), color = textPrimary)
             },
             text = {
                 Column {
                     Text(
                         text = stringResource(R.string.plugin_dialog_desc),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = textSecondary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     androidx.compose.material3.OutlinedTextField(
@@ -756,22 +881,23 @@ fun PluginsListScreen(
                         Text(
                             text = stringResource(R.string.plugin_dialog_source),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline
+                            color = textMuted
                         )
                         androidx.compose.material3.TextButton(
                             onClick = {
                                 pluginPackageInput = "dsh-subscription-oauth"
                             }
                         ) {
-                            Text(stringResource(R.string.action_fill_example))
+                            Text(stringResource(R.string.action_fill_example), color = accentBlue)
                         }
                     }
                     installStatusMessage?.let { msg ->
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Text(text = msg, style = MaterialTheme.typography.bodySmall, color = accentBlue)
                     }
                 }
             },
+            containerColor = Color(0xFF212327),
             confirmButton = {
                 androidx.compose.material3.Button(
                     onClick = {
@@ -781,7 +907,8 @@ fun PluginsListScreen(
                             installStatusMessage = "OK: $installedName"
                             pluginPackageInput = ""
                         }
-                    }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accentBlue)
                 ) {
                     Text(stringResource(R.string.action_install))
                 }
@@ -793,7 +920,7 @@ fun PluginsListScreen(
                         installStatusMessage = null
                     }
                 ) {
-                    Text(stringResource(R.string.action_close))
+                    Text(stringResource(R.string.action_close), color = textSecondary)
                 }
             }
         )

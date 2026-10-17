@@ -36,14 +36,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.HostDescriptor
 import com.deepseek.dsh.core.model.HostKind
 import com.deepseek.dsh.feature.hosts.R
 
 /**
  * v4.0 设计文档 §11.1 & §11.3:
- * 多主机（本机 Linux + 远程网关）管理面板
+ * 多主机（本机 Linux + 远程网关）管理面板，对齐官方深色调
  */
 @Composable
 fun HostsScreen(
@@ -53,9 +55,17 @@ fun HostsScreen(
     onScanPairClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val darkBg = Color(0xFF161719)
+    val cardBg = Color(0xFF212327)
+    val textPrimary = Color(0xFFEEEEEE)
+    val textSecondary = Color(0xFF9E9EA4)
+    val textMuted = Color(0xFF6E7077)
+    val accentBlue = Color(0xFF3875F6)
+
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(darkBg)
             .padding(16.dp)
     ) {
         Row(
@@ -65,19 +75,20 @@ fun HostsScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.hosts_title),
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = textPrimary
                 )
                 Text(
                     text = stringResource(R.string.hosts_subtitle),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = textMuted
                 )
             }
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF20283A),
                 onClick = onScanPairClick,
-                modifier = Modifier.height(36.dp)
+                modifier = Modifier.height(34.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp),
@@ -86,14 +97,14 @@ fun HostsScreen(
                     Icon(
                         imageVector = Icons.Default.QrCodeScanner,
                         contentDescription = "Scan",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = accentBlue,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = stringResource(R.string.action_scan_pair),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = accentBlue
                     )
                 }
             }
@@ -109,18 +120,12 @@ fun HostsScreen(
                 val isActive = host.id == activeHostId
                 val isLocal = host.kind == HostKind.LOCAL
 
-                Card(
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isActive) Color(0xFF2A2E38) else cardBg,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onSelectHost(host) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isActive) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        }
-                    )
+                        .clickable { onSelectHost(host) }
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -131,36 +136,37 @@ fun HostsScreen(
                                 .size(40.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isLocal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+                                    if (isLocal) accentBlue else Color(0xFF2E3340)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = if (isLocal) Icons.Default.PhoneAndroid else Icons.Default.Cloud,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = if (isLocal) Color.White else accentBlue,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = host.name,
-                                    style = MaterialTheme.typography.titleMedium
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                    color = textPrimary
                                 )
                                 if (isLocal) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFF20283A)
                                     ) {
                                         Text(
                                             text = stringResource(R.string.host_tag_local),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = accentBlue,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
@@ -172,7 +178,7 @@ fun HostsScreen(
                                     is HostDescriptor.Remote -> host.baseUrl
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
+                                color = textMuted
                             )
                         }
 
@@ -180,7 +186,8 @@ fun HostsScreen(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Active",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = accentBlue,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -189,3 +196,4 @@ fun HostsScreen(
         }
     }
 }
+
