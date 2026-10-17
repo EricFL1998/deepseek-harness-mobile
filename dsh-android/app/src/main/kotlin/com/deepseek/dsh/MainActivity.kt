@@ -283,20 +283,89 @@ fun MainAppHost(
     val workspaceFolders = remember(sessions.size, selectedSessionId) {
         listOf(
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_mobile",
-                name = "deepseek mobile",
-                sessions = sessions.toList(),
+                id = "ws_token",
+                name = "token monitor android",
+                sessions = listOf(
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_tok_1", "写一个安卓原生的额度/用...", "10小时")
+                ),
                 isExpanded = true
             ),
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_token",
-                name = "token monitor android",
+                id = "ws_mobile",
+                name = "deepseek mobile",
+                sessions = if (sessions.isNotEmpty()) {
+                    sessions.mapIndexed { idx, s ->
+                        com.deepseek.dsh.feature.sessions.SessionDisplayItem(
+                            s.sessionId,
+                            s.title,
+                            if (idx == 0) "13分钟" else "5小时",
+                            isActiveDot = (idx == 0)
+                        )
+                    }
+                } else {
+                    listOf(
+                        com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_mob_1", "@_feasibility/DSH-手机端-...", "13分钟", isActiveDot = true),
+                        com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_mob_2", "DSH 插件兼容安卓原生客户...", "5小时")
+                    )
+                },
+                isExpanded = true
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_router",
+                name = "0dcloud-router",
+                sessions = listOf(
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_r_1", "修复订阅链接不稳定问题", "1天")
+                ),
+                isExpanded = true
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_speaker",
+                name = "xiaoai speaker",
+                sessions = listOf(
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sp_1", "黑客小米音箱获取 SSH", "1天"),
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sp_2", "安卓 SSH 音箱配对与音量平衡", "2天")
+                ),
+                isExpanded = true
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_botw",
+                name = "botw-port",
+                sessions = listOf(
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_b_1", "@PROGRESS.md 首先, 我...", "2小时", isActiveDot = true),
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_b_2", "LASRecomp 机制移植方案", "11小时")
+                ),
+                isExpanded = true
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_sub",
+                name = "subscription-oauth",
+                sessions = listOf(
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sub_1", "我们插件的 gemini 额度不对...", "9小时"),
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sub_2", "Antigravity API 403 错误原因", "10小时")
+                ),
+                isExpanded = true
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_assembly",
+                name = "AssemblyShooter",
                 sessions = emptyList(),
                 isExpanded = false
             ),
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_oauth",
-                name = "subscription-oauth",
+                id = "ws_rail",
+                name = "RailFocus",
+                sessions = emptyList(),
+                isExpanded = false
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_hyper",
+                name = "HyperModes",
+                sessions = emptyList(),
+                isExpanded = false
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_ugreen",
+                name = "ugreen mcp",
                 sessions = emptyList(),
                 isExpanded = false
             )
@@ -308,13 +377,13 @@ fun MainAppHost(
             drawerState = drawerState,
             drawerContent = {
                 ModernNavigationDrawerContent(
-                    userName = accountState.profile?.name ?: "DeepSeek 用户",
+                    userName = "海盐味薯片",
                     userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
-                    accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
+                    accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥60.00",
                     workspaces = workspaceFolders,
                     selectedSessionId = selectedSessionId,
-                    onSelectSession = { session ->
-                        selectedSessionId = session.sessionId
+                    onSelectSession = { sessionId ->
+                        selectedSessionId = sessionId
                         activePage = ActivePage.CHAT
                         scope.launch { drawerState.close() }
                     },
