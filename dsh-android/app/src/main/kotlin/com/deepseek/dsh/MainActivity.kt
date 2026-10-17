@@ -147,6 +147,7 @@ enum class ActivePage {
     CHAT,
     FILES,
     PLUGINS,
+    HOSTS,
     SDUI_SAMPLE,
     RUNTIME
 }
@@ -168,6 +169,18 @@ fun MainAppHost(
     var activePage by remember { mutableStateOf(ActivePage.CHAT) }
     var selectedSessionId by remember { mutableStateOf<String?>("session-1") }
 
+    val availableHosts = remember {
+        mutableStateListOf<com.deepseek.dsh.core.model.HostDescriptor>(
+            com.deepseek.dsh.core.model.HostDescriptor.Local(),
+            com.deepseek.dsh.core.model.HostDescriptor.Remote(
+                id = "remote_work_pc",
+                name = "开发工作站 (远程网关)",
+                baseUrl = "https://192.168.1.100:8443",
+                deviceToken = "sec_gw_tok_abc"
+            )
+        )
+    }
+    var activeHostId by remember { mutableStateOf("local-host") }
     var activeSheetSurface by remember { mutableStateOf<SurfaceItem?>(null) }
     var activeOverlaySurface by remember { mutableStateOf<SurfaceItem?>(null) }
 
@@ -248,7 +261,7 @@ fun MainAppHost(
                         scope.launch { drawerState.close() }
                     },
                     onNavigateRuntime = {
-                        activePage = ActivePage.RUNTIME
+                        activePage = ActivePage.HOSTS
                         scope.launch { drawerState.close() }
                     }
                 )
@@ -262,6 +275,7 @@ fun MainAppHost(
                             ActivePage.CHAT -> sessions.find { it.sessionId == selectedSessionId }?.title ?: "DSH Agent"
                             ActivePage.FILES -> "工作区文件"
                             ActivePage.PLUGINS -> "插件生态"
+                            ActivePage.HOSTS -> "主机与连接中心"
                             ActivePage.SDUI_SAMPLE -> "SDUI 原生渲染"
                             ActivePage.RUNTIME -> "本地 Linux 运行时"
                         },
@@ -335,6 +349,25 @@ fun MainAppHost(
                                 },
                                 onOpenSdui = {
                                     activePage = ActivePage.SDUI_SAMPLE
+                                }
+                            )
+                        }
+
+                        ActivePage.HOSTS -> {
+                            com.deepseek.dsh.feature.hosts.HostsScreen(
+                                hosts = availableHosts,
+                                activeHostId = activeHostId,
+                                onSelectHost = { host ->
+                                    activeHostId = host.id
+                                },
+                                onScanPairClick = {
+                                    val newRemote = com.deepseek.dsh.core.model.HostDescriptor.Remote(
+                                        id = "remote_${System.currentTimeMillis()}",
+                                        name = "新配对远程主机",
+                                        baseUrl = "https://192.168.1.120:8443",
+                                        deviceToken = "sec_pair_tok"
+                                    )
+                                    availableHosts.add(newRemote)
                                 }
                             )
                         }
