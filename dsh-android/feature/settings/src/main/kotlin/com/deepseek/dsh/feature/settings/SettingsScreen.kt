@@ -45,6 +45,9 @@ import androidx.compose.ui.unit.dp
 fun SettingsScreen(
     settings: AppSettings,
     onUpdateSettings: (AppSettings) -> Unit,
+    accountName: String = "DeepSeek 官方账号",
+    accountBalance: String = "¥60.00",
+    onManageAccount: () -> Unit = {},
     onCreateBackup: () -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -70,7 +73,19 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // 1. 模型与推理设置
+        // 1. 官方 DeepSeek 账号状态与余额
+        item {
+            SettingsGroup(title = "账号与授权 (官方 OAuth)") {
+                SettingsRow(
+                    icon = Icons.Default.Security,
+                    title = accountName,
+                    subtitle = "当前状态: 已通过官方 OAuth 授权 · 余额: $accountBalance",
+                    onClick = onManageAccount
+                )
+            }
+        }
+
+        // 2. 模型与推理设置
         item {
             SettingsGroup(title = "模型与推理") {
                 SettingsRow(

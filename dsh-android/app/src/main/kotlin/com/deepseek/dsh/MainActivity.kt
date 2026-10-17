@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var runtimeManager: HostRuntimeManager
     private val runner = HostProcessRunner()
     private val surfaceCatalogStore = SurfaceCatalogStore()
+    private val deepseekOAuthManager = com.deepseek.dsh.core.protocol.DeepSeekOAuthManager()
     private lateinit var workspaceManager: WorkspaceManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -133,9 +134,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             DshTheme {
                 MainAppHost(
+                    context = applicationContext,
                     runtimeManager = runtimeManager,
                     runner = runner,
                     surfaceStore = surfaceCatalogStore,
+                    oauthManager = deepseekOAuthManager,
                     workspaceManager = workspaceManager,
                     layout = layout
                 )
@@ -161,9 +164,11 @@ enum class ActivePage {
  */
 @Composable
 fun MainAppHost(
+    context: android.content.Context,
     runtimeManager: HostRuntimeManager,
     runner: HostProcessRunner,
     surfaceStore: SurfaceCatalogStore,
+    oauthManager: com.deepseek.dsh.core.protocol.DeepSeekOAuthManager,
     workspaceManager: WorkspaceManager,
     layout: RuntimeLayout
 ) {
@@ -204,6 +209,7 @@ fun MainAppHost(
 
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
+    val accountState by oauthManager.accountFlow.collectAsState()
 
     val files = remember(activePage) {
         workspaceManager.listFiles(activeWorkspace)
@@ -253,8 +259,9 @@ fun MainAppHost(
             drawerState = drawerState,
             drawerContent = {
                 ModernNavigationDrawerContent(
-                    userName = "本地用户",
-                    userTag = if (status.phase == RuntimePhase.RUNNING) "Container Online" else "Host Standby",
+                    userName = accountState.profile?.name ?: "未登录",
+                    userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
+                    accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
                     sessions = sessions,
                     selectedSessionId = selectedSessionId,
                     onSelectSession = { session ->
@@ -447,6 +454,15 @@ fun MainAppHost(
                             com.deepseek.dsh.feature.settings.SettingsScreen(
                                 settings = currentAppSettings,
                                 onUpdateSettings = { currentAppSettings = it },
+                                accountName = accountState.profile?.name ?: "未登录",
+                                accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
+                                onManageAccount = {
+                                    val authUrl = oauthManager.buildOAuthAuthorizeUrl()
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl)).apply {
+                                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                },
                                 onCreateBackup = {
                                     scope.launch {
                                         backupAndDiag.createUserDataBackup()

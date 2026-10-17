@@ -60,8 +60,9 @@ import com.deepseek.dsh.core.model.SessionInfo
  */
 @Composable
 fun ModernNavigationDrawerContent(
-    userName: String = "本地用户",
-    userTag: String = "Local Host",
+    userName: String = "DeepSeek 用户",
+    userTag: String = "官方 OAuth",
+    accountBalance: String = "¥60.00",
     sessions: List<SessionInfo>,
     selectedSessionId: String?,
     onSelectSession: (SessionInfo) -> Unit,
@@ -80,23 +81,23 @@ fun ModernNavigationDrawerContent(
             .background(MaterialTheme.colorScheme.surface)
             .padding(vertical = 16.dp, horizontal = 16.dp)
     ) {
-        // 1. 顶部用户卡片与新建会话按钮 (参考截图 1)
+        // 1. 顶部用户卡片与新建会话按钮 (对齐官方 DeepSeek 账号卡片)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 用户头像
+            // 用户头像 (官方 DeepSeek 蓝底)
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "DS",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = Color.White
                 )
             }
 
@@ -108,16 +109,26 @@ fun ModernNavigationDrawerContent(
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(top = 2.dp)
                 ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            text = userTag,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                     Text(
-                        text = userTag,
+                        text = "余额: $accountBalance",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             }
