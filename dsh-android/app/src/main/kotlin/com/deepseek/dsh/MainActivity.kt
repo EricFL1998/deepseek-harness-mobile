@@ -136,7 +136,8 @@ class MainActivity : ComponentActivity() {
                     runtimeManager = runtimeManager,
                     runner = runner,
                     surfaceStore = surfaceCatalogStore,
-                    workspaceManager = workspaceManager
+                    workspaceManager = workspaceManager,
+                    layout = layout
                 )
             }
         }
@@ -149,6 +150,7 @@ enum class ActivePage {
     PLUGINS,
     HOSTS,
     APPROVAL,
+    SETTINGS,
     SDUI_SAMPLE,
     RUNTIME
 }
@@ -162,7 +164,8 @@ fun MainAppHost(
     runtimeManager: HostRuntimeManager,
     runner: HostProcessRunner,
     surfaceStore: SurfaceCatalogStore,
-    workspaceManager: WorkspaceManager
+    workspaceManager: WorkspaceManager,
+    layout: RuntimeLayout
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -182,15 +185,25 @@ fun MainAppHost(
         )
     }
     var activeHostId by remember { mutableStateOf("local-host") }
+    val activeWorkspace = remember {
+        workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
+    }
+
+    var currentAppSettings by remember {
+        mutableStateOf(
+            com.deepseek.dsh.feature.settings.AppSettings(
+                workspacePath = activeWorkspace.absolutePath
+            )
+        )
+    }
+    val backupAndDiag = remember {
+        com.deepseek.dsh.runtime.host.RuntimeBackupAndDiagnostics(layout)
+    }
     var activeSheetSurface by remember { mutableStateOf<SurfaceItem?>(null) }
     var activeOverlaySurface by remember { mutableStateOf<SurfaceItem?>(null) }
 
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
-
-    val activeWorkspace = remember {
-        workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
-    }
 
     val files = remember(activePage) {
         workspaceManager.listFiles(activeWorkspace)
@@ -279,13 +292,17 @@ fun MainAppHost(
                     onNavigateApproval = {
                         activePage = ActivePage.APPROVAL
                         scope.launch { drawerState.close() }
+                    },
+                    onNavigateSettings = {
+                        activePage = ActivePage.SETTINGS
+                        scope.launch { drawerState.close() }
                     }
                 )
             }
         ) {
             Scaffold(
                 topBar = {
-                    // 现代顶栏: 移除左上角推理胶囊，保留纯粹简洁标题栏 (参考截图 1 & 3)
+                    // 现代顶栏: 纯粹简洁标题栏 (参考截图 1 & 3: 左侧汉堡菜单，中间会话标题，右侧播报与新建)
                     ModernTopAppBar(
                         title = when (activePage) {
                             ActivePage.CHAT -> sessions.find { it.sessionId == selectedSessionId }?.title ?: "DSH Agent"
@@ -293,6 +310,7 @@ fun MainAppHost(
                             ActivePage.PLUGINS -> "插件生态"
                             ActivePage.HOSTS -> "主机与连接中心"
                             ActivePage.APPROVAL -> "系统审批中心"
+                            ActivePage.SETTINGS -> "设置与偏好"
                             ActivePage.SDUI_SAMPLE -> "SDUI 原生渲染"
                             ActivePage.RUNTIME -> "本地 Linux 运行时"
                         },
@@ -410,6 +428,23 @@ fun MainAppHost(
                                         pendingApprovals[index] = item.copy(
                                             status = com.deepseek.dsh.feature.approval.ApprovalStatus.REJECTED
                                         )
+                                    }
+                                }
+                            )
+                        }
+
+                        ActivePage.SETTINGS -> {
+                            com.deepseek.dsh.feature.settings.SettingsScreen(
+                                settings = currentAppSettings,
+                                onUpdateSettings = { currentAppSettings = it },
+                                onCreateBackup = {
+                                    scope.launch {
+                                        backupAndDiag.createUserDataBackup()
+                                    }
+                                },
+                                onExportDiagnostics = {
+                                    scope.launch {
+                                        backupAndDiag.exportDiagnosticsZip()
                                     }
                                 }
                             )

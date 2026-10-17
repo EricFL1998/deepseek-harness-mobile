@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
@@ -69,6 +70,7 @@ fun ModernNavigationDrawerContent(
     onNavigateFiles: () -> Unit,
     onNavigateRuntime: () -> Unit,
     onNavigateApproval: () -> Unit = {},
+    onNavigateSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -167,6 +169,11 @@ fun ModernNavigationDrawerContent(
                 icon = Icons.Default.Security,
                 title = "系统审批中心",
                 onClick = onNavigateApproval
+            )
+            DrawerActionItem(
+                icon = Icons.Default.Settings,
+                title = "偏好与系统设置",
+                onClick = onNavigateSettings
             )
         }
 
