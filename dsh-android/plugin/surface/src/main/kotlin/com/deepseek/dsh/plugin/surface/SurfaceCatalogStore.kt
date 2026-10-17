@@ -46,6 +46,14 @@ class SurfaceCatalogStore {
         }
     }
 
+    fun addSurfaceItem(item: SurfaceItem) {
+        val current = _catalogFlow.value
+        val list = current.surfaces.toMutableList()
+        list.removeAll { it.pluginId == item.pluginId && it.slot == item.slot }
+        list.add(item)
+        _catalogFlow.value = current.copy(surfaces = list)
+    }
+
     /**
      * 将 DSH 官方 Slot 精确映射到手机端原生宿主承载位置
      */

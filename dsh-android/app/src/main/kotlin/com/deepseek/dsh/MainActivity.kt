@@ -3,6 +3,7 @@ package com.deepseek.dsh
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -405,6 +406,16 @@ fun MainAppHost(
                                 },
                                 onOpenSdui = {
                                     activePage = ActivePage.SDUI_SAMPLE
+                                },
+                                onInstallPlugin = { pkgName ->
+                                    val newSurface = SurfaceItem(
+                                        pluginId = pkgName,
+                                        slot = "conversation.composer.dock",
+                                        order = 10,
+                                        title = pkgName.substringAfterLast("/"),
+                                        kind = SurfaceKind.DOCK
+                                    )
+                                    surfaceStore.addSurfaceItem(newSurface)
                                 }
                             )
                         }
@@ -540,22 +551,58 @@ fun PluginsListScreen(
     surfaces: List<SurfaceItem>,
     onOpenSurface: (SurfaceItem) -> Unit,
     onOpenSdui: () -> Unit,
+    onInstallPlugin: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showInstallDialog by remember { mutableStateOf(false) }
+    var pluginPackageInput by remember { mutableStateOf("") }
+    var installStatusMessage by remember { mutableStateOf<String?>(null) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "插件生态与适配",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Text(
-            text = "现有插件零改动（Web 岛）+ 未来插件原生（SDUI）",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.secondary
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "插件生态与适配",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = "现有插件零改动（Web 岛）+ 未来插件原生（SDUI）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                onClick = { showInstallDialog = true },
+                modifier = Modifier.height(36.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Install Plugin",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "添加插件",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.padding(8.dp))
 
@@ -633,6 +680,82 @@ fun PluginsListScreen(
                 }
             }
         }
+    }
+
+    // 官方对齐：按包名/地址添加插件对话框
+    if (showInstallDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showInstallDialog = false
+                installStatusMessage = null
+            },
+            title = {
+                Text(text = "添加插件 (官方安装规范)")
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "输入插件 npm 包名（如 dsh-plugin-whale-pet 或 @author/plugin-name），即 README 安装命令中 dsh plugin add 之后的部分。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = pluginPackageInput,
+                        onValueChange = { pluginPackageInput = it },
+                        placeholder = { Text("例如 dsh-plugin-whale-pet") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "来源: 官方 npm / 国内镜像",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                pluginPackageInput = "dsh-plugin-whale-pet"
+                            }
+                        ) {
+                            Text("填入示例")
+                        }
+                    }
+                    installStatusMessage?.let { msg ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(text = msg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        if (pluginPackageInput.isNotBlank()) {
+                            onInstallPlugin(pluginPackageInput.trim())
+                            installStatusMessage = "已向本地 DSH Host 提交安装任务: ${pluginPackageInput.trim()}"
+                            pluginPackageInput = ""
+                        }
+                    }
+                ) {
+                    Text("安装")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        showInstallDialog = false
+                        installStatusMessage = null
+                    }
+                ) {
+                    Text("关闭")
+                }
+            }
+        )
     }
 }
 
