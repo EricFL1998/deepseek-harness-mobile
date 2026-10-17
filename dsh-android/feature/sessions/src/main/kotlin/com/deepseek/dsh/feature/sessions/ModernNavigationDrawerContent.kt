@@ -2,22 +2,17 @@ package com.deepseek.dsh.feature.sessions
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,7 +34,6 @@ import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.ViewKanban
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -62,7 +56,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.deepseek.dsh.core.model.SessionInfo
 
 data class SessionDisplayItem(
     val sessionId: String,
@@ -79,17 +72,8 @@ data class WorkspaceFolder(
 )
 
 /**
- * 像素级复刻参考图的官方纯黑高质感侧栏
- * 色彩与排版规范：
- * - 纯净暗黑背景: #111214 (参考图底色)
- * - 边框与极细分割线: #222428
- * - 新会话药丸框: #25272C
- * - 高亮会话选中背景: #1E2024
- * - 绿色运行小圆点: #22C55E
- * - 主字色: #ECECED
- * - 次级字色: #A3A4A8
- * - 弱化微字色: #64656A
- * - 蓝色 Accent: #3B7BF6
+ * 侧边栏抽屉：完全对齐应用 Material 3 统一色彩系统
+ * 严格跟随整个 App 的 surface / surfaceVariant / primary 配色体系，消除孤立纯黑色块。
  */
 @Composable
 fun ModernNavigationDrawerContent(
@@ -108,13 +92,14 @@ fun ModernNavigationDrawerContent(
     onNavigateSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val bgDrawer = Color(0xFF111214)
-    val btnNewChat = Color(0xFF26282D)
-    val textWhite = Color(0xFFEEEEEE)
-    val textGray = Color(0xFFA1A2A6)
-    val textDim = Color(0xFF65666B)
-    val lineSep = Color(0xFF1E2024)
-    val accentBlue = Color(0xFF3B7BF6)
+    // 动态遵循全局 MaterialTheme 主题色系
+    val bgDrawer = MaterialTheme.colorScheme.surface
+    val btnNewChat = MaterialTheme.colorScheme.surfaceVariant
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val textMuted = MaterialTheme.colorScheme.outline
+    val lineSep = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val accentPrimary = MaterialTheme.colorScheme.primary
     val greenDot = Color(0xFF22C55E)
 
     Column(
@@ -131,12 +116,11 @@ fun ModernNavigationDrawerContent(
                 .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // deepseek 极简圆形徽标
             Box(
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
-                    .background(Color.White),
+                    .background(accentPrimary),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -154,12 +138,12 @@ fun ModernNavigationDrawerContent(
                     letterSpacing = (-0.5).sp,
                     fontSize = 20.sp
                 ),
-                color = textWhite
+                color = textPrimary
             )
             Spacer(modifier = Modifier.width(6.dp))
             Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = Color(0xFF222428),
+                color = btnNewChat,
                 modifier = Modifier.padding(top = 1.dp)
             ) {
                 Text(
@@ -169,7 +153,7 @@ fun ModernNavigationDrawerContent(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = textGray,
+                    color = textSecondary,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                 )
             }
@@ -194,14 +178,14 @@ fun ModernNavigationDrawerContent(
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    tint = textWhite,
+                    tint = textPrimary,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "新会话",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = textWhite,
+                    color = textPrimary,
                     fontSize = 15.sp
                 )
             }
@@ -218,22 +202,22 @@ fun ModernNavigationDrawerContent(
                 icon = Icons.Outlined.Extension,
                 title = "插件",
                 onClick = onNavigatePlugins,
-                textColor = textWhite,
-                iconTint = textGray
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
             OfficialDrawerItem(
                 icon = Icons.Outlined.Schedule,
                 title = "自动化任务",
                 onClick = onNavigateSchedule,
-                textColor = textWhite,
-                iconTint = textGray
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
             OfficialDrawerItem(
                 icon = Icons.Outlined.ViewKanban,
                 title = "任务看板",
                 onClick = onNavigateKanban,
-                textColor = textWhite,
-                iconTint = textGray
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
         }
 
@@ -249,22 +233,22 @@ fun ModernNavigationDrawerContent(
             Text(
                 text = "工作区",
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = textDim,
+                color = textMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = textDim, modifier = Modifier.size(15.dp))
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = textMuted, modifier = Modifier.size(15.dp))
             }
             IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textDim, modifier = Modifier.size(15.dp))
+                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textMuted, modifier = Modifier.size(15.dp))
             }
             IconButton(onClick = onNavigateFiles, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textDim, modifier = Modifier.size(15.dp))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textMuted, modifier = Modifier.size(15.dp))
             }
         }
 
-        // 5. 树状工作区与会话列表 (自适应滚动，像素级贴合参考图)
+        // 5. 树状工作区与会话列表 (跟随全局色系)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -283,7 +267,7 @@ fun ModernNavigationDrawerContent(
                         Icon(
                             imageVector = if (folder.isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
                             contentDescription = null,
-                            tint = if (isCurrentFolder) accentBlue else textDim,
+                            tint = if (isCurrentFolder) accentPrimary else textMuted,
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -292,7 +276,7 @@ fun ModernNavigationDrawerContent(
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = if (isCurrentFolder) FontWeight.SemiBold else FontWeight.Normal
                             ),
-                            color = if (isCurrentFolder) textWhite else textGray,
+                            color = if (isCurrentFolder) textPrimary else textSecondary,
                             fontSize = 14.sp
                         )
                     }
@@ -303,7 +287,7 @@ fun ModernNavigationDrawerContent(
                         val isSelected = session.sessionId == selectedSessionId
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) Color(0xFF1E2025) else Color.Transparent,
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent,
                             onClick = { onSelectSession(session.sessionId) },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -329,7 +313,7 @@ fun ModernNavigationDrawerContent(
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
                                     ),
-                                    color = if (isSelected) textWhite else textGray,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else textSecondary,
                                     fontSize = 13.sp,
                                     maxLines = 1,
                                     modifier = Modifier.weight(1f)
@@ -338,7 +322,7 @@ fun ModernNavigationDrawerContent(
                                 Text(
                                     text = session.timeAgo,
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                    color = textDim
+                                    color = textMuted
                                 )
                             }
                         }
@@ -365,21 +349,21 @@ fun ModernNavigationDrawerContent(
             Icon(
                 imageVector = Icons.Default.Computer,
                 contentDescription = null,
-                tint = textGray,
+                tint = textSecondary,
                 modifier = Modifier.size(17.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = "Remote",
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal),
-                color = textWhite,
+                color = textPrimary,
                 fontSize = 14.sp
             )
         }
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // 7. 用户信息卡片 (完全贴合参考图底部：头像 + 用户名 + 右侧 [新版本] 胶囊)
+        // 7. 用户信息卡片 (完全融入全局主题)
         var showAccountMenu by remember { mutableStateOf(false) }
 
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -391,7 +375,7 @@ fun ModernNavigationDrawerContent(
                     .padding(horizontal = 6.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 用户头像 (参考图中的萌趣头像圆形底)
+                // 用户头像
                 Box(
                     modifier = Modifier
                         .size(32.dp)
@@ -410,16 +394,16 @@ fun ModernNavigationDrawerContent(
                 Text(
                     text = userName,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = textWhite,
+                    color = textPrimary,
                     fontSize = 14.sp,
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
 
-                // 右侧 "新版本" 胶囊按钮 (参考图深蓝高质感胶囊)
+                // 右侧 "新版本" 胶囊按钮
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF1B2333),
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier.height(26.dp)
                 ) {
                     Row(
@@ -429,14 +413,14 @@ fun ModernNavigationDrawerContent(
                         Icon(
                             imageVector = Icons.Default.Download,
                             contentDescription = null,
-                            tint = accentBlue,
+                            tint = accentPrimary,
                             modifier = Modifier.size(12.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "新版本",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                            color = accentBlue
+                            color = accentPrimary
                         )
                     }
                 }
@@ -446,12 +430,12 @@ fun ModernNavigationDrawerContent(
             DropdownMenu(
                 expanded = showAccountMenu,
                 onDismissRequest = { showAccountMenu = false },
-                modifier = Modifier.background(Color(0xFF1E2024))
+                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 DropdownMenuItem(
-                    text = { Text("设置", color = textWhite, fontSize = 14.sp) },
+                    text = { Text("设置", color = textPrimary, fontSize = 14.sp) },
                     leadingIcon = {
-                        Icon(Icons.Default.Settings, contentDescription = null, tint = textGray, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Settings, contentDescription = null, tint = textSecondary, modifier = Modifier.size(18.dp))
                     },
                     onClick = {
                         showAccountMenu = false
@@ -459,19 +443,19 @@ fun ModernNavigationDrawerContent(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("意见反馈", color = textWhite, fontSize = 14.sp) },
+                    text = { Text("意见反馈", color = textPrimary, fontSize = 14.sp) },
                     leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = textGray, modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = textSecondary, modifier = Modifier.size(18.dp))
                     },
                     onClick = {
                         showAccountMenu = false
                     }
                 )
-                HorizontalDivider(color = Color(0xFF282A2E))
+                HorizontalDivider(color = lineSep)
                 DropdownMenuItem(
-                    text = { Text("退出登录", color = Color(0xFFEF4444), fontSize = 14.sp) },
+                    text = { Text("退出登录", color = MaterialTheme.colorScheme.error, fontSize = 14.sp) },
                     leadingIcon = {
-                        Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                     },
                     onClick = {
                         showAccountMenu = false

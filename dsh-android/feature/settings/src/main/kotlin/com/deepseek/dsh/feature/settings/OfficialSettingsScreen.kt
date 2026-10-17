@@ -91,19 +91,19 @@ fun OfficialSettingsScreen(
     var activeSection by remember { mutableStateOf<SettingsSectionTab?>(initialSection) }
     var currentSettings by remember { mutableStateOf(settings) }
 
-    val darkBg = Color(0xFF161719)
-    val cardBg = Color(0xFF212327)
-    val textPrimary = Color(0xFFEEEEEE)
-    val textSecondary = Color(0xFF9E9EA4)
-    val textMuted = Color(0xFF6E7077)
-    val accentBlue = Color(0xFF3875F6)
+    val bgTheme = MaterialTheme.colorScheme.background
+    val cardBg = MaterialTheme.colorScheme.surface
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val textMuted = MaterialTheme.colorScheme.outline
+    val accentBlue = MaterialTheme.colorScheme.primary
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(darkBg)
+            .background(bgTheme)
     ) {
-        // 顶部官方风格 Header: 带标题与右侧返回/关闭
+        // 顶部 Header: 带标题与返回
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -135,7 +135,7 @@ fun OfficialSettingsScreen(
             }
         }
 
-        HorizontalDivider(color = Color(0xFF26282D), thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 1.dp)
 
         AnimatedContent(
             targetState = activeSection,
@@ -143,7 +143,7 @@ fun OfficialSettingsScreen(
             label = "settings_nav"
         ) { section ->
             if (section == null) {
-                // 1. 官方 Nav 分区主列表 (手机自适应纵向呈现，对齐官方 Nav Rail 的所有分类)
+                // 1. 官方 Nav 分区主列表 (跟随全局主题颜色)
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -175,7 +175,7 @@ fun OfficialSettingsScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(if (isMobileFeature) Color(0xFF2E3340) else Color(0xFF282A2E)),
+                                        .background(if (isMobileFeature) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -197,11 +197,11 @@ fun OfficialSettingsScreen(
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
-                                                color = Color(0xFF20283A)
+                                                color = MaterialTheme.colorScheme.primaryContainer
                                             ) {
                                                 Text(
                                                     text = "移动端",
-                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = accentBlue),
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer),
                                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                                 )
                                             }
@@ -224,7 +224,7 @@ fun OfficialSettingsScreen(
                     }
                 }
             } else {
-                // 2. 具体 Section 的详细配置面板
+                // 2. 具体 Section 的详细配置面板 (跟随全局主题颜色)
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -266,11 +266,11 @@ fun OfficialSettingsScreen(
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
-                                            color = Color(0xFF2C2F36)
+                                            color = MaterialTheme.colorScheme.primaryContainer
                                         ) {
                                             Text(
                                                 text = accountBalance,
-                                                color = accentBlue,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                             )
@@ -469,12 +469,12 @@ private fun OfficialSectionCard(
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-            color = Color(0xFF9E9EA4),
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
         )
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF212327),
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -502,16 +502,16 @@ private fun OfficialSettingRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFF9E9EA4),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = Color.White)
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF6E7077)
+                color = MaterialTheme.colorScheme.outline
             )
         }
     }
@@ -534,16 +534,16 @@ private fun OfficialSwitchRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = Color(0xFF9E9EA4),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = Color.White)
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF6E7077)
+                color = MaterialTheme.colorScheme.outline
             )
         }
         Switch(
@@ -552,3 +552,4 @@ private fun OfficialSwitchRow(
         )
     }
 }
+
