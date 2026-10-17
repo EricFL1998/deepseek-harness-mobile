@@ -26,6 +26,7 @@ android {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":runtime:bridge"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
