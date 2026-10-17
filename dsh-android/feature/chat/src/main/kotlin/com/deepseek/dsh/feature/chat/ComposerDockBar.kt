@@ -23,8 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.deepseek.dsh.core.model.SurfaceItem
+import com.deepseek.dsh.feature.chat.R
 
 /**
  * DSH 官方规范:
@@ -55,14 +57,14 @@ fun ComposerDockBar(
         // 1. DSH 官方 Activity Pill: 推理速率 (tok/s)
         DshStatPill(
             icon = Icons.Default.Speed,
-            label = "${stats.outputSpeedTokensPerSec} tok/s",
+            label = stringResource(R.string.stat_tok_per_sec, stats.outputSpeedTokensPerSec),
             onClick = {}
         )
 
         // 2. DSH 官方 Usage Pill: 上下文占用率与缓存命中率 (上下文 % · 缓存 %)
         DshStatPill(
             icon = Icons.Default.DataUsage,
-            label = "上下文 ${stats.contextPercent}% · 缓存 ${stats.cacheHitPercent}%",
+            label = stringResource(R.string.stat_context_cache, stats.contextPercent, stats.cacheHitPercent),
             onClick = {}
         )
 
@@ -114,3 +116,4 @@ fun DshStatPill(
         }
     }
 }
+

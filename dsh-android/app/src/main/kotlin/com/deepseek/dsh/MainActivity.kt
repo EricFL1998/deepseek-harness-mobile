@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.deepseek.dsh.core.designsystem.DshTheme
@@ -341,14 +342,14 @@ fun MainAppHost(
                     // 现代顶栏: 纯粹简洁标题栏 (参考截图 1 & 3: 左侧汉堡菜单，中间会话标题，右侧播报与新建)
                     ModernTopAppBar(
                         title = when (activePage) {
-                            ActivePage.CHAT -> sessions.find { it.sessionId == selectedSessionId }?.title ?: "DSH Agent"
-                            ActivePage.FILES -> "工作区文件"
-                            ActivePage.PLUGINS -> "插件生态"
-                            ActivePage.HOSTS -> "主机与连接中心"
-                            ActivePage.APPROVAL -> "系统审批中心"
-                            ActivePage.SETTINGS -> "设置与偏好"
-                            ActivePage.SDUI_SAMPLE -> "SDUI 原生渲染"
-                            ActivePage.RUNTIME -> "本地 Linux 运行时"
+                            ActivePage.CHAT -> sessions.find { it.sessionId == selectedSessionId }?.title ?: stringResource(R.string.app_name)
+                            ActivePage.FILES -> stringResource(R.string.nav_files)
+                            ActivePage.PLUGINS -> stringResource(R.string.nav_plugins)
+                            ActivePage.HOSTS -> stringResource(R.string.nav_hosts)
+                            ActivePage.APPROVAL -> stringResource(R.string.nav_approval)
+                            ActivePage.SETTINGS -> stringResource(R.string.nav_settings)
+                            ActivePage.SDUI_SAMPLE -> "SDUI"
+                            ActivePage.RUNTIME -> stringResource(R.string.nav_runtime)
                         },
                         showModeCapsule = false,
                         onMenuClick = { scope.launch { drawerState.open() } },
@@ -381,13 +382,14 @@ fun MainAppHost(
                                             content = text
                                         )
                                     )
+                                    val levelName = context.getString(reasoningLevel.labelResId)
                                     messages.add(
                                         ChatMessage(
                                             hostId = activeHostId,
                                             sessionId = selectedSessionId ?: "session-1",
                                             messageId = "asst_${System.currentTimeMillis()}",
                                             role = MessageRole.ASSISTANT,
-                                            content = "已收到指令并在手机本地 Linux 容器处理: \"$text\"。\n当前推理等级: ${reasoningLevel.label}。\n公有工作区真实路径: ${activeWorkspace.absolutePath}"
+                                            content = "[$levelName] Echo: \"$text\" (workspace: ${activeWorkspace.absolutePath})"
                                         )
                                     )
                                 },
@@ -587,11 +589,11 @@ fun PluginsListScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "插件生态与适配",
+                    text = stringResource(R.string.plugins_title),
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
-                    text = "现有插件零改动（Web 岛）+ 未来插件原生（SDUI）",
+                    text = stringResource(R.string.plugins_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -608,13 +610,13 @@ fun PluginsListScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Install Plugin",
+                        contentDescription = stringResource(R.string.action_add_plugin),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "添加插件",
+                        text = stringResource(R.string.action_add_plugin),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -655,7 +657,7 @@ fun PluginsListScreen(
                     )
                 }
                 androidx.compose.material3.Button(onClick = onOpenSdui) {
-                    Text("体验")
+                    Text(stringResource(R.string.action_try))
                 }
             }
         }
@@ -693,7 +695,7 @@ fun PluginsListScreen(
                         )
                     }
                     androidx.compose.material3.Button(onClick = { onOpenSurface(item) }) {
-                        Text(if (item.kind == SurfaceKind.OVERLAY) "浮层打开" else "打开")
+                        Text(if (item.kind == SurfaceKind.OVERLAY) stringResource(R.string.action_open_overlay) else stringResource(R.string.action_open))
                     }
                 }
             }
@@ -708,12 +710,12 @@ fun PluginsListScreen(
                 installStatusMessage = null
             },
             title = {
-                Text(text = "添加插件 (官方安装规范)")
+                Text(text = stringResource(R.string.plugin_dialog_title))
             },
             text = {
                 Column {
                     Text(
-                        text = "输入插件 npm 包名（如 dsh-plugin-whale-pet 或 @author/plugin-name），即 README 安装命令中 dsh plugin add 之后的部分。",
+                        text = stringResource(R.string.plugin_dialog_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -721,7 +723,7 @@ fun PluginsListScreen(
                     androidx.compose.material3.OutlinedTextField(
                         value = pluginPackageInput,
                         onValueChange = { pluginPackageInput = it },
-                        placeholder = { Text("例如 dsh-plugin-whale-pet") },
+                        placeholder = { Text(stringResource(R.string.plugin_dialog_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -732,16 +734,16 @@ fun PluginsListScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "来源: 官方 npm / 国内镜像",
+                            text = stringResource(R.string.plugin_dialog_source),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
                         androidx.compose.material3.TextButton(
                             onClick = {
-                                pluginPackageInput = "dsh-plugin-whale-pet"
+                                pluginPackageInput = "dsh-subscription-oauth"
                             }
                         ) {
-                            Text("填入示例")
+                            Text(stringResource(R.string.action_fill_example))
                         }
                     }
                     installStatusMessage?.let { msg ->
@@ -755,12 +757,13 @@ fun PluginsListScreen(
                     onClick = {
                         if (pluginPackageInput.isNotBlank()) {
                             onInstallPlugin(pluginPackageInput.trim())
-                            installStatusMessage = "已向本地 DSH Host 提交安装任务: ${pluginPackageInput.trim()}"
+                            val installedName = pluginPackageInput.trim()
+                            installStatusMessage = "OK: $installedName"
                             pluginPackageInput = ""
                         }
                     }
                 ) {
-                    Text("安装")
+                    Text(stringResource(R.string.action_install))
                 }
             },
             dismissButton = {
@@ -770,7 +773,7 @@ fun PluginsListScreen(
                         installStatusMessage = null
                     }
                 ) {
-                    Text("关闭")
+                    Text(stringResource(R.string.action_close))
                 }
             }
         )
@@ -794,13 +797,13 @@ fun RuntimeControlScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "本地 Linux 运行时控制",
+                text = stringResource(R.string.runtime_title),
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.padding(8.dp))
-            Text(text = "运行阶段: ${status.phase}")
-            Text(text = "端口: ${status.port ?: "未分配"}")
-            Text(text = "Token: ${status.token?.take(10)?.plus("...") ?: "无"}")
+            Text(text = stringResource(R.string.runtime_phase, status.phase))
+            Text(text = stringResource(R.string.runtime_port, status.port?.toString() ?: "--"))
+            Text(text = stringResource(R.string.runtime_token, status.token?.take(10)?.plus("...") ?: "--"))
 
             Spacer(modifier = Modifier.padding(16.dp))
 
@@ -810,7 +813,7 @@ fun RuntimeControlScreen(
                         runtimeManager.start("/storage/emulated/0/Documents/DSH-Workspace")
                     }
                 }) {
-                    Text("启动 DSH 容器")
+                    Text(stringResource(R.string.action_start_container))
                 }
             } else {
                 androidx.compose.material3.Button(onClick = {
@@ -818,7 +821,7 @@ fun RuntimeControlScreen(
                         runtimeManager.stop()
                     }
                 }) {
-                    Text("停止 DSH 容器")
+                    Text(stringResource(R.string.action_stop_container))
                 }
             }
         }

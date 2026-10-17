@@ -47,10 +47,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.deepseek.dsh.feature.runtime.R
 
 /**
  * 官方风格 App 首次打开引导页 (First-Run Landing / Onboarding Page)
@@ -121,7 +123,7 @@ fun OnboardingLandingScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "DeepSeek Harness",
+                        text = stringResource(R.string.landing_title),
                         style = MaterialTheme.typography.headlineLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp
@@ -132,7 +134,7 @@ fun OnboardingLandingScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "手机本地原生 Agent 运行时与完整插件生态",
+                        text = stringResource(R.string.landing_subtitle),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.Center
@@ -147,18 +149,18 @@ fun OnboardingLandingScreen(
                     ) {
                         FeatureHighlightRow(
                             icon = Icons.Default.Terminal,
-                            title = "本地 Linux 用户空间容器",
-                            subtitle = "Debian slim compact 工具链全保留，Node 24、Python、git 真机执行"
+                            title = stringResource(R.string.feature_container_title),
+                            subtitle = stringResource(R.string.feature_container_desc)
                         )
                         FeatureHighlightRow(
                             icon = Icons.Default.Folder,
-                            title = "手机真实目录工作区",
-                            subtitle = "直接读写内部存储公有文件夹，系统自带文件管理 App 原生可见"
+                            title = stringResource(R.string.feature_workspace_title),
+                            subtitle = stringResource(R.string.feature_workspace_desc)
                         )
                         FeatureHighlightRow(
                             icon = Icons.Default.Widgets,
-                            title = "全插件生态零改动",
-                            subtitle = "官方 26 个核心 Slot 原生映射，Web 岛与 SDUI 声明式渲染双兼容"
+                            title = stringResource(R.string.feature_plugins_title),
+                            subtitle = stringResource(R.string.feature_plugins_desc)
                         )
                     }
 
@@ -177,7 +179,7 @@ fun OnboardingLandingScreen(
                     ) {
                         Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("使用 DeepSeek 官方账号授权", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.action_oauth_signin), fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -191,7 +193,7 @@ fun OnboardingLandingScreen(
                     ) {
                         Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("输入 API Key 开始", fontSize = 16.sp)
+                        Text(stringResource(R.string.action_input_api_key), fontSize = 16.sp)
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -199,7 +201,7 @@ fun OnboardingLandingScreen(
                     TextButton(
                         onClick = { onComplete(null) }
                     ) {
-                        Text("稍后配置，直接体验本地环境", color = MaterialTheme.colorScheme.outline)
+                        Text(stringResource(R.string.action_skip_setup), color = MaterialTheme.colorScheme.outline)
                     }
                 }
 
@@ -215,13 +217,13 @@ fun OnboardingLandingScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "添加 API Key 开始使用",
+                        text = stringResource(R.string.api_key_title),
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onBackground
                     )
 
                     Text(
-                        text = "配置官方 DeepSeek 模型密钥，凭据将保存在手机 Keystore 加密存储中。",
+                        text = stringResource(R.string.api_key_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.secondary,
                         textAlign = TextAlign.Center,
@@ -231,8 +233,8 @@ fun OnboardingLandingScreen(
                     OutlinedTextField(
                         value = apiKeyInput,
                         onValueChange = { apiKeyInput = it },
-                        label = { Text("API 密钥 (sk-...)") },
-                        placeholder = { Text("例如 sk-dsh...") },
+                        label = { Text(stringResource(R.string.api_key_label)) },
+                        placeholder = { Text("sk-...") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp)
@@ -252,7 +254,7 @@ fun OnboardingLandingScreen(
                             .fillMaxWidth()
                             .height(50.dp)
                     ) {
-                        Text("保存并进入工作区", fontSize = 16.sp)
+                        Text(stringResource(R.string.action_save_continue), fontSize = 16.sp)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -260,7 +262,7 @@ fun OnboardingLandingScreen(
                     TextButton(
                         onClick = { step = OnboardingStep.WELCOME }
                     ) {
-                        Text("返回上一页")
+                        Text(stringResource(R.string.action_back))
                     }
                 }
 
@@ -316,3 +318,4 @@ fun FeatureHighlightRow(
         }
     }
 }
+

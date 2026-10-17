@@ -50,19 +50,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.SessionInfo
+import com.deepseek.dsh.feature.sessions.R
 
 /**
  * 现代侧边抽屉面板（对齐参考截图 1：顶部用户信息、功能入口清单、项目目录、历史会话、底部快捷栏）
  */
 @Composable
 fun ModernNavigationDrawerContent(
-    userName: String = "DeepSeek 用户",
-    userTag: String = "官方 OAuth",
-    accountBalance: String = "¥60.00",
+    userName: String = "",
+    userTag: String = "",
+    accountBalance: String = "¥0.00",
     sessions: List<SessionInfo>,
     selectedSessionId: String?,
     onSelectSession: (SessionInfo) -> Unit,
@@ -74,6 +76,9 @@ fun ModernNavigationDrawerContent(
     onNavigateSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val displayUserName = if (userName.isNotBlank()) userName else stringResource(R.string.drawer_user_name)
+    val displayUserTag = if (userTag.isNotBlank()) userTag else stringResource(R.string.drawer_official_tag)
+
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -105,7 +110,7 @@ fun ModernNavigationDrawerContent(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = userName,
+                    text = displayUserName,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -119,14 +124,14 @@ fun ModernNavigationDrawerContent(
                         color = MaterialTheme.colorScheme.primaryContainer,
                     ) {
                         Text(
-                            text = userTag,
+                            text = displayUserTag,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                     Text(
-                        text = "余额: $accountBalance",
+                        text = stringResource(R.string.drawer_balance, accountBalance),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -143,7 +148,7 @@ fun ModernNavigationDrawerContent(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "New Chat",
+                        contentDescription = stringResource(R.string.nav_new_session),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
@@ -151,46 +156,46 @@ fun ModernNavigationDrawerContent(
             }
         }
 
-        // 2. 核心功能入口清单 (参考截图 1: 发现、定时任务、远程控制、插件、邀请)
+        // 2. 核心功能入口清单
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             DrawerActionItem(
                 icon = Icons.Default.Explore,
-                title = "插件发现与生态",
+                title = stringResource(R.string.drawer_nav_plugins),
                 onClick = onNavigatePlugins
             )
             DrawerActionItem(
                 icon = Icons.Default.Schedule,
-                title = "定时自动化任务",
+                title = stringResource(R.string.drawer_nav_schedule),
                 onClick = {}
             )
             DrawerActionItem(
                 icon = Icons.Default.Computer,
-                title = "远程主机控制",
+                title = stringResource(R.string.drawer_nav_hosts),
                 onClick = onNavigateRuntime
             )
             DrawerActionItem(
                 icon = Icons.Default.Extension,
-                title = "内置 Surface 适配",
+                title = stringResource(R.string.drawer_nav_surface),
                 onClick = onNavigatePlugins
             )
             DrawerActionItem(
                 icon = Icons.Default.Security,
-                title = "系统审批中心",
+                title = stringResource(R.string.drawer_nav_approvals),
                 onClick = onNavigateApproval
             )
             DrawerActionItem(
                 icon = Icons.Default.Settings,
-                title = "偏好与系统设置",
+                title = stringResource(R.string.drawer_nav_settings),
                 onClick = onNavigateSettings
             )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 3. 项目/工作区目录折叠入口 (参考截图 1)
+        // 3. 项目/工作区目录折叠入口
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -200,7 +205,7 @@ fun ModernNavigationDrawerContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "项目与真实工作区",
+                text = stringResource(R.string.drawer_section_project),
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
@@ -216,7 +221,7 @@ fun ModernNavigationDrawerContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "历史会话",
+            text = stringResource(R.string.drawer_section_history),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -269,12 +274,11 @@ fun ModernNavigationDrawerContent(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
-        // 5. 底部搜索栏与快捷按键 (参考截图 1: 搜索胶囊 + 扫描/配对 + 通知)
+        // 5. 底部搜索栏与快捷按键
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 搜索胶囊
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
@@ -287,13 +291,13 @@ fun ModernNavigationDrawerContent(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
+                        contentDescription = stringResource(R.string.action_search),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "搜索",
+                        text = stringResource(R.string.action_search),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -302,7 +306,6 @@ fun ModernNavigationDrawerContent(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // 远程扫码配对
             IconButton(onClick = {}, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Default.QrCodeScanner,
@@ -311,7 +314,6 @@ fun ModernNavigationDrawerContent(
                 )
             }
 
-            // 通知
             IconButton(onClick = {}, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Default.Notifications,
@@ -351,3 +353,4 @@ fun DrawerActionItem(
         )
     }
 }
+

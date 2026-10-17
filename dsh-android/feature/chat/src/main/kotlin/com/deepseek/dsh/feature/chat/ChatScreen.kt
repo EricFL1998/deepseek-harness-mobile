@@ -62,16 +62,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.MessageRole
+import com.deepseek.dsh.feature.chat.R
 
-enum class ReasoningLevel(val label: String) {
-    FAST("快速"),
-    DEEP_THINK("深度思考"),
-    MAX_REASONING("超强推理")
+enum class ReasoningLevel(val labelResId: Int) {
+    FAST(R.string.reasoning_fast),
+    DEEP_THINK(R.string.reasoning_deep_think),
+    MAX_REASONING(R.string.reasoning_max)
 }
 
 /**
@@ -143,7 +145,7 @@ fun ModernChatScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "深度思考与工具执行中...",
+                                text = stringResource(R.string.chat_thinking),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -216,12 +218,12 @@ fun EmptyWelcomeView(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "嗨！我是运行在手机本地的 DSH Agent",
+            text = stringResource(R.string.chat_welcome_title),
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "今天要在手机本地做点什么？",
+            text = stringResource(R.string.chat_welcome_desc),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -235,17 +237,18 @@ fun EmptyWelcomeView(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            QuickChip(icon = Icons.Default.Folder, label = "新建本地工作区") {
-                onChipClick("请帮我在本地真实目录中新建一个工作区并初始化")
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            QuickChip(icon = Icons.Default.Folder, label = stringResource(R.string.chip_init_workspace)) {
+                onChipClick(ctx.getString(R.string.chip_init_workspace))
             }
-            QuickChip(icon = Icons.Default.Description, label = "整理手机文档") {
-                onChipClick("请检查 /workspace 中的文件并生成摘要报告")
+            QuickChip(icon = Icons.Default.Description, label = stringResource(R.string.chip_organize_docs)) {
+                onChipClick(ctx.getString(R.string.chip_organize_docs))
             }
-            QuickChip(icon = Icons.Default.Schedule, label = "定时自动化") {
-                onChipClick("为我创建一个每晚执行的整理计划任务")
+            QuickChip(icon = Icons.Default.Schedule, label = stringResource(R.string.chip_automation)) {
+                onChipClick(ctx.getString(R.string.chip_automation))
             }
-            QuickChip(icon = Icons.Default.Build, label = "运行终端命令") {
-                onChipClick("查看本地 Linux 容器环境中的 Python 和 git 版本")
+            QuickChip(icon = Icons.Default.Build, label = stringResource(R.string.chip_run_cli)) {
+                onChipClick(ctx.getString(R.string.chip_run_cli))
             }
         }
     }
@@ -331,7 +334,7 @@ fun ModernMessageItem(message: ChatMessage) {
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "已在本地执行系统工具与环境准备",
+                                text = stringResource(R.string.tool_executed_summary),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -393,7 +396,7 @@ fun ModernMessageItem(message: ChatMessage) {
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = "本地处理",
+                        text = stringResource(R.string.tag_local_processing),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -454,7 +457,7 @@ fun BottomInputBar(
                         onValueChange = onInputChange,
                         placeholder = {
                             Text(
-                                text = "输入消息，给本地 Agent 下达指令...",
+                                text = stringResource(R.string.chat_input_placeholder),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -560,7 +563,7 @@ fun BottomInputBar(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "推理: ${reasoningLevel.label}",
+                                text = stringResource(reasoningLevel.labelResId),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

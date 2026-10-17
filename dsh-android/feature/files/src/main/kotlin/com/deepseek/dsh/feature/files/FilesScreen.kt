@@ -22,7 +22,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.deepseek.dsh.feature.files.R
 
 /**
  * v4.0 设计文档 §6.1 & §8.1: 原生文件浏览器界面
@@ -40,11 +42,11 @@ fun FilesScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "工作区文件 (手机真实目录)",
+            text = stringResource(R.string.files_title),
             style = MaterialTheme.typography.titleLarge
         )
         Text(
-            text = "挂载至容器: /workspace | 路径: $currentPath",
+            text = stringResource(R.string.files_subtitle, currentPath),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.secondary
         )
@@ -59,7 +61,7 @@ fun FilesScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "工作区为空，本地 Agent 生成的产物将直接在此展示",
+                    text = stringResource(R.string.files_empty),
                     color = MaterialTheme.colorScheme.outline
                 )
             }
@@ -89,7 +91,7 @@ fun FilesScreen(
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = if (file.isDirectory) "文件夹" else "${file.sizeBytes / 1024} KB",
+                                    text = if (file.isDirectory) stringResource(R.string.files_folder) else "${file.sizeBytes / 1024} KB",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.outline
                                 )

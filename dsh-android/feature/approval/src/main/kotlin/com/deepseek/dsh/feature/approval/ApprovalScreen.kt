@@ -34,19 +34,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.deepseek.dsh.feature.approval.R
 
 /**
  * v4.0 设计文档 §6.5: 审批与提问状态机模型
  * Pending -> Approve/Deny -> Submitting -> Confirmed/Failed
  */
-enum class ApprovalStatus {
-    PENDING,
-    SUBMITTING,
-    CONFIRMED,
-    REJECTED
+enum class ApprovalStatus(val labelResId: Int) {
+    PENDING(R.string.approval_status_pending),
+    SUBMITTING(R.string.approval_status_submitting),
+    CONFIRMED(R.string.approval_status_confirmed),
+    REJECTED(R.string.approval_status_rejected)
 }
 
 data class ApprovalItem(
@@ -80,11 +82,11 @@ fun ApprovalScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
-                    text = "系统与高危操作审批中心",
+                    text = stringResource(R.string.approval_title),
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
-                    text = "严格限制 Agent 行为，手机端操作由你掌控 (v4.0 §6.5)",
+                    text = stringResource(R.string.approval_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -99,7 +101,7 @@ fun ApprovalScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "暂无待审批的高危工具调用或外部写操作",
+                    text = stringResource(R.string.approval_empty),
                     color = MaterialTheme.colorScheme.outline
                 )
             }
@@ -155,12 +157,7 @@ fun ApprovalCard(
                     }
                 ) {
                     Text(
-                        text = when (item.status) {
-                            ApprovalStatus.PENDING -> "待确认"
-                            ApprovalStatus.SUBMITTING -> "提交中"
-                            ApprovalStatus.CONFIRMED -> "已通过"
-                            ApprovalStatus.REJECTED -> "已拒绝"
-                        },
+                        text = stringResource(item.status.labelResId),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
@@ -201,13 +198,13 @@ fun ApprovalCard(
                     OutlinedButton(onClick = onDeny) {
                         Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("拒绝执行")
+                        Text(stringResource(R.string.action_deny))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = onApprove) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("批准运行")
+                        Text(stringResource(R.string.action_approve))
                     }
                 }
             } else if (item.status == ApprovalStatus.SUBMITTING) {
@@ -218,7 +215,7 @@ fun ApprovalCard(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "正在通知本地 Agent 确认...", style = MaterialTheme.typography.bodySmall)
+                    Text(text = stringResource(R.string.approval_status_submitting), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

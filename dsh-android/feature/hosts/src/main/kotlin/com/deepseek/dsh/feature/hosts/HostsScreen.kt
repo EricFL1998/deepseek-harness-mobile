@@ -35,9 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.deepseek.dsh.core.model.HostDescriptor
 import com.deepseek.dsh.core.model.HostKind
+import com.deepseek.dsh.feature.hosts.R
 
 /**
  * v4.0 设计文档 §11.1 & §11.3:
@@ -62,11 +64,11 @@ fun HostsScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "主机与连接中心",
+                    text = stringResource(R.string.hosts_title),
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
-                    text = "本机优先；远程连接只是可选功能 (v4.0 §11)",
+                    text = stringResource(R.string.hosts_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -89,7 +91,7 @@ fun HostsScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "扫码配对",
+                        text = stringResource(R.string.action_scan_pair),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -156,7 +158,7 @@ fun HostsScreen(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                     ) {
                                         Text(
-                                            text = "本地环境",
+                                            text = stringResource(R.string.host_tag_local),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -166,7 +168,7 @@ fun HostsScreen(
                             }
                             Text(
                                 text = when (host) {
-                                    is HostDescriptor.Local -> "127.0.0.1 (本机用户空间)"
+                                    is HostDescriptor.Local -> stringResource(R.string.host_desc_local)
                                     is HostDescriptor.Remote -> host.baseUrl
                                 },
                                 style = MaterialTheme.typography.bodySmall,

@@ -35,8 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.deepseek.dsh.feature.settings.R
 
 /**
  * v4.0 设计文档 §6.1 & §13.2: 手机端设置主界面
@@ -45,14 +47,15 @@ import androidx.compose.ui.unit.dp
 fun SettingsScreen(
     settings: AppSettings,
     onUpdateSettings: (AppSettings) -> Unit,
-    accountName: String = "DeepSeek 官方账号",
-    accountBalance: String = "¥60.00",
+    accountName: String = "",
+    accountBalance: String = "¥0.00",
     onManageAccount: () -> Unit = {},
     onCreateBackup: () -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var currentSettings by remember { mutableStateOf(settings) }
+    val displayAccountName = if (accountName.isNotBlank()) accountName else stringResource(R.string.drawer_user_name)
 
     LazyColumn(
         modifier = modifier
@@ -62,11 +65,11 @@ fun SettingsScreen(
     ) {
         item {
             Text(
-                text = "设置与偏好",
+                text = stringResource(R.string.settings_title),
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
             )
             Text(
-                text = "模型、本地 Linux 容器策略、文件工作区与安全防护",
+                text = stringResource(R.string.settings_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.secondary
             )
@@ -75,11 +78,11 @@ fun SettingsScreen(
 
         // 1. 官方 DeepSeek 账号状态与余额
         item {
-            SettingsGroup(title = "账号与授权 (官方 OAuth)") {
+            SettingsGroup(title = stringResource(R.string.settings_group_account)) {
                 SettingsRow(
                     icon = Icons.Default.Security,
-                    title = accountName,
-                    subtitle = "当前状态: 已通过官方 OAuth 授权 · 余额: $accountBalance",
+                    title = displayAccountName,
+                    subtitle = stringResource(R.string.drawer_balance, accountBalance),
                     onClick = onManageAccount
                 )
             }
@@ -87,29 +90,29 @@ fun SettingsScreen(
 
         // 2. 模型与推理设置
         item {
-            SettingsGroup(title = "模型与推理") {
+            SettingsGroup(title = stringResource(R.string.settings_group_model)) {
                 SettingsRow(
                     icon = Icons.Default.AutoAwesome,
-                    title = "默认模型",
+                    title = stringResource(R.string.setting_default_model),
                     subtitle = currentSettings.defaultModel,
                     onClick = {}
                 )
                 SettingsRow(
                     icon = Icons.Default.AutoAwesome,
-                    title = "默认推理等级",
+                    title = stringResource(R.string.setting_default_reasoning),
                     subtitle = currentSettings.defaultReasoningLevel,
                     onClick = {}
                 )
             }
         }
 
-        // 2. 本地 Linux 运行时生命周期 (§4.4)
+        // 3. 本地 Linux 运行时生命周期 (§4.4)
         item {
-            SettingsGroup(title = "本地容器与生命周期") {
+            SettingsGroup(title = stringResource(R.string.settings_group_lifecycle)) {
                 SettingsSwitchRow(
                     icon = Icons.Default.PowerSettingsNew,
-                    title = "空闲自动休眠",
-                    subtitle = "空闲 ${currentSettings.idleStopMinutes} 分钟后停止容器，节省手机电量",
+                    title = stringResource(R.string.setting_idle_sleep),
+                    subtitle = stringResource(R.string.setting_idle_sleep_desc, currentSettings.idleStopMinutes),
                     checked = currentSettings.idleStopMinutes > 0,
                     onCheckedChange = { checked ->
                         currentSettings = currentSettings.copy(idleStopMinutes = if (checked) 5 else 0)
@@ -118,8 +121,8 @@ fun SettingsScreen(
                 )
                 SettingsSwitchRow(
                     icon = Icons.Default.PowerSettingsNew,
-                    title = "后台长任务守护",
-                    subtitle = "任务执行期间启用前台服务与唤醒锁，防止系统杀后台",
+                    title = stringResource(R.string.setting_keep_alive),
+                    subtitle = stringResource(R.string.setting_keep_alive_desc),
                     checked = currentSettings.keepAliveOnTask,
                     onCheckedChange = { checked ->
                         currentSettings = currentSettings.copy(keepAliveOnTask = checked)
@@ -129,25 +132,25 @@ fun SettingsScreen(
             }
         }
 
-        // 3. 文件工作区 (§8.1)
+        // 4. 文件工作区 (§8.1)
         item {
-            SettingsGroup(title = "文件与存储") {
+            SettingsGroup(title = stringResource(R.string.settings_group_storage)) {
                 SettingsRow(
                     icon = Icons.Default.Folder,
-                    title = "工作区真实目录",
+                    title = stringResource(R.string.setting_workspace_path),
                     subtitle = currentSettings.workspacePath,
                     onClick = {}
                 )
             }
         }
 
-        // 4. 安全防护与审计 (§12)
+        // 5. 安全防护与审计 (§12)
         item {
-            SettingsGroup(title = "系统安全与防护") {
+            SettingsGroup(title = stringResource(R.string.settings_group_security)) {
                 SettingsSwitchRow(
                     icon = Icons.Default.Security,
-                    title = "高危工具二次确认",
-                    subtitle = "执行覆盖文件、Shell、系统硬件等高危动作前必须弹窗审批",
+                    title = stringResource(R.string.setting_high_risk_confirm),
+                    subtitle = stringResource(R.string.setting_high_risk_confirm_desc),
                     checked = currentSettings.highRiskConfirm,
                     onCheckedChange = { checked ->
                         currentSettings = currentSettings.copy(highRiskConfirm = checked)
@@ -157,24 +160,20 @@ fun SettingsScreen(
             }
         }
 
-        // 5. 备份与诊断导出 (§4.5 & §4.6)
+        // 6. 备份与诊断导出 (§4.5 & §4.6)
         item {
-            SettingsGroup(title = "维护与诊断") {
+            SettingsGroup(title = stringResource(R.string.settings_group_maintenance)) {
                 SettingsRow(
                     icon = Icons.Default.Archive,
-                    title = "创建用户数据快照",
-                    subtitle = "备份 \$DSH_HOME (会话、配置、凭据与插件)",
-                    onClick = {
-                        onCreateBackup()
-                    }
+                    title = stringResource(R.string.setting_create_backup),
+                    subtitle = stringResource(R.string.setting_create_backup_desc),
+                    onClick = onCreateBackup
                 )
                 SettingsRow(
                     icon = Icons.Default.BugReport,
-                    title = "导出脱敏诊断日志包",
-                    subtitle = "自动对 token 和密钥脱敏，导出 ZIP 便于排障",
-                    onClick = {
-                        onExportDiagnostics()
-                    }
+                    title = stringResource(R.string.setting_export_diag),
+                    subtitle = stringResource(R.string.setting_export_diag_desc),
+                    onClick = onExportDiagnostics
                 )
             }
         }
