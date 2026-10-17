@@ -14,7 +14,7 @@ class SurfaceCatalogTest {
 
         val pageItem = SurfaceItem(
             pluginId = "dsh-context",
-            slot = "settings.page",
+            slot = "settings.general.item",
             kind = SurfaceKind.PAGE
         )
         val placementPage = store.resolvePlacement(pageItem)
@@ -36,6 +36,14 @@ class SurfaceCatalogTest {
         )
         val placementDock = store.resolvePlacement(dockItem)
         assertEquals(PlacementDestination.COMPOSER_DOCK, placementDock.destination)
+
+        val toolViewItem = SurfaceItem(
+            pluginId = "dsh-genui",
+            slot = "tool.call.toolview",
+            kind = SurfaceKind.PAGE
+        )
+        val placementTool = store.resolvePlacement(toolViewItem)
+        assertEquals(PlacementDestination.TOOL_VIEW_SHEET, placementTool.destination)
     }
 
     @Test

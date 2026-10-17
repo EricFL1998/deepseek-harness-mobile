@@ -26,16 +26,18 @@
 
     const originalRegister = target.register;
     if (typeof originalRegister === 'function') {
-      target.register = function(slotName, component, options) {
-        const pluginId = (options && options.pluginId) || (component && component.pluginId) || "unknown";
-        const order = (options && options.order) || 0;
-        const title = (options && options.title) || (component && component.title) || null;
+      target.register = function(slotDescriptor, component, options) {
+        let slotName = typeof slotDescriptor === 'string' ? slotDescriptor : (slotDescriptor && slotDescriptor.name);
+        const pluginId = (options && options.pluginId) || (slotDescriptor && slotDescriptor.id) || (component && component.pluginId) || "unknown";
+        const order = (options && options.order) || (slotDescriptor && slotDescriptor.order) || 0;
+        const title = (options && options.title) || (slotDescriptor && slotDescriptor.title) || (component && component.title) || null;
 
         let kind = "page";
         if (slotName.startsWith("sidebar")) kind = "sidebar";
         else if (slotName.includes("dock") || slotName.includes("composer")) kind = "dock";
-        else if (slotName.includes("overlay")) kind = "overlay";
-        else if (slotName.includes("message")) kind = "message-action";
+        else if (slotName.includes("overlay") || slotName.includes("toast")) kind = "overlay";
+        else if (slotName.includes("message") || slotName.includes("assistant-actions")) kind = "message-action";
+        else if (slotName.includes("toolview") || slotName.includes("tool.call")) kind = "tool";
         else if (slotName.includes("theme")) kind = "theme";
 
         const item = {

@@ -1,5 +1,6 @@
 package com.deepseek.dsh.plugin.surface
 
+import com.deepseek.dsh.core.model.DshSlotRegistry
 import com.deepseek.dsh.core.model.SurfaceCatalog
 import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.core.model.SurfaceKind
@@ -10,14 +11,16 @@ import kotlinx.serialization.json.Json
 
 /**
  * v4.0 设计文档 §7.4 & §7.5:
- * Surface 目录中心与原生放置决策
+ * Surface 目录中心与原生放置决策，对齐官方全部核心 Slot
  */
 enum class PlacementDestination {
     SETTING_SHEET,    // 设置页 (Sheet)
     SIDEBAR_PANEL,    // 侧栏面板
-    COMPOSER_DOCK,    // 输入框菜单
-    PLUGIN_OVERLAY,   // 插件浮层 (悬浮/收起)
+    COMPOSER_DOCK,    // 输入框菜单 / 底部药丸栏
+    COMPOSER_OVERLAY, // 输入框悬浮气泡
+    PLUGIN_OVERLAY,   // 顶层插件浮层 (悬浮/收起/气泡)
     MESSAGE_ACTION,   // 消息长按动作
+    TOOL_VIEW_SHEET,  // 工具卡片专属弹窗
     WEB_ISLAND_FULL   // 整岛回退
 }
 
@@ -43,14 +46,36 @@ class SurfaceCatalogStore {
         }
     }
 
+    /**
+     * 将 DSH 官方 Slot 精确映射到手机端原生宿主承载位置
+     */
     fun resolvePlacement(item: SurfaceItem): SurfacePlacement {
-        val dest = when (item.kind) {
-            SurfaceKind.PAGE -> PlacementDestination.SETTING_SHEET
-            SurfaceKind.SIDEBAR -> PlacementDestination.SIDEBAR_PANEL
-            SurfaceKind.DOCK -> PlacementDestination.COMPOSER_DOCK
-            SurfaceKind.OVERLAY -> PlacementDestination.PLUGIN_OVERLAY
-            SurfaceKind.MESSAGE_ACTION -> PlacementDestination.MESSAGE_ACTION
-            else -> PlacementDestination.WEB_ISLAND_FULL
+        val dest = when (item.slot) {
+            DshSlotRegistry.CONVERSATION_COMPOSER_DOCK -> PlacementDestination.COMPOSER_DOCK
+            DshSlotRegistry.CONVERSATION_INPUT_DOCK -> PlacementDestination.COMPOSER_DOCK
+            DshSlotRegistry.CONVERSATION_INPUT_OVERLAY -> PlacementDestination.COMPOSER_OVERLAY
+            DshSlotRegistry.CONVERSATION_CHAT_ASSISTANT_ACTIONS,
+            DshSlotRegistry.CONVERSATION_CHAT_TURN_TAIL -> PlacementDestination.MESSAGE_ACTION
+            DshSlotRegistry.TOOL_CALL_TOOLVIEW,
+            DshSlotRegistry.TOOL_CALL_IMAGES -> PlacementDestination.TOOL_VIEW_SHEET
+            DshSlotRegistry.SIDEBAR_WORKSPACES,
+            DshSlotRegistry.SIDEBAR_PANELLIST,
+            DshSlotRegistry.SIDEBAR_RIGHT_PANE_TAB,
+            DshSlotRegistry.SIDEBAR_WORKSPACES_SESSION_MENU_ITEM -> PlacementDestination.SIDEBAR_PANEL
+            DshSlotRegistry.SHELL_OVERLAY -> PlacementDestination.PLUGIN_OVERLAY
+            DshSlotRegistry.SETTINGS_SECTION,
+            DshSlotRegistry.SETTINGS_GENERAL_ITEM,
+            DshSlotRegistry.PLUGINS_TAB -> PlacementDestination.SETTING_SHEET
+            else -> {
+                when (item.kind) {
+                    SurfaceKind.PAGE -> PlacementDestination.SETTING_SHEET
+                    SurfaceKind.SIDEBAR -> PlacementDestination.SIDEBAR_PANEL
+                    SurfaceKind.DOCK -> PlacementDestination.COMPOSER_DOCK
+                    SurfaceKind.OVERLAY -> PlacementDestination.PLUGIN_OVERLAY
+                    SurfaceKind.MESSAGE_ACTION -> PlacementDestination.MESSAGE_ACTION
+                    else -> PlacementDestination.WEB_ISLAND_FULL
+                }
+            }
         }
         return SurfacePlacement(
             item = item,
