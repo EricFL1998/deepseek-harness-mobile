@@ -117,6 +117,13 @@ class MainActivity : ComponentActivity() {
                         "order": 2,
                         "title": "桌宠与系统状态浮层",
                         "kind": "OVERLAY"
+                    },
+                    {
+                        "pluginId": "dsh-meme",
+                        "slot": "conversation.composer.dock",
+                        "order": 3,
+                        "title": "表情包插件",
+                        "kind": "DOCK"
                     }
                 ]
             }
@@ -274,6 +281,7 @@ fun MainAppHost(
                 ) {
                     when (activePage) {
                         ActivePage.CHAT -> {
+                            val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK }
                             ModernChatScreen(
                                 messages = messages,
                                 onSendMessage = { text ->
@@ -297,6 +305,10 @@ fun MainAppHost(
                                     )
                                 },
                                 selectedModel = "DeepSeek-V3",
+                                dockPluginSurfaces = dockPlugins,
+                                onDockPluginClick = { pluginItem ->
+                                    activeSheetSurface = pluginItem
+                                },
                                 onOpenAttachmentMenu = {
                                     activePage = ActivePage.FILES
                                 }

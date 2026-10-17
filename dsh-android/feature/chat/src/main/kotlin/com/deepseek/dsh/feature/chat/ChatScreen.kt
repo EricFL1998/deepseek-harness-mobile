@@ -79,6 +79,8 @@ fun ModernChatScreen(
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
     onModelClick: () -> Unit = {},
+    dockPluginSurfaces: List<com.deepseek.dsh.core.model.SurfaceItem> = emptyList(),
+    onDockPluginClick: (com.deepseek.dsh.core.model.SurfaceItem) -> Unit = {},
     isThinking: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -143,7 +145,7 @@ fun ModernChatScreen(
             }
         }
 
-        // 底部悬浮控制台与药丸输入栏（参考截图 2 & 3）
+        // 底部悬浮控制台与药丸输入栏（参考截图 2 & 3，并融合 DSH composer.dock pills）
         BottomInputBar(
             inputText = inputText,
             onInputChange = { inputText = it },
@@ -156,7 +158,9 @@ fun ModernChatScreen(
             },
             onOpenAttachmentMenu = onOpenAttachmentMenu,
             selectedModel = selectedModel,
-            onModelClick = onModelClick
+            onModelClick = onModelClick,
+            dockPluginSurfaces = dockPluginSurfaces,
+            onDockPluginClick = onDockPluginClick
         )
     }
 }
@@ -390,7 +394,7 @@ fun ModernMessageItem(message: ChatMessage) {
 }
 
 /**
- * 底部胶囊输入栏（参考截图 2 & 3）
+ * 底部胶囊输入栏（参考截图 2 & 3，并融合 DSH composer.dock pills）
  */
 @Composable
 fun BottomInputBar(
@@ -399,14 +403,23 @@ fun BottomInputBar(
     onSend: () -> Unit,
     onOpenAttachmentMenu: () -> Unit,
     selectedModel: String,
-    onModelClick: () -> Unit
+    onModelClick: () -> Unit,
+    dockPluginSurfaces: List<com.deepseek.dsh.core.model.SurfaceItem> = emptyList(),
+    onDockPluginClick: (com.deepseek.dsh.core.model.SurfaceItem) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
+        // DSH 规范: 输入框上方的 composer.dock pills (性能/Token计量与插件扩展药丸)
+        ComposerDockBar(
+            dockPluginSurfaces = dockPluginSurfaces,
+            onPluginClick = onDockPluginClick,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+
         // 输入框卡片：高圆角 M3 悬浮药丸形态
         Surface(
             shape = RoundedCornerShape(28.dp),
