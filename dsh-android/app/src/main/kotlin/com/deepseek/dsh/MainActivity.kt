@@ -148,6 +148,7 @@ enum class ActivePage {
     FILES,
     PLUGINS,
     HOSTS,
+    APPROVAL,
     SDUI_SAMPLE,
     RUNTIME
 }
@@ -222,6 +223,17 @@ fun MainAppHost(
     val messages = remember {
         mutableStateListOf<ChatMessage>()
     }
+    val pendingApprovals = remember {
+        mutableStateListOf(
+            com.deepseek.dsh.feature.approval.ApprovalItem(
+                id = "appr_1",
+                title = "执行外部 Shell 脚本",
+                command = "bash ./deploy.sh --clean",
+                dangerReason = "该操作可能覆盖工作区现有构建目录与未提交代码",
+                status = com.deepseek.dsh.feature.approval.ApprovalStatus.PENDING
+            )
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
@@ -263,6 +275,10 @@ fun MainAppHost(
                     onNavigateRuntime = {
                         activePage = ActivePage.HOSTS
                         scope.launch { drawerState.close() }
+                    },
+                    onNavigateApproval = {
+                        activePage = ActivePage.APPROVAL
+                        scope.launch { drawerState.close() }
                     }
                 )
             }
@@ -276,6 +292,7 @@ fun MainAppHost(
                             ActivePage.FILES -> "工作区文件"
                             ActivePage.PLUGINS -> "插件生态"
                             ActivePage.HOSTS -> "主机与连接中心"
+                            ActivePage.APPROVAL -> "系统审批中心"
                             ActivePage.SDUI_SAMPLE -> "SDUI 原生渲染"
                             ActivePage.RUNTIME -> "本地 Linux 运行时"
                         },
@@ -368,6 +385,28 @@ fun MainAppHost(
                                         deviceToken = "sec_pair_tok"
                                     )
                                     availableHosts.add(newRemote)
+                                }
+                            )
+                        }
+
+                        ActivePage.APPROVAL -> {
+                            com.deepseek.dsh.feature.approval.ApprovalScreen(
+                                approvals = pendingApprovals,
+                                onApprove = { item ->
+                                    val index = pendingApprovals.indexOfFirst { it.id == item.id }
+                                    if (index != -1) {
+                                        pendingApprovals[index] = item.copy(
+                                            status = com.deepseek.dsh.feature.approval.ApprovalStatus.CONFIRMED
+                                        )
+                                    }
+                                },
+                                onDeny = { item ->
+                                    val index = pendingApprovals.indexOfFirst { it.id == item.id }
+                                    if (index != -1) {
+                                        pendingApprovals[index] = item.copy(
+                                            status = com.deepseek.dsh.feature.approval.ApprovalStatus.REJECTED
+                                        )
+                                    }
                                 }
                             )
                         }
