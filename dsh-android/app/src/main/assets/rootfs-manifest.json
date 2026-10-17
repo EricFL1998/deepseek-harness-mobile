@@ -1,0 +1,17 @@
+{
+  "runtimeVersion": "4.0.0-compact",
+  "baseDistro": "debian-12-slim-arm64",
+  "libc": "glibc",
+  "pageSize": "16k-compatible",
+  "bundledPackages": [
+    "node-24-arm64",
+    "pnpm",
+    "@deepseek-ai/dsh",
+    "python3",
+    "pip",
+    "git",
+    "gcc",
+    "make"
+  ],
+  "checksum": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
