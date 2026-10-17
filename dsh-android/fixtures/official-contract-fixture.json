@@ -1,0 +1,16 @@
+{
+  "contractVersion": "4.0.0",
+  "expectedDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "mockEvents": [
+    {
+      "type": "Ready",
+      "hostId": "mock-host",
+      "generation": 1001
+    },
+    {
+      "type": "MessageDelta",
+      "sessionId": "session-1",
+      "delta": "这是通过官方契约夹具回放的流式响应帧。"
+    }
+  ]
+}
