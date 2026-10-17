@@ -68,6 +68,12 @@ import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.MessageRole
 
+enum class ReasoningLevel(val label: String) {
+    FAST("快速"),
+    DEEP_THINK("深度思考"),
+    MAX_REASONING("超强推理")
+}
+
 /**
  * Material 3 风格现代主聊天交互页（对齐参考设计）
  */
@@ -79,6 +85,8 @@ fun ModernChatScreen(
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
     onModelClick: () -> Unit = {},
+    reasoningLevel: ReasoningLevel = ReasoningLevel.FAST,
+    onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
     dockPluginSurfaces: List<com.deepseek.dsh.core.model.SurfaceItem> = emptyList(),
     onDockPluginClick: (com.deepseek.dsh.core.model.SurfaceItem) -> Unit = {},
     isThinking: Boolean = false,
@@ -145,7 +153,7 @@ fun ModernChatScreen(
             }
         }
 
-        // 底部悬浮控制台与药丸输入栏（参考截图 2 & 3，并融合 DSH composer.dock pills）
+        // 底部悬浮控制台与药丸输入栏（推理等级已集成在 Model Picker 旁）
         BottomInputBar(
             inputText = inputText,
             onInputChange = { inputText = it },
@@ -159,6 +167,8 @@ fun ModernChatScreen(
             onOpenAttachmentMenu = onOpenAttachmentMenu,
             selectedModel = selectedModel,
             onModelClick = onModelClick,
+            reasoningLevel = reasoningLevel,
+            onReasoningLevelChange = onReasoningLevelChange,
             dockPluginSurfaces = dockPluginSurfaces,
             onDockPluginClick = onDockPluginClick
         )
@@ -394,7 +404,7 @@ fun ModernMessageItem(message: ChatMessage) {
 }
 
 /**
- * 底部胶囊输入栏（参考截图 2 & 3，并融合 DSH composer.dock pills）
+ * 底部胶囊输入栏（推理等级与 Model Picker 合并呈现）
  */
 @Composable
 fun BottomInputBar(
@@ -404,6 +414,8 @@ fun BottomInputBar(
     onOpenAttachmentMenu: () -> Unit,
     selectedModel: String,
     onModelClick: () -> Unit,
+    reasoningLevel: ReasoningLevel,
+    onReasoningLevelChange: (ReasoningLevel) -> Unit,
     dockPluginSurfaces: List<com.deepseek.dsh.core.model.SurfaceItem> = emptyList(),
     onDockPluginClick: (com.deepseek.dsh.core.model.SurfaceItem) -> Unit = {}
 ) {
@@ -413,14 +425,7 @@ fun BottomInputBar(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
-        // DSH 规范: 输入框上方的 composer.dock pills (性能/Token计量与插件扩展药丸)
-        ComposerDockBar(
-            dockPluginSurfaces = dockPluginSurfaces,
-            onPluginClick = onDockPluginClick,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
-
-        // 输入框卡片：高圆角 M3 悬浮药丸形态
+        // 1. 输入框卡片：高圆角 M3 悬浮药丸形态
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -494,14 +499,14 @@ fun BottomInputBar(
                     }
                 }
 
-                // 底部模型选择与快捷提示（参考截图 3）
+                // 底部模型与推理等级联合选择器
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp, start = 8.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 模型切换胶囊
+                    // 模型选择胶囊
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
@@ -536,18 +541,37 @@ fun BottomInputBar(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
+                    // 推理等级切换胶囊 (与 Model Picker 在同一行联合呈现)
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        onClick = {},
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        onClick = {
+                            val nextLevel = when (reasoningLevel) {
+                                ReasoningLevel.FAST -> ReasoningLevel.DEEP_THINK
+                                ReasoningLevel.DEEP_THINK -> ReasoningLevel.MAX_REASONING
+                                ReasoningLevel.MAX_REASONING -> ReasoningLevel.FAST
+                            }
+                            onReasoningLevelChange(nextLevel)
+                        },
                         modifier = Modifier.height(28.dp)
                     ) {
-                        Text(
-                            text = "快捷提示词",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "推理: ${reasoningLevel.label}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
@@ -555,12 +579,11 @@ fun BottomInputBar(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 底部安全提示文字（参考截图 3）
-        Text(
-            text = "会话在本地 Linux 容器中运行，真实文件受 DSH 权限控制",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f),
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+        // 2. DSH 规范: 将 composer.dock pills (性能/Token计量与插件扩展药丸) 整行放置在输入框下方
+        ComposerDockBar(
+            dockPluginSurfaces = dockPluginSurfaces,
+            onPluginClick = onDockPluginClick,
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
     }
 }

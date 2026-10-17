@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
         )
 
         workspaceManager = WorkspaceManager(
-            defaultExternalDir = File(getExternalFilesDir(null) ?: filesDir, "DSH-Workspace"),
+            preferredPublicDir = File("/storage/emulated/0/Documents/DSH-Workspace"),
             appPrivateDir = filesDir
         )
 
@@ -285,7 +285,7 @@ fun MainAppHost(
         ) {
             Scaffold(
                 topBar = {
-                    // 现代顶栏 (参考截图 1, 2, 3: 左侧汉堡菜单，中间胶囊/标题，右侧功能键)
+                    // 现代顶栏: 移除左上角推理胶囊，保留纯粹简洁标题栏 (参考截图 1 & 3)
                     ModernTopAppBar(
                         title = when (activePage) {
                             ActivePage.CHAT -> sessions.find { it.sessionId == selectedSessionId }?.title ?: "DSH Agent"
@@ -296,7 +296,7 @@ fun MainAppHost(
                             ActivePage.SDUI_SAMPLE -> "SDUI 原生渲染"
                             ActivePage.RUNTIME -> "本地 Linux 运行时"
                         },
-                        showModeCapsule = (activePage == ActivePage.CHAT),
+                        showModeCapsule = false,
                         onMenuClick = { scope.launch { drawerState.open() } },
                         onNewChatClick = {
                             messages.clear()
@@ -313,12 +313,14 @@ fun MainAppHost(
                     when (activePage) {
                         ActivePage.CHAT -> {
                             val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK }
+                            var reasoningLevel by remember { mutableStateOf(com.deepseek.dsh.feature.chat.ReasoningLevel.FAST) }
+
                             ModernChatScreen(
                                 messages = messages,
                                 onSendMessage = { text ->
                                     messages.add(
                                         ChatMessage(
-                                            hostId = "local-host",
+                                            hostId = activeHostId,
                                             sessionId = selectedSessionId ?: "session-1",
                                             messageId = "user_${System.currentTimeMillis()}",
                                             role = MessageRole.USER,
@@ -327,15 +329,17 @@ fun MainAppHost(
                                     )
                                     messages.add(
                                         ChatMessage(
-                                            hostId = "local-host",
+                                            hostId = activeHostId,
                                             sessionId = selectedSessionId ?: "session-1",
                                             messageId = "asst_${System.currentTimeMillis()}",
                                             role = MessageRole.ASSISTANT,
-                                            content = "已收到指令并在手机本地 Linux 容器处理: \"$text\"。\n工作区挂载目录: ${activeWorkspace.absolutePath}"
+                                            content = "已收到指令并在手机本地 Linux 容器处理: \"$text\"。\n当前推理等级: ${reasoningLevel.label}。\n公有工作区真实路径: ${activeWorkspace.absolutePath}"
                                         )
                                     )
                                 },
                                 selectedModel = "DeepSeek-V3",
+                                reasoningLevel = reasoningLevel,
+                                onReasoningLevelChange = { reasoningLevel = it },
                                 dockPluginSurfaces = dockPlugins,
                                 onDockPluginClick = { pluginItem ->
                                     activeSheetSurface = pluginItem

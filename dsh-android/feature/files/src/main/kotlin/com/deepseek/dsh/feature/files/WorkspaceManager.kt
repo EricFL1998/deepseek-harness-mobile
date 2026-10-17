@@ -7,7 +7,7 @@ import java.io.File
  * 手机真实工作区管理与路径模型
  */
 enum class WorkspaceStorageType {
-    REAL_EXTERNAL,     // 真实外部存储 (内部存储/DSH, 系统文件可见)
+    REAL_EXTERNAL,     // 真实外部公有目录 (Documents / Downloads, 系统文件直接可见)
     SAF_MIRROR,        // SAF 镜像模式 (受限)
     PRIVATE_ISOLATED   // App 私有目录高性能模式
 }
@@ -21,17 +21,28 @@ data class FileItem(
 )
 
 class WorkspaceManager(
-    private val defaultExternalDir: File = File("/storage/emulated/0/Documents/DSH-Workspace"),
+    private val preferredPublicDir: File? = null,
     private val appPrivateDir: File
 ) {
     fun resolveActiveWorkspace(type: WorkspaceStorageType): File {
         return when (type) {
             WorkspaceStorageType.REAL_EXTERNAL -> {
-                if (defaultExternalDir.exists() || defaultExternalDir.mkdirs()) {
-                    defaultExternalDir
+                // 1. 优先使用传入的共享公有目录 (例如 /storage/emulated/0/Documents/DSH-Workspace)
+                if (preferredPublicDir != null && (preferredPublicDir.exists() || preferredPublicDir.mkdirs())) {
+                    preferredPublicDir
                 } else {
-                    // 降级为私有目录
-                    File(appPrivateDir, "workspace").apply { mkdirs() }
+                    // 2. 尝试标准外部公有 Documents / Downloads 目录
+                    val standardDocs = File("/storage/emulated/0/Documents/DSH-Workspace")
+                    val standardDownloads = File("/storage/emulated/0/Download/DSH-Workspace")
+
+                    if (standardDocs.exists() || standardDocs.mkdirs()) {
+                        standardDocs
+                    } else if (standardDownloads.exists() || standardDownloads.mkdirs()) {
+                        standardDownloads
+                    } else {
+                        // 3. 仅在公有目录全部无权限时降级
+                        File(appPrivateDir, "workspace").apply { mkdirs() }
+                    }
                 }
             }
             WorkspaceStorageType.SAF_MIRROR -> {
@@ -58,3 +69,4 @@ class WorkspaceManager(
             ?: emptyList()
     }
 }
+
