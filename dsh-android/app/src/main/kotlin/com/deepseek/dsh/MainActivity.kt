@@ -274,15 +274,38 @@ fun MainAppHost(
         )
     }
 
+    val workspaceFolders = remember(sessions.size, selectedSessionId) {
+        listOf(
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_mobile",
+                name = "deepseek mobile",
+                sessions = sessions.toList(),
+                isExpanded = true
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_token",
+                name = "token monitor android",
+                sessions = emptyList(),
+                isExpanded = false
+            ),
+            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
+                id = "ws_oauth",
+                name = "subscription-oauth",
+                sessions = emptyList(),
+                isExpanded = false
+            )
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
                 ModernNavigationDrawerContent(
-                    userName = accountState.profile?.name ?: "未登录",
+                    userName = accountState.profile?.name ?: "DeepSeek 用户",
                     userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
                     accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
-                    sessions = sessions,
+                    workspaces = workspaceFolders,
                     selectedSessionId = selectedSessionId,
                     onSelectSession = { session ->
                         selectedSessionId = session.sessionId
@@ -294,7 +317,7 @@ fun MainAppHost(
                         sessions.add(
                             0,
                             SessionInfo(
-                                hostId = "local-host",
+                                hostId = activeHostId,
                                 sessionId = newId,
                                 title = "新对话 ${sessions.size + 1}"
                             )
@@ -316,16 +339,10 @@ fun MainAppHost(
                             activePage = ActivePage.FILES
                         }
                     },
-                    onNavigateRuntime = {
+                    onNavigateHosts = {
                         scope.launch {
                             drawerState.close()
                             activePage = ActivePage.HOSTS
-                        }
-                    },
-                    onNavigateApproval = {
-                        scope.launch {
-                            drawerState.close()
-                            activePage = ActivePage.APPROVAL
                         }
                     },
                     onNavigateSettings = {

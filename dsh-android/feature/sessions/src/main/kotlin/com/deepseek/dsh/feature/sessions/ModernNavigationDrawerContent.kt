@@ -19,25 +19,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.DeviceHub
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Divider
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,306 +43,380 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.SessionInfo
 import com.deepseek.dsh.feature.sessions.R
 
+data class WorkspaceFolder(
+    val id: String,
+    val name: String,
+    val sessions: List<SessionInfo> = emptyList(),
+    val isExpanded: Boolean = true
+)
+
 /**
- * 现代侧边抽屉面板（对齐参考截图 1：顶部用户信息、功能入口清单、项目目录、历史会话、底部快捷栏）
+ * 完整对齐官方最新桌面/移动端侧滑抽屉（Dark 极简深色主题风格，用户置底）
  */
 @Composable
 fun ModernNavigationDrawerContent(
-    userName: String = "",
-    userTag: String = "",
-    accountBalance: String = "¥0.00",
-    sessions: List<SessionInfo>,
+    userName: String = "DeepSeek 用户",
+    userTag: String = "官方 OAuth",
+    accountBalance: String = "¥60.00",
+    workspaces: List<WorkspaceFolder> = emptyList(),
     selectedSessionId: String?,
     onSelectSession: (SessionInfo) -> Unit,
     onNewChatClick: () -> Unit,
     onNavigatePlugins: () -> Unit,
+    onNavigateSchedule: () -> Unit = {},
+    onNavigateKanban: () -> Unit = {},
     onNavigateFiles: () -> Unit,
-    onNavigateRuntime: () -> Unit,
-    onNavigateApproval: () -> Unit = {},
+    onNavigateHosts: () -> Unit,
     onNavigateSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val displayUserName = if (userName.isNotBlank()) userName else stringResource(R.string.drawer_user_name)
-    val displayUserTag = if (userTag.isNotBlank()) userTag else stringResource(R.string.drawer_official_tag)
+    // 沉浸式高级深色底色 (对齐参考图 #17181A)
+    val drawerBg = Color(0xFF161719)
+    val cardBg = Color(0xFF212327)
+    val textPrimary = Color(0xFFEEEEEE)
+    val textSecondary = Color(0xFF9E9EA4)
+    val textMuted = Color(0xFF6E7077)
+    val accentBlue = Color(0xFF3875F6)
 
     Column(
         modifier = modifier
             .fillMaxHeight()
             .width(320.dp)
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(vertical = 16.dp, horizontal = 16.dp)
+            .background(drawerBg)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // 1. 顶部用户卡片与新建会话按钮 (对齐官方 DeepSeek 账号卡片)
+        // 1. 顶部 Header: deepseek [HARNESS] Logo
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 用户头像 (官方 DeepSeek 蓝底)
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "DS",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(drawerBg)
                 )
             }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = displayUserName,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(top = 2.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        Text(
-                            text = displayUserTag,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.drawer_balance, accountBalance),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
-
-            // 右上角新建对话按钮
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "deepseek",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp
+                ),
+                color = textPrimary
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                onClick = onNewChatClick,
-                modifier = Modifier.size(38.dp)
+                shape = RoundedCornerShape(4.dp),
+                color = Color(0xFF282A2E),
+                modifier = Modifier.padding(top = 2.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.nav_new_session),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                Text(
+                    text = "HARNESS",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = textSecondary,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                )
             }
         }
 
-        // 2. 核心功能入口清单
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        // 2. "+ 新会话" 大药丸按钮 (对齐参考图)
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = cardBg,
+            onClick = onNewChatClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
         ) {
-            DrawerActionItem(
-                icon = Icons.Default.Explore,
-                title = stringResource(R.string.drawer_nav_plugins),
-                onClick = onNavigatePlugins
-            )
-            DrawerActionItem(
-                icon = Icons.Default.Schedule,
-                title = stringResource(R.string.drawer_nav_schedule),
-                onClick = {}
-            )
-            DrawerActionItem(
-                icon = Icons.Default.Computer,
-                title = stringResource(R.string.drawer_nav_hosts),
-                onClick = onNavigateRuntime
-            )
-            DrawerActionItem(
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    tint = textPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "新会话",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = textPrimary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 3. 核心功能菜单: 插件 / 自动化任务 / 任务看板
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            DarkDrawerMenuItem(
                 icon = Icons.Default.Extension,
-                title = stringResource(R.string.drawer_nav_surface),
-                onClick = onNavigatePlugins
+                title = "插件",
+                onClick = onNavigatePlugins,
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
-            DrawerActionItem(
-                icon = Icons.Default.Security,
-                title = stringResource(R.string.drawer_nav_approvals),
-                onClick = onNavigateApproval
+            DarkDrawerMenuItem(
+                icon = Icons.Default.Schedule,
+                title = "自动化任务",
+                onClick = onNavigateSchedule,
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
-            DrawerActionItem(
-                icon = Icons.Default.Settings,
-                title = stringResource(R.string.drawer_nav_settings),
-                onClick = onNavigateSettings
+            DarkDrawerMenuItem(
+                icon = Icons.Default.ViewKanban,
+                title = "任务看板",
+                onClick = onNavigateKanban,
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 3. 项目/工作区目录折叠入口
+        // 4. 工作区与会话列表 Header: "工作区" + 右侧快捷图标 [搜索 / 排序 / 外部]
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onNavigateFiles() }
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(R.string.drawer_section_project),
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "工作区",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = textMuted,
                 modifier = Modifier.weight(1f)
             )
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(18.dp)
-            )
+            IconButton(onClick = {}, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = textMuted, modifier = Modifier.size(16.dp))
+            }
+            IconButton(onClick = {}, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textMuted, modifier = Modifier.size(16.dp))
+            }
+            IconButton(onClick = onNavigateFiles, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textMuted, modifier = Modifier.size(16.dp))
+            }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = stringResource(R.string.drawer_section_history),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-        )
-
-        // 4. 历史会话列表
+        // 5. 树状工作区与会话列表 (中间自适应滚动区)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            items(sessions, key = { it.sessionId }) { session ->
-                val isSelected = session.sessionId == selectedSessionId
-                val bgColor = if (isSelected) {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                } else {
-                    Color.Transparent
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(bgColor)
-                        .clickable { onSelectSession(session) }
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = session.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                        ),
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (session.pinned) {
+            workspaces.forEach { ws ->
+                item(key = "ws_${ws.id}") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.PushPin,
-                            contentDescription = "Pinned",
-                            tint = MaterialTheme.colorScheme.secondary,
+                            imageVector = if (ws.isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = if (ws.name == "deepseek mobile") accentBlue else textMuted,
                             modifier = Modifier.size(16.dp)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = ws.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = if (ws.name == "deepseek mobile") FontWeight.SemiBold else FontWeight.Normal
+                            ),
+                            color = if (ws.name == "deepseek mobile") textPrimary else textSecondary
+                        )
+                    }
+                }
+
+                items(ws.sessions, key = { it.sessionId }) { session ->
+                    val isSelected = session.sessionId == selectedSessionId
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSelected) Color(0xFF2C2F36) else Color.Transparent,
+                        onClick = { onSelectSession(session) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, top = 2.dp, bottom = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = session.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isSelected) textPrimary else textSecondary,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "10分钟",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = textMuted
+                            )
+                        }
                     }
                 }
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(
+            color = Color(0xFF26282D),
+            thickness = 1.dp,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
 
-        // 5. 底部搜索栏与快捷按键
+        // 6. 底部 Remote 主机入口 (对齐参考图底部上层)
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onNavigateHosts() }
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(
+                imageVector = Icons.Default.Computer,
+                contentDescription = null,
+                tint = textSecondary,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "Remote",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = textPrimary
+            )
+        }
+
+        // 7. 底部用户信息卡片 (用户置底！对齐参考图最底部)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onNavigateSettings() }
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 用户圆形头像
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF3875F6)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "DS",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = userName,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = textPrimary,
+                    maxLines = 1
+                )
+                Text(
+                    text = accountBalance,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = textMuted
+                )
+            }
+
+            // 右侧“新版本”胶囊按钮 (参考图样式)
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                onClick = {},
-                modifier = Modifier.weight(1f).height(40.dp)
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF20283A),
+                modifier = Modifier.height(26.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = stringResource(R.string.action_search),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        tint = accentBlue,
+                        modifier = Modifier.size(12.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = stringResource(R.string.action_search),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        text = "新版本",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                        color = accentBlue
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            IconButton(onClick = {}, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Default.QrCodeScanner,
-                    contentDescription = "Scan Pair",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            IconButton(onClick = {}, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "Notifications",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
 }
 
 @Composable
-fun DrawerActionItem(
+private fun DarkDrawerMenuItem(
     icon: ImageVector,
     title: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    textColor: Color,
+    iconTint: Color
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
+            tint = iconTint,
+            modifier = Modifier.size(18.dp)
         )
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal),
+            color = textColor
         )
     }
 }
-
