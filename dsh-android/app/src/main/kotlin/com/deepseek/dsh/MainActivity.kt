@@ -520,6 +520,9 @@ fun MainAppHost(
                                     scope.launch {
                                         backupAndDiag.exportDiagnosticsZip()
                                     }
+                                },
+                                onClose = {
+                                    activePage = ActivePage.CHAT
                                 }
                             )
                         }
