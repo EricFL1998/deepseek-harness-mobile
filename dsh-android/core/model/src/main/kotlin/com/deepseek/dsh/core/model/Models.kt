@@ -17,6 +17,51 @@ enum class HostStatus {
     ERROR
 }
 
+/**
+ * v4.0 设计文档 §11.1: Host 抽象模型
+ */
+@Serializable
+sealed interface HostDescriptor {
+    val id: String
+    val name: String
+    val kind: HostKind
+
+    @Serializable
+    data class Local(
+        override val id: String = "local-host",
+        override val name: String = "本机 Linux 运行时",
+        val port: Int? = null,
+        val token: String? = null
+    ) : HostDescriptor {
+        override val kind: HostKind = HostKind.LOCAL
+    }
+
+    @Serializable
+    data class Remote(
+        override val id: String,
+        override val name: String,
+        val baseUrl: String,
+        val deviceToken: String,
+        val tlsFingerprint: String? = null
+    ) : HostDescriptor {
+        override val kind: HostKind = HostKind.REMOTE
+    }
+}
+
+/**
+ * v4.0 设计文档 §11.3: 扫码配对 payload 结构规范
+ * 二维码格式: {v, name, url, fp, pair, exp}
+ */
+@Serializable
+data class PairPayload(
+    val v: Int = 1,
+    val name: String,
+    val url: String,
+    val fp: String,
+    val pair: String,
+    val exp: Long = 0L
+)
+
 @Serializable
 data class HostInfo(
     val id: String,
