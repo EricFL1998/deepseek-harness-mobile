@@ -582,7 +582,9 @@ fun BottomInputBar(
         // 2. DSH 规范: 将 composer.dock pills (性能/Token计量与插件扩展药丸) 整行放置在输入框下方
         ComposerDockBar(
             dockPluginSurfaces = dockPluginSurfaces,
-            onPluginClick = onDockPluginClick,
+            onPluginClick = { pluginItem ->
+                onDockPluginClick(pluginItem)
+            },
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     }

@@ -27,7 +27,12 @@ class RuntimeBackupAndDiagnostics(
 
         try {
             ZipOutputStream(FileOutputStream(backupZip)).use { zos ->
-                // 仅备份 $DSH_HOME (配置/会话/凭据快照)
+                // 保证至少写入一条根快照 entry
+                val markerEntry = ZipEntry("snapshot_meta.txt")
+                zos.putNextEntry(markerEntry)
+                zos.write("DSH User Data Snapshot $timestamp\n".toByteArray(Charsets.UTF_8))
+                zos.closeEntry()
+
                 if (layout.dshHomeDir.exists()) {
                     zipDirectory(layout.dshHomeDir, "dsh_home", zos)
                 }

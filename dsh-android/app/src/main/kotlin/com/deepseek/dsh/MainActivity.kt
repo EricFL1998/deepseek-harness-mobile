@@ -278,24 +278,34 @@ fun MainAppHost(
                         scope.launch { drawerState.close() }
                     },
                     onNavigatePlugins = {
-                        activePage = ActivePage.PLUGINS
-                        scope.launch { drawerState.close() }
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.PLUGINS
+                        }
                     },
                     onNavigateFiles = {
-                        activePage = ActivePage.FILES
-                        scope.launch { drawerState.close() }
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.FILES
+                        }
                     },
                     onNavigateRuntime = {
-                        activePage = ActivePage.HOSTS
-                        scope.launch { drawerState.close() }
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.HOSTS
+                        }
                     },
                     onNavigateApproval = {
-                        activePage = ActivePage.APPROVAL
-                        scope.launch { drawerState.close() }
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.APPROVAL
+                        }
                     },
                     onNavigateSettings = {
-                        activePage = ActivePage.SETTINGS
-                        scope.launch { drawerState.close() }
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.SETTINGS
+                        }
                     }
                 )
             }

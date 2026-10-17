@@ -149,13 +149,17 @@ fun SettingsScreen(
                     icon = Icons.Default.Archive,
                     title = "创建用户数据快照",
                     subtitle = "备份 \$DSH_HOME (会话、配置、凭据与插件)",
-                    onClick = onCreateBackup
+                    onClick = {
+                        onCreateBackup()
+                    }
                 )
                 SettingsRow(
                     icon = Icons.Default.BugReport,
                     title = "导出脱敏诊断日志包",
                     subtitle = "自动对 token 和密钥脱敏，导出 ZIP 便于排障",
-                    onClick = onExportDiagnostics
+                    onClick = {
+                        onExportDiagnostics()
+                    }
                 )
             }
         }
