@@ -52,7 +52,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun DshTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = isSystemInDarkTheme(), // 严格跟随手机系统深浅色模式
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

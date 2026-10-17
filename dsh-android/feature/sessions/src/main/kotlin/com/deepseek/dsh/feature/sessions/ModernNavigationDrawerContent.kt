@@ -1,6 +1,10 @@
 package com.deepseek.dsh.feature.sessions
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -29,14 +34,12 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ViewKanban
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -54,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -77,18 +81,8 @@ data class WorkspaceFolder(
 )
 
 /**
- * 官方 ui-workspace 严格度量规范（对齐 Figma 与 Rows.module.css）：
- * - 纯净深色底: #17181A (官方深色主题画布)
- * - 选中高亮底: #2B2D31 (选中项饱满灰黑背景)
- * - .projectRow 高度: 32.dp，padding: (0, 8.dp)，gap: 6.dp
- *   展开箭头: ▾ (ArrowDropDown 16.dp) 或 📁 文件夹图标
- *   右侧操作组: ... 更多与 + 新增会话
- * - .sessionRow 高度: 30.dp，padding: (0, 8.dp)，gap: 0.dp
- *   缩进 indent: 18.dp
- *   状态指示槽位: 16.dp (圆形环/实心点)
- *   标题 title: margin (0, 6.dp, 0, 4.dp)，字号 13.5.sp，行高 20.sp
- *   时间戳: 11.5.sp，次级弱化色
- * - 紧凑间距: 列表 item 间距 0.dp (完全消灭过大空隙)
+ * 完整对齐官方抽屉与系统深浅色自适应 (Light & Dark Parity)
+ * 严格按照官方原生规范渲染工作区树、会话行与精美 AccountMenu
  */
 @Composable
 fun ModernNavigationDrawerContent(
@@ -107,27 +101,29 @@ fun ModernNavigationDrawerContent(
     onNavigateSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // 严格锁定官方深色主题规范底色
-    val bgDrawer = Color(0xFF17181A)
-    val btnNewChat = Color(0xFF27292D)
-    val selectedRowBg = Color(0xFF2B2D31)
-    val textWhite = Color(0xFFEEEEEE)
-    val textGray = Color(0xFFA1A2A6)
-    val textDim = Color(0xFF65666B)
-    val lineSep = Color(0xFF24262A)
-    val accentPrimary = Color(0xFF3875F6)
+    // 严格动态跟随手机系统的 MaterialTheme 调色板
+    val bgDrawer = MaterialTheme.colorScheme.surface
+    val btnNewChat = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val textMuted = MaterialTheme.colorScheme.outline
+    val lineSep = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val accentPrimary = MaterialTheme.colorScheme.primary
+    val selectedRowBg = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+    val selectedText = MaterialTheme.colorScheme.primary
 
-    // 动态可折叠状态驱动
     var expandedMap by remember(workspaces) {
         mutableStateOf(workspaces.associate { it.id to it.isExpanded })
     }
+
+    var showAccountMenu by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
             .fillMaxHeight()
             .width(320.dp)
             .background(bgDrawer)
-            .padding(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 14.dp)
+            .padding(start = 12.dp, end = 12.dp, top = 24.dp, bottom = 16.dp)
     ) {
         // 1. 顶部 Header: deepseek 图标 + deepseek 标题 + HARNESS 药丸徽章
         Row(
@@ -140,7 +136,7 @@ fun ModernNavigationDrawerContent(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(Color.White),
+                    .background(accentPrimary),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
@@ -158,12 +154,12 @@ fun ModernNavigationDrawerContent(
                     letterSpacing = (-0.5).sp,
                     fontSize = 20.sp
                 ),
-                color = textWhite
+                color = textPrimary
             )
             Spacer(modifier = Modifier.width(6.dp))
             Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = btnNewChat,
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.padding(top = 1.dp)
             ) {
                 Text(
@@ -173,7 +169,7 @@ fun ModernNavigationDrawerContent(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = textGray,
+                    color = textSecondary,
                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                 )
             }
@@ -198,14 +194,14 @@ fun ModernNavigationDrawerContent(
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    tint = textWhite,
+                    tint = textPrimary,
                     modifier = Modifier.size(17.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "新会话",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = textWhite,
+                    color = textPrimary,
                     fontSize = 14.sp
                 )
             }
@@ -222,22 +218,22 @@ fun ModernNavigationDrawerContent(
                 icon = Icons.Outlined.Extension,
                 title = "插件",
                 onClick = onNavigatePlugins,
-                textColor = textWhite,
-                iconTint = textGray
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
             OfficialDrawerItem(
                 icon = Icons.Outlined.Schedule,
                 title = "自动化任务",
                 onClick = onNavigateSchedule,
-                textColor = textWhite,
-                iconTint = textGray
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
             OfficialDrawerItem(
                 icon = Icons.Outlined.ViewKanban,
                 title = "任务看板",
                 onClick = onNavigateKanban,
-                textColor = textWhite,
-                iconTint = textGray
+                textColor = textPrimary,
+                iconTint = textSecondary
             )
         }
 
@@ -253,22 +249,22 @@ fun ModernNavigationDrawerContent(
             Text(
                 text = "工作区",
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = textDim,
+                color = textMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = textDim, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = textMuted, modifier = Modifier.size(14.dp))
             }
             IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textDim, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textMuted, modifier = Modifier.size(14.dp))
             }
             IconButton(onClick = onNavigateFiles, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textDim, modifier = Modifier.size(14.dp))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textMuted, modifier = Modifier.size(14.dp))
             }
         }
 
-        // 5. 官方度量规范树状工作区与会话列表 (项目高 32dp，会话高 30dp，极紧凑间距)
+        // 5. 官方度量规范树状工作区与会话列表 (项目高 32dp，会话高 30dp)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -279,7 +275,7 @@ fun ModernNavigationDrawerContent(
                 val isExpanded = expandedMap[folder.id] ?: folder.isExpanded
                 val isCurrentFolder = (folder.id == "ws_mobile")
 
-                // 工作区项目行 (.projectRow: height 32dp, pad 6dp)
+                // 工作区项目行 (.projectRow: height 32dp)
                 item(key = "fld_${folder.id}") {
                     Row(
                         modifier = Modifier
@@ -294,46 +290,44 @@ fun ModernNavigationDrawerContent(
                             .padding(horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 展开倒三角 / 右三角 (对齐官方 16px 箭头 slot)
+                        // 展开倒三角 / 右三角
                         Icon(
                             imageVector = if (isExpanded) Icons.Default.ArrowDropDown else Icons.Default.ChevronRight,
                             contentDescription = null,
-                            tint = if (isCurrentFolder) accentPrimary else textDim,
+                            tint = if (isCurrentFolder) accentPrimary else textMuted,
                             modifier = Modifier.size(17.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        // 文件夹名
                         Text(
                             text = folder.name,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = if (isCurrentFolder) FontWeight.SemiBold else FontWeight.Medium
                             ),
-                            color = textWhite,
+                            color = textPrimary,
                             fontSize = 13.5.sp,
                             maxLines = 1,
                             modifier = Modifier.weight(1f)
                         )
 
-                        // 官方右侧工作区悬浮动作槽 (更多 / 新建会话)
                         if (isCurrentFolder) {
                             Icon(
                                 imageVector = Icons.Default.MoreHoriz,
                                 contentDescription = "Actions",
-                                tint = textDim,
+                                tint = textMuted,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.Default.AddCircleOutline,
                                 contentDescription = "New Session",
-                                tint = textDim,
+                                tint = textMuted,
                                 modifier = Modifier.size(15.dp)
                             )
                         }
                     }
                 }
 
-                // 工作区下的会话列表 (.sessionRow: height 30dp, pad 6dp, margin 0 6px 0 4px)
+                // 工作区下的会话列表 (.sessionRow: height 30dp)
                 if (isExpanded) {
                     items(folder.sessions, key = { it.sessionId }) { session ->
                         val isSelected = session.sessionId == selectedSessionId
@@ -349,10 +343,10 @@ fun ModernNavigationDrawerContent(
                             Row(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(start = 20.dp, end = 8.dp), // 紧凑缩进
+                                    .padding(start = 20.dp, end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 14px 状态槽 (空心圈环 / 绿色运行点)
+                                // 14px 状态槽
                                 Box(
                                     modifier = Modifier.size(14.dp),
                                     contentAlignment = Alignment.Center
@@ -365,7 +359,6 @@ fun ModernNavigationDrawerContent(
                                                 .background(Color(0xFF22C55E))
                                         )
                                     } else {
-                                        // 官方默认空心圈
                                         Box(
                                             modifier = Modifier
                                                 .size(10.dp)
@@ -377,13 +370,12 @@ fun ModernNavigationDrawerContent(
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
-                                // 会话标题 (占满剩余宽度，字号 13.5sp，行高 20sp)
                                 Text(
                                     text = session.title,
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                                     ),
-                                    color = if (isSelected) textWhite else textGray,
+                                    color = if (isSelected) selectedText else textSecondary,
                                     fontSize = 13.sp,
                                     maxLines = 1,
                                     modifier = Modifier.weight(1f)
@@ -391,11 +383,10 @@ fun ModernNavigationDrawerContent(
 
                                 Spacer(modifier = Modifier.width(6.dp))
 
-                                // 相对时间戳 (11sp，次级灰色)
                                 Text(
                                     text = session.timeAgo,
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                    color = textDim
+                                    color = textMuted
                                 )
                             }
                         }
@@ -423,119 +414,194 @@ fun ModernNavigationDrawerContent(
             Icon(
                 imageVector = Icons.Default.Computer,
                 contentDescription = null,
-                tint = textGray,
+                tint = textSecondary,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = "Remote",
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal),
-                color = textWhite,
+                color = textPrimary,
                 fontSize = 13.5.sp
             )
         }
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // 7. 用户信息卡片 (完全融入全局主题)
-        var showAccountMenu by remember { mutableStateOf(false) }
+        // 7. 贴附式 AccountMenu 弹窗 (紧挨着用户卡片正上方，参考图 2 的贴紧布局)
+        val menuBg = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF25272B) else MaterialTheme.colorScheme.surfaceVariant
+        val menuBorder = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF383A40) else MaterialTheme.colorScheme.outlineVariant
+        val menuText = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFEEEEEE) else MaterialTheme.colorScheme.onSurface
+        val menuIconTint = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFCFD0D4) else MaterialTheme.colorScheme.onSurfaceVariant
+        val menuShortcut = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF7E8086) else MaterialTheme.colorScheme.outline
 
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Row(
+        AnimatedVisibility(
+            visible = showAccountMenu,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = menuBg,
+                shadowElevation = 8.dp,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { showAccountMenu = true }
-                    .padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(bottom = 6.dp)
+                    .width(196.dp)
+                    .border(0.5.dp, menuBorder, RoundedCornerShape(14.dp))
             ) {
-                // 用户头像
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFFD180)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🐱",
-                        fontSize = 16.sp
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Text(
-                    text = userName,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = textWhite,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f)
-                )
-
-                // 右侧 "新版本" 胶囊按钮
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFF20283A),
-                    modifier = Modifier.height(24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    // 1. 设置 (齿轮 + "设置" + "Ctrl + ,")
+                    Surface(
+                        color = Color.Transparent,
+                        onClick = {
+                            showAccountMenu = false
+                            onNavigateSettings()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(38.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = null,
-                            tint = accentPrimary,
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "新版本",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Medium),
-                            color = accentPrimary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = null,
+                                tint = menuIconTint,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "设置",
+                                color = menuText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "Ctrl + ,",
+                                color = menuShortcut,
+                                fontSize = 11.5.sp
+                            )
+                        }
+                    }
+
+                    // 2. 意见反馈 (纸飞机 Send + "意见反馈")
+                    Surface(
+                        color = Color.Transparent,
+                        onClick = {
+                            showAccountMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth().height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Send,
+                                contentDescription = null,
+                                tint = menuIconTint,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "意见反馈",
+                                color = menuText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+                    }
+
+                    // 3. 退出登录 (ExitToApp 登出图标 + "退出登录")
+                    Surface(
+                        color = Color.Transparent,
+                        onClick = {
+                            showAccountMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth().height(38.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ExitToApp,
+                                contentDescription = null,
+                                tint = menuIconTint,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "退出登录",
+                                color = menuText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
                     }
                 }
             }
+        }
 
-            // 官方规范 AccountMenu 弹出层
-            DropdownMenu(
-                expanded = showAccountMenu,
-                onDismissRequest = { showAccountMenu = false },
-                modifier = Modifier.background(Color(0xFF212327))
+        // 8. 用户卡片 (底栏紧挨其上方的菜单)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { showAccountMenu = !showAccountMenu }
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 用户头像
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
             ) {
-                DropdownMenuItem(
-                    text = { Text("设置", color = textWhite, fontSize = 14.sp) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Settings, contentDescription = null, tint = textGray, modifier = Modifier.size(18.dp))
-                    },
-                    onClick = {
-                        showAccountMenu = false
-                        onNavigateSettings()
-                    }
+                Text(
+                    text = "🐱",
+                    fontSize = 16.sp
                 )
-                DropdownMenuItem(
-                    text = { Text("意见反馈", color = textWhite, fontSize = 14.sp) },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = textGray, modifier = Modifier.size(18.dp))
-                    },
-                    onClick = {
-                        showAccountMenu = false
-                    }
-                )
-                HorizontalDivider(color = lineSep)
-                DropdownMenuItem(
-                    text = { Text("退出登录", color = MaterialTheme.colorScheme.error, fontSize = 14.sp) },
-                    leadingIcon = {
-                        Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                    },
-                    onClick = {
-                        showAccountMenu = false
-                    }
-                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = userName,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = textPrimary,
+                fontSize = 14.sp,
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
+
+            // 右侧 "新版本" 胶囊按钮
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                modifier = Modifier.height(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        tint = accentPrimary,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "新版本",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Medium),
+                        color = accentPrimary
+                    )
+                }
             }
         }
     }
