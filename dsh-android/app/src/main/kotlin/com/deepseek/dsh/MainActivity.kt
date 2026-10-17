@@ -499,10 +499,10 @@ fun MainAppHost(
                         }
 
                         ActivePage.SETTINGS -> {
-                            com.deepseek.dsh.feature.settings.SettingsScreen(
+                            com.deepseek.dsh.feature.settings.OfficialSettingsScreen(
                                 settings = currentAppSettings,
                                 onUpdateSettings = { currentAppSettings = it },
-                                accountName = accountState.profile?.name ?: "未登录",
+                                accountName = accountState.profile?.name ?: "DeepSeek 用户",
                                 accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
                                 onManageAccount = {
                                     val authUrl = oauthManager.buildOAuthAuthorizeUrl()

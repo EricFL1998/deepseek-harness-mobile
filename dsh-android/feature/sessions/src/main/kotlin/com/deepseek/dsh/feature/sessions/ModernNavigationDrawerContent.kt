@@ -26,8 +26,10 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewKanban
 import androidx.compose.material3.HorizontalDivider
@@ -37,6 +39,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -322,69 +328,110 @@ fun ModernNavigationDrawerContent(
             )
         }
 
-        // 7. 底部用户信息卡片 (用户置底！对齐参考图最底部)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onNavigateSettings() }
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 用户圆形头像
-            Box(
+        // 7. 底部用户信息卡片 (点击弹出官方 AccountMenu 菜单，对齐 AccountMenu.tsx)
+        var showAccountMenu by remember { mutableStateOf(false) }
+
+        Box {
+            Row(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF3875F6)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showAccountMenu = true }
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "DS",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White
-                )
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = userName,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = textPrimary,
-                    maxLines = 1
-                )
-                Text(
-                    text = accountBalance,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = textMuted
-                )
-            }
-
-            // 右侧“新版本”胶囊按钮 (参考图样式)
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF20283A),
-                modifier = Modifier.height(26.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // 用户圆形头像
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF3875F6)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = null,
-                        tint = accentBlue,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "新版本",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-                        color = accentBlue
+                        text = "DS",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
                     )
                 }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = userName,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = textPrimary,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = accountBalance,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = textMuted
+                    )
+                }
+
+                // 右侧“新版本”胶囊按钮
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF20283A),
+                    modifier = Modifier.height(26.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            tint = accentBlue,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "新版本",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                            color = accentBlue
+                        )
+                    }
+                }
+            }
+
+            // 官方 AccountMenu 弹窗 (对齐 AccountMenu.tsx: 设置 / 意见反馈 / 退出登录)
+            androidx.compose.material3.DropdownMenu(
+                expanded = showAccountMenu,
+                onDismissRequest = { showAccountMenu = false },
+                modifier = Modifier.background(Color(0xFF212327))
+            ) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("设置", color = textPrimary) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Settings, contentDescription = null, tint = textSecondary, modifier = Modifier.size(18.dp))
+                    },
+                    onClick = {
+                        showAccountMenu = false
+                        onNavigateSettings()
+                    }
+                )
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("意见反馈", color = textPrimary) },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = textSecondary, modifier = Modifier.size(18.dp))
+                    },
+                    onClick = {
+                        showAccountMenu = false
+                    }
+                )
+                HorizontalDivider(color = Color(0xFF2E3138))
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("退出登录", color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = {
+                        Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    },
+                    onClick = {
+                        showAccountMenu = false
+                    }
+                )
             }
         }
     }
