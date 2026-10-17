@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
@@ -43,7 +44,16 @@ import com.deepseek.dsh.core.model.SessionInfo
 import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.core.model.SurfaceKind
 import com.deepseek.dsh.feature.chat.ChatScreen
+import com.deepseek.dsh.feature.files.FilesScreen
+import com.deepseek.dsh.feature.files.WorkspaceManager
+import com.deepseek.dsh.feature.files.WorkspaceStorageType
 import com.deepseek.dsh.feature.sessions.SessionsScreen
+import com.deepseek.dsh.plugin.mobileui.SduiAction
+import com.deepseek.dsh.plugin.mobileui.SduiButton
+import com.deepseek.dsh.plugin.mobileui.SduiPage
+import com.deepseek.dsh.plugin.mobileui.SduiPageRenderer
+import com.deepseek.dsh.plugin.mobileui.SduiSection
+import com.deepseek.dsh.plugin.mobileui.SduiText
 import com.deepseek.dsh.plugin.surface.PluginOverlayContainer
 import com.deepseek.dsh.plugin.surface.SurfaceCatalogStore
 import com.deepseek.dsh.plugin.surface.SurfaceSheet
@@ -60,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var runtimeManager: HostRuntimeManager
     private val runner = HostProcessRunner()
     private val surfaceCatalogStore = SurfaceCatalogStore()
+    private lateinit var workspaceManager: WorkspaceManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,7 +85,11 @@ class MainActivity : ComponentActivity() {
             runner = runner
         )
 
-        // 初始化模拟插件 Surface 注册
+        workspaceManager = WorkspaceManager(
+            defaultExternalDir = File(getExternalFilesDir(null) ?: filesDir, "DSH-Workspace"),
+            appPrivateDir = filesDir
+        )
+
         surfaceCatalogStore.updateCatalogFromJson(
             """
             {
@@ -105,7 +120,8 @@ class MainActivity : ComponentActivity() {
                 MainAppScaffold(
                     runtimeManager = runtimeManager,
                     runner = runner,
-                    surfaceStore = surfaceCatalogStore
+                    surfaceStore = surfaceCatalogStore,
+                    workspaceManager = workspaceManager
                 )
             }
         }
@@ -115,6 +131,7 @@ class MainActivity : ComponentActivity() {
 enum class NavigationTab {
     CHAT,
     SESSIONS,
+    FILES,
     PLUGINS,
     RUNTIME
 }
@@ -123,16 +140,26 @@ enum class NavigationTab {
 fun MainAppScaffold(
     runtimeManager: HostRuntimeManager,
     runner: HostProcessRunner,
-    surfaceStore: SurfaceCatalogStore
+    surfaceStore: SurfaceCatalogStore,
+    workspaceManager: WorkspaceManager
 ) {
     var currentTab by remember { mutableStateOf(NavigationTab.CHAT) }
     var selectedSessionId by remember { mutableStateOf<String?>("session-1") }
 
     var activeSheetSurface by remember { mutableStateOf<SurfaceItem?>(null) }
     var activeOverlaySurface by remember { mutableStateOf<SurfaceItem?>(null) }
+    var activeSduiSample by remember { mutableStateOf(false) }
 
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
+
+    val activeWorkspace = remember {
+        workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
+    }
+
+    val files = remember(currentTab) {
+        workspaceManager.listFiles(activeWorkspace)
+    }
 
     val sessions = remember {
         mutableStateListOf(
@@ -140,7 +167,7 @@ fun MainAppScaffold(
                 hostId = "local-host",
                 sessionId = "session-1",
                 title = "默认本地 Agent 会话",
-                workspacePath = "/workspace",
+                workspacePath = activeWorkspace.absolutePath,
                 pinned = true
             )
         )
@@ -153,7 +180,7 @@ fun MainAppScaffold(
                 sessionId = "session-1",
                 messageId = "welcome",
                 role = MessageRole.ASSISTANT,
-                content = "你好！我是运行在手机本地 Linux 容器里的 DSH Agent。工具、插件和会话全部在手机上执行。"
+                content = "你好！我是运行在手机本地 Linux 容器里的 DSH Agent。工具、真实文件工作区、插件和会话全部在手机上执行。"
             )
         )
     }
@@ -173,6 +200,12 @@ fun MainAppScaffold(
                         onClick = { currentTab = NavigationTab.SESSIONS },
                         icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Sessions") },
                         label = { Text("会话") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == NavigationTab.FILES,
+                        onClick = { currentTab = NavigationTab.FILES },
+                        icon = { Icon(Icons.Default.Folder, contentDescription = "Files") },
+                        label = { Text("文件") }
                     )
                     NavigationBarItem(
                         selected = currentTab == NavigationTab.PLUGINS,
@@ -214,7 +247,7 @@ fun MainAppScaffold(
                                         sessionId = selectedSessionId ?: "session-1",
                                         messageId = "asst_${System.currentTimeMillis()}",
                                         role = MessageRole.ASSISTANT,
-                                        content = "已收到指令: \"$text\" (本地 Linux 用户空间处理)"
+                                        content = "已收到指令: \"$text\" (本地 Linux 用户空间处理并落入工作区)"
                                     )
                                 )
                             }
@@ -232,17 +265,56 @@ fun MainAppScaffold(
                         )
                     }
 
-                    NavigationTab.PLUGINS -> {
-                        PluginsListScreen(
-                            surfaces = catalog.surfaces,
-                            onOpenSurface = { item ->
-                                if (item.kind == SurfaceKind.OVERLAY) {
-                                    activeOverlaySurface = item
-                                } else {
-                                    activeSheetSurface = item
-                                }
-                            }
+                    NavigationTab.FILES -> {
+                        FilesScreen(
+                            currentPath = activeWorkspace.absolutePath,
+                            files = files,
+                            onFileClick = { }
                         )
+                    }
+
+                    NavigationTab.PLUGINS -> {
+                        if (activeSduiSample) {
+                            val samplePage = SduiPage(
+                                title = "SDUI 声明式插件原生渲染",
+                                description = "基于 v4.0 §7.8.1：由插件 JSON 声明，客户端零 WebView 原生渲染",
+                                children = listOf(
+                                    SduiSection(
+                                        title = "插件控制面板",
+                                        children = listOf(
+                                            SduiText(text = "这是一个完全由原生 Compose 树渲染的插件界面。"),
+                                            SduiButton(
+                                                label = "返回插件列表",
+                                                action = SduiAction.Close(),
+                                                primary = true
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                            SduiPageRenderer(
+                                page = samplePage,
+                                onAction = { action ->
+                                    if (action is SduiAction.Close) {
+                                        activeSduiSample = false
+                                    }
+                                }
+                            )
+                        } else {
+                            PluginsListScreen(
+                                surfaces = catalog.surfaces,
+                                onOpenSurface = { item ->
+                                    if (item.kind == SurfaceKind.OVERLAY) {
+                                        activeOverlaySurface = item
+                                    } else {
+                                        activeSheetSurface = item
+                                    }
+                                },
+                                onOpenSdui = {
+                                    activeSduiSample = true
+                                }
+                            )
+                        }
                     }
 
                     NavigationTab.RUNTIME -> {
@@ -255,7 +327,6 @@ fun MainAppScaffold(
             }
         }
 
-        // 插件 Surface Sheet 呈现 (v4.0 §7.5)
         activeSheetSurface?.let { item ->
             SurfaceSheet(
                 item = item,
@@ -264,7 +335,6 @@ fun MainAppScaffold(
             )
         }
 
-        // 插件单例悬浮窗 (v4.0 §7.7)
         activeOverlaySurface?.let { item ->
             PluginOverlayContainer(
                 item = item,
@@ -279,6 +349,7 @@ fun MainAppScaffold(
 fun PluginsListScreen(
     surfaces: List<SurfaceItem>,
     onOpenSurface: (SurfaceItem) -> Unit,
+    onOpenSdui: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -287,16 +358,52 @@ fun PluginsListScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "内置 Surface 适配层插件",
+            text = "插件生态与适配",
             style = MaterialTheme.typography.titleLarge
         )
         Text(
-            text = "插件零改动，入口原生化，内容由 Web 岛承载",
+            text = "现有插件零改动（Web 岛）+ 未来插件原生（SDUI）",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.secondary
         )
 
         Spacer(modifier = Modifier.padding(8.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Widgets,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SDUI 原生插件示例",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "JSON layout 声明 -> 原生 Compose 渲染",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Button(onClick = onOpenSdui) {
+                    Text("体验")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.padding(4.dp))
 
         surfaces.forEach { item ->
             Card(
@@ -382,6 +489,7 @@ fun RuntimeControlScreen(
         }
     }
 }
+
 
 
 
