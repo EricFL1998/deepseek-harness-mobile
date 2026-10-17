@@ -212,6 +212,24 @@ fun MainAppHost(
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
 
+    var showOnboardingLanding by remember { mutableStateOf(true) }
+
+    if (showOnboardingLanding) {
+        com.deepseek.dsh.feature.runtime.OnboardingLandingScreen(
+            onComplete = { apiKey ->
+                showOnboardingLanding = false
+            },
+            onOfficialOAuthClick = {
+                val authUrl = oauthManager.buildOAuthAuthorizeUrl()
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl)).apply {
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            }
+        )
+        return
+    }
+
     val files = remember(activePage) {
         workspaceManager.listFiles(activeWorkspace)
     }
