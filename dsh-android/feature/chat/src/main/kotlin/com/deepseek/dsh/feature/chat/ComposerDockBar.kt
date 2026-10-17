@@ -33,7 +33,7 @@ import com.deepseek.dsh.core.model.SurfaceItem
  */
 data class ComposerStats(
     val outputSpeedTokensPerSec: Double = 42.5,
-    val totalTokens: Long = 1840,
+    val contextPercent: Int = 12,
     val cacheHitPercent: Int = 85
 )
 
@@ -52,17 +52,17 @@ fun ComposerDockBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 1. DSH 官方 Activity Pill: 轮次/步数与速度 (activity)
+        // 1. DSH 官方 Activity Pill: 推理速率 (tok/s)
         DshStatPill(
             icon = Icons.Default.Speed,
             label = "${stats.outputSpeedTokensPerSec} tok/s",
             onClick = {}
         )
 
-        // 2. DSH 官方 Usage Pill: token 总量与缓存命中 (usage)
+        // 2. DSH 官方 Usage Pill: 上下文占用率与缓存命中率 (上下文 % · 缓存 %)
         DshStatPill(
             icon = Icons.Default.DataUsage,
-            label = "${stats.totalTokens} tok · Cache hit ${stats.cacheHitPercent}%",
+            label = "上下文 ${stats.contextPercent}% · 缓存 ${stats.cacheHitPercent}%",
             onClick = {}
         )
 
