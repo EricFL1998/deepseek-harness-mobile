@@ -107,25 +107,25 @@ class MainActivity : ComponentActivity() {
                 "dshVersion": "4.0.0",
                 "surfaces": [
                     {
+                        "pluginId": "dsh-subscription-oauth",
+                        "slot": "conversation.composer.dock",
+                        "order": 1,
+                        "title": "Subscription OAuth",
+                        "kind": "DOCK"
+                    },
+                    {
                         "pluginId": "dsh-context",
                         "slot": "settings.page",
-                        "order": 1,
+                        "order": 2,
                         "title": "上下文增强插件",
                         "kind": "PAGE"
                     },
                     {
                         "pluginId": "dsh-pet",
                         "slot": "shell.overlay",
-                        "order": 2,
+                        "order": 3,
                         "title": "桌宠与系统状态浮层",
                         "kind": "OVERLAY"
-                    },
-                    {
-                        "pluginId": "dsh-meme",
-                        "slot": "conversation.composer.dock",
-                        "order": 3,
-                        "title": "表情包插件",
-                        "kind": "DOCK"
                     }
                 ]
             }
