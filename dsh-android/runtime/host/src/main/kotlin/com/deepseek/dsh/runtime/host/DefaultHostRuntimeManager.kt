@@ -162,6 +162,13 @@ class DefaultHostRuntimeManager(
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
         File(layout.rootfsDir, "root/.dsh/sessions/--workspace--").mkdirs()
         File(workspacePath).mkdirs()
+        // proot 需要能 chdir 进 bind 目标；rootfs 内 /workspace 必须是可进入目录。
+        File(layout.rootfsDir, "workspace").apply {
+            mkdirs()
+            setReadable(true, false)
+            setWritable(true, false)
+            setExecutable(true, false)
+        }
         listOf("spill", "launch", "shell", "staging").forEach {
             File(layout.rootfsDir, "root/.dsh/tmp/$it").mkdirs()
         }
@@ -275,6 +282,7 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
 
 
 

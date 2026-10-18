@@ -1,6 +1,5 @@
-import { randomBytes } from "node:crypto";
 import { OutputCollector, prepareManagedProcessBinding } from "./output.js";
-import { accessSync, chmodSync, closeSync, constants, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, statSync, unlinkSync, writeFileSync , mkdirSync } from "node:fs";
+import { accessSync, chmodSync, closeSync, constants, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { createLazyRequire } from "@deepseek-ai/dsh-lazy-require";
@@ -1029,15 +1028,33 @@ function spawnSubprocess(spec, internals = {}) {
 	];
 	if (spec.stdio.control === "pipe") {
 		while (stdio.length < SUBPROCESS_CONTROL_FD) stdio.push("ignore");
-		stdio.push("overlapped");
+		stdio.push("ignore");
 	}
-	const child = (internals.spawn ?? spawn)(program, args, {
-		cwd: spec.cwd,
-		env: controlEnvironment(childEnv(spec.env), spec.stdio.control),
-		stdio,
-		detached: platform !== "win32",
-		windowsHide: platform === "win32"
-	});
+	let child;
+	try {
+		let resolvedProgram = program;
+		if (resolvedProgram === "bash") resolvedProgram = "/bin/bash";
+		else if (resolvedProgram === "sh") resolvedProgram = "/bin/sh";
+		if (!resolvedProgram.includes("/")) {
+			const searchPath = String(spec.env.PATH ?? process.env.PATH ?? "");
+			for (const dir of searchPath.split(":")) {
+				const candidate = join(dir, resolvedProgram);
+				if (existsSync(candidate)) { resolvedProgram = candidate; break; }
+			}
+		}
+		console.error("[DSH_SPAWN] try", program, "->", resolvedProgram, "cwd", spec.cwd, "exists", existsSync(spec.cwd), "path", String(spec.env.PATH ?? process.env.PATH ?? "").slice(0, 80));
+		child = (internals.spawn ?? spawn)(resolvedProgram, args, {
+			cwd: existsSync(spec.cwd) ? spec.cwd : "/",
+			env: controlEnvironment(childEnv(spec.env), spec.stdio.control),
+			stdio,
+			detached: false,
+			windowsHide: platform === "win32"
+		});
+	} catch (error) {
+		console.error("[DSH_SPAWN] throw", spec.argv, spec.cwd, error && error.code, error && error.syscall, error && error.message);
+		throw error;
+	}
+	child.on("error", (e) => console.error("[DSH_SPAWN] failed", spec.argv, spec.cwd, e && e.code, e && e.syscall, e && e.message));
 	const direct = directChildResult(child);
 	const pid = child.pid;
 	const owner = fallbackOwner(platform, pid, child, internals.taskkill ?? taskkillProcessTree, internals.linuxProcessGroupHasLiveMembers ?? linuxProcessGroupHasLiveMembers, direct);
@@ -1133,7 +1150,7 @@ function parseErrorResult(value) {
 * @returns private paths owned by this launch.
 */
 function createLinuxLaunchFiles(request) {
-	const directory = dshSafeMkdtemp(join(tmpdir(), "dsh-subprocess-launch-"));
+	const directory = mkdtempSync(join(tmpdir(), "dsh-subprocess-launch-"));
 	const files = {
 		directory,
 		requestPath: join(directory, "launch-request.json"),
@@ -1529,4 +1546,7 @@ function targetEnvironment(spec) {
 //#endregion
 export { bindManagedProcess as C, createProcessInspector as D, validateSubprocessSpec as E, controlPipe as O, loadLinuxExecve as S, spawnSubprocess as T, parseWindowsRunnerResult as _, resolveWindowsExecutable as a, serializeRunnerError as b, runnerStdio as c, cleanupLinuxLaunchFiles as d, consumeLinuxLaunchRequest as f, linuxLaunchFilesFromLocator as g, isWindowsTerminateRequest as h, parseRunnerTargetArgv as i, spawnRunnerInvocation as l, deserializeRunnerError as m, WINDOWS_RUNNER_SELECTION as n, runnerEnvironment as o, createLinuxLaunchFiles as p, consumeRunnerSelection as r, runnerInvocationAvailable as s, SUBPROCESS_RUNNER_ENV as t, targetEnvironment as u, parseWindowsStartRequest as v, childEnv as w, writeLinuxStartupError as x, readLinuxStartupError as y };
 
-function dshSafeMkdtemp(prefix) { const target = "/root/.dsh/tmp/launch"; try { mkdirSync(target, { recursive: true, mode: 448 }); } catch {} return target; }
+
+
+
+
