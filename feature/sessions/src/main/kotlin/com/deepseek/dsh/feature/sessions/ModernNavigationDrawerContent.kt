@@ -296,26 +296,29 @@ fun ModernNavigationDrawerContent(
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                androidx.compose.foundation.text.BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        color = textPrimary,
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    ),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .focusRequester(searchFocus),
-                    decorationBox = { inner ->
-                        if (searchQuery.isEmpty()) {
-                            Text("搜索会话名称", color = textMuted, fontSize = 13.sp)
-                        }
-                        inner()
+                        .height(20.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = textPrimary,
+                            fontSize = 13.sp
+                        ),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocus)
+                    )
+                    if (searchQuery.isEmpty()) {
+                        Text("搜索会话名称", color = textMuted, fontSize = 13.sp)
                     }
-                )
+                }
                 Icon(
                     painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_close),
                     contentDescription = "关闭搜索",
@@ -818,6 +821,8 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
 
 
 
