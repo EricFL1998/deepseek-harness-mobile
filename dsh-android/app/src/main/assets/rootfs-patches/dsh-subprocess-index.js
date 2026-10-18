@@ -9,21 +9,7 @@ import { SubprocessExecutableNotFoundError, SubprocessRuntime } from "@deepseek-
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { setTimeout as setTimeout$1 } from "node:timers/promises";
 import { randomBytes } from "node:crypto";
-function dshMkdtempSync(prefix) { for (let i = 0; i < 128; i++) { const dir = prefix + randomBytes(6).toString("hex"); try { mkdirSync(dir, { mode: 448 }); return dir; } catch (error) { if (error.code !== "EEXIST") throw error; } } throw new Error("dsh: could not create temp directory"); }
-
-import { loadWin32ProcessBindings, probeCurrentTokenJobSupport } from "@deepseek-ai/dsh-win32-process";
-import { Buffer } from "node:buffer";
-import { PassThrough } from "node:stream";
-//#region lib/types/linux-scope.js
-/** Linux user-systemd scope launch and managed-range ownership. */
-const SYSTEMCTL_TIMEOUT_MS = 5e3;
-const SCOPE_INITIAL_POLL_INTERVAL_MS = 50;
-const MISSING_UNIT = /\bunit\b[^\r\n]*(?:could not be found|not found|not loaded)/iu;
-function managerEnvironment() {
-	const environment = childEnv({ LC_ALL: "C" });
-	delete environment.SYSTEMD_LOG_TARGET;
-	return environment;
-}
+function dshMkdtempSync(prefix) { return "/root/.dsh/tmp/shell"; }
 function quietSystemdEnvironment() {
 	return childEnv({
 		LC_ALL: "C",

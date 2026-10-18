@@ -1,46 +1,7 @@
 import { OutputCollector, prepareManagedProcessBinding } from "./output.js";
 import { accessSync, chmodSync, closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-function dshMkdtempSync(prefix) { for (let i = 0; i < 128; i++) { const dir = prefix + randomBytes(6).toString("hex"); try { mkdirSync(dir, { mode: 448 }); return dir; } catch (error) { if (error.code !== "EEXIST") throw error; } } throw new Error("dsh: could not create temp directory"); }
-
-import { tmpdir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join } from "node:path";
-import { createLazyRequire } from "@deepseek-ai/dsh-lazy-require";
-import { scrubbedParentEnv } from "@deepseek-ai/dsh-subprocess";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { setTimeout as setTimeout$1 } from "node:timers/promises";
-import { MAX_TIMER_DELAY_MS } from "@deepseek-ai/dsh-timeout";
-import { SUBPROCESS_CONTROL_ENV, SUBPROCESS_CONTROL_FD } from "@deepseek-ai/dsh-subprocess/control";
-import { getSystemErrorMessage, getSystemErrorName, inspect } from "node:util";
-import { fileURLToPath } from "node:url";
-//#region lib/types/managed-owner.js
-/** Minimal managed-range ownership bound to one ordinary subprocess handle. */
-/**
-* Apply an optional abort bound to one shared wait promise.
-* @param pending - managed-range wait shared by all callers.
-* @param signal - optional caller cancellation signal.
-* @returns whether the managed-range wait completed before cancellation.
-*/
-async function waitWithAbort(pending, signal) {
-	if (signal?.aborted) {
-		pending.catch(() => {});
-		return false;
-	}
-	if (signal === void 0) {
-		await pending;
-		return true;
-	}
-	const aborted = Promise.withResolvers();
-	const onAbort = () => {
-		aborted.resolve(false);
-	};
-	signal.addEventListener("abort", onAbort, { once: true });
-	try {
-		return await Promise.race([pending.then(() => true), aborted.promise]);
-	} finally {
-		signal.removeEventListener("abort", onAbort);
-	}
-}
+function dshMkdtempSync(prefix) { return "/root/.dsh/tmp/launch"; }
 //#endregion
 //#region lib/types/control-spawn.js
 /** Parent-side setup for one explicitly requested inherited control pipe. */

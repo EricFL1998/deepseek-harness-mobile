@@ -33,13 +33,10 @@ let defaultRoot;
 */
 function privateRoot() {
 	if (defaultRoot !== void 0) return defaultRoot;
-	const base = join(process.env.TMPDIR || tmpdir(), DEFAULT_ROOT_PREFIX + 'fixed');
-	try {
-		defaultRoot = mkdtempSync(join(tmpdir(), DEFAULT_ROOT_PREFIX));
-	} catch {
-		mkdirSync(base, { recursive: true, mode: 448 });
-		defaultRoot = base;
-	}
+	// proot 下 mkdtemp/mkdir 可能不可用；使用 Host 启动前预创建的固定目录。
+	const fixed = "/root/.dsh/tmp/spill";
+	try { mkdirSync(fixed, { recursive: true, mode: 448 }); } catch {}
+	defaultRoot = fixed;
 	return defaultRoot;
 }
 /**
@@ -576,6 +573,7 @@ var LocalSpillStore = class extends SpillStore {
 };
 //#endregion
 export { DEFAULT_ROOT_PREFIX, LocalSpillStore, LocalSpillStore as default, discoverDefaultRoots, encodeSegment, isErrno, privateRoot, saveTextFile, sessionDir, sweepSpillRoots };
+
 
 
 

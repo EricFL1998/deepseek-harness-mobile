@@ -160,6 +160,9 @@ class DefaultHostRuntimeManager(
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
         File(layout.rootfsDir, "root/.dsh/sessions/--workspace--").mkdirs()
         File(workspacePath).mkdirs()
+        listOf("spill", "launch", "shell", "staging").forEach {
+            File(layout.rootfsDir, "root/.dsh/tmp/$it").mkdirs()
+        }
         File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
         // rootfs 内没有 Android 的 DNS 配置，登录/模型请求会因解析失败报 network。
         File(layout.rootfsDir, "etc/resolv.conf").apply {
@@ -270,6 +273,7 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
 
 
 

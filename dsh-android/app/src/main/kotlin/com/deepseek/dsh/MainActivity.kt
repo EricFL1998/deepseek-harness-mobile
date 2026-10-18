@@ -185,8 +185,14 @@ fun MainAppHost(
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
 
+    val externalWorkspaceDir = remember { java.io.File(context.getExternalFilesDir(null) ?: context.filesDir, "DSH-Workspace") }
     val activeWorkspace = remember(currentAppSettings.workspacePath) {
-        val custom = java.io.File(currentAppSettings.workspacePath)
+        // 旧版本默认 Documents 路径在 proot 下会 EACCES；迁移到 app-specific 外部目录。
+        val configured = currentAppSettings.workspacePath
+        val migrated = if (configured.startsWith("/storage/emulated/0/Documents/DSH-Workspace")) {
+            externalWorkspaceDir.absolutePath
+        } else configured
+        val custom = java.io.File(migrated)
         if (custom.exists() || custom.mkdirs()) custom
         else workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
     }
@@ -1384,6 +1390,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 
