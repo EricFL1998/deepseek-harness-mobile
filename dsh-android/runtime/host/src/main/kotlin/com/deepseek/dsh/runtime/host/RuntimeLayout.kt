@@ -29,7 +29,7 @@ data class RuntimeLayout(
     val logsDir: File get() = File(baseDir, "logs")
     val backupsDir: File get() = File(baseDir, "backups")
 
-    val prootBinary: File get() = File(nativeLibraryDir, "libproot.so")
+    val prootBinary: File get() = File(nativeLibraryDir, "libproot-userland.so")
 
     fun ensureDirectories() {
         baseDir.mkdirs()

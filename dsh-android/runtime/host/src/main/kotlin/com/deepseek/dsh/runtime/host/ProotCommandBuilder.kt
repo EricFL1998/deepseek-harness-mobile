@@ -31,7 +31,6 @@ object ProotCommandBuilder {
 
         val cmd = mutableListOf<String>()
         cmd.add(proot)
-        cmd.add("-0")
         cmd.add("-r")
         cmd.add(rootfs)
 
@@ -42,14 +41,6 @@ object ProotCommandBuilder {
         cmd.add("/dev")
         cmd.add("-b")
         cmd.add("/sys")
-        cmd.add("-b")
-        cmd.add("/system")
-
-        // 手机真实外部存储绑定为 /mnt/phone
-        if (File(config.internalStoragePath).exists()) {
-            cmd.add("-b")
-            cmd.add("${config.internalStoragePath}:/mnt/phone")
-        }
 
         // 用户选中的工作区绑定为 /workspace (C4 硬约束)
         cmd.add("-b")
@@ -58,14 +49,9 @@ object ProotCommandBuilder {
         // App 私有缓存与 SAF 镜像
         cmd.add("-b")
         cmd.add("$cache:/cache")
-        cmd.add("-b")
-        cmd.add("$saf:/saf")
 
         // 避免 Android 权限与硬链接异常；显式指定 guest 工作目录。
         cmd.add("--link2symlink")
-        cmd.add("-p")
-        cmd.add("-L")
-        cmd.add("--tcsetsf2tcsets")
         cmd.add("-w")
         cmd.add("/")
 

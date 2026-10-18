@@ -100,6 +100,8 @@ class DefaultHostRuntimeManager(
         }
         // proot 的 bind 目标需要存在；DSH 配置目录先创建，避免首次启动 mkdir 失败。
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
+        // 上次异常退出可能残留 credentials 写锁，启动前清理。
+        File(layout.rootfsDir, "root/.dsh/.credentials.yaml.lock").delete()
 
         // 1. 启动本地 BridgeServer 并获得 loopback 端口
         val bridge = BridgeServer(context)
@@ -140,8 +142,8 @@ class DefaultHostRuntimeManager(
         val endpointDeferred = CompletableDeferred<ProcessOutputParser.ParsedEndpoint>()
 
         val launchResult = runner.launchProcess(
-            command = launchCmd,
-            workingDir = layout.rootfsDir,
+            command = cmd,
+            workingDir = layout.baseDir,
             logFile = logFile,
             environment = mapOf(
                 // 新版 proot 自带独立 loader：loader 也随 jniLibs 解压到 nativeLibraryDir。
