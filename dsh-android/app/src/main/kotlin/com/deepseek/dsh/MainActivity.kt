@@ -198,10 +198,12 @@ fun MainAppHost(
     val sessions = repoSessions
 
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(sessions) {
-        if (selectedSessionId == null) selectedSessionId = sessions.firstOrNull()?.sessionId
-        else if (sessions.none { it.sessionId == selectedSessionId }) {
-            selectedSessionId = sessions.firstOrNull()?.sessionId
+    val liveSessionIds by dshRepository.liveSessionIdsFlow.collectAsState()
+    LaunchedEffect(sessions, liveSessionIds) {
+        val current = selectedSessionId
+        selectedSessionId = when {
+            current != null && current in liveSessionIds -> current
+            else -> sessions.firstOrNull { it.sessionId in liveSessionIds }?.sessionId
         }
     }
 
@@ -669,9 +671,16 @@ fun MainAppHost(
                                             sid = dshRepository.createSession(
                                                 activeHostId,
                                                 text.take(24),
-                                                activeWorkspace.absolutePath
+                                                "/workspace"
                                             ).getOrNull()?.sessionId
-                                            if (sid != null) selectedSessionId = sid
+                                            if (sid != null) {
+                                                // proot 下 Host 的 mkdir 可能返回 ENOENT；先在 Android 侧建好会话目录。
+                                                java.io.File(
+                                                    context.filesDir,
+                                                    "rootfs/root/.dsh/sessions/--workspace--/$sid"
+                                                ).mkdirs()
+                                                selectedSessionId = sid
+                                            }
                                         }
                                         if (sid != null) {
                                             dshRepository.selectModel(
@@ -691,7 +700,8 @@ fun MainAppHost(
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
-                                                effectiveModelIdByName[model] ?: model
+                                                effectiveModelIdByName[model] ?: model,
+                                                if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
                                             )
                                         }
                                     }
@@ -1368,6 +1378,11 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
+
 
 
 

@@ -218,9 +218,12 @@ class DshRepository(
         }
     }
 
+    val liveSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+
     suspend fun refreshSessions(hostId: String) {
         when (val res = client.listSessions(hostId)) {
             is RemoteResult.Success -> {
+                liveSessionIdsFlow.value = res.data.map { it.sessionId }.toSet()
                 val entities = res.data.map { session ->
                     SessionEntity(
                         hostId = session.hostId,
@@ -247,6 +250,7 @@ class DshRepository(
         return when (res) {
             is RemoteResult.Success -> {
                 val session = res.data
+                liveSessionIdsFlow.value = liveSessionIdsFlow.value + session.sessionId
                 dao.insertSessions(
                     listOf(
                         SessionEntity(
@@ -277,9 +281,9 @@ class DshRepository(
         client.deleteSession(hostId, sessionId)
     }
 
-    suspend fun selectModel(hostId: String, sessionId: String, model: String) {
+    suspend fun selectModel(hostId: String, sessionId: String, model: String, provider: String? = null) {
         dao.updateSessionModel(hostId, sessionId, model)
-        client.selectModel(hostId, sessionId, model)
+        client.selectModel(hostId, sessionId, model, provider)
     }
 
     suspend fun selectPermissionPreset(hostId: String, sessionId: String, preset: String) {
@@ -360,25 +364,8 @@ class DshRepository(
         )
 
         scope.launch(Dispatchers.IO) {
-            when (val res = client.sendMessage(hostId, sessionId, content)) {
-                is RemoteResult.Success -> {
-                    dao.insertMessages(
-                        listOf(
-                            MessageEntity(
-                                hostId = res.data.hostId,
-                                sessionId = res.data.sessionId,
-                                messageId = res.data.messageId,
-                                role = res.data.role.name,
-                                seq = res.data.seq,
-                                contentJson = res.data.content,
-                                createdAt = res.data.createdAt,
-                                status = "delivered"
-                            )
-                        )
-                    )
-                }
-                is RemoteResult.Failure -> {}
-            }
+            // 用户消息已乐观插入；这里只提交 prompt，避免同一条消息被插入两次。
+            client.sendMessage(hostId, sessionId, content)
         }
 
         return userMsg
@@ -430,3 +417,7 @@ class DshRepository(
         }
     }
 }
+
+
+
+

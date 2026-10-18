@@ -26,7 +26,7 @@
     <string name="chip_run_cli">运行终端命令</string>
     <string name="chat_input_placeholder">发消息或创建任务, / 调用指令, @ 文件或对话</string>
     <string name="chat_input_placeholder_plan">描述你的任务以生成计划</string>
-    <string name="chat_thinking">深度求索中</string>
+    <string name="chat_thinking">思考</string>
     <string name="chat_thinking_for">深度求索中，用时 %1$s ···</string>
     <string name="tool_executed_summary">已在本地执行系统工具与环境准备</string>
     <string name="action_copy">复制</string>
@@ -201,6 +201,7 @@
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
 </resources>
+
 
 
 

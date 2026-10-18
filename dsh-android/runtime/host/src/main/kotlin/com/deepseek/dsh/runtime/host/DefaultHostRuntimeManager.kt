@@ -116,6 +116,8 @@ class DefaultHostRuntimeManager(
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-spill-local/lib/index.js",
             "rootfs-patches/dsh-atomic-write-index.js" to
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-atomic-write/lib/index.js",
+            "rootfs-patches/dsh-plugin-package-inventory-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-plugin-package-inventory-deepseek/lib/index.js",
         )
         patches.forEach { (asset, relative) ->
             val target = File(layout.rootfsDir, relative)
@@ -150,6 +152,8 @@ class DefaultHostRuntimeManager(
         }
         // proot 的 bind 目标需要存在；DSH 配置目录先创建，避免首次启动 mkdir 失败。
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
+        File(layout.rootfsDir, "root/.dsh/sessions/--workspace--").mkdirs()
+        File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
         // rootfs 内没有 Android 的 DNS 配置，登录/模型请求会因解析失败报 network。
         File(layout.rootfsDir, "etc/resolv.conf").apply {
             parentFile?.mkdirs()
@@ -259,5 +263,6 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
 
 

@@ -718,57 +718,66 @@ fun ReasoningCard(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(!isFinished) }
+    val preview = remember(reasoningText) { reasoningText.lineSequence().firstOrNull().orEmpty() }
 
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        modifier = modifier.animateContentSize()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = DshIcons.ThinkOutline,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = DshIcons.ThinkOutline,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = if (isFinished) stringResource(R.string.chat_thinking)
+                else stringResource(R.string.chat_thinking_for, elapsedSeconds),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (!expanded) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .size(2.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.outline)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isFinished) {
-                        stringResource(R.string.chat_thinking)
-                    } else {
-                        stringResource(R.string.chat_thinking_for, elapsedSeconds)
-                    },
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                    color = MaterialTheme.colorScheme.primary,
+                    text = preview,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                Icon(
-                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
 
-            AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(top = 10.dp, start = 4.dp)) {
-                    Text(
-                        text = reasoningText,
-                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+        AnimatedVisibility(visible = expanded) {
+            Text(
+                text = reasoningText,
+                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp, fontSize = 13.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 22.dp, top = 4.dp, bottom = 4.dp)
+            )
         }
     }
 }
-
 /**
  * 消息项：用户气泡、助手正文与五项消息操作。
  */
@@ -816,8 +825,18 @@ fun ModernMessageItem(
                     )
                 }
 
+                val contentParts = message.content.split('\u0001', limit = 2)
+                if (contentParts.size == 2 && contentParts[0].isNotBlank()) {
+                    ReasoningCard(
+                        isFinished = true,
+                        elapsedSeconds = "",
+                        reasoningText = contentParts[0],
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Text(
-                    text = message.content,
+                    text = contentParts.last(),
                     style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -1262,6 +1281,8 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
 
 
 

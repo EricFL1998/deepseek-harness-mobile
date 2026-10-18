@@ -261,7 +261,8 @@ class RemoteClient(
     override suspend fun selectModel(
         hostId: String,
         sessionId: String,
-        modelId: String
+        modelId: String,
+        provider: String?
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
@@ -271,7 +272,7 @@ class RemoteClient(
                 put("args", buildJsonObject {
                     put("request", buildJsonObject {
                         put("sessionId", sessionId)
-                        put("provider", "deepseek-official")
+                        put("provider", provider ?: "deepseek-account")
                         put("model", modelId)
                     })
                 })
@@ -1205,7 +1206,7 @@ class RemoteClient(
                     content = text,
                     createdAt = System.currentTimeMillis()
                 )
-                followSession(sessionId)
+                followSession(sessionId, hostId)
                 RemoteResult.Success(msg)
             }
         } catch (e: IOException) {
@@ -1214,13 +1215,15 @@ class RemoteClient(
     }
 
     private val followSockets = mutableListOf<okhttp3.WebSocket>()
+    private val eventBus = kotlinx.coroutines.flow.MutableSharedFlow<RemoteEvent>(extraBufferCapacity = 128)
 
     /** 订阅 session/follow 流，驱动 Host 执行已入队的 prompt，并接收工具/消息帧。 */
-    private fun followSession(sessionId: String) {
+    private fun followSession(sessionId: String, hostId: String) {
         val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
         val request = okhttp3.Request.Builder().url(wsUrl).build()
         val socket = client.newWebSocket(request, object : okhttp3.WebSocketListener() {
             override fun onOpen(webSocket: okhttp3.WebSocket, response: okhttp3.Response) {
+                println("DSH_FOLLOW ws open session=$sessionId")
                 val streamId = java.util.UUID.randomUUID().toString()
                 val open = buildJsonObject {
                     put("type", "open")
@@ -1240,44 +1243,66 @@ class RemoteClient(
                 }
                 webSocket.send(open.toString())
             }
-            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) = Unit
-            override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) = Unit
+            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                try {
+                    val root = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject ?: return
+                    if (root["type"]?.toString()?.trim('"') != "item") return
+                    val value = root["value"] as? kotlinx.serialization.json.JsonObject ?: return
+                    if (value["type"]?.toString()?.trim('"') != "event") return
+                    val event = value["event"] as? kotlinx.serialization.json.JsonObject ?: return
+                    if (event["type"]?.toString()?.trim('"') != "assistant/message") return
+                    val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
+                    val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
+                    val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
+                    val reasoning = blocks?.mapNotNull { part ->
+                        val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                        if (obj["type"]?.toString()?.trim('"') == "reasoning") obj["text"]?.toString()?.trim('"') else null
+                    }?.joinToString("").orEmpty()
+                    val answer = blocks?.mapNotNull { part ->
+                        val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                        if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.toString()?.trim('"') else null
+                    }?.joinToString("").orEmpty()
+                    val content = when {
+                        reasoning.isBlank() -> answer
+                        answer.isBlank() -> reasoning
+                        else -> reasoning + "\u0001" + answer
+                    }
+                    println("DSH_ASSISTANT len=" + content.length + " seps=" + content.count { it.code == 1 })
+                    if (content.isBlank()) return
+                    val seq = event["seq"]?.toString()?.toLongOrNull() ?: System.currentTimeMillis()
+                    eventBus.tryEmit(
+                        RemoteEvent.MessageDone(
+                            sessionId = sessionId,
+                            message = ChatMessage(
+                                hostId = hostId,
+                                sessionId = sessionId,
+                                messageId = "assistant_$seq",
+                                role = MessageRole.ASSISTANT,
+                                content = content,
+                                seq = seq,
+                                createdAt = System.currentTimeMillis(),
+                            ),
+                        )
+                    )
+                } catch (_: Exception) {
+                }
+            }
+            override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
+                println("DSH_FOLLOW fail ${t.message} http=${response?.code}")
+            }
         })
         followSockets.add(socket)
     }
-    override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = callbackFlow {
-        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
-        val request = Request.Builder().url(wsUrl).build()
-
-        val listener = object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                trySend(RemoteEvent.Ready(hostId = hostId, generation = System.currentTimeMillis()))
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    // 解析流式帧
-                    trySend(RemoteEvent.MessageDelta(sessionId = "default", delta = text))
-                } catch (e: Exception) {
-                    trySend(RemoteEvent.Error("dsh/proto/frame", e.message ?: "Malformed WS frame"))
-                }
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                trySend(RemoteEvent.Error("dsh/net/closed", t.message ?: "WebSocket failure"))
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                channel.close()
-            }
-        }
-
-        val ws = client.newWebSocket(request, listener)
-        awaitClose {
-            ws.close(1000, "client subscriber closed")
-        }
-    }
+    override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
+
+
+
+
+
+
+
 
 
 
