@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -142,7 +143,8 @@ fun ModernNavigationDrawerContent(
             .fillMaxHeight()
             .width(304.dp)
             .background(bgDrawer)
-            .padding(start = 10.dp, end = 10.dp, top = 28.dp, bottom = 12.dp)
+            .statusBarsPadding()
+            .padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 12.dp)
     ) {
         // 1. 顶部品牌行（对齐 ui-sidebar .logoRow / .brandIdentity）：
         //    飞鱼标识 + deepseek 字标 + 反白 HARNESS 徽章
@@ -676,6 +678,7 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 
 
