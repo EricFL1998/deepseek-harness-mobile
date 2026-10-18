@@ -245,7 +245,10 @@ fun ModernChatScreen(
             selectedModel = selectedModel,
             availableModels = availableModels,
             effortLabel = stringResource(reasoningLevel.labelResId),
-            onOpenModelMenu = { modelMenuOpen = true },
+            onOpenModelMenu = {
+                permissionMenuOpen = false
+                modelMenuOpen = true
+            },
             onModelMenuDismiss = { modelMenuOpen = false },
             modelMenuOpen = modelMenuOpen,
             onModelSelected = { model ->
@@ -257,7 +260,10 @@ fun ModernChatScreen(
                 onReasoningLevelChange(level)
             },
             currentPermission = currentPermission,
-            onOpenPermissionMenu = { permissionMenuOpen = true },
+            onOpenPermissionMenu = {
+                modelMenuOpen = false
+                permissionMenuOpen = true
+            },
             onPermissionMenuDismiss = { permissionMenuOpen = false },
             permissionMenuOpen = permissionMenuOpen,
             onPermissionSelect = { preset ->
@@ -471,8 +477,8 @@ private fun PermissionMenu(
         onDismiss = onDismiss,
         menuWidth = menuWidth,
         align = DshMenuAlign.Start,
-        // Popup 窗口不覆盖状态栏；用负间距抵消 edge-to-edge 锚点与弹层窗口的坐标差值。
-        anchorGap = (-17).dp,
+        // 卡片底部与 trigger 顶部齐平，不能压住 Composer。
+        anchorGap = 56.dp,
     ) {
         PermissionPreset.entries.forEach { preset ->
             val selected = preset == current
@@ -541,8 +547,8 @@ private fun ModelEffortMenu(
         menuWidth = if (page == 0) rowWidth else 240.dp,
         align = DshMenuAlign.Start,
         maxHeight = 360.dp,
-        // Popup 窗口不覆盖状态栏；用负间距抵消 edge-to-edge 锚点与弹层窗口的坐标差值。
-        anchorGap = (-10).dp,
+        // 卡片底部与 trigger 顶部齐平，不能压住 Composer。
+        anchorGap = 56.dp,
     ) {
         when (page) {
             0 -> {
@@ -1251,6 +1257,8 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
 
 
 
