@@ -610,6 +610,13 @@ fun MainAppHost(
     var workspaceRevision by remember { mutableStateOf(0) }
     var showAddWorkspaceDialog by remember { mutableStateOf(false) }
     var newWorkspaceName by remember { mutableStateOf("") }
+    var renameWorkspaceFolder by remember {
+        mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
+    }
+    var renameWorkspaceName by remember { mutableStateOf("") }
+    var deleteWorkspaceFolder by remember {
+        mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
+    }
     if (showAddWorkspaceDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showAddWorkspaceDialog = false },
@@ -642,6 +649,65 @@ fun MainAppHost(
             }
         )
     }
+    renameWorkspaceFolder?.let { folder ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renameWorkspaceFolder = null },
+            title = { Text("重命名工作区") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = renameWorkspaceName,
+                    onValueChange = { renameWorkspaceName = it },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = renameWorkspaceName.isNotBlank(),
+                    onClick = {
+                        val target = java.io.File(
+                            folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
+                        )
+                        val renamed = java.io.File(target.parentFile, renameWorkspaceName.trim())
+                        if (target.exists() && renamed.absolutePath != target.absolutePath) {
+                            runCatching { target.renameTo(renamed) }
+                            workspaceRevision += 1
+                        }
+                        renameWorkspaceFolder = null
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { renameWorkspaceFolder = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    deleteWorkspaceFolder?.let { folder ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteWorkspaceFolder = null },
+            title = { Text("删除工作区") },
+            text = { Text("将删除「${folder.name}」及其中的所有文件，此操作不可撤销。") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        val target = java.io.File(
+                            folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
+                        )
+                        runCatching { target.deleteRecursively() }
+                        workspaceRevision += 1
+                        deleteWorkspaceFolder = null
+                    }
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { deleteWorkspaceFolder = null }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
     val files = remember(activePage, activeWorkspace) {
         workspaceManager.listFiles(activeWorkspace)
     }
@@ -661,6 +727,7 @@ fun MainAppHost(
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
                 id = "ws_${dir.name.hashCode()}",
                 name = dir.name.ifEmpty { "主工作区" },
+                path = dir.absolutePath,
                 sessions = dirSessions.mapIndexed { sIdx, s ->
                     com.deepseek.dsh.feature.sessions.SessionDisplayItem(
                         sessionId = s.sessionId,
@@ -764,6 +831,13 @@ fun MainAppHost(
                     onAddWorkspace = {
                         newWorkspaceName = ""
                         showAddWorkspaceDialog = true
+                    },
+                    onRenameWorkspace = { folder ->
+                        renameWorkspaceFolder = folder
+                        renameWorkspaceName = folder.name
+                    },
+                    onDeleteWorkspace = { folder ->
+                        deleteWorkspaceFolder = folder
                     },
                     onNavigateSettings = {
                         scope.launch {
@@ -1700,6 +1774,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 

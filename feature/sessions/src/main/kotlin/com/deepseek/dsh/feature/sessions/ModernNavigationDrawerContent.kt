@@ -86,6 +86,7 @@ data class SessionDisplayItem(
 data class WorkspaceFolder(
     val id: String,
     val name: String,
+    val path: String = "",
     val sessions: List<SessionDisplayItem> = emptyList(),
     val isExpanded: Boolean = true
 )
@@ -118,6 +119,8 @@ fun ModernNavigationDrawerContent(
     onNavigateHosts: () -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     onAddWorkspace: () -> Unit = {},
+    onRenameWorkspace: (WorkspaceFolder) -> Unit = {},
+    onDeleteWorkspace: (WorkspaceFolder) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // 严格动态跟随手机系统的 MaterialTheme 调色板
@@ -136,6 +139,7 @@ fun ModernNavigationDrawerContent(
     }
 
     var showAccountMenu by remember { mutableStateOf(false) }
+    var workspaceMenuId by remember { mutableStateOf<String?>(null) }
     var sessionMenuId by remember { mutableStateOf<String?>(null) }
 
     Column(
@@ -338,17 +342,21 @@ fun ModernNavigationDrawerContent(
                 val isExpanded = expandedMap[folder.id] ?: folder.isExpanded
 
                 item(key = "fld_${folder.id}") {
+                    Box {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = if (folderIndex == 0) 0.dp else 4.dp)
                             .height(32.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                                expandedMap = expandedMap.toMutableMap().apply {
-                                    put(folder.id, !isExpanded)
-                                }
-                            }
+                            .combinedClickable(
+                                onClick = {
+                                    expandedMap = expandedMap.toMutableMap().apply {
+                                        put(folder.id, !isExpanded)
+                                    }
+                                },
+                                onLongClick = { workspaceMenuId = folder.id }
+                            )
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -374,6 +382,39 @@ fun ModernNavigationDrawerContent(
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = workspaceMenuId == folder.id,
+                        onDismissRequest = { workspaceMenuId = null }
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("重命名") },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official),
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                workspaceMenuId = null
+                                onRenameWorkspace(folder)
+                            }
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("删除工作区", color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_delete_workspace_official),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = {
+                                workspaceMenuId = null
+                                onDeleteWorkspace(folder)
+                            }
+                        )
+                    }
                     }
                 }
 
@@ -583,7 +624,7 @@ private fun SessionRowMenu(
 
     val entries = listOf(
         Entry(R.string.row_pin, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_pin),
-        Entry(R.string.row_rename, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_edit),
+        Entry(R.string.row_rename, com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official),
         Entry(R.string.row_fork, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_branch),
         Entry(R.string.row_archive, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
         Entry(R.string.row_session_id, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_copy),
@@ -678,6 +719,9 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
 
 
 
