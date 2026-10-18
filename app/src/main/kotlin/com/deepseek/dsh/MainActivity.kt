@@ -1222,12 +1222,7 @@ private fun StoragePermissionGate(onRequest: () -> Unit) {
             ) {
                 Text("去开启权限")
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "授权后会自动进入应用",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
-            )
+
         }
     }
 }
@@ -1590,6 +1585,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
