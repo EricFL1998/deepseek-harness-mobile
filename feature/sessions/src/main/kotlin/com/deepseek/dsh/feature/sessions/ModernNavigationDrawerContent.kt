@@ -455,6 +455,7 @@ fun ModernNavigationDrawerContent(
                 .drawerScrollbar(sessionListState, textMuted),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
+            val searching = searchOpen && searchQuery.isNotBlank()
             val filteredWorkspaces = workspaces.map { folder ->
                 val sessions = folder.sessions.filter { session ->
                     val archiveOk = when (archiveFilter) {
@@ -462,28 +463,39 @@ fun ModernNavigationDrawerContent(
                         ArchiveFilter.ALL -> true
                         ArchiveFilter.ONLY_ARCHIVED -> session.archived
                     }
-                    val searchOk = !(searchOpen && searchQuery.isNotBlank()) ||
-                        session.title.contains(searchQuery, ignoreCase = true)
+                    val searchOk = !searching || session.title.contains(searchQuery, ignoreCase = true)
                     archiveOk && searchOk
                 }.let { list ->
                     if (sortMode == SessionSortMode.RECENT) list.sortedByDescending { it.updatedAt } else list
                 }
                 folder.copy(sessions = sessions, isExpanded = true)
-            }.filter {
-                it.sessions.isNotEmpty() || !(searchOpen && searchQuery.isNotBlank())
+            }.filter { folder ->
+                // 官方 groupByWorkspace：除「仅归档」外，空工作区也保留。
+                archiveFilter != ArchiveFilter.ONLY_ARCHIVED || folder.sessions.isNotEmpty()
             }
-            val visibleWorkspaces = if (groupMode == WorkspaceGroupMode.SINGLE_LIST) {
-                val all = filteredWorkspaces.flatMap { it.sessions }.let {
-                    if (sortMode == SessionSortMode.RECENT) it.sortedByDescending { s -> s.updatedAt } else it
+            val allMatching = workspaces.flatMap { folder -> folder.sessions }
+                .filter { session ->
+                    val archiveOk = when (archiveFilter) {
+                        ArchiveFilter.HIDE_ARCHIVED -> !session.archived
+                        ArchiveFilter.ALL -> true
+                        ArchiveFilter.ONLY_ARCHIVED -> session.archived
+                    }
+                    val searchOk = !searching || session.title.contains(searchQuery, ignoreCase = true)
+                    archiveOk && searchOk
                 }
-                if (all.isEmpty()) emptyList() else listOf(
-                    WorkspaceFolder(id = "__all", name = "", sessions = all, isExpanded = true)
+                .let { list ->
+                    if (sortMode == SessionSortMode.RECENT) list.sortedByDescending { it.updatedAt } else list
+                }
+            val visibleWorkspaces = if (searching || groupMode == WorkspaceGroupMode.SINGLE_LIST) {
+                if (allMatching.isEmpty()) emptyList() else listOf(
+                    WorkspaceFolder(id = "__all", name = "", sessions = allMatching, isExpanded = true)
                 )
             } else {
                 filteredWorkspaces
             }
+
             visibleWorkspaces.forEachIndexed { folderIndex, folder ->
-                val isExpanded = if (searchOpen && searchQuery.isNotBlank()) true else (expandedMap[folder.id] ?: folder.isExpanded)
+                val isExpanded = if ((searchOpen && searchQuery.isNotBlank()) || groupMode == WorkspaceGroupMode.SINGLE_LIST) true else (expandedMap[folder.id] ?: folder.isExpanded)
 
                 item(key = "fld_${folder.id}") {
                     if (folder.id != "__all") {
@@ -1018,6 +1030,9 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
 
 
 
