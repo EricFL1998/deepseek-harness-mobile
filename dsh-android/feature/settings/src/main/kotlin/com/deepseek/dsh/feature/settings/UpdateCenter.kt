@@ -43,7 +43,9 @@ object UpdateCenter {
 
     fun hasUpdate(context: Context): Boolean {
         val latest = _update.value ?: return false
-        return latest.tag.isNotBlank() && latest.tag != currentVersion(context)
+        val current = currentVersion(context)
+        val base = current.removeSuffix("-mobile")
+        return latest.tag.isNotBlank() && latest.tag != current && latest.tag != base
     }
 
     suspend fun check(context: Context) {
@@ -96,5 +98,6 @@ object UpdateCenter {
         if (!checked) check(context)
     }
 }
+
 
 

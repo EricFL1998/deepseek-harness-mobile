@@ -585,7 +585,9 @@ fun MainAppHost(
                 ModernNavigationDrawerContent(
                     userName = accountState.profile?.name ?: "DeepSeek 用户",
                     avatarUrl = accountState.profile?.avatarUrl,
-                    updateVersion = updateInfo?.tag?.takeIf { it != currentVersion },
+                    updateVersion = updateInfo?.tag?.takeIf {
+                        com.deepseek.dsh.feature.settings.UpdateCenter.hasUpdate(context)
+                    },
                     onUpdateClick = {
                         scope.launch { drawerState.close() }
                         settingsInitialSection = com.deepseek.dsh.feature.settings.SettingsSectionTab.UPDATE
@@ -1535,6 +1537,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

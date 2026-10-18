@@ -37,7 +37,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
     val checking by UpdateCenter.checking.collectAsState()
     val error by UpdateCenter.error.collectAsState()
     val currentVersion = UpdateCenter.currentVersion(context)
-    val available = update?.takeIf { it.tag != currentVersion }
+    val available = update?.takeIf { UpdateCenter.hasUpdate(context) }
 
     LaunchedEffect(Unit) { UpdateCenter.check(context) }
 
@@ -125,3 +125,4 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
         }
     }
 }
+

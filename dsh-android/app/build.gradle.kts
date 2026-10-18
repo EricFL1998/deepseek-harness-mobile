@@ -13,8 +13,8 @@ android {
         applicationId = "com.deepseek.dsh"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "4.0.0-alpha1"
+        versionCode = 2
+        versionName = "0.2.0-rc.2-mobile"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -96,6 +96,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
+
 
 
 
