@@ -184,6 +184,7 @@ fun ModernChatScreen(
     var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
     var isPlanMode by remember { mutableStateOf(false) }
     var commandSheetOpen by remember { mutableStateOf(false) }
+    var toolDetail by remember { mutableStateOf<ToolDetailData?>(null) }
     var permissionMenuOpen by remember { mutableStateOf(false) }
     var modelMenuOpen by remember { mutableStateOf(false) }
     var pendingConfirm by remember { mutableStateOf<PermissionPreset?>(null) }
@@ -250,6 +251,7 @@ fun ModernChatScreen(
                         message = msg,
                         onRetry = { onSendMessage(msg.content) },
                         onAnswerUserQuestion = onAnswerUserQuestion,
+                        onOpenToolDetail = { toolDetail = it },
                     )
                 }
 
@@ -259,6 +261,10 @@ fun ModernChatScreen(
                     }
                 }
             }
+        }
+
+        toolDetail?.let { detail ->
+            ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
         }
 
         BottomInputBar(
@@ -811,6 +817,7 @@ fun ReasoningCard(
 private fun ToolMessageItem(
     content: String,
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
+    onOpenDetail: (ToolDetailData) -> Unit = {},
 ) {
     val parts = content.split(2.toChar())
     if (parts.size < 5) return
@@ -826,7 +833,17 @@ private fun ToolMessageItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(24.dp)
-                .clickable { expanded = !expanded },
+                .clickable {
+                    onOpenDetail(
+                        ToolDetailData(
+                            callId = callId,
+                            name = name,
+                            status = status,
+                            args = args,
+                            body = body,
+                        )
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -1009,6 +1026,109 @@ private fun LiveToolStatus(messages: List<ChatMessage>) {
         }
     }
 }
+data class ToolDetailData(
+    val callId: String,
+    val name: String,
+    val status: String,
+    val args: String,
+    val body: String,
+)
+
+/** 点击 Tool 行后的完整参数/输出详情。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ToolDetailSheet(detail: ToolDetailData, onDismiss: () -> Unit) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = toolTitle(detail.name),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = when (detail.status) {
+                        "running" -> "运行中"
+                        "error" -> "失败"
+                        else -> "已完成"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (detail.status == "error") MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.outline
+                )
+            }
+            if (detail.callId.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = detail.callId,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            val prettyArgs = remember(detail.args) {
+                runCatching {
+                    org.json.JSONObject(detail.args).toString(2)
+                }.getOrElse { detail.args }
+            }
+            if (prettyArgs.isNotBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("参数", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = prettyArgs,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+            if (detail.body.isNotBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (detail.status == "error") "错误" else "输出",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (detail.status == "error") MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = detail.body,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
 private fun toolExpandedText(
     name: String,
     args: String,
@@ -1109,6 +1229,7 @@ fun ModernMessageItem(
     message: ChatMessage,
     onRetry: () -> Unit = {},
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
+    onOpenToolDetail: (ToolDetailData) -> Unit = {},
 ) {
     val isUser = message.role == MessageRole.USER
 
@@ -1130,7 +1251,11 @@ fun ModernMessageItem(
                 )
             }
         } else if (message.role == MessageRole.TOOL) {
-            ToolMessageItem(content = message.content, onAnswerUserQuestion = onAnswerUserQuestion)
+            ToolMessageItem(
+                content = message.content,
+                onAnswerUserQuestion = onAnswerUserQuestion,
+                onOpenDetail = onOpenToolDetail,
+            )
         } else {
             Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
 
@@ -1550,6 +1675,9 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
 
 
 
