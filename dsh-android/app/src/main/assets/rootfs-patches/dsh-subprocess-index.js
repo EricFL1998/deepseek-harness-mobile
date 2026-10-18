@@ -1,6 +1,6 @@
 import { C as bindManagedProcess, D as createProcessInspector, E as validateSubprocessSpec, O as controlPipe, S as loadLinuxExecve, T as spawnSubprocess, _ as parseWindowsRunnerResult, c as runnerStdio, d as cleanupLinuxLaunchFiles, l as spawnRunnerInvocation, m as deserializeRunnerError, n as WINDOWS_RUNNER_SELECTION, o as runnerEnvironment, p as createLinuxLaunchFiles, s as runnerInvocationAvailable, u as targetEnvironment, w as childEnv, y as readLinuxStartupError } from "./runner-launch-B2zsQ1Dz.js";
 import { logSpillFailure, prepareManagedProcessBinding } from "./output.js";
-import { closeSync, constants, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, constants, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync , mkdirSync } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { constants as constants$1, devNull, tmpdir, userInfo } from "node:os";
 import { basename, delimiter, extname, isAbsolute, join, resolve } from "node:path";
@@ -9,7 +9,19 @@ import { SubprocessExecutableNotFoundError, SubprocessRuntime } from "@deepseek-
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { setTimeout as setTimeout$1 } from "node:timers/promises";
 import { randomBytes } from "node:crypto";
-function dshMkdtempSync(prefix) { return "/root/.dsh/tmp/shell"; }
+import { loadWin32ProcessBindings, probeCurrentTokenJobSupport } from "@deepseek-ai/dsh-win32-process";
+import { Buffer } from "node:buffer";
+import { PassThrough } from "node:stream";
+//#region lib/types/linux-scope.js
+/** Linux user-systemd scope launch and managed-range ownership. */
+const SYSTEMCTL_TIMEOUT_MS = 5e3;
+const SCOPE_INITIAL_POLL_INTERVAL_MS = 50;
+const MISSING_UNIT = /\bunit\b[^\r\n]*(?:could not be found|not found|not loaded)/iu;
+function managerEnvironment() {
+	const environment = childEnv({ LC_ALL: "C" });
+	delete environment.SYSTEMD_LOG_TARGET;
+	return environment;
+}
 function quietSystemdEnvironment() {
 	return childEnv({
 		LC_ALL: "C",
@@ -1152,7 +1164,7 @@ function prepareShellActivity(spec, env, platform) {
 	if (spec.shellActivity !== true || platform === "win32" || spec.argv.length !== 2 || spec.argv[1] !== "-i") return void 0;
 	const shell = basename(spec.argv[0]);
 	if (shell !== "bash" && shell !== "zsh") return void 0;
-	const directory = dshMkdtempSync(join(tmpdir(), "dsh-shell-"));
+	const directory = dshSafeMkdtemp(join(tmpdir(), "dsh-shell-"));
 	const state = quote(join(directory, "state"));
 	const guards = quote(join(directory, "guards"));
 	try {
@@ -1471,3 +1483,5 @@ function environmentValue(env, name) {
 }
 //#endregion
 export { LocalSubprocessRuntime, LocalSubprocessRuntime as default };
+
+function dshSafeMkdtemp(prefix) { const target = "/root/.dsh/tmp/shell"; try { mkdirSync(target, { recursive: true, mode: 448 }); } catch {} return target; }

@@ -233,6 +233,8 @@ fun MainAppHost(
     val sessions = repoSessions
 
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    var isSending by remember { mutableStateOf(false) }
+    val pendingMessages = remember { androidx.compose.runtime.mutableStateListOf<ChatMessage>() }
     val liveSessionIds by dshRepository.liveSessionIdsFlow.collectAsState()
     val runningSessionIds by dshRepository.runningSessionIdsFlow.collectAsState()
     val unreadSessionIds by dshRepository.unreadSessionIdsFlow.collectAsState()
@@ -716,7 +718,7 @@ fun MainAppHost(
                             }
 
                             ModernChatScreen(
-                                messages = messages,
+                                messages = messages + pendingMessages,
                                 onAnswerUserQuestion = { callId, questionId, selected ->
                                     val sid = selectedSessionId
                                     if (sid != null) {
@@ -728,7 +730,20 @@ fun MainAppHost(
                                     }
                                 },
                                 onSendMessage = { text ->
+                                    val localId = "local_${System.nanoTime()}"
+                                    pendingMessages.add(
+                                        ChatMessage(
+                                            hostId = activeHostId,
+                                            sessionId = selectedSessionId ?: "pending",
+                                            messageId = localId,
+                                            role = MessageRole.USER,
+                                            content = text,
+                                            createdAt = System.currentTimeMillis()
+                                        )
+                                    )
+                                    isSending = true
                                     scope.launch {
+                                        try {
                                         var sid = selectedSessionId
                                         if (sid == null) {
                                             sid = dshRepository.createSession(
@@ -749,12 +764,18 @@ fun MainAppHost(
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
-                                                effectiveModelIdByName[currentModel] ?: currentModel
+                                                effectiveModelIdByName[currentModel] ?: currentModel,
+                                                if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
                                             )
                                             dshRepository.sendMessage(activeHostId, sid, text)
                                         }
+                                        } finally {
+                                            pendingMessages.removeAll { it.messageId == localId }
+                                            isSending = false
+                                        }
                                     }
                                 },
+                                isSending = isSending,
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
                                 onModelSelected = { model ->
@@ -1472,6 +1493,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 

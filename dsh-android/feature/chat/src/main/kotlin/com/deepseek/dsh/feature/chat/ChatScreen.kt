@@ -162,6 +162,7 @@ private val MODEL_CATALOG = listOf("DeepSeek-V3", "DeepSeek-R1", "DeepSeek-V3.2"
 fun ModernChatScreen(
     messages: List<ChatMessage>,
     onSendMessage: (String) -> Unit,
+    isSending: Boolean = false,
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
@@ -200,13 +201,34 @@ fun ModernChatScreen(
             .background(MaterialTheme.colorScheme.background)
             .imePadding()
     ) {
-        if (messages.isEmpty()) {
+        if (messages.isEmpty() && !isSending) {
             EmptyWelcomeView(
                 onChipClick = { prompt -> onSendMessage(prompt) },
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             )
+        } else if (messages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "正在创建会话…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
         } else {
             LazyColumn(
                 state = listState,
@@ -1451,6 +1473,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 

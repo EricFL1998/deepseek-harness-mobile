@@ -1,8 +1,26 @@
-import { closeSync, mkdirSync, openSync, rmdirSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, rmdirSync, unlinkSync, writeSync , mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-function dshMkdtempSync(prefix) { return "/root/.dsh/tmp/spill"; }
+//#region lib/types/output.js
+/** Bounded output tails and private spill files shared by process providers. */
+let spillCounter = 0;
+let defaultSpillDir;
+/**
+* The default spill location: a private (0700) per-process directory under
+* the OS tmpdir, created lazily. Predictable world-readable paths would let
+* other local users read command output or pre-create symlinks. The directory
+* is created once per process and never recreated: when an external
+* temporary-file cleaner removes it while empty, the next spill open fails and
+* the collector degrades to its in-memory tail. At a JavaScript-observable
+* process exit the directory is removed only when it holds no completed spill
+* file (spill files are retained as full-output recovery artifacts until an
+* external cleanup).
+*/
+function privateSpillDir() {
+	defaultSpillDir ??= dshSafeMkdtemp(join(tmpdir(), "dsh-subprocess-"));
+	return defaultSpillDir;
+}
 /* v8 ignore next 4 -- exit listeners run after the coverage dump; removal is verified by the CI /tmp residue measurement. */
 process.once("exit", () => {
 	if (defaultSpillDir === void 0) return;
@@ -219,3 +237,5 @@ var OutputCollector = class {
 };
 //#endregion
 export { OutputCollector, logSpillFailure, prepareManagedProcessBinding };
+
+function dshSafeMkdtemp(prefix) { const target = "/root/.dsh/tmp/spill"; try { mkdirSync(target, { recursive: true, mode: 448 }); } catch {} return target; }

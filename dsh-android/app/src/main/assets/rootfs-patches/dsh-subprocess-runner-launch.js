@@ -1,7 +1,44 @@
-import { OutputCollector, prepareManagedProcessBinding } from "./output.js";
-import { accessSync, chmodSync, closeSync, constants, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-function dshMkdtempSync(prefix) { return "/root/.dsh/tmp/launch"; }
+import { OutputCollector, prepareManagedProcessBinding } from "./output.js";
+import { accessSync, chmodSync, closeSync, constants, existsSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, rmdirSync, statSync, unlinkSync, writeFileSync , mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import { createLazyRequire } from "@deepseek-ai/dsh-lazy-require";
+import { scrubbedParentEnv } from "@deepseek-ai/dsh-subprocess";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { setTimeout as setTimeout$1 } from "node:timers/promises";
+import { MAX_TIMER_DELAY_MS } from "@deepseek-ai/dsh-timeout";
+import { SUBPROCESS_CONTROL_ENV, SUBPROCESS_CONTROL_FD } from "@deepseek-ai/dsh-subprocess/control";
+import { getSystemErrorMessage, getSystemErrorName, inspect } from "node:util";
+import { fileURLToPath } from "node:url";
+//#region lib/types/managed-owner.js
+/** Minimal managed-range ownership bound to one ordinary subprocess handle. */
+/**
+* Apply an optional abort bound to one shared wait promise.
+* @param pending - managed-range wait shared by all callers.
+* @param signal - optional caller cancellation signal.
+* @returns whether the managed-range wait completed before cancellation.
+*/
+async function waitWithAbort(pending, signal) {
+	if (signal?.aborted) {
+		pending.catch(() => {});
+		return false;
+	}
+	if (signal === void 0) {
+		await pending;
+		return true;
+	}
+	const aborted = Promise.withResolvers();
+	const onAbort = () => {
+		aborted.resolve(false);
+	};
+	signal.addEventListener("abort", onAbort, { once: true });
+	try {
+		return await Promise.race([pending.then(() => true), aborted.promise]);
+	} finally {
+		signal.removeEventListener("abort", onAbort);
+	}
+}
 //#endregion
 //#region lib/types/control-spawn.js
 /** Parent-side setup for one explicitly requested inherited control pipe. */
@@ -1096,7 +1133,7 @@ function parseErrorResult(value) {
 * @returns private paths owned by this launch.
 */
 function createLinuxLaunchFiles(request) {
-	const directory = dshMkdtempSync(join(tmpdir(), "dsh-subprocess-launch-"));
+	const directory = dshSafeMkdtemp(join(tmpdir(), "dsh-subprocess-launch-"));
 	const files = {
 		directory,
 		requestPath: join(directory, "launch-request.json"),
@@ -1491,3 +1528,5 @@ function targetEnvironment(spec) {
 }
 //#endregion
 export { bindManagedProcess as C, createProcessInspector as D, validateSubprocessSpec as E, controlPipe as O, loadLinuxExecve as S, spawnSubprocess as T, parseWindowsRunnerResult as _, resolveWindowsExecutable as a, serializeRunnerError as b, runnerStdio as c, cleanupLinuxLaunchFiles as d, consumeLinuxLaunchRequest as f, linuxLaunchFilesFromLocator as g, isWindowsTerminateRequest as h, parseRunnerTargetArgv as i, spawnRunnerInvocation as l, deserializeRunnerError as m, WINDOWS_RUNNER_SELECTION as n, runnerEnvironment as o, createLinuxLaunchFiles as p, consumeRunnerSelection as r, runnerInvocationAvailable as s, SUBPROCESS_RUNNER_ENV as t, targetEnvironment as u, parseWindowsStartRequest as v, childEnv as w, writeLinuxStartupError as x, readLinuxStartupError as y };
+
+function dshSafeMkdtemp(prefix) { const target = "/root/.dsh/tmp/launch"; try { mkdirSync(target, { recursive: true, mode: 448 }); } catch {} return target; }
