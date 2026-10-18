@@ -70,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -437,10 +438,13 @@ fun ModernNavigationDrawerContent(
         // 5. 工作区树（对齐 ui-workspace Rows.module.css）：
         //    项目行 .projectRow 高 34、圆角 12、padding 0 8、gap 6、文件夹图标 16；
         //    会话行 .sessionRow 高 32、圆角 12、起始缩进 20、标题 14/20、时间 10/16 三级色。
+        val sessionListState = androidx.compose.foundation.lazy.rememberLazyListState()
         LazyColumn(
+            state = sessionListState,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .drawerScrollbar(sessionListState, textMuted),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             val filteredWorkspaces = workspaces.map { folder ->
@@ -767,6 +771,33 @@ private fun SessionRowMenu(
 
 /** 工作区长按菜单：与账户/会话菜单同一 Dsh 菜单材质。 */
 /** 视图选项菜单：分组方式 / 排序方式 / 筛选会话（对齐官方 Drawer 菜单）。 */
+/** 抽屉会话列表的官方样式滚动条：右侧细圆角、随滚动位置移动。 */
+private fun Modifier.drawerScrollbar(
+    state: androidx.compose.foundation.lazy.LazyListState,
+    color: Color,
+): Modifier = this.drawWithContent {
+    drawContent()
+    val layout = state.layoutInfo
+    val visible = layout.visibleItemsInfo
+    if (visible.isEmpty() || layout.totalItemsCount <= visible.size) return@drawWithContent
+    val first = visible.first()
+    val last = visible.last()
+    val viewportHeight = size.height
+    if (viewportHeight <= 0f) return@drawWithContent
+    val contentHeight = (last.offset + last.size - first.offset).toFloat().coerceAtLeast(1f)
+    val thumbHeight = (viewportHeight * visible.size / layout.totalItemsCount.toFloat())
+        .coerceIn(24.dp.toPx(), viewportHeight)
+    val scrollRange = (layout.totalItemsCount - 1).coerceAtLeast(1)
+    val fraction = ((first.index + (first.offset - layout.viewportStartOffset).toFloat() / first.size) / scrollRange)
+        .coerceIn(0f, 1f)
+    val top = fraction * (viewportHeight - thumbHeight)
+    drawRoundRect(
+        color = color.copy(alpha = 0.35f),
+        topLeft = androidx.compose.ui.geometry.Offset(size.width - 7.dp.toPx(), top),
+        size = androidx.compose.ui.geometry.Size(5.dp.toPx(), thumbHeight),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.5.dp.toPx())
+    )
+}
 @Composable
 private fun ViewOptionsMenu(
     groupMode: WorkspaceGroupMode,
@@ -907,6 +938,9 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
 
 
 
