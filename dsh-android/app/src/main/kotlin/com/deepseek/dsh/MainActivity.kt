@@ -730,6 +730,7 @@ fun MainAppHost(
                                     }
                                 },
                                 onSendMessage = { text ->
+                                    println("DSH_SEND start text=$text selected=$selectedSessionId live=$liveSessionIds")
                                     val localId = "local_${System.nanoTime()}"
                                     pendingMessages.add(
                                         ChatMessage(
@@ -761,6 +762,7 @@ fun MainAppHost(
                                             }
                                         }
                                         if (sid != null) {
+                                            println("DSH_SEND session=$sid")
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
@@ -768,6 +770,10 @@ fun MainAppHost(
                                                 if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
                                             )
                                             dshRepository.sendMessage(activeHostId, sid, text)
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context, "创建会话失败，请检查 Host 运行状态", android.widget.Toast.LENGTH_LONG
+                                            ).show()
                                         }
                                         } finally {
                                             pendingMessages.removeAll { it.messageId == localId }
@@ -1493,6 +1499,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
