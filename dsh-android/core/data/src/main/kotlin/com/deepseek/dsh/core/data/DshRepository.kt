@@ -356,6 +356,7 @@ class DshRepository(
             content = content,
             createdAt = System.currentTimeMillis()
         )
+        dao.touchSession(hostId, sessionId, System.currentTimeMillis())
         dao.insertMessages(
             listOf(
                 MessageEntity(
@@ -395,6 +396,7 @@ class DshRepository(
                     }
                     is RemoteEvent.MessageDelta -> {}
                     is RemoteEvent.MessageDone -> {
+                        dao.touchSession(event.message.hostId, event.message.sessionId, System.currentTimeMillis())
                         dao.insertMessages(
                             listOf(
                                 MessageEntity(
@@ -435,6 +437,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 

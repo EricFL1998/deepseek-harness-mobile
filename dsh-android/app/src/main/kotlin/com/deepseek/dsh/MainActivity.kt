@@ -546,10 +546,11 @@ fun MainAppHost(
                         hasUnread = s.sessionId in unreadSessionIds,
                         timeAgo = run {
                             val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
-                            if (elapsed < 24L * 60 * 60 * 1000) {
-                                "${(elapsed / (60 * 60 * 1000)).coerceAtLeast(1)}小时"
-                            } else {
-                                "${(elapsed / (24 * 60 * 60 * 1000)).coerceAtLeast(1)}天"
+                            when {
+                                elapsed < 60_000L -> "刚刚"
+                                elapsed < 60L * 60 * 1000 -> "${elapsed / 60_000L}分钟"
+                                elapsed < 24L * 60 * 60 * 1000 -> "${elapsed / (60 * 60 * 1000)}小时"
+                                else -> "${elapsed / (24 * 60 * 60 * 1000)}天"
                             }
                         },
                         isActiveDot = (s.sessionId == selectedSessionId)
@@ -1461,6 +1462,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

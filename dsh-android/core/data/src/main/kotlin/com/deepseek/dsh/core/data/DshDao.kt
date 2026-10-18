@@ -27,6 +27,9 @@ interface DshDao {
     @Query("UPDATE sessions SET model = :model WHERE hostId = :hostId AND sessionId = :sessionId")
     suspend fun updateSessionModel(hostId: String, sessionId: String, model: String)
 
+    @Query("UPDATE sessions SET updatedAt = :updatedAt WHERE hostId = :hostId AND sessionId = :sessionId")
+    suspend fun touchSession(hostId: String, sessionId: String, updatedAt: Long)
+
     @Query("UPDATE sessions SET permissionPreset = :preset WHERE hostId = :hostId AND sessionId = :sessionId")
     suspend fun updateSessionPermission(hostId: String, sessionId: String, preset: String)
 
@@ -48,3 +51,4 @@ interface DshDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSurfaces(surfaces: List<SurfaceCatalogEntity>)
 }
+
