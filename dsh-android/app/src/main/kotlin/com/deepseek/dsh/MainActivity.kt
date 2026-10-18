@@ -92,7 +92,7 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     /** 使用 app-specific 外部目录，proot/Android 11+ 才能稳定读写（不受 MANAGE_EXTERNAL_STORAGE 限制）。 */
     private val externalWorkspaceDir: File by lazy {
-        File(getExternalFilesDir(null) ?: filesDir, "DSH-Workspace")
+        File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace")
     }
 
     private lateinit var runtimeManager: HostRuntimeManager
@@ -185,11 +185,36 @@ fun MainAppHost(
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
 
-    val externalWorkspaceDir = remember { java.io.File(context.getExternalFilesDir(null) ?: context.filesDir, "DSH-Workspace") }
+    val externalWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
+
+    var hasAllFilesAccess by remember { mutableStateOf(android.os.Environment.isExternalStorageManager()) }
+    LaunchedEffect(hasAllFilesAccess) {
+        while (!hasAllFilesAccess) {
+            kotlinx.coroutines.delay(1000)
+            hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
+        }
+    }
+    val openAllFilesSettings: () -> Unit = {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    android.net.Uri.parse("package:" + context.packageName)
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
     val activeWorkspace = remember(currentAppSettings.workspacePath) {
         // 旧版本默认 Documents 路径在 proot 下会 EACCES；迁移到 app-specific 外部目录。
         val configured = currentAppSettings.workspacePath
-        val migrated = if (configured.startsWith("/storage/emulated/0/Documents/DSH-Workspace")) {
+        val migrated = if (
+            configured.startsWith("/storage/emulated/0/Documents/DSH-Workspace")
+        ) {
+            externalWorkspaceDir.absolutePath
+        } else if (
+            configured.contains("/Android/data/com.deepseek.dsh/") ||
+            configured.contains("/Android/media/com.deepseek.dsh/")
+        ) {
             externalWorkspaceDir.absolutePath
         } else configured
         val custom = java.io.File(migrated)
@@ -607,18 +632,23 @@ fun MainAppHost(
             val pageHasOwnHeader = activePage == ActivePage.SETTINGS
             Scaffold(
                 topBar = {
-                    when {
-                        chatPage -> ModernTopAppBar(
-                            title = sessions.find { it.sessionId == selectedSessionId }?.title
-                                ?: stringResource(R.string.app_name),
-                            showModeCapsule = false,
-                            onMenuClick = { scope.launch { drawerState.open() } },
-                        )
+                    Column {
+                        when {
+                            chatPage -> ModernTopAppBar(
+                                title = sessions.find { it.sessionId == selectedSessionId }?.title
+                                    ?: stringResource(R.string.app_name),
+                                showModeCapsule = false,
+                                onMenuClick = { scope.launch { drawerState.open() } },
+                            )
 
-                        !pageHasOwnHeader -> PageBackBar(
-                            onBack = { activePage = ActivePage.CHAT },
-                            onMenuClick = { scope.launch { drawerState.open() } },
-                        )
+                            !pageHasOwnHeader -> PageBackBar(
+                                onBack = { activePage = ActivePage.CHAT },
+                                onMenuClick = { scope.launch { drawerState.open() } },
+                            )
+                        }
+                        if (!hasAllFilesAccess) {
+                            AllFilesAccessBanner(onClick = openAllFilesSettings)
+                        }
                     }
                 }
             ) { innerPadding ->
@@ -1031,6 +1061,35 @@ fun MainAppHost(
     }
 }
 
+/** 常驻权限提醒：没有「所有文件访问权限」时工作区无法被 Host 读写。 */
+@Composable
+private fun AllFilesAccessBanner(onClick: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "需要「所有文件访问权限」才能读写共享工作区",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "去开启",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
 @Composable
 fun RuntimeControlScreen(
     runtimeManager: HostRuntimeManager,
@@ -1390,6 +1449,12 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
+
+
 
 
 
