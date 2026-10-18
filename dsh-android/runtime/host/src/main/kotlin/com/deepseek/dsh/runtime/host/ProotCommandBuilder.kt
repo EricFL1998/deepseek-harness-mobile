@@ -63,6 +63,7 @@ object ProotCommandBuilder {
         cmd.add("PATH=/opt/dsh/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
         cmd.add("NODE_ENV=production")
         cmd.add("LANG=C.UTF-8")
+        cmd.add("TMPDIR=/root/.dsh/tmp")
 
         config.customEnv.forEach { (k, v) ->
             cmd.add("$k=$v")
@@ -81,3 +82,5 @@ object ProotCommandBuilder {
         return cmd
     }
 }
+
+

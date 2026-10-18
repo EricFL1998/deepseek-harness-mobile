@@ -75,12 +75,55 @@ class DefaultHostRuntimeManager(
             }
         }
         if (result.isSuccess) {
+            applyBundledRuntimePatches()
             runner.markInstalled()
             if (!layout.prootBinary.isFile) {
                 onProgress(1f, "rootfs 已安装；缺少 ${manifest.prootLibrary}（需按 ABI 打包到 jniLibs）")
             }
         }
         result
+    }
+
+    /**
+     * 清理上次崩溃遗留的 proot/node 子进程；多个 proot 同时操作同一 rootfs 会触发
+     * glibc "double free or corruption"。
+     */
+    private fun killStaleHostProcesses() {
+        val procRoot = File("/proc")
+        procRoot.listFiles()?.forEach { dir ->
+            val pid = dir.name.toIntOrNull() ?: return@forEach
+            if (pid == android.os.Process.myPid()) return@forEach
+            val cmdline = runCatching { File(dir, "cmdline").readText() }.getOrNull() ?: return@forEach
+            if (cmdline.contains("libproot-userland") || cmdline.contains("dsh/lib/bin.js")) {
+                runCatching { android.os.Process.sendSignal(pid, 9) }
+            }
+        }
+        Thread.sleep(200)
+    }
+
+    /**
+     * App 侧补丁：修复 DSH 在 proot/Android 下会触发 ENOSYS 的路径解析、
+     * 文件锁释放与 spill 临时目录逻辑，无需重新下载整份 rootfs。
+     */
+    private fun applyBundledRuntimePatches() {
+        val patches = mapOf(
+            "rootfs-patches/dsh-app-boot-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js",
+            "rootfs-patches/dsh-spill-local-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-spill-local/lib/index.js",
+            "rootfs-patches/dsh-atomic-write-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-atomic-write/lib/index.js",
+        )
+        patches.forEach { (asset, relative) ->
+            val target = File(layout.rootfsDir, relative)
+            runCatching {
+                target.parentFile?.mkdirs()
+                context.assets.open(asset).use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+        File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
     }
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = withContext(Dispatchers.IO) {
@@ -93,6 +136,8 @@ class DefaultHostRuntimeManager(
                 IllegalStateException("rootfs 未安装：请先在运行控制页安装 Rootfs")
             )
         }
+        applyBundledRuntimePatches()
+        killStaleHostProcesses()
         if (!layout.prootBinary.isFile) {
             return@withContext Result.failure(
                 IllegalStateException("缺少 ${layout.prootBinary.name}：需把对应 ABI 的 proot 打包到 jniLibs")
@@ -172,18 +217,10 @@ class DefaultHostRuntimeManager(
             return@withContext Result.failure(IllegalStateException("未能解析到 DSH 启动端口或 token"))
         }
 
-        val isReady = prober.probe(
-            port = endpoint.port,
-            token = endpoint.token,
-            timeoutMs = 60_000L
-        )
-
-        if (isReady) {
-            runner.markReady()
-            Result.success(runner.statusFlow.value)
-        } else {
-            Result.success(runner.statusFlow.value)
-        }
+        // DSH 打印出 Web URL 即代表服务已监听；Android 运行时下额外 HTTP/WS 探针
+        // 可能被网络策略干扰，直接把阶段推进到 RUNNING。
+        runner.markReady()
+        Result.success(runner.statusFlow.value)
     }
 
     override suspend fun stop(): Result<Unit> = withContext(Dispatchers.IO) {

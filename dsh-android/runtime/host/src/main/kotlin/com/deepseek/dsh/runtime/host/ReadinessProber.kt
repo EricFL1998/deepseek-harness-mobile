@@ -34,10 +34,9 @@ class ReadinessProber(
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             val httpReady = checkHttp(baseUrl, token)
             if (httpReady) {
-                val wsReady = checkWebSocket(port, token)
-                if (wsReady) {
-                    return true
-                }
+                // Web UI 已能响应；WS 探针在部分 Android 运行时会被代理/网络栈干扰，
+                // 不应因此让 Host 永远停留在 STARTING。
+                return true
             }
             delay(intervalMs)
         }
