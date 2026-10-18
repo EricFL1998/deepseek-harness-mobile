@@ -1013,8 +1013,8 @@ fun BottomInputBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(start = 14.dp, end = 8.dp)
-                        .heightIn(min = 36.dp)
-                        .padding(top = 4.dp),
+                        .heightIn(min = 44.dp)
+                        .padding(top = 7.dp),
                     singleLine = false,
                     maxLines = 8,
                     decorationBox = { innerTextField ->
@@ -1260,6 +1260,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
