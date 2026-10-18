@@ -3,6 +3,7 @@ package com.deepseek.dsh.feature.chat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -54,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -998,39 +1000,40 @@ fun BottomInputBar(
                 .background(panelColors.bgLayer2)
                 .border(0.5.dp, panelColors.borderL2, cardShape)
         ) {
-            Column(modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 8.dp)) {
-                TextField(
+            Column(modifier = Modifier.padding(start = 0.dp, end = 4.dp, top = 8.dp)) {
+                BasicTextField(
                     value = inputText,
                     onValueChange = onInputChange,
-                    placeholder = {
-                        Text(
-                            text = if (isPlanMode) stringResource(R.string.chat_input_placeholder_plan)
-                            else stringResource(R.string.chat_input_placeholder),
-                            fontSize = 13.sp,
-                            lineHeight = 20.sp,
-                            color = panelColors.labelCaption
-                        )
-                    },
                     textStyle = TextStyle(
                         fontSize = 14.sp,
-                        lineHeight = 22.sp,
+                        lineHeight = 24.sp,
                         color = panelColors.labelPrimary,
                     ),
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = panelColors.labelPrimary,
-                        unfocusedTextColor = panelColors.labelPrimary,
-                        cursorColor = panelColors.labelPrimary,
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
+                    cursorBrush = SolidColor(panelColors.labelPrimary),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
+                        .padding(start = 14.dp, end = 8.dp)
+                        .heightIn(min = 36.dp)
+                        .padding(top = 4.dp),
                     singleLine = false,
-                    maxLines = 8
+                    maxLines = 8,
+                    decorationBox = { innerTextField ->
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            if (inputText.isEmpty()) {
+                                Text(
+                                    text = if (isPlanMode) stringResource(R.string.chat_input_placeholder_plan)
+                                    else stringResource(R.string.chat_input_placeholder),
+                                    fontSize = 14.sp,
+                                    lineHeight = 24.sp,
+                                    color = panelColors.labelCaption
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier
@@ -1257,6 +1260,9 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
 
 
 
