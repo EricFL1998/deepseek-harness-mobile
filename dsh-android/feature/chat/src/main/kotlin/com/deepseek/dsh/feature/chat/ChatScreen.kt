@@ -69,6 +69,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.designsystem.AnchoredMenuOverlay
@@ -815,7 +816,9 @@ private fun ToolMessageItem(
     val callId = if (parts.size >= 6) parts[2] else ""
     val name = if (parts.size >= 6) parts[3] else parts[2]
     val status = if (parts.size >= 6) parts[4] else parts[3]
-    val body = if (parts.size >= 6) parts.drop(5).joinToString(2.toChar().toString()) else parts[4]
+    val body = if (parts.size >= 6) parts[5] else parts[4]
+    val args = parts.getOrNull(6).orEmpty()
+    val summary = remember(name, args, body, status) { toolSummary(name, args, body, status) }
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
         Row(
@@ -826,14 +829,14 @@ private fun ToolMessageItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Build,
+                imageVector = toolIcon(name),
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = name,
+                text = toolTitle(name),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -845,16 +848,23 @@ private fun ToolMessageItem(
                     .background(MaterialTheme.colorScheme.outline)
             )
             Text(
-                text = when (status) {
-                    "running" -> "执行中…"
-                    "error" -> "失败"
-                    else -> "已完成"
-                },
+                text = summary,
                 style = MaterialTheme.typography.labelMedium,
                 color = if (status == "error") MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.outline,
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            if (status == "running" || status == "error") {
+                Text(
+                    text = if (status == "running") "运行中" else "失败",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (status == "error") MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(start = 6.dp)
+                )
+            }
             Icon(
                 imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
@@ -929,7 +939,7 @@ private fun ToolMessageItem(
                 modifier = Modifier.padding(start = 22.dp, top = 4.dp)
             ) {
                 Text(
-                    text = body,
+                    text = toolExpandedText(name, args, body, status),
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         fontSize = 12.sp,
@@ -943,7 +953,81 @@ private fun ToolMessageItem(
     }
 }
 
-private data class AskOption(val label: String, val description: String)
+private fun toolExpandedText(
+    name: String,
+    args: String,
+    body: String,
+    status: String,
+): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    val obj = runCatching { org.json.JSONObject(args) }.getOrNull()
+    val editOld = obj?.optString("old_string").orEmpty()
+    val editNew = obj?.optString("new_string").orEmpty()
+    if (name.contains("edit") && (editOld.isNotBlank() || editNew.isNotBlank())) {
+        if (editOld.isNotBlank()) {
+            editOld.lineSequence().forEach { line ->
+                withStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFFE5484D))) {
+                    append("- $line\n")
+                }
+            }
+        }
+        if (editNew.isNotBlank()) {
+            editNew.lineSequence().forEach { line ->
+                withStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF2F9E5F))) {
+                    append("+ $line\n")
+                }
+            }
+        }
+        if (status != "running" && body.isNotBlank()) {
+            append("\n")
+            append(body.take(600))
+        }
+        return@buildAnnotatedString
+    }
+    if (status == "running") {
+        val running = when {
+            name.contains("bash") || name.contains("shell") -> obj?.optString("command").orEmpty()
+            name.contains("write") -> obj?.optString("content").orEmpty()
+            else -> obj?.toString().orEmpty()
+        }
+        append(running)
+    } else {
+        append(body)
+    }
+}
+
+private fun toolIcon(name: String) = Icons.Default.Build
+private fun toolTitle(name: String): String = when {
+    name.contains("bash") || name.contains("shell") -> "运行命令"
+    name.contains("read") -> "读取"
+    name.contains("write") -> "写入"
+    name.contains("edit") -> "编辑"
+    name.contains("grep") -> "搜索文件内容"
+    name.contains("glob") -> "查找文件"
+    name.contains("ask_user_question") -> "询问"
+    name.contains("create_goal") || name.contains("update_goal") -> "目标"
+    name.contains("subagent") -> "子任务"
+    name.contains("web_search") || name.contains("web_fetch") -> "网页"
+    else -> "工具调用"
+}
+
+private fun toolSummary(name: String, args: String, body: String, status: String): String {
+    val obj = runCatching { org.json.JSONObject(args) }.getOrNull()
+    fun pick(vararg keys: String): String = keys.firstNotNullOfOrNull { key ->
+        obj?.optString(key)?.takeIf { it.isNotBlank() }
+    }.orEmpty()
+    val summary = when {
+        name.contains("bash") || name.contains("shell") -> pick("description", "command")
+        name.contains("read") || name.contains("write") || name.contains("edit") -> pick("file_path", "path")
+        name.contains("grep") || name.contains("glob") -> pick("pattern", "query", "path")
+        name.contains("ask_user_question") -> pick("question", "header")
+        name.contains("goal") -> pick("objective", "title")
+        name.contains("subagent") -> pick("description", "prompt")
+        else -> pick("description", "command", "path", "pattern", "query")
+    }
+    if (summary.isNotBlank()) return summary
+    if (status != "running" && body.isNotBlank()) return body.lineSequence().firstOrNull()?.take(120).orEmpty()
+    return ""
+}private data class AskOption(val label: String, val description: String)
 private data class AskQuestion(val id: String, val question: String, val header: String, val options: List<AskOption>)
 
 private fun parseAskQuestions(raw: String): List<AskQuestion> = runCatching {
@@ -1473,6 +1557,13 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
+
+
 
 
 
