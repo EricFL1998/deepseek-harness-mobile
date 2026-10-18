@@ -352,7 +352,7 @@ fun ModernNavigationDrawerContent(
                             .height(32.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(
-                                if (folder.name == selectedWorkspaceName) {
+                                if (folder.name == selectedWorkspaceName && selectedSessionId.isNullOrBlank()) {
                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                                 } else {
                                     Color.Transparent
@@ -372,14 +372,18 @@ fun ModernNavigationDrawerContent(
                     ) {
                         Icon(
                             painter = painterResource(
-                                id = if (isExpanded) {
+                                id = if (isExpanded || folder.name == selectedWorkspaceName) {
                                     com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open
                                 } else {
                                     com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_close
                                 }
                             ),
                             contentDescription = null,
-                            tint = textSecondary,
+                            tint = if (folder.name == selectedWorkspaceName) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                textSecondary
+                            },
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -737,6 +741,8 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
 
 
 
