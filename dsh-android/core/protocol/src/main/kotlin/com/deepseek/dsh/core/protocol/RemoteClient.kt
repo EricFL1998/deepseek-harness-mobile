@@ -178,20 +178,21 @@ class RemoteClient(
         title: String,
         workspacePath: String?
     ): RemoteResult<SessionInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val newSessionId = "session_${System.currentTimeMillis()}"
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "session/create")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("title", title)
-                    if (workspacePath != null) put("workspacePath", workspacePath)
+                    put("request", buildJsonObject {
+                        if (workspacePath != null) put("cwd", workspacePath)
+                    })
                 })
             })
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/session/create")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -203,15 +204,26 @@ class RemoteClient(
                         "Host 返回错误: HTTP ${response.code}"
                     )
                 }
-                val newSession = SessionInfo(
-                    hostId = hostId,
-                    sessionId = newSessionId,
-                    title = title,
-                    workspacePath = workspacePath,
-                    status = "ready",
-                    updatedAt = System.currentTimeMillis()
+                val bodyStr = response.body?.string() ?: ""
+                val value = runCatching {
+                    (json.parseToJsonElement(bodyStr) as? kotlinx.serialization.json.JsonObject)
+                        ?.get("result")?.let { it as? kotlinx.serialization.json.JsonObject }
+                        ?.get("value") as? kotlinx.serialization.json.JsonObject
+                }.getOrNull()
+                val createdId = value?.get("sessionId")?.toString()?.trim('"')
+                if (createdId.isNullOrBlank()) {
+                    return@withContext RemoteResult.Failure("dsh/session/create-malformed", "Host did not return sessionId")
+                }
+                RemoteResult.Success(
+                    SessionInfo(
+                        hostId = hostId,
+                        sessionId = createdId,
+                        title = title,
+                        workspacePath = workspacePath,
+                        status = "ready",
+                        updatedAt = System.currentTimeMillis()
+                    )
                 )
-                RemoteResult.Success(newSession)
             }
         } catch (e: Exception) {
             RemoteResult.Failure(
@@ -1136,19 +1148,27 @@ class RemoteClient(
         sessionId: String,
         text: String
     ): RemoteResult<ChatMessage> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val requestId = java.util.UUID.randomUUID().toString()
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "session/prompt")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("sessionId", sessionId)
-                    put("prompt", text)
+                    put("request", buildJsonObject {
+                        put("requestId", requestId)
+                        put("sessionId", sessionId)
+                        put("mode", "queue")
+                        put("content", kotlinx.serialization.json.JsonArray(listOf(
+                            buildJsonObject { put("type", "text"); put("text", text) }
+                        )))
+                    })
                 })
             })
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/session/prompt")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -1168,6 +1188,7 @@ class RemoteClient(
                     content = text,
                     createdAt = System.currentTimeMillis()
                 )
+                followSession(sessionId)
                 RemoteResult.Success(msg)
             }
         } catch (e: IOException) {
@@ -1175,6 +1196,38 @@ class RemoteClient(
         }
     }
 
+    private val followSockets = mutableListOf<okhttp3.WebSocket>()
+
+    /** 订阅 session/follow 流，驱动 Host 执行已入队的 prompt，并接收工具/消息帧。 */
+    private fun followSession(sessionId: String) {
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val request = okhttp3.Request.Builder().url(wsUrl).build()
+        val socket = client.newWebSocket(request, object : okhttp3.WebSocketListener() {
+            override fun onOpen(webSocket: okhttp3.WebSocket, response: okhttp3.Response) {
+                val streamId = java.util.UUID.randomUUID().toString()
+                val open = buildJsonObject {
+                    put("type", "open")
+                    put("streamId", streamId)
+                    put("endpoint", "session/follow")
+                    put("payload", buildJsonObject {
+                        put("args", buildJsonObject {
+                            put("request", buildJsonObject {
+                                put("address", buildJsonObject {
+                                    put("kind", "session")
+                                    put("sessionId", sessionId)
+                                })
+                                put("assistantStream", true)
+                            })
+                        })
+                    })
+                }
+                webSocket.send(open.toString())
+            }
+            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) = Unit
+            override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) = Unit
+        })
+        followSockets.add(socket)
+    }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = callbackFlow {
         val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
         val request = Request.Builder().url(wsUrl).build()
@@ -1208,3 +1261,6 @@ class RemoteClient(
         }
     }
 }
+
+
+
