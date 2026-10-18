@@ -805,7 +805,7 @@ fun MainAppHost(
                         scope.launch {
                             val result = dshRepository.createSession(
                                 hostId = activeHostId,
-                                title = "新对话 ${sessions.size + 1}",
+                                title = "",
                                 workspacePath = activeWorkspaceCwd
                             )
                             result.onSuccess { newSession ->
@@ -880,8 +880,12 @@ fun MainAppHost(
                     Column {
                         when {
                             chatPage -> ModernTopAppBar(
-                                title = sessions.find { it.sessionId == selectedSessionId }?.title
-                                    ?: stringResource(R.string.app_name),
+                                title = if (messages.isEmpty()) {
+                                    ""
+                                } else {
+                                    sessions.find { it.sessionId == selectedSessionId }?.title
+                                        ?: stringResource(R.string.app_name)
+                                },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
                                 onMenuClick = { scope.launch { drawerState.open() } },
@@ -1918,6 +1922,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
