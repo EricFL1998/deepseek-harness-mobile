@@ -1027,7 +1027,7 @@ fun BottomInputBar(
                                     fontSize = 14.sp,
                                     lineHeight = 24.sp,
                                     color = panelColors.labelCaption,
-                                    modifier = Modifier.offset(x = (-2).dp, y = (-2).dp)
+                                    modifier = Modifier.offset(x = (-2).dp, y = (-2.4).dp)
                                 )
                             }
                             innerTextField()
@@ -1262,6 +1262,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
