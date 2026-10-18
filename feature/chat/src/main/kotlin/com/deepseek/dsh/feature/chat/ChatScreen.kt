@@ -328,7 +328,9 @@ fun ModernChatScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = (-36).dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     EmptyWelcomeView(
@@ -2019,6 +2021,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
