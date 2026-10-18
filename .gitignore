@@ -10,3 +10,13 @@ captures/
 .cxx/
 dsh-upstream/
 
+
+_screen/
+_rootfs-server/
+*.apk
+*.tar
+*.tar.gz
+*.bin
+_feasibility/asar/
+_feasibility/data/
+

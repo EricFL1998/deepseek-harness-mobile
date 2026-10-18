@@ -4,45 +4,37 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.ThumbDownOffAlt
-import androidx.compose.material.icons.filled.ThumbUpOffAlt
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,14 +54,45 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.deepseek.dsh.core.designsystem.AnchoredMenuOverlay
+import com.deepseek.dsh.core.designsystem.AnchoredMenuPopup
+import com.deepseek.dsh.core.designsystem.DshDialogButton
+import com.deepseek.dsh.core.designsystem.DshIcons
+import com.deepseek.dsh.core.designsystem.DshMenuBadge
+import com.deepseek.dsh.core.designsystem.DshMenuCaption
+import com.deepseek.dsh.core.designsystem.DshMenuCheck
+import com.deepseek.dsh.core.designsystem.DshMenuDescription
+import com.deepseek.dsh.core.designsystem.DshMenuIcon
+import com.deepseek.dsh.core.designsystem.DshMenuLabel
+import com.deepseek.dsh.core.designsystem.DshMenuRow
+import com.deepseek.dsh.core.designsystem.DshMenuSectionLabel
+import com.deepseek.dsh.core.designsystem.DshMenuValue
+import com.deepseek.dsh.core.designsystem.DshMenuAlign
+import com.deepseek.dsh.core.designsystem.DshDialog
+import com.deepseek.dsh.core.designsystem.DshPanelDefaults
+import com.deepseek.dsh.core.designsystem.DshSheetPanel
+import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
+import com.deepseek.dsh.core.designsystem.dshPanelColors
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.MessageRole
+import com.deepseek.dsh.core.model.ComposerStats
+import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.feature.chat.R
 
+/** 推理等级档位（对齐 ui-model-selection 的 effort 目录）。 */
 enum class ReasoningLevel(val labelResId: Int) {
     FAST(R.string.reasoning_fast),
     DEEP_THINK(R.string.reasoning_deep_think),
@@ -77,7 +100,58 @@ enum class ReasoningLevel(val labelResId: Int) {
 }
 
 /**
- * Material 3 风格现代主聊天交互页（对齐参考设计）
+ * 权限预设（对齐 ui-permission-presets 当前会话选择器）。
+ *
+ * 内置四项：仅可查看 / 工作区内修改 / 完全权限 / 自动审查（实验，带 EXP 标记）。
+ * 完全权限与自动审查需要通过带确认勾选的风险弹窗。
+ */
+enum class PermissionPreset(
+    val titleResId: Int,
+    val descResId: Int,
+    val badgeResId: Int? = null,
+    val confirmTitleResId: Int? = null,
+    val confirmDescResId: Int? = null,
+    val confirmAckResId: Int? = null,
+    val confirmEnableResId: Int? = null,
+) {
+    READ_ONLY(R.string.perm_read_only, R.string.perm_desc_read_only),
+    WORKSPACE_WRITE(R.string.perm_workspace_write, R.string.perm_desc_workspace_write),
+    FULL_ACCESS(
+        R.string.perm_danger_full_access,
+        R.string.perm_desc_danger_full_access,
+        confirmTitleResId = R.string.perm_confirm_title,
+        confirmDescResId = R.string.perm_confirm_desc,
+        confirmAckResId = R.string.perm_confirm_acknowledge,
+        confirmEnableResId = R.string.perm_confirm_enable,
+    ),
+    AUTO_REVIEW(
+        R.string.perm_auto_review,
+        R.string.perm_desc_auto_review,
+        badgeResId = R.string.perm_auto_badge,
+        confirmTitleResId = R.string.perm_auto_confirm_title,
+        confirmDescResId = R.string.perm_auto_confirm_desc,
+        confirmAckResId = R.string.perm_auto_confirm_acknowledge,
+        confirmEnableResId = R.string.perm_auto_confirm_enable,
+    ),
+}
+
+/** 加号菜单中的一条命令（对齐 ui-commands 的 label / description 与图标）。 */
+private data class ComposerCommand(
+    val labelResId: Int,
+    val descResId: Int,
+    val token: String,
+    val iconResId: Int,
+)
+
+/** 模型目录（DeepSeek 模型）。 */
+private val MODEL_CATALOG = listOf("DeepSeek-V3", "DeepSeek-R1", "DeepSeek-V3.2")
+
+/**
+ * 主聊天页：信息结构 + 手机端（ChatGPT Android）尺度的输入区。
+ *
+ * 输入卡片内自上而下是文本域与操作行；操作行自左向右为加号（命令菜单）、
+ * 权限预设、弹性留白、模型与推理等级、发送/停止，与 `InputBar` 的
+ * tools / trailing 两簇排布一致。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,15 +160,27 @@ fun ModernChatScreen(
     onSendMessage: (String) -> Unit,
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
-    onModelClick: () -> Unit = {},
+    availableModels: List<String> = MODEL_CATALOG,
+    onModelSelected: (String) -> Unit = {},
+    selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
+    onPermissionSelected: (PermissionPreset) -> Unit = {},
     reasoningLevel: ReasoningLevel = ReasoningLevel.FAST,
     onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
-    dockPluginSurfaces: List<com.deepseek.dsh.core.model.SurfaceItem> = emptyList(),
-    onDockPluginClick: (com.deepseek.dsh.core.model.SurfaceItem) -> Unit = {},
+    dockPluginSurfaces: List<SurfaceItem> = emptyList(),
+    onDockPluginClick: (SurfaceItem) -> Unit = {},
+    stats: ComposerStats = ComposerStats(),
     isThinking: Boolean = false,
+    onStopClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var inputText by remember { mutableStateOf("") }
+    var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
+    var isPlanMode by remember { mutableStateOf(false) }
+    var commandSheetOpen by remember { mutableStateOf(false) }
+    var permissionMenuOpen by remember { mutableStateOf(false) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
+    var pendingConfirm by remember { mutableStateOf<PermissionPreset?>(null) }
+
     val listState = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
@@ -110,7 +196,6 @@ fun ModernChatScreen(
             .imePadding()
     ) {
         if (messages.isEmpty()) {
-            // 空状态：居中萌趣/发光 AI 标识与欢迎问候语（参考截图 2）
             EmptyWelcomeView(
                 onChipClick = { prompt -> onSendMessage(prompt) },
                 modifier = Modifier
@@ -118,7 +203,6 @@ fun ModernChatScreen(
                     .fillMaxWidth()
             )
         } else {
-            // 对话流列表（参考截图 3）
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -128,34 +212,25 @@ fun ModernChatScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(messages, key = { it.messageId }) { msg ->
-                    ModernMessageItem(message = msg)
+                    ModernMessageItem(
+                        message = msg,
+                        onRetry = { onSendMessage(msg.content) }
+                    )
                 }
 
                 if (isThinking) {
                     item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.chat_thinking),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        ReasoningCard(
+                            isFinished = false,
+                            elapsedSeconds = "3",
+                            reasoningText = "正在解析任务目标，规划多轮工具调用链路，校验本地文件系统访问上下文…",
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
         }
 
-        // 底部悬浮控制台与药丸输入栏（推理等级已集成在 Model Picker 旁）
         BottomInputBar(
             inputText = inputText,
             onInputChange = { inputText = it },
@@ -166,19 +241,366 @@ fun ModernChatScreen(
                     onSendMessage(text)
                 }
             },
-            onOpenAttachmentMenu = onOpenAttachmentMenu,
+            onPlusClick = { commandSheetOpen = true },
             selectedModel = selectedModel,
-            onModelClick = onModelClick,
-            reasoningLevel = reasoningLevel,
-            onReasoningLevelChange = onReasoningLevelChange,
+            availableModels = availableModels,
+            effortLabel = stringResource(reasoningLevel.labelResId),
+            onOpenModelMenu = { modelMenuOpen = true },
+            onModelMenuDismiss = { modelMenuOpen = false },
+            modelMenuOpen = modelMenuOpen,
+            onModelSelected = { model ->
+                modelMenuOpen = false
+                onModelSelected(model)
+            },
+            onEffortSelected = { level ->
+                modelMenuOpen = false
+                onReasoningLevelChange(level)
+            },
+            currentPermission = currentPermission,
+            onOpenPermissionMenu = { permissionMenuOpen = true },
+            onPermissionMenuDismiss = { permissionMenuOpen = false },
+            permissionMenuOpen = permissionMenuOpen,
+            onPermissionSelect = { preset ->
+                permissionMenuOpen = false
+                if (preset.confirmTitleResId != null) {
+                    pendingConfirm = preset
+                } else {
+                    currentPermission = preset
+                    onPermissionSelected(preset)
+                }
+            },
+            isPlanMode = isPlanMode,
+            isGenerating = isThinking,
+            onStop = onStopClick,
             dockPluginSurfaces = dockPluginSurfaces,
-            onDockPluginClick = onDockPluginClick
+            onDockPluginClick = onDockPluginClick,
+            stats = stats
+        )
+    }
+
+    // 加号：分组命令菜单（添加 / 指令）
+    if (commandSheetOpen) {
+        ComposerCommandSheet(
+            onDismiss = { commandSheetOpen = false },
+            onFile = {
+                commandSheetOpen = false
+                onOpenAttachmentMenu()
+            },
+            onPlan = {
+                commandSheetOpen = false
+                isPlanMode = !isPlanMode
+            },
+            onPermission = {
+                commandSheetOpen = false
+                permissionMenuOpen = true
+            },
+            onModel = {
+                commandSheetOpen = false
+                modelMenuOpen = true
+            },
+            onCommand = { token ->
+                commandSheetOpen = false
+                inputText = if (inputText.isBlank()) "$token " else "${inputText.trimEnd()} $token "
+            }
+        )
+    }
+
+    pendingConfirm?.let { preset ->
+        PermissionRiskDialog(
+            preset = preset,
+            onDismiss = { pendingConfirm = null },
+            onConfirm = {
+                currentPermission = preset
+                onPermissionSelected(preset)
+                pendingConfirm = null
+            },
         )
     }
 }
 
 /**
- * 首页居中欢迎与快捷建议胶囊（参考截图 2）
+ * 风险确认弹窗（对齐 ui-primitives 的 RiskConfirmation + Modal）：
+ * 警告图标 + 说明文案 + 「我已了解风险」勾选，勾选后主按钮才可用。
+ */
+@Composable
+private fun PermissionRiskDialog(
+    preset: PermissionPreset,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    var acknowledged by remember(preset) { mutableStateOf(false) }
+    val titleRes = preset.confirmTitleResId ?: return
+    val descRes = preset.confirmDescResId ?: return
+    val ackRes = preset.confirmAckResId ?: return
+    val enableRes = preset.confirmEnableResId ?: return
+    val colors = LocalDshPanelColors.current
+
+    DshDialog(
+        onDismiss = onDismiss,
+        title = stringResource(titleRes),
+        closeLabel = stringResource(R.string.action_close),
+        width = DshPanelDefaults.WideDialogWidth,
+        content = {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_warning_outline),
+                    contentDescription = null,
+                    tint = colors.stateErrorPrimary,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .size(18.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = stringResource(descRes),
+                    color = colors.labelSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = acknowledged,
+                        role = Role.Checkbox,
+                        onValueChange = { acknowledged = it },
+                    ),
+                verticalAlignment = Alignment.Top,
+            ) {
+                RiskCheckbox(checked = acknowledged)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = stringResource(ackRes),
+                    color = colors.labelPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        },
+        footer = {
+            DshDialogButton(
+                text = stringResource(R.string.action_cancel),
+                primary = false,
+                enabled = true,
+                onClick = onDismiss,
+                modifier = Modifier.widthIn(min = 72.dp),
+            )
+            DshDialogButton(
+                text = stringResource(enableRes),
+                primary = true,
+                enabled = acknowledged,
+                onClick = onConfirm,
+                modifier = Modifier.widthIn(min = 136.dp),
+            )
+        },
+    )
+}
+
+/** 风险确认的原生勾选框：16dp 方形，选中使用品牌主色填充。 */
+@Composable
+private fun RiskCheckbox(checked: Boolean) {
+    val colors = LocalDshPanelColors.current
+    val shape = RoundedCornerShape(4.dp)
+    Box(
+        modifier = Modifier
+            .padding(top = 3.dp)
+            .size(16.dp)
+            .clip(shape)
+            .background(if (checked) colors.buttonPrimaryFill else Color.Transparent)
+            .then(
+                if (checked) {
+                    Modifier
+                } else {
+                    Modifier.border(1.dp, colors.borderL3, shape)
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (checked) {
+            Icon(
+                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_check),
+                contentDescription = null,
+                tint = colors.labelPrimaryForeground,
+                modifier = Modifier.size(11.dp),
+            )
+        }
+    }
+}
+/**
+ * 权限预设菜单：四项（含 EXP 标记的自动审查），每项使用权限图标，
+ * 选中项右侧显示对勾；卡片宽度按行内容实测收敛。
+ */
+@Composable
+private fun PermissionMenu(
+    expanded: Boolean,
+    anchorBounds: Rect?,
+    current: PermissionPreset,
+    onDismiss: () -> Unit,
+    onSelect: (PermissionPreset) -> Unit,
+) {
+    val labels = PermissionPreset.entries.map { stringResource(it.titleResId) }
+    val badges = PermissionPreset.entries.map { preset -> preset.badgeResId?.let { stringResource(it) } }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val labelStyle = TextStyle(fontSize = 13.sp, lineHeight = 20.sp)
+    val badgeStyle = TextStyle(fontSize = 8.sp, lineHeight = 10.sp, letterSpacing = 0.2.sp)
+    val menuWidth = remember(labels, badges, density) {
+        val contentWidth = labels.indices.maxOf { index ->
+            val label = measurer.measure(labels[index], labelStyle).size.width
+            val badge = badges[index]?.let {
+                measurer.measure(it, badgeStyle).size.width + with(density) { 4.dp.roundToPx() }
+            } ?: 0
+            label + badge
+        }
+        with(density) {
+            (
+                contentWidth +
+                    14.dp.roundToPx() +
+                    DshPanelDefaults.RowGap.roundToPx() * 3 +
+                    DshPanelDefaults.RowHorizontalPadding.roundToPx() * 2 +
+                    14.dp.roundToPx()
+                ).toDp()
+        }.coerceIn(DshPanelDefaults.MenuMinWidth, DshPanelDefaults.MenuMaxWidth)
+    }
+    AnchoredMenuPopup(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        menuWidth = menuWidth,
+        align = DshMenuAlign.Start,
+        // Popup 窗口不覆盖状态栏；用负间距抵消 edge-to-edge 锚点与弹层窗口的坐标差值。
+        anchorGap = (-17).dp,
+    ) {
+        PermissionPreset.entries.forEach { preset ->
+            val selected = preset == current
+            DshMenuRow(onClick = { onSelect(preset) }) {
+                DshMenuIcon(preset.iconResId(), size = 14.dp)
+                DshMenuLabel(labels[preset.ordinal], Modifier.alignByBaseline())
+                preset.badgeResId?.let {
+                    DshMenuBadge(badges[preset.ordinal].orEmpty(), Modifier.alignByBaseline())
+                }
+                Spacer(Modifier.weight(1f))
+                if (selected) DshMenuCheck()
+            }
+        }
+    }
+}
+
+/** 权限图标资源（只读 / 工作区内修改 / 完全权限 / 自动审查）。 */
+private fun PermissionPreset.iconResId(): Int = when (this) {
+    PermissionPreset.READ_ONLY -> com.deepseek.dsh.core.designsystem.R.drawable.ic_perm_readonly
+    PermissionPreset.WORKSPACE_WRITE -> com.deepseek.dsh.core.designsystem.R.drawable.ic_perm_workspace_write
+    PermissionPreset.FULL_ACCESS -> com.deepseek.dsh.core.designsystem.R.drawable.ic_perm_full_access
+    PermissionPreset.AUTO_REVIEW -> com.deepseek.dsh.core.designsystem.R.drawable.ic_perm_auto_review
+}
+
+/**
+ * 模型与推理等级菜单：首层两个导航行，进入后分别是模型列表与推理等级列表。
+ */
+@Composable
+private fun ModelEffortMenu(
+    expanded: Boolean,
+    anchorBounds: Rect?,
+    selectedModel: String,
+    availableModels: List<String>,
+    effortLabel: String,
+    onDismiss: () -> Unit,
+    onModelSelected: (String) -> Unit,
+    onEffortSelected: (ReasoningLevel) -> Unit,
+) {
+    var page by remember { mutableStateOf(0) }
+    LaunchedEffect(expanded) { if (expanded) page = 0 }
+
+    // 模型菜单：首层宽度按「标签 + 数值 + 12dp 箭头」实测收敛，卡片最小 240dp。
+    val labelStyle = TextStyle(fontSize = 13.sp, lineHeight = 20.sp)
+    val valueStyle = TextStyle(fontSize = 13.sp, lineHeight = 20.sp)
+    val measurer = rememberTextMeasurer()
+    val modelLabel = stringResource(R.string.model_menu_model)
+    val effortLabelText = stringResource(R.string.model_menu_effort)
+    val density = LocalDensity.current
+    val rowWidth = remember(selectedModel, effortLabel, modelLabel, effortLabelText, density) {
+        val labelMax = listOf(modelLabel, effortLabelText)
+            .maxOf { measurer.measure(it, labelStyle).size.width }
+        val valueMax = listOf(selectedModel, effortLabel)
+            .maxOf { measurer.measure(it, valueStyle).size.width }
+        with(density) {
+            (
+                labelMax + valueMax +
+                    12.dp.roundToPx() +
+                    DshPanelDefaults.RowHorizontalPadding.roundToPx() * 2
+                ).toDp()
+        }.coerceIn(144.dp, 420.dp)
+    }
+
+    AnchoredMenuPopup(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        menuWidth = if (page == 0) rowWidth else 240.dp,
+        align = DshMenuAlign.Start,
+        maxHeight = 360.dp,
+        // Popup 窗口不覆盖状态栏；用负间距抵消 edge-to-edge 锚点与弹层窗口的坐标差值。
+        anchorGap = (-10).dp,
+    ) {
+        when (page) {
+            0 -> {
+                if (availableModels.isEmpty()) {
+                    // 官方空目录文案：暂无可用模型。
+                    DshMenuSectionLabel("暂无可用模型")
+                } else {
+                    MenuNavRow(
+                        label = stringResource(R.string.model_menu_model),
+                        value = selectedModel,
+                        onClick = { page = 1 },
+                    )
+                    MenuNavRow(
+                        label = stringResource(R.string.model_menu_effort),
+                        value = effortLabel,
+                        onClick = { page = 2 },
+                    )
+                }
+            }
+
+            1 -> availableModels.forEach { model ->
+                val selected = model == selectedModel
+                DshMenuRow(onClick = { onModelSelected(model) }) {
+                    DshMenuLabel(model, Modifier.weight(1f))
+                    if (selected) DshMenuCheck()
+                }
+            }
+
+            else -> ReasoningLevel.entries.forEach { level ->
+                val label = stringResource(level.labelResId)
+                val selected = label == effortLabel
+                DshMenuRow(onClick = { onEffortSelected(level) }) {
+                    DshMenuLabel(label, Modifier.weight(1f))
+                    if (selected) DshMenuCheck()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 菜单里的「标签 + 当前值 + ›」导航行（model menu `.cell` 规格）：
+ * 标签 13/20 左对齐，数值 13/20 三级色贴右，12dp 右箭头。
+ */
+@Composable
+private fun MenuNavRow(label: String, value: String, onClick: () -> Unit) {
+    DshMenuRow(onClick = onClick) {
+        DshMenuLabel(label)
+        Spacer(Modifier.weight(1f))
+        DshMenuValue(value)
+        DshMenuIcon(
+            resId = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_right,
+            size = 12.dp,
+        )
+    }
+}
+/**
+ * 首页居中欢迎与快捷建议胶囊（对齐 hero.headline「探索未至之境」）。
  */
 @Composable
 fun EmptyWelcomeView(
@@ -190,47 +612,41 @@ fun EmptyWelcomeView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // 发光/动态 AI 球体 Logo
         Box(
             modifier = Modifier
-                .size(72.dp)
+                .size(56.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-                .shadow(16.dp, CircleShape),
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f))
+                .shadow(4.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.04f), spotColor = Color.Black.copy(alpha = 0.05f)),
             contentAlignment = Alignment.Center
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp, 8.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                )
-                Box(
-                    modifier = Modifier
-                        .size(6.dp, 8.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                )
-            }
+            Icon(
+                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_dsh_fish_logo),
+                contentDescription = "DeepSeek Logo",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(34.dp)
+            )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = stringResource(R.string.chat_welcome_title),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+            fontSize = 26.sp,
+            lineHeight = 32.sp,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onBackground
         )
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = stringResource(R.string.chat_welcome_desc),
-            style = MaterialTheme.typography.bodyMedium,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(36.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        // 快捷胶囊横向滚动条
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -238,16 +654,16 @@ fun EmptyWelcomeView(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
-            QuickChip(icon = Icons.Default.Folder, label = stringResource(R.string.chip_init_workspace)) {
+            QuickChip(label = stringResource(R.string.chip_init_workspace)) {
                 onChipClick(ctx.getString(R.string.chip_init_workspace))
             }
-            QuickChip(icon = Icons.Default.Description, label = stringResource(R.string.chip_organize_docs)) {
+            QuickChip(label = stringResource(R.string.chip_organize_docs)) {
                 onChipClick(ctx.getString(R.string.chip_organize_docs))
             }
-            QuickChip(icon = Icons.Default.Schedule, label = stringResource(R.string.chip_automation)) {
+            QuickChip(label = stringResource(R.string.chip_automation)) {
                 onChipClick(ctx.getString(R.string.chip_automation))
             }
-            QuickChip(icon = Icons.Default.Build, label = stringResource(R.string.chip_run_cli)) {
+            QuickChip(label = stringResource(R.string.chip_run_cli)) {
                 onChipClick(ctx.getString(R.string.chip_run_cli))
             }
         }
@@ -255,42 +671,103 @@ fun EmptyWelcomeView(
 }
 
 @Composable
-fun QuickChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        onClick = onClick,
-        modifier = Modifier.height(36.dp)
+fun QuickChip(label: String, onClick: () -> Unit) {
+    val colors = dshPanelColors()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Row(
+        modifier = Modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (pressed) colors.interactiveHover else colors.bgModulePlatform)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            color = colors.labelSecondary,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * 思考链折叠面板（文案对齐 `chat.deepDivingFor`）。
+ */
+@Composable
+fun ReasoningCard(
+    isFinished: Boolean,
+    elapsedSeconds: String,
+    reasoningText: String,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(!isFinished) }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        modifier = modifier.animateContentSize()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = DshIcons.ThinkOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isFinished) {
+                        stringResource(R.string.chat_thinking)
+                    } else {
+                        stringResource(R.string.chat_thinking_for, elapsedSeconds)
+                    },
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 10.dp, start = 4.dp)) {
+                    Text(
+                        text = reasoningText,
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
 
 /**
- * 现代消息项呈现（参考截图 3：气泡、工具展开面板、操作按键）
+ * 消息项：用户气泡、助手正文与五项消息操作。
  */
 @Composable
-fun ModernMessageItem(message: ChatMessage) {
+fun ModernMessageItem(
+    message: ChatMessage,
+    onRetry: () -> Unit = {}
+) {
     val isUser = message.role == MessageRole.USER
 
     Column(
@@ -298,7 +775,6 @@ fun ModernMessageItem(message: ChatMessage) {
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         if (isUser) {
-            // 用户消息气泡：Material 3 高圆角胶囊块
             Surface(
                 shape = RoundedCornerShape(20.dp).copy(bottomEnd = androidx.compose.foundation.shape.CornerSize(4.dp)),
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -312,94 +788,77 @@ fun ModernMessageItem(message: ChatMessage) {
                 )
             }
         } else {
-            // Assistant 消息卡片
-            Column(modifier = Modifier.fillMaxWidth().padding(end = 24.dp)) {
-                // 工具执行折叠栏（如果包含文件操作等执行状态，模拟参考截图 3）
-                var isToolExpanded by remember { mutableStateOf(false) }
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .clickable { isToolExpanded = !isToolExpanded }
+            Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 6.dp)
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (isToolExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.tool_executed_summary),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        AnimatedVisibility(visible = isToolExpanded) {
-                            Column(modifier = Modifier.padding(top = 8.dp, start = 22.dp)) {
-                                Text(
-                                    text = "• 挂载真实目录至 /workspace",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                                Text(
-                                    text = "• Linux 容器回环端口通信握手就绪",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        }
-                    }
+                    Icon(
+                        painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_dsh_fish_logo),
+                        contentDescription = "DeepSeek",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "DeepSeek",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                 }
 
-                // 正文内容
                 Text(
                     text = message.content,
                     style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // 底部操作区（点赞、点踩、复制、时间戳）
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
                         Icon(
-                            Icons.Default.ThumbUpOffAlt,
-                            contentDescription = "Like",
+                            imageVector = DshIcons.CopyOutline,
+                            contentDescription = stringResource(R.string.action_copy),
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = onRetry, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            imageVector = DshIcons.RefreshOutline,
+                            contentDescription = stringResource(R.string.action_retry),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.outline
                         )
                     }
                     IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
                         Icon(
-                            Icons.Default.ThumbDownOffAlt,
-                            contentDescription = "Dislike",
+                            imageVector = DshIcons.LikeOutline,
+                            contentDescription = stringResource(R.string.action_like),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.outline
                         )
                     }
                     IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
                         Icon(
-                            Icons.Default.ContentCopy,
-                            contentDescription = "Copy",
+                            imageVector = DshIcons.DislikeOutline,
+                            contentDescription = stringResource(R.string.action_dislike),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.outline
                         )
                     }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = stringResource(R.string.tag_local_processing),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+                    IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            imageVector = DshIcons.ShareOutline,
+                            contentDescription = stringResource(R.string.action_share),
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
                 }
             }
         }
@@ -407,172 +866,265 @@ fun ModernMessageItem(message: ChatMessage) {
 }
 
 /**
- * 底部胶囊输入栏（推理等级与 Model Picker 合并呈现）
+ * composer trigger 药丸（模型 / 权限选择器）：
+ * 28dp 高、R8、左 8dp / 右 4dp 内边距、4dp 间距、13sp/20 二级色标签、
+ * 14dp 菜单/箭头图标，按压用 hover 填充且无 Material 涟漪。
+ */
+@Composable
+private fun ComposerTrigger(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIconResId: Int? = null,
+    trailingValue: String? = null,
+    labelWeight: FontWeight = FontWeight.Normal,
+) {
+    val colors = dshPanelColors()
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Row(
+        modifier = modifier
+            .height(28.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (pressed) colors.interactiveHover else Color.Transparent)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(start = 8.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (leadingIconResId != null) {
+            Icon(
+                painter = painterResource(id = leadingIconResId),
+                contentDescription = null,
+                tint = colors.labelSecondary,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+        Text(
+            text = label,
+            color = colors.labelSecondary,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            fontWeight = labelWeight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(
+                max = if (trailingValue.isNullOrBlank()) 188.dp else 148.dp,
+            ),
+        )
+        if (!trailingValue.isNullOrBlank()) {
+            Text(
+                text = trailingValue,
+                color = colors.labelCaption,
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 60.dp),
+            )
+        }
+        Icon(
+            painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_down),
+            contentDescription = null,
+            tint = colors.labelCaption,
+            modifier = Modifier.size(14.dp),
+        )
+    }
+}
+
+/**
+ * 底部输入区：一个悬浮卡片，内部是文本域与操作行。
+ *
+ * 操作行自左向右：加号（命令菜单）→ 权限预设 → 弹性留白 → 模型与推理等级 → 发送/停止。
  */
 @Composable
 fun BottomInputBar(
     inputText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
-    onOpenAttachmentMenu: () -> Unit,
+    onPlusClick: () -> Unit,
     selectedModel: String,
-    onModelClick: () -> Unit,
-    reasoningLevel: ReasoningLevel,
-    onReasoningLevelChange: (ReasoningLevel) -> Unit,
-    dockPluginSurfaces: List<com.deepseek.dsh.core.model.SurfaceItem> = emptyList(),
-    onDockPluginClick: (com.deepseek.dsh.core.model.SurfaceItem) -> Unit = {}
+    availableModels: List<String> = MODEL_CATALOG,
+    effortLabel: String,
+    onOpenModelMenu: () -> Unit,
+    modelMenuOpen: Boolean,
+    onModelMenuDismiss: () -> Unit,
+    onModelSelected: (String) -> Unit,
+    onEffortSelected: (ReasoningLevel) -> Unit,
+    currentPermission: PermissionPreset,
+    onOpenPermissionMenu: () -> Unit,
+    permissionMenuOpen: Boolean,
+    onPermissionMenuDismiss: () -> Unit,
+    onPermissionSelect: (PermissionPreset) -> Unit,
+    isPlanMode: Boolean,
+    isGenerating: Boolean,
+    onStop: () -> Unit,
+    dockPluginSurfaces: List<SurfaceItem> = emptyList(),
+    onDockPluginClick: (SurfaceItem) -> Unit = {},
+    stats: ComposerStats = ComposerStats()
 ) {
+    val panelColors = dshPanelColors()
+    val plusInteraction = remember { MutableInteractionSource() }
+    val cardShape = RoundedCornerShape(28.dp)
+    var permissionAnchor by remember { mutableStateOf<Rect?>(null) }
+    var modelAnchor by remember { mutableStateOf<Rect?>(null) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        // 1. 输入框卡片：高圆角 M3 悬浮药丸形态
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 4.dp,
-            modifier = Modifier.fillMaxWidth()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 4.dp,
+                    shape = cardShape,
+                    clip = false,
+                    ambientColor = Color.Black.copy(alpha = 0.04f),
+                    spotColor = Color.Black.copy(alpha = 0.05f),
+                )
+                .clip(cardShape)
+                .background(panelColors.bgLayer2)
+                .border(0.5.dp, panelColors.borderL2, cardShape)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                // 顶部输入行
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onOpenAttachmentMenu,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Attach",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            Column(modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 8.dp)) {
+                TextField(
+                    value = inputText,
+                    onValueChange = onInputChange,
+                    placeholder = {
+                        Text(
+                            text = if (isPlanMode) stringResource(R.string.chat_input_placeholder_plan)
+                            else stringResource(R.string.chat_input_placeholder),
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp,
+                            color = panelColors.labelCaption
                         )
-                    }
+                    },
+                    textStyle = TextStyle(
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        color = panelColors.labelPrimary,
+                    ),
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = panelColors.labelPrimary,
+                        unfocusedTextColor = panelColors.labelPrimary,
+                        cursorColor = panelColors.labelPrimary,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    singleLine = false,
+                    maxLines = 8
+                )
 
-                    TextField(
-                        value = inputText,
-                        onValueChange = onInputChange,
-                        placeholder = {
-                            Text(
-                                text = stringResource(R.string.chat_input_placeholder),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        singleLine = false,
-                        maxLines = 4
-                    )
-
-                    if (inputText.isNotBlank()) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            onClick = onSend,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Send",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                imageVector = Icons.Default.Mic,
-                                contentDescription = "Voice",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // 底部模型与推理等级联合选择器
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp, start = 8.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(start = 4.dp, end = 4.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // 模型选择胶囊
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        onClick = onModelClick,
-                        modifier = Modifier.height(28.dp)
+                    // 加号：28dp 圆形 selector 按钮（无 Material 涟漪）
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(panelColors.bgModulePlatform)
+                            .clickable(
+                                interactionSource = plusInteraction,
+                                indication = null,
+                                onClick = onPlusClick,
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = selectedModel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.outline
-                            )
-                        }
+                        Icon(
+                            imageVector = DshIcons.PlusOutline,
+                            contentDescription = stringResource(R.string.action_input_commands),
+                            tint = panelColors.labelPrimary,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    // 权限预设：trigger 28dp 高 / R8 / 13-20 二级色 / 14dp 图标与箭头
+                    Box(modifier = Modifier.onGloballyPositioned { permissionAnchor = it.boundsInWindow() }) {
+                        ComposerTrigger(
+                            label = stringResource(currentPermission.titleResId),
+                            leadingIconResId = currentPermission.iconResId(),
+                            labelWeight = FontWeight.Medium,
+                            onClick = onOpenPermissionMenu,
+                        )
+                        PermissionMenu(
+                            expanded = permissionMenuOpen,
+                            anchorBounds = permissionAnchor,
+                            current = currentPermission,
+                            onDismiss = onPermissionMenuDismiss,
+                            onSelect = onPermissionSelect,
+                        )
+                    }
 
-                    // 推理等级切换胶囊 (与 Model Picker 在同一行联合呈现)
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        onClick = {
-                            val nextLevel = when (reasoningLevel) {
-                                ReasoningLevel.FAST -> ReasoningLevel.DEEP_THINK
-                                ReasoningLevel.DEEP_THINK -> ReasoningLevel.MAX_REASONING
-                                ReasoningLevel.MAX_REASONING -> ReasoningLevel.FAST
-                            }
-                            onReasoningLevelChange(nextLevel)
-                        },
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // 模型与推理等级：trigger（当前模型 + 推理等级 + 箭头），菜单锚定在此
+                    Box(modifier = Modifier.onGloballyPositioned { modelAnchor = it.boundsInWindow() }) {
+                        ComposerTrigger(
+                            label = selectedModel,
+                            // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
+                            trailingValue = if (availableModels.isEmpty()) null else effortLabel,
+                            onClick = onOpenModelMenu,
+                        )
+                        ModelEffortMenu(
+                            expanded = modelMenuOpen,
+                            anchorBounds = modelAnchor,
+                            selectedModel = selectedModel,
+                            availableModels = availableModels,
+                            effortLabel = effortLabel,
+                            onDismiss = onModelMenuDismiss,
+                            onModelSelected = onModelSelected,
+                            onEffortSelected = onEffortSelected,
+                        )
+                    }
+
+                    if (isGenerating) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.error,
+                            onClick = onStop,
+                            modifier = Modifier.size(34.dp)
                         ) {
-                            Text(
-                                text = stringResource(reasoningLevel.labelResId),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = DshIcons.StopFill,
+                                    contentDescription = stringResource(R.string.action_stop),
+                                    tint = MaterialTheme.colorScheme.onError,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // 发送：主按钮（主题色圆形 + 上箭头）
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = onSend,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                imageVector = DshIcons.SendUpArrow,
+                                contentDescription = stringResource(R.string.action_send),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -582,8 +1134,8 @@ fun BottomInputBar(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 2. DSH 规范: 将 composer.dock pills (性能/Token计量与插件扩展药丸) 整行放置在输入框下方
         ComposerDockBar(
+            stats = stats,
             dockPluginSurfaces = dockPluginSurfaces,
             onPluginClick = { pluginItem ->
                 onDockPluginClick(pluginItem)
@@ -592,4 +1144,128 @@ fun BottomInputBar(
         )
     }
 }
+
+/**
+ * 加号命令菜单：两组（添加 / 指令），行内左侧图标与标签、右侧描述。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ComposerCommandSheet(
+    onDismiss: () -> Unit,
+    onFile: () -> Unit,
+    onPlan: () -> Unit,
+    onPermission: () -> Unit,
+    onModel: () -> Unit,
+    onCommand: (String) -> Unit
+) {
+    val addItems = listOf(
+        ComposerCommand(
+            R.string.cmd_file, R.string.cmd_file_desc, "file",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_file
+        ),
+        ComposerCommand(
+            R.string.cmd_goal, R.string.cmd_goal_desc, "goal",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_goal
+        ),
+        ComposerCommand(
+            R.string.cmd_plan, R.string.cmd_plan_desc, "plan",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_plan
+        ),
+        ComposerCommand(
+            R.string.cmd_feedback, R.string.cmd_feedback_desc, "feedback",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_feedback
+        ),
+    )
+    val commandItems = listOf(
+        ComposerCommand(
+            R.string.cmd_compact, R.string.cmd_compact_desc, "compact",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_compact
+        ),
+        ComposerCommand(
+            R.string.cmd_permission, R.string.cmd_permission_desc, "permission",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_perm_full_access
+        ),
+        ComposerCommand(
+            R.string.cmd_model, R.string.cmd_model_desc, "model",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model
+        ),
+        ComposerCommand(
+            R.string.cmd_export, R.string.cmd_export_desc, "export",
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_export
+        ),
+    )
+
+    DshSheetPanel(onDismiss = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            DshMenuSectionLabel(stringResource(R.string.cmd_section_add))
+            addItems.forEach { item ->
+                ComposerCommandRow(
+                    labelResId = item.labelResId,
+                    descResId = item.descResId,
+                    token = item.token,
+                    iconResId = item.iconResId,
+                    onClick = {
+                        when (item.token) {
+                            "file" -> onFile()
+                            "plan" -> onPlan()
+                            else -> onCommand("/${item.token}")
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(3.dp))
+
+            DshMenuSectionLabel(stringResource(R.string.cmd_section_commands))
+            commandItems.forEach { item ->
+                ComposerCommandRow(
+                    labelResId = item.labelResId,
+                    descResId = item.descResId,
+                    token = item.token,
+                    iconResId = item.iconResId,
+                    onClick = {
+                        when (item.token) {
+                            "permission" -> onPermission()
+                            "model" -> onModel()
+                            else -> onCommand("/${item.token}")
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+@Composable
+private fun ComposerCommandRow(
+    labelResId: Int,
+    descResId: Int,
+    token: String,
+    iconResId: Int,
+    onClick: () -> Unit
+) {
+    DshMenuRow(onClick = onClick) {
+        DshMenuIcon(iconResId, size = 14.dp)
+        DshMenuLabel(stringResource(labelResId))
+        DshMenuCaption(token)
+        Spacer(Modifier.weight(1f))
+        DshMenuDescription(stringResource(descResId))
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

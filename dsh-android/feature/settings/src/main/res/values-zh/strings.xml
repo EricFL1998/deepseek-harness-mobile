@@ -15,53 +15,109 @@
     <string name="nav_settings">设置与偏好</string>
     <string name="nav_runtime">本地 Linux 运行时</string>
     <string name="nav_new_session">新建会话</string>
+    <string name="session_new">新会话</string>
 
-    <!-- 首次打开引导 / Landing Page -->
-    <string name="landing_title">DeepSeek Harness</string>
-    <string name="landing_subtitle">手机本地原生 Agent 运行时与完整插件生态</string>
-    <string name="feature_container_title">本地 Linux 用户空间容器</string>
-    <string name="feature_container_desc">Compact Debian slim 工具链全保留，Node 24、Python、git 真机执行</string>
-    <string name="feature_workspace_title">手机真实目录工作区</string>
-    <string name="feature_workspace_desc">直接读写内部存储公有文件夹，系统自带文件管理 App 原生可见</string>
-    <string name="feature_plugins_title">全插件生态零改动</string>
-    <string name="feature_plugins_desc">官方 26 个核心 Slot 原生映射，Web 岛与 SDUI 声明式渲染双兼容</string>
-    <string name="action_oauth_signin">使用 DeepSeek 官方账号授权</string>
-    <string name="action_input_api_key">输入 API Key 开始</string>
-    <string name="action_skip_setup">稍后配置，直接体验本地环境</string>
-    <string name="api_key_title">添加 API Key 开始使用</string>
-    <string name="api_key_desc">配置官方 DeepSeek 模型密钥，凭据将保存在手机 Keystore 加密存储中。</string>
-    <string name="api_key_label">API 密钥 (sk-...)</string>
-    <string name="action_save_continue">保存并进入工作区</string>
-    <string name="action_back">返回上一页</string>
-
-    <!-- 主对话欢迎屏与交互 -->
-    <string name="chat_welcome_title">嗨！我是运行在手机本地的 DSH Agent</string>
-    <string name="chat_welcome_desc">今天要在手机本地做点什么？</string>
+    <!-- 主对话欢迎屏与交互 (对齐 dsh-upstream 文本) -->
+    <string name="chat_welcome_title">探索未至之境</string>
+    <string name="chat_welcome_desc">描述你想要构建的内容, / 调用指令, @ 文件或对话</string>
     <string name="chip_init_workspace">新建本地工作区</string>
     <string name="chip_organize_docs">整理手机文档</string>
     <string name="chip_automation">定时自动化任务</string>
     <string name="chip_run_cli">运行终端命令</string>
-    <string name="chat_input_placeholder">输入消息，给本地 Agent 下达指令...</string>
-    <string name="chat_thinking">深度思考与工具执行中...</string>
+    <string name="chat_input_placeholder">发消息或创建任务, / 调用指令, @ 文件或对话</string>
+    <string name="chat_input_placeholder_plan">描述你的任务以生成计划</string>
+    <string name="chat_thinking">深度求索中</string>
+    <string name="chat_thinking_for">深度求索中，用时 %1$s ···</string>
     <string name="tool_executed_summary">已在本地执行系统工具与环境准备</string>
     <string name="action_copy">复制</string>
-    <string name="action_like">赞同</string>
-    <string name="action_dislike">反对</string>
+    <string name="action_retry">重新生成</string>
+    <string name="action_like">好评</string>
+    <string name="action_dislike">差评</string>
+    <string name="action_share">分享</string>
+    <string name="action_stop">停止生成</string>
+    <string name="action_send">发送消息</string>
+    <string name="action_input_commands">添加文件或调用指令</string>
     <string name="tag_local_processing">本地处理</string>
 
-    <!-- 推理等级 -->
+    <!-- 模式与权限选择器 (对齐 ui-permission-presets 文案) -->
+    <string name="perm_read_only">仅可查看</string>
+    <string name="perm_workspace_write">工作区内修改</string>
+    <string name="perm_danger_full_access">完全权限</string>
+    <string name="perm_auto_review">自动审查</string>
+    <string name="perm_auto_badge">EXP</string>
+    <string name="perm_desc_read_only">只能查看工作区和运行安全检查，不能修改文件</string>
+    <string name="perm_desc_workspace_write">可在工作区内创建、编辑和修改文件</string>
+    <string name="perm_desc_danger_full_access">无沙箱运行；减少确认步骤，可直接修改文件或执行外部命令</string>
+    <string name="perm_desc_auto_review">无沙箱运行；每次原生工具调用和 PTC 内层调用前由同一模型进行实验性审查。</string>
+    <string name="perm_confirm_title">确认启用完全权限？</string>
+    <string name="perm_confirm_desc">启用完全权限后，智能体将减少确认步骤，并且可以直接执行更多操作，包括敏感操作、文件修改或外部命令。仅建议在你信任当前任务时使用。</string>
+    <string name="perm_confirm_acknowledge">我已了解风险，并愿意继续</string>
+    <string name="perm_confirm_enable">启用完全权限</string>
+    <string name="perm_auto_confirm_title">确认启用自动审查（实验）？</string>
+    <string name="perm_auto_confirm_desc">自动审查不使用沙箱。每次原生工具调用和 PTC 内层调用前，都会由与当前 agent 相同的模型进行审查；审查拒绝的调用由你批准或拒绝。此功能仍属实验性，可能误放行或误拒绝，并会消耗额外 token。</string>
+    <string name="perm_auto_confirm_acknowledge">我已了解这些风险，并愿意继续</string>
+    <string name="perm_auto_confirm_enable">启用自动审查</string>
+    <string name="mode_plan">计划模式</string>
+    <string name="mode_plan_desc">进入或退出计划模式</string>
+
+    <!-- 模型与推理等级菜单 (对齐 ui-model-selection 文案) -->
+    <string name="model_v3_title">DeepSeek-V3</string>
+    <string name="model_v3_desc">快速高效、智能推理与日常编码</string>
+    <string name="model_r1_title">DeepSeek-R1</string>
+    <string name="model_r1_desc">深度思考模式，擅长复杂推理与数学算法</string>
+    <string name="model_menu_aria">模型与推理等级</string>
+    <string name="model_menu_model">模型</string>
+    <string name="model_menu_effort">推理等级</string>
+    <string name="effort_provider_default">Default</string>
+    <string name="model_search_placeholder">搜索模型…</string>
+    <string name="model_empty">暂无可用模型</string>
+    <string name="effort_empty">当前模型未提供推理等级。</string>
     <string name="reasoning_fast">快速</string>
     <string name="reasoning_deep_think">深度思考</string>
     <string name="reasoning_max">超强推理</string>
 
+    <!-- 输入框加号命令菜单 (对齐 ui-commands / ui-input-trigger 分组) -->
+    <string name="cmd_section_add">添加</string>
+    <string name="cmd_section_commands">指令</string>
+    <string name="cmd_file">文件</string>
+    <string name="cmd_file_desc">添加文件或图片到当前消息</string>
+    <string name="cmd_goal">目标</string>
+    <string name="cmd_goal_desc">设置或查看长期任务目标</string>
+    <string name="cmd_plan">计划</string>
+    <string name="cmd_plan_desc">进入或退出计划模式</string>
+    <string name="cmd_feedback">反馈</string>
+    <string name="cmd_feedback_desc">发送关于当前会话的反馈</string>
+    <string name="cmd_compact">压缩</string>
+    <string name="cmd_compact_desc">压缩以上对话内容</string>
+    <string name="cmd_permission">权限</string>
+    <string name="cmd_permission_desc">切换权限预设（沙箱模式与审批策略）</string>
+    <string name="cmd_model">模型</string>
+    <string name="cmd_model_desc">选择本会话使用的模型</string>
+    <string name="cmd_export">下载日志</string>
+    <string name="cmd_export_desc">将当前会话内容导出为 ZIP</string>
+    <string name="action_cancel">取消</string>
+    <string name="row_rename">重命名</string>
+    <string name="row_fork">分叉会话</string>
+    <string name="row_pin">置顶会话</string>
+    <string name="row_unpin">取消置顶</string>
+    <string name="row_archive">归档会话</string>
+    <string name="row_session_id">复制 Session ID</string>
+
     <!-- 底部 Pills -->
     <string name="stat_tok_per_sec">%1$.1f tok/s</string>
-    <string name="stat_context_cache">上下文 %1$d%% · 缓存 %2$d%%</string>
+    <string name="stat_context_cache">上下文 %1$d%% · 缓存命中 %2$d%%</string>
+    <string name="stat_cache_hit">缓存命中 %1$d%%</string>
+    <string name="stat_context_aria">上下文已用 %1$d%%</string>
 
-    <!-- 侧栏抽屉 -->
+    <!-- 侧栏抽屉与账户菜单 (对齐 ui-settings-account / AccountMenu.tsx) -->
     <string name="drawer_user_name">DeepSeek 用户</string>
-    <string name="drawer_official_tag">官方 OAuth</string>
+    <string name="drawer_account_tag">官方 OAuth</string>
     <string name="drawer_balance">余额: %1$s</string>
+    <string name="drawer_account_menu_more">更多</string>
+    <string name="drawer_account_settings">设置</string>
+    <string name="drawer_account_contact">联系我们</string>
+    <string name="drawer_account_signout">退出登录</string>
+    <string name="drawer_account_signin">登录官方账号</string>
     <string name="drawer_nav_plugins">插件发现与生态</string>
     <string name="drawer_nav_schedule">定时自动化任务</string>
     <string name="drawer_nav_hosts">远程主机控制</string>
@@ -70,7 +126,7 @@
     <string name="drawer_nav_settings">偏好与系统设置</string>
     <string name="drawer_section_project">项目与真实工作区</string>
     <string name="drawer_section_history">历史会话</string>
-    <string name="action_search">搜索</string>
+    <string name="action_search">搜索会话</string>
 
     <!-- 插件管理 -->
     <string name="plugins_title">插件生态与适配</string>
@@ -144,3 +200,6 @@
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
 </resources>
+
+
+

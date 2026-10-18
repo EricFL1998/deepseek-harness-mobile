@@ -15,53 +15,113 @@
     <string name="nav_settings">Settings</string>
     <string name="nav_runtime">Runtime</string>
     <string name="nav_new_session">New Session</string>
+    <string name="session_new">New Session</string>
 
-    <!-- Landing / Onboarding -->
-    <string name="landing_title">DeepSeek Harness</string>
-    <string name="landing_subtitle">Local Linux container runtime &amp; full plugin ecosystem</string>
-    <string name="feature_container_title">Local Linux User Space</string>
-    <string name="feature_container_desc">Compact Debian slim with Node 24, Python 3, and git</string>
-    <string name="feature_workspace_title">Real Phone Workspace</string>
-    <string name="feature_workspace_desc">Direct read/write to shared public Documents, visible in system Files app</string>
-    <string name="feature_plugins_title">Zero Plugin Modification</string>
-    <string name="feature_plugins_desc">Full 26 core slot placement, Web Island &amp; Native SDUI dual compatibility</string>
-    <string name="action_oauth_signin">Sign in with Official DeepSeek Account</string>
-    <string name="action_input_api_key">Enter API Key</string>
-    <string name="action_skip_setup">Configure Later, Explore Local Environment</string>
-    <string name="api_key_title">Add API Key to Get Started</string>
-    <string name="api_key_desc">Configure official DeepSeek model credential securely stored in Android Keystore.</string>
-    <string name="api_key_label">API Key (sk-...)</string>
-    <string name="action_save_continue">Save and Continue</string>
-    <string name="action_back">Back</string>
+    <!-- Landing / Onboarding is owned by feature/runtime (onboarding copy) -->
 
-    <!-- Welcome & Chat Screen -->
-    <string name="chat_welcome_title">Hi, I am DSH Agent</string>
-    <string name="chat_welcome_desc">What would you like to build on your phone today?</string>
+
+    <!-- Welcome & Chat Screen (Aligned with dsh-upstream copy) -->
+    <string name="chat_welcome_title">Into the Unknown</string>
+    <string name="chat_welcome_desc">Describe what you want to build, / commands, @ files or sessions</string>
     <string name="chip_init_workspace">New Workspace</string>
     <string name="chip_organize_docs">Organize Documents</string>
     <string name="chip_automation">Schedule Tasks</string>
     <string name="chip_run_cli">Run CLI Commands</string>
-    <string name="chat_input_placeholder">Message your local Agent...</string>
-    <string name="chat_thinking">Reasoning &amp; executing tools...</string>
+    <string name="chat_input_placeholder">Message or run a task, / commands, @ files or sessions</string>
+    <string name="chat_input_placeholder_plan">describe your task to generate plan</string>
+    <string name="chat_thinking">Deep-diving…</string>
+    <string name="chat_thinking_for">Deep-diving for %1$s ···</string>
     <string name="tool_executed_summary">Executed tools in local environment</string>
     <string name="action_copy">Copy</string>
+    <string name="action_retry">Retry</string>
     <string name="action_like">Like</string>
     <string name="action_dislike">Dislike</string>
+    <string name="action_share">Share</string>
+    <string name="action_stop">Stop generating</string>
+    <string name="action_send">Send message</string>
+    <string name="action_input_commands">Add files or run commands</string>
     <string name="tag_local_processing">Local Container</string>
 
-    <!-- Reasoning Levels -->
+    <!-- Permission Presets & Modes (aligned with ui-permission-presets) -->
+    <string name="perm_read_only">Read Only</string>
+    <string name="perm_workspace_write">Workspace Write</string>
+    <string name="perm_danger_full_access">Full access</string>
+    <string name="perm_auto_review">Auto review</string>
+    <string name="perm_auto_badge">EXP</string>
+    <string name="perm_desc_read_only">Can only inspect workspace and run safety checks, cannot modify files</string>
+    <string name="perm_desc_workspace_write">Can create, edit and modify files inside the workspace</string>
+    <string name="perm_desc_danger_full_access">Runs without a sandbox; fewer confirmations and direct file or external command access</string>
+    <string name="perm_desc_auto_review">Run without a sandbox after an experimental same-model review of every native tool call and PTC inner call.</string>
+    <string name="perm_confirm_title">Enable Full access?</string>
+    <string name="perm_confirm_desc">Full access reduces confirmation steps and lets the agent perform more actions directly, including sensitive operations, file changes, or external commands. Only use it when you trust the current task.</string>
+    <string name="perm_confirm_acknowledge">I understand the risks and want to continue</string>
+    <string name="perm_confirm_enable">Enable Full access</string>
+    <string name="perm_auto_confirm_title">Enable Auto review (experimental)?</string>
+    <string name="perm_auto_confirm_desc">Auto review runs without a sandbox. Before every native tool call and PTC inner call, the same model as the current agent reviews whether to allow it; you approve or reject each call it denies. This feature is experimental, can falsely allow or deny actions, and uses additional tokens.</string>
+    <string name="perm_auto_confirm_acknowledge">I understand these risks and want to continue</string>
+    <string name="perm_auto_confirm_enable">Enable Auto review</string>
+    <string name="mode_plan">Plan Mode</string>
+    <string name="mode_plan_desc">Enter or leave plan mode</string>
+
+    <!-- Model & Effort menu (aligned with ui-model-selection) -->
+    <string name="model_v3_title">DeepSeek-V3</string>
+    <string name="model_v3_desc">Fast, capable reasoning and day-to-day coding</string>
+    <string name="model_r1_title">DeepSeek-R1</string>
+    <string name="model_r1_desc">Deep reasoning mode for complex logic and math</string>
+    <string name="model_menu_aria">Model and reasoning effort</string>
+    <string name="model_menu_model">Model</string>
+    <string name="model_menu_effort">Effort</string>
+    <string name="effort_provider_default">Default</string>
+    <string name="model_search_placeholder">Search models…</string>
+    <string name="model_empty">No models available</string>
+    <string name="effort_empty">The current model offers no reasoning effort.</string>
     <string name="reasoning_fast">Fast</string>
     <string name="reasoning_deep_think">DeepThink</string>
     <string name="reasoning_max">Max Reasoning</string>
 
+    <!-- Composer plus menu (aligned with ui-commands / ui-input-trigger) -->
+    <string name="cmd_section_add">Add</string>
+    <string name="cmd_section_commands">Commands</string>
+    <string name="cmd_file">File</string>
+    <string name="cmd_file_desc">Add files or images to this message</string>
+    <string name="cmd_goal">Goal</string>
+    <string name="cmd_goal_desc">Set or view the goal for a long-running task</string>
+    <string name="cmd_plan">Plan</string>
+    <string name="cmd_plan_desc">Enter or leave plan mode</string>
+    <string name="cmd_feedback">Feedback</string>
+    <string name="cmd_feedback_desc">Record feedback about this session</string>
+    <string name="cmd_compact">Compact</string>
+    <string name="cmd_compact_desc">Compact older conversation history</string>
+    <string name="cmd_permission">Permission</string>
+    <string name="cmd_permission_desc">Switch the permission preset (sandbox mode + approval policy)</string>
+    <string name="cmd_model">Model</string>
+    <string name="cmd_model_desc">Select the model for this conversation</string>
+    <string name="cmd_export">Export</string>
+    <string name="cmd_export_desc">Download this Session log as a ZIP archive</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="row_rename">Rename</string>
+    <string name="row_fork">Fork session</string>
+    <string name="row_pin">Pin session</string>
+    <string name="row_unpin">Unpin session</string>
+    <string name="row_archive">Archive session</string>
+    <string name="row_session_id">Copy Session ID</string>
+
     <!-- Composer Dock -->
     <string name="stat_tok_per_sec">%1$.1f tok/s</string>
-    <string name="stat_context_cache">Context %1$d%% · Cache %2$d%%</string>
+    <string name="stat_context_cache">Context %1$d%% · Cache hit %2$d%%</string>
+    <string name="stat_cache_hit">Cache hit %1$d%%</string>
+    <string name="stat_context_aria">%1$d%% of context used</string>
 
-    <!-- Drawer -->
+    <!-- Drawer & Account Menu (Aligned with ui-settings-account / AccountMenu.tsx) -->
     <string name="drawer_user_name">DeepSeek User</string>
-    <string name="drawer_official_tag">Official OAuth</string>
+    <string name="drawer_account_tag">Official OAuth</string>
     <string name="drawer_balance">Balance: %1$s</string>
+    <string name="drawer_account_menu_more">More</string>
+    <string name="drawer_account_settings">Settings</string>
+    <string name="drawer_account_contact">Contact Us</string>
+    <string name="drawer_account_feedback">Feedback</string>
+    <string name="drawer_account_signout">Sign Out</string>
+    <string name="drawer_account_signin">Sign In with Official Account</string>
     <string name="drawer_nav_plugins">Plugin Market &amp; Ecosystem</string>
     <string name="drawer_nav_schedule">Scheduled Automation</string>
     <string name="drawer_nav_hosts">Remote Host Control</string>
@@ -70,7 +130,7 @@
     <string name="drawer_nav_settings">Preferences &amp; Settings</string>
     <string name="drawer_section_project">Project &amp; Workspace</string>
     <string name="drawer_section_history">History Sessions</string>
-    <string name="action_search">Search</string>
+    <string name="action_search">Search sessions</string>
 
     <!-- Plugins Screen -->
     <string name="plugins_title">Plugins &amp; Extensions</string>
@@ -144,3 +204,7 @@
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
 </resources>
+
+
+
+

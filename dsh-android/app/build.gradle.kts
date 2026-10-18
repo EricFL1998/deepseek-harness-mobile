@@ -32,6 +32,14 @@ android {
         }
     }
 
+    packaging {
+        // proot 需要从 nativeLibraryDir 直接 exec（extractNativeLibs=false 时该目录不存在），
+        // 因此关闭 APK 内直接加载，改为安装时解压 native 库。
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -67,6 +75,11 @@ dependencies {
     implementation(project(":runtime:host"))
     implementation(project(":runtime:bridge"))
 
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -83,3 +96,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
+
+

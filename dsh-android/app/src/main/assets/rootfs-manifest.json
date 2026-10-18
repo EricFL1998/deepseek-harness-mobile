@@ -1,17 +1,27 @@
 {
-  "runtimeVersion": "4.0.0-compact",
-  "baseDistro": "debian-12-slim-arm64",
+  "runtimeVersion": "4.1.0-webprofile",
+  "baseDistro": "debian-12-slim",
   "libc": "glibc",
   "pageSize": "16k-compatible",
+  "archiveFormat": "tar.gz",
   "bundledPackages": [
-    "node-24-arm64",
+    "node-24",
     "pnpm",
-    "@deepseek-ai/dsh",
+    "@deepseek-ai/dsh@0.2.0-rc.2",
     "python3",
-    "pip",
-    "git",
-    "gcc",
-    "make"
+    "git"
   ],
-  "checksum": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  "downloadUrls": {
+    "x86_64": "http://10.0.2.2:8765/rootfs-x86_64.bin",
+    "arm64-v8a": "http://10.0.2.2:8765/rootfs-arm64-v8a.bin"
+  },
+  "downloadSha256": {
+    "x86_64": "0adf4211f5e7516789416acda7fe2667555f0c3ef58c62c7fa79815ff4d5e879",
+    "arm64-v8a": "48e84557f55df614ea66957a60ebc276e8c4710bd70e0bb68fea3e80f2598191"
+  },
+  "downloadUrl": "",
+  "sha256": "",
+  "archiveSizeBytes": 264498846,
+  "prootLibrary": "libproot.so",
+  "_comment": "首次运行按 ABI 下载 rootfs；10.0.2.2 为模拟器访问宿主机地址，正式发布替换为 CDN/对象存储 URL。"
 }

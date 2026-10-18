@@ -11,7 +11,7 @@ import kotlinx.serialization.json.Json
 
 /**
  * v4.0 设计文档 §7.4 & §7.5:
- * Surface 目录中心与原生放置决策，对齐官方全部核心 Slot
+ * Surface 目录中心与原生放置决策，对齐全部核心 Slot
  */
 enum class PlacementDestination {
     SETTING_SHEET,    // 设置页 (Sheet)
@@ -54,8 +54,17 @@ class SurfaceCatalogStore {
         _catalogFlow.value = current.copy(surfaces = list)
     }
 
+    /** 从目录中移除一个已安装插件（卸载），不存在时为空操作。 */
+    fun removeSurfaceItem(pluginId: String, slot: String) {
+        val current = _catalogFlow.value
+        val list = current.surfaces.filterNot { it.pluginId == pluginId && it.slot == slot }
+        if (list.size != current.surfaces.size) {
+            _catalogFlow.value = current.copy(surfaces = list)
+        }
+    }
+
     /**
-     * 将 DSH 官方 Slot 精确映射到手机端原生宿主承载位置
+     * 将 DSH Slot 精确映射到手机端原生宿主承载位置
      */
     fun resolvePlacement(item: SurfaceItem): SurfacePlacement {
         val dest = when (item.slot) {

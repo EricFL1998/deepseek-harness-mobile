@@ -84,8 +84,54 @@ data class SessionInfo(
     val status: String = "idle",
     val updatedAt: Long = System.currentTimeMillis(),
     val archived: Boolean = false,
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    val model: String? = null,
+    val permissionPreset: String? = null
 )
+
+@Serializable
+data class ModelItem(
+    val id: String,
+    val name: String,
+    val description: String? = null
+)
+
+@Serializable
+data class ModelProviderGroup(
+    val id: String,
+    val name: String,
+    val models: List<ModelItem> = emptyList()
+)
+
+@Serializable
+data class ModelCatalogInfo(
+    val routableProviders: List<String> = emptyList(),
+    val groups: List<ModelProviderGroup> = emptyList(),
+    val defaultModel: String = "DeepSeek-V3"
+)
+
+/**
+ * v4.0 设计文档 §13.2:
+ * 手机端用户偏好与设置数据模型
+ */
+@Serializable
+data class AppSettings(
+    val defaultModel: String = "DeepSeek-V3",
+    val defaultReasoningLevel: String = "FAST",
+    val idleStopMinutes: Int = 5,           // 空闲 5 分钟后停止容器 (0 = 常驻)
+    val keepAliveOnTask: Boolean = true,    // 后台有任务时保持运行
+    val autoBootRecovery: Boolean = false,  // 开机恢复
+    val highRiskConfirm: Boolean = true,    // 高危操作强确认
+    val showCodingView: Boolean = true,     // 显示代码工作视图（轨迹 / 代码差异 / 完整预设切换）
+    val transcriptView: String = "standard", // 工作步骤展示：compact / standard / detailed（首次引导写入）
+    val enableSoundNotice: Boolean = true,  // 任务完成语音/提示音
+    val workspacePath: String = "/storage/emulated/0/Documents/DSH-Workspace"
+)
+
+interface SettingsRepository {
+    suspend fun getSettings(): AppSettings
+    suspend fun updateSettings(transform: (AppSettings) -> AppSettings)
+}
 
 @Serializable
 enum class MessageRole {
@@ -116,6 +162,93 @@ enum class SurfaceKind {
     THEME,
     UNKNOWN
 }
+
+@Serializable
+data class ComposerStats(
+    val outputSpeedTokensPerSec: Double = 0.0,
+    val contextPercent: Int = 0,
+    val cacheHitPercent: Int = 0
+)
+
+@Serializable
+data class BuiltInPluginInfo(
+    val title: String,
+    val packageName: String,
+    val description: String,
+    val enabled: Boolean = true,
+    val phase: String = "active",
+    val entryId: String? = null,
+    val presetId: String? = null,
+    val condition: String? = null
+)
+
+@Serializable
+data class AgentPresetGroupInfo(
+    val id: String,
+    val name: String,
+    val isDefault: Boolean = false,
+    val broken: String? = null,
+    val rows: List<BuiltInPluginInfo> = emptyList()
+)
+
+@Serializable
+data class PluginInventorySnapshotInfo(
+    val managementAvailable: Boolean = false,
+    val entries: List<BuiltInPluginInfo> = emptyList(),
+    val agentPresets: List<AgentPresetGroupInfo> = emptyList()
+)
+
+@Serializable
+data class AutomationTaskItem(
+    val id: String,
+    val title: String,
+    val summary: String,
+    val inactive: Boolean = false,
+    val prompt: String = ""
+)
+
+@Serializable
+data class TeamTaskItem(
+    val id: String,
+    val subject: String,
+    val description: String,
+    val status: String = "pending", // pending, in_progress, completed
+    val ownerName: String? = null
+)
+
+@Serializable
+data class ApprovalItemModel(
+    val id: String,
+    val title: String,
+    val command: String,
+    val dangerReason: String,
+    val status: String = "pending" // pending, submitting, confirmed, rejected
+)
+
+@Serializable
+data class PluginConfigItem(
+    val id: String,
+    val title: String,
+    val description: String,
+    val iconKey: String = "default"
+)
+
+@Serializable
+data class PluginBundleItem(
+    val packageName: String,
+    val title: String,
+    val description: String,
+    val isExperimental: Boolean = false,
+    val enabled: Boolean = false,
+    val iconKey: String = "default"
+)
+
+@Serializable
+data class PluginManagerSnapshot(
+    val basicConfigs: List<PluginConfigItem> = emptyList(),
+    val experimentalBundles: List<PluginBundleItem> = emptyList(),
+    val installedBundles: List<PluginBundleItem> = emptyList()
+)
 
 @Serializable
 data class SurfaceItem(

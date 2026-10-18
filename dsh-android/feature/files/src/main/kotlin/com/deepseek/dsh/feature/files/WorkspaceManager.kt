@@ -68,5 +68,14 @@ class WorkspaceManager(
         }?.sortedWith(compareByDescending<FileItem> { it.isDirectory }.thenBy { it.name })
             ?: emptyList()
     }
+
+    /**
+     * 扫描根工作区目录下的所有工作区子项目
+     */
+    fun listWorkspaceDirectories(baseDir: File): List<File> {
+        if (!baseDir.exists() || !baseDir.isDirectory) return listOf(baseDir)
+        val children = baseDir.listFiles()?.filter { it.isDirectory }?.toList() ?: emptyList()
+        return if (children.isEmpty()) listOf(baseDir) else children
+    }
 }
 

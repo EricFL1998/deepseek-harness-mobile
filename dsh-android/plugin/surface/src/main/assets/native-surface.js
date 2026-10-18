@@ -1,6 +1,6 @@
 /**
  * DSH Mobile - Built-in Surface Adapter (v4.0 §7.3)
- * Injected before official web client bundles in index.html
+ * Injected before web client bundles in index.html
  */
 (function() {
   if (window.__DSH_NATIVE_SURFACE__) return;

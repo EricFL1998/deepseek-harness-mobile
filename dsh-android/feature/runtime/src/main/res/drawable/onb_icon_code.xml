@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding code glyph (ui-settings-account/assets/onboarding-code.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M10.625,12.5L3.75,20L10.625,27.5" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M29.375,12.5L36.25,20L29.375,27.5" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M23.125,11.25L16.875,28.75" />
+</vector>

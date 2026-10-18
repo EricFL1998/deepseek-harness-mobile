@@ -16,23 +16,43 @@
     <string name="nav_runtime">Runtime</string>
     <string name="nav_new_session">New Session</string>
 
-    <!-- Landing / Onboarding -->
-    <string name="landing_title">DeepSeek Harness</string>
-    <string name="landing_subtitle">Local Linux container runtime &amp; full plugin ecosystem</string>
-    <string name="feature_container_title">Local Linux User Space</string>
-    <string name="feature_container_desc">Compact Debian slim with Node 24, Python 3, and git</string>
-    <string name="feature_workspace_title">Real Phone Workspace</string>
-    <string name="feature_workspace_desc">Direct read/write to shared public Documents, visible in system Files app</string>
-    <string name="feature_plugins_title">Zero Plugin Modification</string>
-    <string name="feature_plugins_desc">Full 26 core slot placement, Web Island &amp; Native SDUI dual compatibility</string>
-    <string name="action_oauth_signin">Sign in with Official DeepSeek Account</string>
-    <string name="action_input_api_key">Enter API Key</string>
-    <string name="action_skip_setup">Configure Later, Explore Local Environment</string>
-    <string name="api_key_title">Add API Key to Get Started</string>
-    <string name="api_key_desc">Configure official DeepSeek model credential securely stored in Android Keystore.</string>
-    <string name="api_key_label">API Key (sk-...)</string>
-    <string name="action_save_continue">Save and Continue</string>
-    <string name="action_back">Back</string>
+    <!-- First-run onboarding (desktop onboarding copy, phone-adapted layout) -->
+    <string name="onb_welcome">Welcome to</string>
+    <string name="onb_brand">DeepSeek Harness</string>
+    <string name="onb_introduction">DeepSeek Harness works in a local folder and uses tools to read and write files on your computer. It can help you research and organize information, create documents and spreadsheets, write code, troubleshoot issues, and more.</string>
+    <string name="onb_start">Get started</string>
+    <string name="onb_credit">Add credits</string>
+    <string name="onb_credit_description">DeepSeek Harness charges credits based on the tokens used by models and tools. Add credits in advance to keep your tasks running without interruption. Your balance is only used while the agent is working on a task.</string>
+    <string name="onb_top_up">Add credits</string>
+    <string name="onb_later">Next</string>
+    <string name="onb_funded_top_up">Add credits</string>
+    <string name="onb_purpose_prefix">What would you like</string>
+    <string name="onb_purpose_suffix">to help with?</string>
+    <string name="onb_purpose_description">We’ll tailor the interface and tools to fit the way you work.</string>
+    <string name="onb_office">Office &amp; creative work</string>
+    <string name="onb_office_description">Edit documents, organize data, create presentations, and more</string>
+    <string name="onb_development">Coding &amp; development</string>
+    <string name="onb_development_description">Edit code, debug issues, run commands, manage project files, and more</string>
+    <string name="onb_continue">Continue</string>
+    <string name="onb_process">How much detail would you like to see?</string>
+    <string name="onb_process_description">This only changes how progress is shown, not what DeepSeek Harness can do.</string>
+    <string name="onb_compact">Results only</string>
+    <string name="onb_compact_description">See just the results in a clean, simple interface</string>
+    <string name="onb_standard">Key details</string>
+    <string name="onb_standard_description">Focus on results, with only the most important steps and actions shown</string>
+    <string name="onb_detailed">Full details</string>
+    <string name="onb_detailed_description">See the full process for easier debugging and troubleshooting</string>
+    <string name="onb_enter">Open app</string>
+    <string name="onb_back">Back</string>
+    <string name="onb_skip">Skip</string>
+    <string name="onb_skip_title">Skip setup?</string>
+    <string name="onb_skip_description">You can change how progress, performance, and usage are displayed, or enable Coding Tools, anytime in Settings → General.</string>
+    <string name="onb_keep_setting">Continue setup</string>
+    <string name="onb_no_credit_title">Skip adding credits?</string>
+    <string name="onb_no_credit_description">DeepSeek Harness can’t start new tasks without credits. You can add them later in Settings → Account.</string>
+    <string name="onb_understood">Got it</string>
+    <string name="onb_go_top_up">Add credits</string>
+    <string name="onb_close">Close</string>
 
     <!-- Welcome & Chat Screen -->
     <string name="chat_welcome_title">Hi, I am DSH Agent</string>
@@ -60,7 +80,7 @@
 
     <!-- Drawer -->
     <string name="drawer_user_name">DeepSeek User</string>
-    <string name="drawer_official_tag">Official OAuth</string>
+    <string name="drawer_account_tag">Official OAuth</string>
     <string name="drawer_balance">Balance: %1$s</string>
     <string name="drawer_nav_plugins">Plugin Market &amp; Ecosystem</string>
     <string name="drawer_nav_schedule">Scheduled Automation</string>

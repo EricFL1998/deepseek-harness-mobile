@@ -1,8 +1,11 @@
 package com.deepseek.dsh
 
+import com.deepseek.dsh.core.designsystem.DshIcons
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
@@ -40,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -49,10 +55,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.designsystem.DshTheme
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.MessageRole
@@ -107,40 +115,19 @@ class MainActivity : ComponentActivity() {
             appPrivateDir = filesDir
         )
 
-        surfaceCatalogStore.updateCatalogFromJson(
-            """
-            {
-                "clientId": "local",
-                "dshVersion": "4.0.0",
-                "surfaces": [
-                    {
-                        "pluginId": "dsh-subscription-oauth",
-                        "slot": "conversation.composer.dock",
-                        "order": 1,
-                        "title": "Subscription OAuth",
-                        "kind": "DOCK"
-                    },
-                    {
-                        "pluginId": "dsh-context",
-                        "slot": "settings.page",
-                        "order": 2,
-                        "title": "上下文增强插件",
-                        "kind": "PAGE"
-                    },
-                    {
-                        "pluginId": "dsh-pet",
-                        "slot": "shell.overlay",
-                        "order": 3,
-                        "title": "桌宠与系统状态浮层",
-                        "kind": "OVERLAY"
-                    }
-                ]
-            }
-            """.trimIndent()
-        )
+        // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
 
         setContent {
             DshTheme {
+                // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
+                val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+                androidx.compose.runtime.SideEffect {
+                    androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = !systemDark
+                        isAppearanceLightNavigationBars = !systemDark
+                    }
+                }
+                val app = application as DshApplication
                 MainAppHost(
                     context = applicationContext,
                     runtimeManager = runtimeManager,
@@ -148,7 +135,9 @@ class MainActivity : ComponentActivity() {
                     surfaceStore = surfaceCatalogStore,
                     oauthManager = deepseekOAuthManager,
                     workspaceManager = workspaceManager,
-                    layout = layout
+                    layout = layout,
+                    dshRepository = app.dshRepository,
+                    settingsRepository = app.settingsRepository
                 )
             }
         }
@@ -159,6 +148,8 @@ enum class ActivePage {
     CHAT,
     FILES,
     PLUGINS,
+    AUTOMATION,
+    TASKBOARD,
     HOSTS,
     APPROVAL,
     SETTINGS,
@@ -178,37 +169,102 @@ fun MainAppHost(
     surfaceStore: SurfaceCatalogStore,
     oauthManager: com.deepseek.dsh.core.protocol.DeepSeekOAuthManager,
     workspaceManager: WorkspaceManager,
-    layout: RuntimeLayout
+    layout: RuntimeLayout,
+    dshRepository: com.deepseek.dsh.core.data.DshRepository,
+    settingsRepository: com.deepseek.dsh.core.data.DefaultSettingsRepository
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     var activePage by remember { mutableStateOf(ActivePage.CHAT) }
-    var selectedSessionId by remember { mutableStateOf<String?>("session-1") }
+
+    val persistedSettings by settingsRepository.settingsFlow.collectAsState()
+    var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
+
+    val activeWorkspace = remember(currentAppSettings.workspacePath) {
+        val custom = java.io.File(currentAppSettings.workspacePath)
+        if (custom.exists() || custom.mkdirs()) custom
+        else workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
+    }
 
     val availableHosts = remember {
         mutableStateListOf<com.deepseek.dsh.core.model.HostDescriptor>(
-            com.deepseek.dsh.core.model.HostDescriptor.Local(),
-            com.deepseek.dsh.core.model.HostDescriptor.Remote(
-                id = "remote_work_pc",
-                name = "开发工作站 (远程网关)",
-                baseUrl = "https://192.168.1.100:8443",
-                deviceToken = "sec_gw_tok_abc"
-            )
+            com.deepseek.dsh.core.model.HostDescriptor.Local()
         )
     }
     var activeHostId by remember { mutableStateOf("local-host") }
-    val activeWorkspace = remember {
-        workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
+
+    val repoSessions by dshRepository.getSessions(activeHostId).collectAsState(initial = emptyList())
+    val sessions = repoSessions
+
+    var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(sessions) {
+        if (selectedSessionId == null) selectedSessionId = sessions.firstOrNull()?.sessionId
+        else if (sessions.none { it.sessionId == selectedSessionId }) {
+            selectedSessionId = sessions.firstOrNull()?.sessionId
+        }
     }
 
-    var currentAppSettings by remember {
-        mutableStateOf(
-            com.deepseek.dsh.feature.settings.AppSettings(
-                workspacePath = activeWorkspace.absolutePath
-            )
-        )
+    val activeSession = sessions.find { it.sessionId == selectedSessionId }
+
+    val repoMessages by dshRepository.getMessages(activeHostId, selectedSessionId ?: "")
+        .collectAsState(initial = emptyList())
+    val messages = remember(repoMessages) { repoMessages }
+
+    val catalogInfo by dshRepository.modelCatalogFlow.collectAsState()
+    val hostModelNames = remember(catalogInfo) {
+        catalogInfo.groups.flatMap { it.models.map { m -> m.id } }
     }
+
+    val currentSessionStats by dshRepository.getStatsForSession(selectedSessionId ?: "").collectAsState(
+        initial = com.deepseek.dsh.core.model.ComposerStats()
+    )
+
+    val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
+    val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
+    val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
+
+    val automationTasks by dshRepository.automationTasksFlow.collectAsState()
+    val teamTasks by dshRepository.teamTasksFlow.collectAsState()
+    val pendingApprovalsModels by dshRepository.pendingApprovalsFlow.collectAsState()
+
+    val pendingApprovals = remember(pendingApprovalsModels) {
+        pendingApprovalsModels.map { model ->
+            val status = when (model.status) {
+                "submitting" -> com.deepseek.dsh.feature.approval.ApprovalStatus.SUBMITTING
+                "confirmed" -> com.deepseek.dsh.feature.approval.ApprovalStatus.CONFIRMED
+                "rejected" -> com.deepseek.dsh.feature.approval.ApprovalStatus.REJECTED
+                else -> com.deepseek.dsh.feature.approval.ApprovalStatus.PENDING
+            }
+            com.deepseek.dsh.feature.approval.ApprovalItem(
+                id = model.id,
+                title = model.title,
+                command = model.command,
+                dangerReason = model.dangerReason,
+                status = status
+            )
+        }
+    }
+
+    LaunchedEffect(activeHostId, selectedSessionId) {
+        selectedSessionId?.let { sid ->
+            dshRepository.refreshSessionStats(activeHostId, sid)
+        }
+    }
+
+    LaunchedEffect(activeHostId) {
+        dshRepository.refreshSessions(activeHostId)
+        dshRepository.refreshModelCatalog(activeHostId)
+        dshRepository.refreshPluginInventory(activeHostId)
+        dshRepository.refreshAutomationTasks(activeHostId)
+        dshRepository.refreshTeamTasks(activeHostId)
+        dshRepository.refreshApprovals(activeHostId)
+        dshRepository.subscribeRemoteEvents(activeHostId)
+    }
+    val onboardingPreferences = remember {
+        com.deepseek.dsh.feature.runtime.OnboardingPreferences(context)
+    }
+
     val backupAndDiag = remember {
         com.deepseek.dsh.runtime.host.RuntimeBackupAndDiagnostics(layout)
     }
@@ -218,158 +274,206 @@ fun MainAppHost(
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
+    val dshApplication = context.applicationContext as DshApplication
 
-    var showOnboardingLanding by remember { mutableStateOf(true) }
+    // 模型来源与官方一致：Host 目录优先；其次 API Key / 已登录账号的 DeepSeek 模型；
+    // 两者都没有时为空，菜单会提示先登录或添加 API Key。
+    val availableModelNames = remember(hostModelNames, accountState.hasApiKey, accountState.isSignedIn) {
+        when {
+            hostModelNames.isNotEmpty() -> hostModelNames
+            accountState.hasApiKey || accountState.isSignedIn ->
+                listOf("DeepSeek-V3", "DeepSeek-R1")
+            else -> emptyList()
+        }
+    }
 
-    if (showOnboardingLanding) {
-        com.deepseek.dsh.feature.runtime.OnboardingLandingScreen(
-            onComplete = { apiKey ->
-                showOnboardingLanding = false
-            },
-            onOfficialOAuthClick = {
-                val authUrl = oauthManager.buildOAuthAuthorizeUrl()
-                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl)).apply {
+    // 官方账号菜单的登录入口：浏览器 OAuth 为主，API Key 为备选（与官方 SignInDialog 一致）。
+    var showSignInDialog by remember { mutableStateOf(false) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var apiKeyInput by remember { mutableStateOf("") }
+    val openUrl: (String) -> Unit = { url ->
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse(url)
+        ).apply { flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK }
+        context.startActivity(intent)
+    }
+
+    val hostSignOut: () -> Unit = {
+        scope.launch {
+            dshRepository.signOutAccount(activeHostId)
+            oauthManager.signOut()
+        }
+    }
+
+    // 官方流程：Host 的 account/startSignIn 生成带本次 attempt 的授权链接；
+    // 浏览器完成授权后 Host 写入 credential，客户端轮询 account/getState 同步登录态。
+    val beginHostSignIn: () -> Unit = {
+        scope.launch {
+            val callbackOrigin = dshApplication.defaultClient.currentBaseUrl()
+            val view = dshRepository.startAccountSignIn(activeHostId, callbackOrigin).getOrNull()
+            if (view == null) {
+                android.widget.Toast.makeText(
+                    context,
+                    "登录失败：Host 未就绪",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+            val authorizeUrl = view.authorizeUrl
+            if (authorizeUrl.isNullOrBlank()) {
+                android.widget.Toast.makeText(
+                    context,
+                    "登录失败：未获取授权链接",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                return@launch
+            }
+            openUrl(authorizeUrl)
+            repeat(80) {
+                kotlinx.coroutines.delay(1500)
+                val state = dshRepository.getAccountState(activeHostId).getOrNull() ?: return@repeat
+                if (state.status == "credential-stored") {
+                    val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
+                    val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
+                    oauthManager.applyHostAccount(profile, balance)
+                    return@launch
+                }
+                if (state.attemptPhase in setOf("failed", "expired", "cancelled")) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "登录未完成，请重试",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
+                }
+            }
+        }
+    }
+
+    // 本地运行时启动后：把仓库客户端绑定到实际端口/token，并重新拉取全部 Host 数据。
+    LaunchedEffect(status.phase, status.port, status.token) {
+        val port = status.port
+        if (port != null) {
+            dshApplication.bindLocalHost(port, status.token)
+            dshRepository.refreshSessions(activeHostId)
+            dshRepository.refreshModelCatalog(activeHostId)
+            dshRepository.refreshPluginInventory(activeHostId)
+            dshRepository.refreshAutomationTasks(activeHostId)
+            dshRepository.refreshTeamTasks(activeHostId)
+            dshRepository.refreshApprovals(activeHostId)
+            dshRepository.subscribeRemoteEvents(activeHostId)
+            // 从 Host 恢复账号态（官方 account/watch 的初值）。
+            val accountView = dshRepository.getAccountState(activeHostId).getOrNull()
+            if (accountView?.status == "credential-stored") {
+                val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
+                val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
+                oauthManager.applyHostAccount(profile, balance)
+            }
+        }
+    }
+
+    // 首次启动先准备 rootfs：未安装/未下载完成之前不进入 onboarding。
+    var rootfsReady by remember { mutableStateOf<Boolean?>(null) }
+    var rootfsSetupProgress by remember { mutableStateOf(0f to "检查本地运行时...") }
+    var rootfsSetupError by remember { mutableStateOf<String?>(null) }
+    var rootfsInstallAttempt by remember { mutableStateOf(0) }
+
+    LaunchedEffect(rootfsInstallAttempt) {
+        if (runtimeManager.isRootfsInstalled()) {
+            rootfsReady = true
+            return@LaunchedEffect
+        }
+        rootfsReady = false
+        rootfsSetupError = null
+        val result = runtimeManager.installRootfs { progress, message ->
+            rootfsSetupProgress = progress to message
+        }
+        result.exceptionOrNull()?.let { error ->
+            rootfsSetupError = error.message ?: "rootfs 安装失败"
+        }
+        if (result.isSuccess) rootfsReady = true
+    }
+
+    // rootfs 就绪后再拉起本地 Host，避免在未安装时产生启动错误。
+    LaunchedEffect(rootfsReady) {
+        if (rootfsReady == true &&
+            (status.phase == RuntimePhase.STOPPED ||
+                status.phase == RuntimePhase.UNINSTALLED ||
+                status.phase == RuntimePhase.ERROR)
+        ) {
+            runtimeManager.start(activeWorkspace.absolutePath)
+        }
+    }
+
+    if (rootfsReady != true) {
+        RootfsSetupScreen(
+            progress = rootfsSetupProgress.first,
+            message = rootfsSetupProgress.second,
+            error = rootfsSetupError,
+            onRetry = { rootfsInstallAttempt++ },
+        )
+        return
+    }
+
+    // 首次打开引导：完全替代旧 Landing 页，完成后写入本地进度，仅首次展示。
+    var showOnboarding by remember { mutableStateOf(!onboardingPreferences.isCompleted) }
+
+    if (showOnboarding) {
+        val funded = accountState.wallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 } ||
+            accountState.bonusWallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 }
+        com.deepseek.dsh.feature.runtime.OnboardingScreen(
+            funded = funded,
+            onRecharge = {
+                val rechargeIntent = android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://platform.deepseek.com/top_up")
+                ).apply {
                     flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
                 }
-                context.startActivity(intent)
+                runCatching { context.startActivity(rechargeIntent) }
+            },
+            onComplete = { result ->
+                onboardingPreferences.save(result)
+                val updated = currentAppSettings.copy(
+                    showCodingView = result.developerTools,
+                    transcriptView = result.process.storageValue,
+                )
+                currentAppSettings = updated
+                scope.launch { settingsRepository.updateSettings { updated } }
+                showOnboarding = false
             }
         )
         return
     }
 
-    val files = remember(activePage) {
+    val files = remember(activePage, activeWorkspace) {
         workspaceManager.listFiles(activeWorkspace)
     }
 
-    val sessions = remember {
-        mutableStateListOf(
-            SessionInfo(
-                hostId = "local-host",
-                sessionId = "session-1",
-                title = "默认本地 Agent 会话",
-                workspacePath = activeWorkspace.absolutePath,
-                pinned = true
-            ),
-            SessionInfo(
-                hostId = "local-host",
-                sessionId = "session-2",
-                title = "分析手机系统环境与工具链",
-                workspacePath = activeWorkspace.absolutePath
-            ),
-            SessionInfo(
-                hostId = "local-host",
-                sessionId = "session-3",
-                title = "Debian slim compact 解压自检",
-                workspacePath = activeWorkspace.absolutePath
-            )
-        )
-    }
-
-    val messages = remember {
-        mutableStateListOf<ChatMessage>()
-    }
-    val pendingApprovals = remember {
-        mutableStateListOf(
-            com.deepseek.dsh.feature.approval.ApprovalItem(
-                id = "appr_1",
-                title = "执行外部 Shell 脚本",
-                command = "bash ./deploy.sh --clean",
-                dangerReason = "该操作可能覆盖工作区现有构建目录与未提交代码",
-                status = com.deepseek.dsh.feature.approval.ApprovalStatus.PENDING
-            )
-        )
-    }
-
-    val workspaceFolders = remember(sessions.size, selectedSessionId) {
-        listOf(
+    val workspaceFolders = remember(sessions, selectedSessionId, activeWorkspace) {
+        val workspaceDirs = workspaceManager.listWorkspaceDirectories(activeWorkspace)
+        workspaceDirs.mapIndexed { idx, dir ->
+            val dirSessions = sessions.filter { s ->
+                val wsPath = s.workspacePath
+                wsPath != null && (wsPath == dir.absolutePath || wsPath.startsWith(dir.absolutePath))
+            }.ifEmpty {
+                if (idx == 0) sessions else emptyList()
+            }
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_token",
-                name = "token monitor android",
-                sessions = listOf(
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_tok_1", "写一个安卓原生的额度/用...", "10小时")
-                ),
-                isExpanded = true
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_mobile",
-                name = "deepseek mobile",
-                sessions = if (sessions.isNotEmpty()) {
-                    sessions.mapIndexed { idx, s ->
-                        com.deepseek.dsh.feature.sessions.SessionDisplayItem(
-                            s.sessionId,
-                            s.title,
-                            if (idx == 0) "13分钟" else "5小时",
-                            isActiveDot = (idx == 0)
-                        )
-                    }
-                } else {
-                    listOf(
-                        com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_mob_1", "@_feasibility/DSH-手机端-...", "13分钟", isActiveDot = true),
-                        com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_mob_2", "DSH 插件兼容安卓原生客户...", "5小时")
+                id = "ws_${dir.name.hashCode()}",
+                name = dir.name.ifEmpty { "主工作区" },
+                sessions = dirSessions.mapIndexed { sIdx, s ->
+                    com.deepseek.dsh.feature.sessions.SessionDisplayItem(
+                        sessionId = s.sessionId,
+                        title = s.title,
+                        timeAgo = if (sIdx == 0) "活跃" else "历史",
+                        isActiveDot = (s.sessionId == selectedSessionId)
                     )
                 },
-                isExpanded = true
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_router",
-                name = "0dcloud-router",
-                sessions = listOf(
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_r_1", "修复订阅链接不稳定问题", "1天")
-                ),
-                isExpanded = true
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_speaker",
-                name = "xiaoai speaker",
-                sessions = listOf(
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sp_1", "黑客小米音箱获取 SSH", "1天"),
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sp_2", "安卓 SSH 音箱配对与音量平衡", "2天")
-                ),
-                isExpanded = true
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_botw",
-                name = "botw-port",
-                sessions = listOf(
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_b_1", "@PROGRESS.md 首先, 我...", "2小时", isActiveDot = true),
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_b_2", "LASRecomp 机制移植方案", "11小时")
-                ),
-                isExpanded = true
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_sub",
-                name = "subscription-oauth",
-                sessions = listOf(
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sub_1", "我们插件的 gemini 额度不对...", "9小时"),
-                    com.deepseek.dsh.feature.sessions.SessionDisplayItem("s_sub_2", "Antigravity API 403 错误原因", "10小时")
-                ),
-                isExpanded = true
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_assembly",
-                name = "AssemblyShooter",
-                sessions = emptyList(),
-                isExpanded = false
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_rail",
-                name = "RailFocus",
-                sessions = emptyList(),
-                isExpanded = false
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_hyper",
-                name = "HyperModes",
-                sessions = emptyList(),
-                isExpanded = false
-            ),
-            com.deepseek.dsh.feature.sessions.WorkspaceFolder(
-                id = "ws_ugreen",
-                name = "ugreen mcp",
-                sessions = emptyList(),
-                isExpanded = false
+                isExpanded = idx == 0
             )
-        )
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -377,9 +481,12 @@ fun MainAppHost(
             drawerState = drawerState,
             drawerContent = {
                 ModernNavigationDrawerContent(
-                    userName = "海盐味薯片",
+                    userName = accountState.profile?.name ?: "DeepSeek 用户",
                     userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
-                    accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥60.00",
+                    accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
+                    isSignedIn = accountState.isSignedIn,
+                    onSignIn = { showSignInDialog = true },
+                    onSignOut = hostSignOut,
                     workspaces = workspaceFolders,
                     selectedSessionId = selectedSessionId,
                     onSelectSession = { sessionId ->
@@ -388,19 +495,24 @@ fun MainAppHost(
                         scope.launch { drawerState.close() }
                     },
                     onNewChatClick = {
-                        val newId = "session_${System.currentTimeMillis()}"
-                        sessions.add(
-                            0,
-                            SessionInfo(
+                        scope.launch {
+                            val result = dshRepository.createSession(
                                 hostId = activeHostId,
-                                sessionId = newId,
-                                title = "新对话 ${sessions.size + 1}"
+                                title = "新对话 ${sessions.size + 1}",
+                                workspacePath = activeWorkspace.absolutePath
                             )
-                        )
-                        selectedSessionId = newId
-                        messages.clear()
-                        activePage = ActivePage.CHAT
-                        scope.launch { drawerState.close() }
+                            result.onSuccess { newSession ->
+                                selectedSessionId = newSession.sessionId
+                                activePage = ActivePage.CHAT
+                                drawerState.close()
+                            }.onFailure { err ->
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "创建会话失败: ${err.message ?: "Host 不可达"}",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     },
                     onNavigatePlugins = {
                         scope.launch {
@@ -408,16 +520,28 @@ fun MainAppHost(
                             activePage = ActivePage.PLUGINS
                         }
                     },
+                    onNavigateSchedule = {
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.AUTOMATION
+                        }
+                    },
+                    onNavigateKanban = {
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.TASKBOARD
+                        }
+                    },
+                    onNavigateRuntime = {
+                        scope.launch {
+                            drawerState.close()
+                            activePage = ActivePage.RUNTIME
+                        }
+                    },
                     onNavigateFiles = {
                         scope.launch {
                             drawerState.close()
                             activePage = ActivePage.FILES
-                        }
-                    },
-                    onNavigateHosts = {
-                        scope.launch {
-                            drawerState.close()
-                            activePage = ActivePage.HOSTS
                         }
                     },
                     onNavigateSettings = {
@@ -429,69 +553,103 @@ fun MainAppHost(
                 )
             }
         ) {
+            // 对话页使用完整顶栏；设置页自带标题栏（不再叠加）；其余全屏页只保留返回条，
+            // 避免出现双 header。
+            val chatPage = activePage == ActivePage.CHAT
+            val pageHasOwnHeader = activePage == ActivePage.SETTINGS
             Scaffold(
                 topBar = {
-                    // 现代顶栏: 纯粹简洁标题栏 (参考截图 1 & 3: 左侧汉堡菜单，中间会话标题，右侧播报与新建)
-                    ModernTopAppBar(
-                        title = when (activePage) {
-                            ActivePage.CHAT -> sessions.find { it.sessionId == selectedSessionId }?.title ?: stringResource(R.string.app_name)
-                            ActivePage.FILES -> stringResource(R.string.nav_files)
-                            ActivePage.PLUGINS -> stringResource(R.string.nav_plugins)
-                            ActivePage.HOSTS -> stringResource(R.string.nav_hosts)
-                            ActivePage.APPROVAL -> stringResource(R.string.nav_approval)
-                            ActivePage.SETTINGS -> stringResource(R.string.nav_settings)
-                            ActivePage.SDUI_SAMPLE -> "SDUI"
-                            ActivePage.RUNTIME -> stringResource(R.string.nav_runtime)
-                        },
-                        showModeCapsule = false,
-                        onMenuClick = { scope.launch { drawerState.open() } },
-                        onNewChatClick = {
-                            messages.clear()
-                            activePage = ActivePage.CHAT
-                        }
-                    )
+                    when {
+                        chatPage -> ModernTopAppBar(
+                            title = sessions.find { it.sessionId == selectedSessionId }?.title
+                                ?: stringResource(R.string.app_name),
+                            showModeCapsule = false,
+                            onMenuClick = { scope.launch { drawerState.open() } },
+                        )
+
+                        !pageHasOwnHeader -> PageBackBar(
+                            onBack = { activePage = ActivePage.CHAT },
+                            onMenuClick = { scope.launch { drawerState.open() } },
+                        )
+                    }
                 }
             ) { innerPadding ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
+                        .then(if (chatPage || pageHasOwnHeader) Modifier else Modifier)
                 ) {
                     when (activePage) {
                         ActivePage.CHAT -> {
                             val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK }
-                            var reasoningLevel by remember { mutableStateOf(com.deepseek.dsh.feature.chat.ReasoningLevel.FAST) }
+                            var reasoningLevel by remember {
+                                mutableStateOf(
+                                    runCatching {
+                                        com.deepseek.dsh.feature.chat.ReasoningLevel.valueOf(currentAppSettings.defaultReasoningLevel)
+                                    }.getOrDefault(com.deepseek.dsh.feature.chat.ReasoningLevel.FAST)
+                                )
+                            }
+
+                            val configuredModel = activeSession?.model ?: currentAppSettings.defaultModel
+                            val currentModel = when {
+                                availableModelNames.isEmpty() -> "请选择模型"
+                                configuredModel in availableModelNames -> configuredModel
+                                else -> availableModelNames.first()
+                            }
+                            val currentPermission = remember(activeSession?.permissionPreset) {
+                                when (activeSession?.permissionPreset) {
+                                    "read_only" -> com.deepseek.dsh.feature.chat.PermissionPreset.READ_ONLY
+                                    "danger_full_access" -> com.deepseek.dsh.feature.chat.PermissionPreset.FULL_ACCESS
+                                    "auto_review" -> com.deepseek.dsh.feature.chat.PermissionPreset.AUTO_REVIEW
+                                    else -> com.deepseek.dsh.feature.chat.PermissionPreset.WORKSPACE_WRITE
+                                }
+                            }
 
                             ModernChatScreen(
                                 messages = messages,
                                 onSendMessage = { text ->
-                                    messages.add(
-                                        ChatMessage(
-                                            hostId = activeHostId,
-                                            sessionId = selectedSessionId ?: "session-1",
-                                            messageId = "user_${System.currentTimeMillis()}",
-                                            role = MessageRole.USER,
-                                            content = text
-                                        )
-                                    )
-                                    val levelName = context.getString(reasoningLevel.labelResId)
-                                    messages.add(
-                                        ChatMessage(
-                                            hostId = activeHostId,
-                                            sessionId = selectedSessionId ?: "session-1",
-                                            messageId = "asst_${System.currentTimeMillis()}",
-                                            role = MessageRole.ASSISTANT,
-                                            content = "[$levelName] Echo: \"$text\" (workspace: ${activeWorkspace.absolutePath})"
-                                        )
-                                    )
+                                    selectedSessionId?.let { sid ->
+                                        scope.launch {
+                                            dshRepository.sendMessage(activeHostId, sid, text)
+                                        }
+                                    }
                                 },
-                                selectedModel = "DeepSeek-V3",
+                                selectedModel = currentModel,
+                                availableModels = availableModelNames,
+                                onModelSelected = { model ->
+                                    selectedSessionId?.let { sid ->
+                                        scope.launch {
+                                            dshRepository.selectModel(activeHostId, sid, model)
+                                        }
+                                    }
+                                },
+                                selectedPermission = currentPermission,
+                                onPermissionSelected = { preset ->
+                                    val presetStr = when (preset) {
+                                        com.deepseek.dsh.feature.chat.PermissionPreset.READ_ONLY -> "read_only"
+                                        com.deepseek.dsh.feature.chat.PermissionPreset.FULL_ACCESS -> "danger_full_access"
+                                        com.deepseek.dsh.feature.chat.PermissionPreset.AUTO_REVIEW -> "auto_review"
+                                        else -> "workspace_write"
+                                    }
+                                    selectedSessionId?.let { sid ->
+                                        scope.launch {
+                                            dshRepository.selectPermissionPreset(activeHostId, sid, presetStr)
+                                        }
+                                    }
+                                },
                                 reasoningLevel = reasoningLevel,
-                                onReasoningLevelChange = { reasoningLevel = it },
+                                onReasoningLevelChange = { level ->
+                                    reasoningLevel = level
+                                    scope.launch {
+                                        settingsRepository.updateSettings { it.copy(defaultReasoningLevel = level.name) }
+                                    }
+                                },
                                 dockPluginSurfaces = dockPlugins,
                                 onDockPluginClick = { pluginItem ->
                                     activeSheetSurface = pluginItem
                                 },
+                                stats = currentSessionStats,
                                 onOpenAttachmentMenu = {
                                     activePage = ActivePage.FILES
                                 }
@@ -507,8 +665,9 @@ fun MainAppHost(
                         }
 
                         ActivePage.PLUGINS -> {
-                            PluginsListScreen(
+                            PluginsScreen(
                                 surfaces = catalog.surfaces,
+                                pluginManagerSnapshot = pluginManagerSnapshot,
                                 onOpenSurface = { item ->
                                     if (item.kind == SurfaceKind.OVERLAY) {
                                         activeOverlaySurface = item
@@ -520,15 +679,49 @@ fun MainAppHost(
                                     activePage = ActivePage.SDUI_SAMPLE
                                 },
                                 onInstallPlugin = { pkgName ->
-                                    val newSurface = SurfaceItem(
-                                        pluginId = pkgName,
-                                        slot = "conversation.composer.dock",
-                                        order = 10,
-                                        title = pkgName.substringAfterLast("/"),
-                                        kind = SurfaceKind.DOCK
-                                    )
-                                    surfaceStore.addSurfaceItem(newSurface)
+                                    scope.launch {
+                                        val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
+                                        if (hostRes.isSuccess) {
+                                            android.widget.Toast.makeText(context, "插件安装成功", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            // 本地 Surface 降级
+                                            val newSurface = SurfaceItem(
+                                                pluginId = pkgName,
+                                                slot = "conversation.composer.dock",
+                                                order = 10,
+                                                title = pkgName.substringAfterLast("/"),
+                                                kind = SurfaceKind.DOCK
+                                            )
+                                            surfaceStore.addSurfaceItem(newSurface)
+                                        }
+                                    }
+                                },
+                                onToggleBundle = { packageName, enabled ->
+                                    scope.launch {
+                                        dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                    }
+                                },
+                                onUninstall = { item ->
+                                    scope.launch {
+                                        dshRepository.uninstallPlugin(activeHostId, item.pluginId)
+                                        surfaceStore.removeSurfaceItem(item.pluginId, item.slot)
+                                    }
                                 }
+                            )
+                        }
+
+                        ActivePage.AUTOMATION -> {
+                            AutomationTasksScreen(
+                                tasks = automationTasks,
+                                onCreateTask = {
+                                    activePage = ActivePage.CHAT
+                                }
+                            )
+                        }
+
+                        ActivePage.TASKBOARD -> {
+                            TaskBoardScreen(
+                                tasks = teamTasks
                             )
                         }
 
@@ -555,36 +748,54 @@ fun MainAppHost(
                             com.deepseek.dsh.feature.approval.ApprovalScreen(
                                 approvals = pendingApprovals,
                                 onApprove = { item ->
-                                    val index = pendingApprovals.indexOfFirst { it.id == item.id }
-                                    if (index != -1) {
-                                        pendingApprovals[index] = item.copy(
-                                            status = com.deepseek.dsh.feature.approval.ApprovalStatus.CONFIRMED
-                                        )
+                                    scope.launch {
+                                        dshRepository.respondApproval(activeHostId, item.id, true)
                                     }
                                 },
                                 onDeny = { item ->
-                                    val index = pendingApprovals.indexOfFirst { it.id == item.id }
-                                    if (index != -1) {
-                                        pendingApprovals[index] = item.copy(
-                                            status = com.deepseek.dsh.feature.approval.ApprovalStatus.REJECTED
-                                        )
+                                    scope.launch {
+                                        dshRepository.respondApproval(activeHostId, item.id, false)
                                     }
                                 }
                             )
                         }
 
                         ActivePage.SETTINGS -> {
-                            com.deepseek.dsh.feature.settings.OfficialSettingsScreen(
+                            com.deepseek.dsh.feature.settings.SettingsRootScreen(
                                 settings = currentAppSettings,
-                                onUpdateSettings = { currentAppSettings = it },
+                                onUpdateSettings = { updated ->
+                                    currentAppSettings = updated
+                                    scope.launch {
+                                        settingsRepository.updateSettings { updated }
+                                    }
+                                },
+                                availableModels = availableModelNames,
+                                builtInPlugins = builtInPluginsList,
+                                pluginSnapshot = pluginSnapshot,
+                                runtimeStatus = status,
+                                onStartRuntime = {
+                                    scope.launch {
+                                        runtimeManager.start(activeWorkspace.absolutePath)
+                                    }
+                                },
+                                onStopRuntime = {
+                                    scope.launch {
+                                        runtimeManager.stop()
+                                    }
+                                },
+                                onOpenSettingsDocument = {
+                                    scope.launch {
+                                        dshRepository.openSettingsDocument(activeHostId)
+                                    }
+                                },
                                 accountName = accountState.profile?.name ?: "DeepSeek 用户",
                                 accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
+                                accountPhone = accountState.profile?.contact ?: "",
+                                isSignedIn = accountState.isSignedIn,
+                                onSignIn = { showSignInDialog = true },
+                                onSignOut = hostSignOut,
                                 onManageAccount = {
-                                    val authUrl = oauthManager.buildOAuthAuthorizeUrl()
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl)).apply {
-                                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(intent)
+                                    openUrl(accountState.platformUrl)
                                 },
                                 onCreateBackup = {
                                     scope.launch {
@@ -658,341 +869,72 @@ fun MainAppHost(
                 onClose = { activeOverlaySurface = null }
             )
         }
-    }
-}
 
-@Composable
-fun PluginsListScreen(
-    surfaces: List<SurfaceItem>,
-    onOpenSurface: (SurfaceItem) -> Unit,
-    onOpenSdui: () -> Unit,
-    onInstallPlugin: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var showInstallDialog by remember { mutableStateOf(false) }
-    var pluginPackageInput by remember { mutableStateOf("") }
-    var installStatusMessage by remember { mutableStateOf<String?>(null) }
-    var activePluginsTab by remember { mutableStateOf("installed") } // "installed" vs "market"
-
-    val darkBg = Color(0xFF161719)
-    val cardBg = Color(0xFF212327)
-    val textPrimary = Color(0xFFEEEEEE)
-    val textSecondary = Color(0xFF9E9EA4)
-    val textMuted = Color(0xFF6E7077)
-    val accentBlue = Color(0xFF3875F6)
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(darkBg)
-            .padding(16.dp)
-    ) {
-        // 1. 顶部标题栏 + 右侧添加插件胶囊 (对齐官方 header + add button)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.plugins_title),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = textPrimary
-                )
-                Text(
-                    text = stringResource(R.string.plugins_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = textMuted
-                )
-            }
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF20283A),
-                onClick = { showInstallDialog = true },
-                modifier = Modifier.height(34.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.action_add_plugin),
-                        tint = accentBlue,
-                        modifier = Modifier.size(16.dp)
+        // 官方登录对话框：浏览器 OAuth 为主，API Key 为备选。
+        if (showSignInDialog) {
+            com.deepseek.dsh.core.designsystem.DshDialog(
+                onDismiss = { showSignInDialog = false },
+                title = "开始使用",
+                closeLabel = "关闭",
+                description = "登录 DeepSeek 账号，或添加 API Key，即可开始使用。你的项目和文件保存在本地。",
+                footer = {
+                    com.deepseek.dsh.core.designsystem.DshDialogButton(
+                        text = "添加 API Key",
+                        primary = false,
+                        enabled = true,
+                        onClick = {
+                            showSignInDialog = false
+                            showApiKeyDialog = true
+                        },
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.action_add_plugin),
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = accentBlue
+                    Spacer(modifier = Modifier.width(8.dp))
+                    com.deepseek.dsh.core.designsystem.DshDialogButton(
+                        text = "登录",
+                        primary = true,
+                        enabled = true,
+                        onClick = {
+                            showSignInDialog = false
+                            beginHostSignIn()
+                        },
                     )
-                }
-            }
+                },
+            )
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // 2. 官方标准 Tab 切换栏 (已安装 Installed vs 发现 Market，对齐 ui-plugin-manager 规范)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = if (activePluginsTab == "installed") Color(0xFF2C2F36) else Color(0xFF212327),
-                onClick = { activePluginsTab = "installed" },
-                modifier = Modifier.height(32.dp)
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "已安装 (${surfaces.size})",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = if (activePluginsTab == "installed") FontWeight.Bold else FontWeight.Normal
-                        ),
-                        color = if (activePluginsTab == "installed") textPrimary else textSecondary
+        if (showApiKeyDialog) {
+            com.deepseek.dsh.core.designsystem.DshDialog(
+                onDismiss = { showApiKeyDialog = false },
+                title = "添加一个 API Key 开始使用",
+                closeLabel = "关闭",
+                description = "配置 DeepSeek 官方模型，即可开始使用。",
+                footer = {
+                    com.deepseek.dsh.core.designsystem.DshDialogButton(
+                        text = "取消",
+                        primary = false,
+                        enabled = true,
+                        onClick = { showApiKeyDialog = false },
                     )
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = if (activePluginsTab == "market") Color(0xFF2C2F36) else Color(0xFF212327),
-                onClick = { activePluginsTab = "market" },
-                modifier = Modifier.height(32.dp)
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "发现 (Plugin Market)",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = if (activePluginsTab == "market") FontWeight.Bold else FontWeight.Normal
-                        ),
-                        color = if (activePluginsTab == "market") textPrimary else textSecondary
+                    Spacer(modifier = Modifier.width(8.dp))
+                    com.deepseek.dsh.core.designsystem.DshDialogButton(
+                        text = "登录",
+                        primary = true,
+                        enabled = apiKeyInput.isNotBlank(),
+                        onClick = {
+                            oauthManager.signInWithApiKey(apiKeyInput)
+                            apiKeyInput = ""
+                            showApiKeyDialog = false
+                        },
                     )
-                }
-            }
+                },
+                content = {
+                    com.deepseek.dsh.core.designsystem.DshTextInput(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        placeholder = "输入 API 密钥",
+                    )
+                },
+            )
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (activePluginsTab == "installed") {
-            // SDUI 原生插件特性卡片
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF20283A),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Widgets,
-                        contentDescription = null,
-                        tint = accentBlue
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "SDUI 声明式原生插件",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = textPrimary
-                        )
-                        Text(
-                            text = "JSON layout 声明 -> 客户端纯原生 Compose 渲染",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = textMuted
-                        )
-                    }
-                    Button(
-                        onClick = onOpenSdui,
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accentBlue),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(stringResource(R.string.action_try))
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 已安装插件列表 (深色圆角卡片)
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(surfaces) { item ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = cardBg,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (item.kind == SurfaceKind.OVERLAY) Icons.Default.Widgets else Icons.Default.Build,
-                                contentDescription = null,
-                                tint = accentBlue
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.title ?: item.pluginId,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                                    color = textPrimary
-                                )
-                                Text(
-                                    text = "Slot: ${item.slot} · ${item.kind}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = textMuted
-                                )
-                            }
-                            OutlinedButton(
-                                onClick = { onOpenSurface(item) },
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Text(
-                                    if (item.kind == SurfaceKind.OVERLAY) stringResource(R.string.action_open_overlay) else stringResource(R.string.action_open),
-                                    color = textPrimary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // 发现页 (Market 清单展示)
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    Text(
-                        text = "官方与社区精选扩展",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = textMuted
-                    )
-                }
-                item {
-                    Surface(shape = RoundedCornerShape(12.dp), color = cardBg, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("dsh-subscription-oauth", color = textPrimary, fontWeight = FontWeight.Bold)
-                                Text("官方订阅服务与额度 OAuth 认证扩展", color = textMuted, style = MaterialTheme.typography.bodySmall)
-                            }
-                            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF2C2F36)) {
-                                Text("已安装", color = textSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                            }
-                        }
-                    }
-                }
-                item {
-                    Surface(shape = RoundedCornerShape(12.dp), color = cardBg, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("dsh-plugin-whale-pet", color = textPrimary, fontWeight = FontWeight.Bold)
-                                Text("桌面鲸鱼桌宠与系统运行状态监控", color = textMuted, style = MaterialTheme.typography.bodySmall)
-                            }
-                            Button(
-                                onClick = { onInstallPlugin("dsh-plugin-whale-pet") },
-                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accentBlue),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(stringResource(R.string.action_install))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 官方对齐：按包名/地址添加插件对话框
-    if (showInstallDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = {
-                showInstallDialog = false
-                installStatusMessage = null
-            },
-            title = {
-                Text(text = stringResource(R.string.plugin_dialog_title), color = textPrimary)
-            },
-            text = {
-                Column {
-                    Text(
-                        text = stringResource(R.string.plugin_dialog_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = textSecondary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    androidx.compose.material3.OutlinedTextField(
-                        value = pluginPackageInput,
-                        onValueChange = { pluginPackageInput = it },
-                        placeholder = { Text(stringResource(R.string.plugin_dialog_hint)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.plugin_dialog_source),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = textMuted
-                        )
-                        androidx.compose.material3.TextButton(
-                            onClick = {
-                                pluginPackageInput = "dsh-subscription-oauth"
-                            }
-                        ) {
-                            Text(stringResource(R.string.action_fill_example), color = accentBlue)
-                        }
-                    }
-                    installStatusMessage?.let { msg ->
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = msg, style = MaterialTheme.typography.bodySmall, color = accentBlue)
-                    }
-                }
-            },
-            containerColor = Color(0xFF212327),
-            confirmButton = {
-                androidx.compose.material3.Button(
-                    onClick = {
-                        if (pluginPackageInput.isNotBlank()) {
-                            onInstallPlugin(pluginPackageInput.trim())
-                            val installedName = pluginPackageInput.trim()
-                            installStatusMessage = "OK: $installedName"
-                            pluginPackageInput = ""
-                        }
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = accentBlue)
-                ) {
-                    Text(stringResource(R.string.action_install))
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.OutlinedButton(
-                    onClick = {
-                        showInstallDialog = false
-                        installStatusMessage = null
-                    }
-                ) {
-                    Text(stringResource(R.string.action_close), color = textSecondary)
-                }
-            }
-        )
     }
 }
 
@@ -1004,40 +946,149 @@ fun RuntimeControlScreen(
 ) {
     val status by runner.statusFlow.collectAsState()
     val scope = rememberCoroutineScope()
+    var installProgress by remember { mutableStateOf<Pair<Float, String>?>(null) }
+    var isInstalling by remember { mutableStateOf(false) }
 
     Box(
-        modifier = modifier.fillMaxSize().padding(24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+        androidx.compose.material3.Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
         ) {
-            Text(
-                text = stringResource(R.string.runtime_title),
-                style = MaterialTheme.typography.titleLarge
-            )
-            Spacer(modifier = Modifier.padding(8.dp))
-            Text(text = stringResource(R.string.runtime_phase, status.phase))
-            Text(text = stringResource(R.string.runtime_port, status.port?.toString() ?: "--"))
-            Text(text = stringResource(R.string.runtime_token, status.token?.take(10)?.plus("...") ?: "--"))
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.runtime_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.padding(16.dp))
-
-            if (status.phase == RuntimePhase.STOPPED || status.phase == RuntimePhase.UNINSTALLED || status.phase == RuntimePhase.ERROR) {
-                androidx.compose.material3.Button(onClick = {
-                    scope.launch {
-                        runtimeManager.start("/storage/emulated/0/Documents/DSH-Workspace")
-                    }
-                }) {
-                    Text(stringResource(R.string.action_start_container))
+                // 阶段状态徽章
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            when (status.phase) {
+                                RuntimePhase.RUNNING -> MaterialTheme.colorScheme.primaryContainer
+                                RuntimePhase.ERROR -> MaterialTheme.colorScheme.errorContainer
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.runtime_phase, status.phase),
+                        color = when (status.phase) {
+                            RuntimePhase.RUNNING -> MaterialTheme.colorScheme.onPrimaryContainer
+                            RuntimePhase.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
-            } else {
-                androidx.compose.material3.Button(onClick = {
-                    scope.launch {
-                        runtimeManager.stop()
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = stringResource(R.string.runtime_port, status.port?.toString() ?: "--"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = stringResource(R.string.runtime_token, status.token?.take(10)?.plus("...") ?: "--"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                status.pid?.let {
+                    Text(
+                        text = "PID: $it",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                status.lastError?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "错误: $it",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                installProgress?.let { (progress, msg) ->
+                    Spacer(modifier = Modifier.height(16.dp))
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = msg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (status.phase != RuntimePhase.RUNNING && status.phase != RuntimePhase.STARTING) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    isInstalling = true
+                                    val result = runtimeManager.installRootfs { p, msg ->
+                                        installProgress = p to msg
+                                    }
+                                    isInstalling = false
+                                    result.exceptionOrNull()?.let { error ->
+                                        installProgress = 0f to "安装失败：${error.message}"
+                                    }
+                                }
+                            },
+                            enabled = !isInstalling
+                        ) {
+                            Text(if (isInstalling) "安装中..." else "安装/重置 Rootfs")
+                        }
                     }
-                }) {
-                    Text(stringResource(R.string.action_stop_container))
+
+                    if (status.phase == RuntimePhase.STOPPED || status.phase == RuntimePhase.UNINSTALLED || status.phase == RuntimePhase.ERROR) {
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                scope.launch {
+                                    val result = runtimeManager.start("/storage/emulated/0/Documents/DSH-Workspace")
+                                    result.exceptionOrNull()?.let { error ->
+                                        installProgress = 0f to "启动失败：${error.message}"
+                                    }
+                                }
+                            },
+                            enabled = !isInstalling && status.phase != RuntimePhase.STARTING
+                        ) {
+                            Text(stringResource(R.string.action_start_container))
+                        }
+                    } else {
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                scope.launch {
+                                    runtimeManager.stop()
+                                }
+                            },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(stringResource(R.string.action_stop_container))
+                        }
+                    }
                 }
             }
         }
@@ -1047,100 +1098,130 @@ fun RuntimeControlScreen(
 /**
  * 现代轻量顶栏组件（参考截图 1, 2, 3）
  */
+/**
+ * 全屏子页面的极简返回条：左侧菜单、右侧返回对话，不显示标题，
+ * 因此不会与页面自身的标题栏形成双 header。
+ */
 @Composable
-fun ModernTopAppBar(
-    title: String,
-    showModeCapsule: Boolean = false,
+fun PageBackBar(
+    onBack: () -> Unit,
     onMenuClick: () -> Unit,
-    onNewChatClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(72.dp)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 左侧汉堡菜单圆形按键
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            onClick = onMenuClick,
-            modifier = Modifier.size(40.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Menu",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+        IconButton(onClick = onMenuClick, modifier = Modifier.size(44.dp)) {
+            Icon(
+                imageVector = DshIcons.PanelLeftOutline,
+                contentDescription = "Menu",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        if (showModeCapsule) {
-            // 中间切换胶囊 (参考截图 2: 快速 / 进阶)
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+@Composable
+fun ModernTopAppBar(
+    title: String,
+    showModeCapsule: Boolean = false,
+    onMenuClick: () -> Unit
+) {
+    val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左侧汉堡菜单圆形按键
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.height(34.dp)
+                shape = CircleShape,
+                color = barColors.bgModulePlatform,
+                onClick = onMenuClick,
+                modifier = Modifier.size(36.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text(
-                            text = "快速",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                        )
-                    }
-                    Text(
-                        text = "深度思考",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(horizontal = 10.dp)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = DshIcons.PanelLeftOutline,
+                        contentDescription = "Menu",
+                        tint = barColors.labelPrimary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-        } else {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                modifier = Modifier.weight(1f)
-            )
-        }
 
-        Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(12.dp))
 
-        // 右侧功能键：播报与新建
-        IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-            Icon(
-                imageVector = Icons.Default.VolumeUp,
-                contentDescription = "Voice Output",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-        }
+            if (showModeCapsule) {
+                // 中间切换胶囊 (参考截图 2: 快速 / 进阶)
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Text(
+                                text = "快速",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                            )
+                        }
+                        Text(
+                            text = "深度思考",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(horizontal = 10.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            } else {
+                Text(
+                    text = title,
+                    color = barColors.labelPrimary,
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
 
-        IconButton(onClick = onNewChatClick, modifier = Modifier.size(36.dp)) {
-            Icon(
-                imageVector = Icons.Default.Edit,
-                contentDescription = "New Session",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
+            // 右侧不再放置播报与编辑按钮，保持官方标题栏的单菜单入口。
         }
+        // header 的 0.5dp border-l3 分隔线
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(barColors.borderL3)
+        )
     }
 }
 
@@ -1148,3 +1229,69 @@ fun ModernTopAppBar(
 
 
 
+
+
+
+
+
+@Composable
+private fun RootfsSetupScreen(
+    progress: Float,
+    message: String,
+    error: String?,
+    onRetry: () -> Unit,
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "正在准备本地 Linux 运行时",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "首次启动需要下载并解压 rootfs，完成后才能继续设置。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { progress.coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            if (error != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                Text(
+                    text = "准备失败：$error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                androidx.compose.material3.Button(onClick = onRetry) {
+                    Text("重试")
+                }
+            }
+        }
+    }
+}

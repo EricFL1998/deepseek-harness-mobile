@@ -32,5 +32,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation("org.apache.commons:commons-compress:1.27.1")
     testImplementation(libs.junit)
 }

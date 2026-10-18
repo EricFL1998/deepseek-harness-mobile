@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         MessageEntity::class,
         DraftEntity::class,
         ApprovalEntity::class,
-        SurfaceCatalogEntity::class
+        SurfaceCatalogEntity::class,
+        AppSettingsEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class DshDatabase : RoomDatabase() {

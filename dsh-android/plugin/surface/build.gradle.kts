@@ -28,6 +28,7 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:ui"))
+    implementation(project(":core:designsystem"))
     implementation(project(":plugin:runtime-web"))
     implementation(libs.kotlinx.serialization.json)
     implementation(platform(libs.androidx.compose.bom))
@@ -36,3 +37,4 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     testImplementation(libs.junit)
 }
+

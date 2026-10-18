@@ -23,6 +23,7 @@ data class RuntimeStatus(
 
 interface HostRuntimeManager {
     suspend fun getStatus(): RuntimeStatus
+    suspend fun isRootfsInstalled(): Boolean
     suspend fun installRootfs(onProgress: (Float, String) -> Unit): Result<Unit>
     suspend fun start(workspacePath: String): Result<RuntimeStatus>
     suspend fun stop(): Result<Unit>

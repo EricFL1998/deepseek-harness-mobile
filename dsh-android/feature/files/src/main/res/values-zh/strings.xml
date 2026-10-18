@@ -16,24 +16,6 @@
     <string name="nav_runtime">本地 Linux 运行时</string>
     <string name="nav_new_session">新建会话</string>
 
-    <!-- 首次打开引导 / Landing Page -->
-    <string name="landing_title">DeepSeek Harness</string>
-    <string name="landing_subtitle">手机本地原生 Agent 运行时与完整插件生态</string>
-    <string name="feature_container_title">本地 Linux 用户空间容器</string>
-    <string name="feature_container_desc">Compact Debian slim 工具链全保留，Node 24、Python、git 真机执行</string>
-    <string name="feature_workspace_title">手机真实目录工作区</string>
-    <string name="feature_workspace_desc">直接读写内部存储公有文件夹，系统自带文件管理 App 原生可见</string>
-    <string name="feature_plugins_title">全插件生态零改动</string>
-    <string name="feature_plugins_desc">官方 26 个核心 Slot 原生映射，Web 岛与 SDUI 声明式渲染双兼容</string>
-    <string name="action_oauth_signin">使用 DeepSeek 官方账号授权</string>
-    <string name="action_input_api_key">输入 API Key 开始</string>
-    <string name="action_skip_setup">稍后配置，直接体验本地环境</string>
-    <string name="api_key_title">添加 API Key 开始使用</string>
-    <string name="api_key_desc">配置官方 DeepSeek 模型密钥，凭据将保存在手机 Keystore 加密存储中。</string>
-    <string name="api_key_label">API 密钥 (sk-...)</string>
-    <string name="action_save_continue">保存并进入工作区</string>
-    <string name="action_back">返回上一页</string>
-
     <!-- 主对话欢迎屏与交互 -->
     <string name="chat_welcome_title">嗨！我是运行在手机本地的 DSH Agent</string>
     <string name="chat_welcome_desc">今天要在手机本地做点什么？</string>
@@ -60,7 +42,7 @@
 
     <!-- 侧栏抽屉 -->
     <string name="drawer_user_name">DeepSeek 用户</string>
-    <string name="drawer_official_tag">官方 OAuth</string>
+    <string name="drawer_account_tag">官方 OAuth</string>
     <string name="drawer_balance">余额: %1$s</string>
     <string name="drawer_nav_plugins">插件发现与生态</string>
     <string name="drawer_nav_schedule">定时自动化任务</string>

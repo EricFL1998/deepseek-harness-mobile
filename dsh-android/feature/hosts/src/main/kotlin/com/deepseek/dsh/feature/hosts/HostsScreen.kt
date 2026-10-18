@@ -45,7 +45,7 @@ import com.deepseek.dsh.feature.hosts.R
 
 /**
  * v4.0 设计文档 §11.1 & §11.3:
- * 多主机（本机 Linux + 远程网关）管理面板，对齐官方深色调
+ * 多主机（本机 Linux + 远程网关）管理面板，对齐深色调
  */
 @Composable
 fun HostsScreen(

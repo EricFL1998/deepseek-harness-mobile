@@ -37,6 +37,7 @@ class HostProcessRunner(
         command: List<String>,
         workingDir: File,
         logFile: File? = null,
+        environment: Map<String, String> = emptyMap(),
         onEndpointFound: ((ProcessOutputParser.ParsedEndpoint) -> Unit)? = null
     ): Result<Process> = withContext(Dispatchers.IO) {
         if (isRunning()) {
@@ -49,6 +50,13 @@ class HostProcessRunner(
             val pb = ProcessBuilder(command)
                 .directory(workingDir)
                 .redirectErrorStream(false)
+            // 不继承 App 进程环境：某些 Android 运行时变量会干扰 proot 内的 Node。
+            pb.environment().clear()
+            pb.environment()["PATH"] = "/system/bin:/system/xbin"
+            pb.environment()["ANDROID_ROOT"] = System.getenv("ANDROID_ROOT") ?: "/system"
+            pb.environment()["ANDROID_DATA"] = System.getenv("ANDROID_DATA") ?: "/data"
+            pb.environment()["TMPDIR"] = System.getProperty("java.io.tmpdir") ?: "/data/local/tmp"
+            pb.environment().putAll(environment)
 
             val proc = pb.start()
             process = proc
@@ -106,6 +114,11 @@ class HostProcessRunner(
     fun markReady() {
         val current = _statusFlow.value
         _statusFlow.value = current.copy(phase = RuntimePhase.RUNNING)
+    }
+
+    /** rootfs 安装完成后把阶段推进到 STOPPED（可启动）。 */
+    fun markInstalled() {
+        _statusFlow.value = RuntimeStatus(phase = RuntimePhase.STOPPED)
     }
 
     suspend fun terminate(): Result<Unit> = withContext(Dispatchers.IO) {

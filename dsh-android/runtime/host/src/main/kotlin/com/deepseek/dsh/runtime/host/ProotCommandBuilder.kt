@@ -59,8 +59,10 @@ object ProotCommandBuilder {
         cmd.add("-b")
         cmd.add("$saf:/saf")
 
-        // 避免 Android 权限与硬链接异常
+        // 避免 Android 权限与硬链接异常；显式指定 guest 工作目录。
         cmd.add("--link2symlink")
+        cmd.add("-w")
+        cmd.add("/")
 
         // 启动环境隔离
         cmd.add("/usr/bin/env")
@@ -75,8 +77,10 @@ object ProotCommandBuilder {
             cmd.add("$k=$v")
         }
 
-        // DSH web 入口命令
-        cmd.add("/opt/dsh/bin/dsh")
+        // 直接用 node 执行 dsh 的 bin.js：绕过 /opt/dsh/bin/dsh 包装脚本，
+        // 保证 import.meta.url 指向真实安装目录（否则 profile bundle 解析锚点会错）。
+        cmd.add("/usr/local/bin/node")
+        cmd.add("/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js")
         cmd.add("--profile")
         cmd.add("web")
         cmd.add("--no-open")

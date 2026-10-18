@@ -30,7 +30,24 @@ data class SessionEntity(
     val updatedAt: Long?,
     val lastSeq: Long?,
     val archived: Int = 0,
-    val pinned: Int = 0
+    val pinned: Int = 0,
+    val model: String? = null,
+    val permissionPreset: String? = null
+)
+
+@Entity(tableName = "app_settings")
+data class AppSettingsEntity(
+    @PrimaryKey val id: String = "default",
+    val defaultModel: String,
+    val defaultReasoningLevel: String,
+    val idleStopMinutes: Int,
+    val keepAliveOnTask: Boolean,
+    val autoBootRecovery: Boolean,
+    val highRiskConfirm: Boolean,
+    val showCodingView: Boolean,
+    val transcriptView: String,
+    val enableSoundNotice: Boolean,
+    val workspacePath: String
 )
 
 @Entity(tableName = "messages", primaryKeys = ["hostId", "sessionId", "messageId"])

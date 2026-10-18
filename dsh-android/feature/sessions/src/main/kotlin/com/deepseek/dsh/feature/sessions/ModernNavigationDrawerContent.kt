@@ -1,11 +1,21 @@
 package com.deepseek.dsh.feature.sessions
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import com.deepseek.dsh.core.designsystem.DshIcons
+import com.deepseek.dsh.core.designsystem.DshMenuCard
+import com.deepseek.dsh.core.designsystem.DshMenuDivider
+import com.deepseek.dsh.core.designsystem.DshMenuIcon
+import com.deepseek.dsh.core.designsystem.DshMenuLabel
+import com.deepseek.dsh.core.designsystem.DshMenuRow
+import com.deepseek.dsh.core.designsystem.AnchoredMenuPopup
+import com.deepseek.dsh.feature.sessions.R
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +39,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -41,8 +50,6 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ViewKanban
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,7 +66,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,14 +87,18 @@ data class WorkspaceFolder(
 )
 
 /**
- * 完整对齐官方抽屉与系统深浅色自适应 (Light & Dark Parity)
- * 严格按照官方原生规范渲染工作区树、会话行与精美 AccountMenu
+ * 完整对齐抽屉与系统深浅色自适应 (Light & Dark Parity)
+ * 严格按照原生规范渲染工作区树、会话行与精美 AccountMenu
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ModernNavigationDrawerContent(
-    userName: String = "海盐味薯片",
-    userTag: String = "官方 OAuth",
-    accountBalance: String = "¥60.00",
+    userName: String = "DeepSeek 用户",
+    userTag: String = "未认证",
+    accountBalance: String = "¥0.00",
+    isSignedIn: Boolean = false,
+    onSignIn: () -> Unit = {},
+    onSignOut: () -> Unit = {},
     workspaces: List<WorkspaceFolder> = emptyList(),
     selectedSessionId: String?,
     onSelectSession: (String) -> Unit,
@@ -96,8 +106,9 @@ fun ModernNavigationDrawerContent(
     onNavigatePlugins: () -> Unit,
     onNavigateSchedule: () -> Unit = {},
     onNavigateKanban: () -> Unit = {},
+    onNavigateRuntime: () -> Unit = {},
     onNavigateFiles: () -> Unit,
-    onNavigateHosts: () -> Unit,
+    onNavigateHosts: () -> Unit = {},
     onNavigateSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -117,70 +128,71 @@ fun ModernNavigationDrawerContent(
     }
 
     var showAccountMenu by remember { mutableStateOf(false) }
+    var sessionMenuId by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .width(320.dp)
+            .width(304.dp)
             .background(bgDrawer)
-            .padding(start = 12.dp, end = 12.dp, top = 24.dp, bottom = 16.dp)
+            .padding(start = 10.dp, end = 10.dp, top = 28.dp, bottom = 12.dp)
     ) {
-        // 1. 顶部 Header: deepseek 图标 + deepseek 标题 + HARNESS 药丸徽章
+        // 1. 顶部品牌行（对齐 ui-sidebar .logoRow / .brandIdentity）：
+        //    飞鱼标识 + deepseek 字标 + 反白 HARNESS 徽章
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(
+                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_dsh_fish_logo),
+                contentDescription = null,
+                tint = textPrimary,
+                modifier = Modifier
+                    .height(18.dp)
+                    .width(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_brand_wordmark),
+                contentDescription = "deepseek",
+                tint = textPrimary,
+                modifier = Modifier
+                    .height(18.dp)
+                    .width(72.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            // 徽章：反白填充 + 内嵌反色 HARNESS
             Box(
                 modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(accentPrimary),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(bgDrawer)
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "deepseek",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp,
-                    fontSize = 20.sp
-                ),
-                color = textPrimary
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.padding(top = 1.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(textPrimary)
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
             ) {
                 Text(
                     text = "HARNESS",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.6.sp
                     ),
-                    color = textSecondary,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    color = bgDrawer
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // 2. "+ 新会话" 圆角药丸大按钮
+        // 2.「新会话」按钮（对齐 .newSession：整宽、38 高、12 圆角、0.5px 描边、内容间距 6）
         Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = btnNewChat,
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(
+                0.5.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+            ),
             onClick = onNewChatClick,
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,17 +204,19 @@ fun ModernNavigationDrawerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = DshIcons.NewChatOutline,
                     contentDescription = null,
                     tint = textPrimary,
-                    modifier = Modifier.size(17.dp)
+                    modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "新会话",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = textPrimary,
-                    fontSize = 14.sp
+                    text = stringResource(R.string.session_new),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    ),
+                    color = textPrimary
                 )
             }
         }
@@ -214,24 +228,31 @@ fun ModernNavigationDrawerContent(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            OfficialDrawerItem(
-                icon = Icons.Outlined.Extension,
+            DrawerItem(
+                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
                 title = "插件",
                 onClick = onNavigatePlugins,
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
-            OfficialDrawerItem(
-                icon = Icons.Outlined.Schedule,
+            DrawerItem(
+                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule,
                 title = "自动化任务",
                 onClick = onNavigateSchedule,
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
-            OfficialDrawerItem(
-                icon = Icons.Outlined.ViewKanban,
+            DrawerItem(
+                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_checklist,
                 title = "任务看板",
                 onClick = onNavigateKanban,
+                textColor = textPrimary,
+                iconTint = textSecondary
+            )
+            DrawerItem(
+                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model,
+                title = "运行控制",
+                onClick = onNavigateRuntime,
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
@@ -243,373 +264,297 @@ fun ModernNavigationDrawerContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 2.dp),
+                .padding(start = 4.dp, end = 2.dp, top = 0.dp, bottom = 0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "工作区",
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                 color = textMuted,
-                fontSize = 12.sp,
-                modifier = Modifier.weight(1f)
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(bottom = 2.dp)
             )
-            IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = textMuted, modifier = Modifier.size(14.dp))
             }
-            IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textMuted, modifier = Modifier.size(14.dp))
             }
-            IconButton(onClick = onNavigateFiles, modifier = Modifier.size(24.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onNavigateFiles),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textMuted, modifier = Modifier.size(14.dp))
             }
         }
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // 5. 官方度量规范树状工作区与会话列表 (项目高 32dp，会话高 30dp)
+        // 5. 工作区树（对齐 ui-workspace Rows.module.css）：
+        //    项目行 .projectRow 高 34、圆角 12、padding 0 8、gap 6、文件夹图标 16；
+        //    会话行 .sessionRow 高 32、圆角 12、起始缩进 20、标题 14/20、时间 10/16 三级色。
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            workspaces.forEach { folder ->
+            workspaces.forEachIndexed { folderIndex, folder ->
                 val isExpanded = expandedMap[folder.id] ?: folder.isExpanded
-                val isCurrentFolder = (folder.id == "ws_mobile")
 
-                // 工作区项目行 (.projectRow: height 32dp)
                 item(key = "fld_${folder.id}") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(top = if (folderIndex == 0) 0.dp else 4.dp)
                             .height(32.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .clickable {
                                 expandedMap = expandedMap.toMutableMap().apply {
                                     put(folder.id, !isExpanded)
                                 }
                             }
-                            .padding(horizontal = 6.dp),
+                            .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 展开倒三角 / 右三角
                         Icon(
-                            imageVector = if (isExpanded) Icons.Default.ArrowDropDown else Icons.Default.ChevronRight,
+                            painter = painterResource(
+                                id = if (isExpanded) {
+                                    com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open
+                                } else {
+                                    com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_close
+                                }
+                            ),
                             contentDescription = null,
-                            tint = if (isCurrentFolder) accentPrimary else textMuted,
-                            modifier = Modifier.size(17.dp)
+                            tint = textSecondary,
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = folder.name,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = if (isCurrentFolder) FontWeight.SemiBold else FontWeight.Medium
-                            ),
                             color = textPrimary,
-                            fontSize = 13.5.sp,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
                             maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-
-                        if (isCurrentFolder) {
-                            Icon(
-                                imageVector = Icons.Default.MoreHoriz,
-                                contentDescription = "Actions",
-                                tint = textMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Default.AddCircleOutline,
-                                contentDescription = "New Session",
-                                tint = textMuted,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
                     }
                 }
 
-                // 工作区下的会话列表 (.sessionRow: height 30dp)
                 if (isExpanded) {
                     items(folder.sessions, key = { it.sessionId }) { session ->
                         val isSelected = session.sessionId == selectedSessionId
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isSelected) selectedRowBg else Color.Transparent,
-                            onClick = { onSelectSession(session.sessionId) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(30.dp)
-                                .padding(horizontal = 2.dp)
-                        ) {
+                        Box {
                             Row(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(start = 20.dp, end = 8.dp),
+                                    .fillMaxWidth()
+                                    .height(30.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                                        else Color.Transparent
+                                    )
+                                    .combinedClickable(
+                                        onClick = { onSelectSession(session.sessionId) },
+                                        onLongClick = { sessionMenuId = session.sessionId },
+                                    )
+                                    .padding(start = 24.dp, end = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 14px 状态槽
-                                Box(
-                                    modifier = Modifier.size(14.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (session.isActiveDot) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF22C55E))
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(10.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.Transparent)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
                                 Text(
                                     text = session.title,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                                    ),
-                                    color = if (isSelected) selectedText else textSecondary,
-                                    fontSize = 13.sp,
+                                    color = textPrimary,
+                                    fontSize = 13.5.sp,
+                                    lineHeight = 20.sp,
                                     maxLines = 1,
-                                    modifier = Modifier.weight(1f)
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 4.dp, end = 6.dp)
                                 )
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
                                 Text(
                                     text = session.timeAgo,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                    color = textMuted
+                                    color = textMuted,
+                                    fontSize = 10.sp,
+                                    lineHeight = 16.sp,
+                                    maxLines = 1
                                 )
                             }
+
+                            // 行操作菜单（原 hover 按钮）改为长按弹出
+                            SessionRowMenu(
+                                expanded = sessionMenuId == session.sessionId,
+                                onDismiss = { sessionMenuId = null },
+                            )
                         }
                     }
                 }
             }
         }
-
         HorizontalDivider(
             color = lineSep,
-            thickness = 1.dp,
+            thickness = 0.5.dp,
             modifier = Modifier.padding(vertical = 4.dp)
         )
 
-        // 6. 底部 Remote 主机入口
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(34.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .clickable { onNavigateHosts() }
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Computer,
-                contentDescription = null,
-                tint = textSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "Remote",
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal),
-                color = textPrimary,
-                fontSize = 13.5.sp
-            )
-        }
-
         Spacer(modifier = Modifier.height(2.dp))
 
-        // 7. 贴附式 AccountMenu 弹窗 (紧挨着用户卡片正上方，参考图 2 的贴紧布局)
-        val menuBg = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF25272B) else MaterialTheme.colorScheme.surfaceVariant
-        val menuBorder = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF383A40) else MaterialTheme.colorScheme.outlineVariant
-        val menuText = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFEEEEEE) else MaterialTheme.colorScheme.onSurface
-        val menuIconTint = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFCFD0D4) else MaterialTheme.colorScheme.onSurfaceVariant
-        val menuShortcut = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF7E8086) else MaterialTheme.colorScheme.outline
-
-        AnimatedVisibility(
-            visible = showAccountMenu,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = menuBg,
-                shadowElevation = 8.dp,
-                modifier = Modifier
-                    .padding(bottom = 6.dp)
-                    .width(196.dp)
-                    .border(0.5.dp, menuBorder, RoundedCornerShape(14.dp))
+        // 7. 账户区：点击用户卡片在其正上方展开官方账户菜单（内联紧贴账户面板上沿）
+        if (showAccountMenu) {
+            DshMenuCard(
+                scrollable = false,
+                contentWidth = true,
             ) {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    // 1. 设置 (齿轮 + "设置" + "Ctrl + ,")
-                    Surface(
-                        color = Color.Transparent,
+                AccountMenuRow(
+                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings,
+                    label = stringResource(R.string.drawer_account_settings),
+                    onClick = {
+                        showAccountMenu = false
+                        onNavigateSettings()
+                    },
+                )
+                AccountMenuRow(
+                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_feedback,
+                    label = stringResource(R.string.drawer_account_feedback),
+                    onClick = { showAccountMenu = false },
+                )
+                if (isSignedIn) {
+                    AccountMenuRow(
+                        iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_logout,
+                        label = stringResource(R.string.drawer_account_signout),
                         onClick = {
                             showAccountMenu = false
-                            onNavigateSettings()
+                            onSignOut()
                         },
-                        modifier = Modifier.fillMaxWidth().height(38.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Settings,
-                                contentDescription = null,
-                                tint = menuIconTint,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "设置",
-                                color = menuText,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = "Ctrl + ,",
-                                color = menuShortcut,
-                                fontSize = 11.5.sp
-                            )
-                        }
-                    }
-
-                    // 2. 意见反馈 (纸飞机 Send + "意见反馈")
-                    Surface(
-                        color = Color.Transparent,
+                    )
+                } else {
+                    AccountMenuRow(
+                        iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user,
+                        label = "登录",
                         onClick = {
                             showAccountMenu = false
+                            onSignIn()
                         },
-                        modifier = Modifier.fillMaxWidth().height(38.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Send,
-                                contentDescription = null,
-                                tint = menuIconTint,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "意见反馈",
-                                color = menuText,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal
-                            )
-                        }
-                    }
-
-                    // 3. 退出登录 (ExitToApp 登出图标 + "退出登录")
-                    Surface(
-                        color = Color.Transparent,
-                        onClick = {
-                            showAccountMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth().height(38.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.ExitToApp,
-                                contentDescription = null,
-                                tint = menuIconTint,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "退出登录",
-                                color = menuText,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal
-                            )
-                        }
-                    }
+                    )
                 }
             }
         }
-
-        // 8. 用户卡片 (底栏紧挨其上方的菜单)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { showAccountMenu = !showAccountMenu }
-                .padding(horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 用户头像
-            Box(
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { showAccountMenu = !showAccountMenu }
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSignedIn) {
+                        Text(text = "🐱", fontSize = 13.sp)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MoreHoriz,
+                            contentDescription = null,
+                            tint = textSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Text(
-                    text = "🐱",
-                    fontSize = 16.sp
+                    text = if (isSignedIn) userName else "更多",
+                    color = textPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.width(10.dp))
+/** 账户菜单的一行：14dp 图标 + 13/20 标签，无快捷键提示。 */
+@Composable
+private fun AccountMenuRow(
+    iconResId: Int,
+    label: String,
+    onClick: () -> Unit,
+) {
+    DshMenuRow(onClick = onClick) {
+        DshMenuIcon(iconResId, size = 14.dp)
+        DshMenuLabel(label)
+    }
+}
+/**
+ * 会话行长按菜单：对齐行内 `⋯` 菜单条目
+ * （置顶会话 / 重命名 / 分叉会话 / 归档会话 / 复制 Session ID）。
+ *
+ * 手机端不显示桌面快捷键提示。
+ */
+@Composable
+private fun SessionRowMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+) {
+    data class Entry(val labelResId: Int, val iconResId: Int)
 
-            Text(
-                text = userName,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = textPrimary,
-                fontSize = 14.sp,
-                maxLines = 1,
-                modifier = Modifier.weight(1f)
-            )
+    val entries = listOf(
+        Entry(R.string.row_pin, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_pin),
+        Entry(R.string.row_rename, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_edit),
+        Entry(R.string.row_fork, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_branch),
+        Entry(R.string.row_archive, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
+        Entry(R.string.row_session_id, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_copy),
+    )
 
-            // 右侧 "新版本" 胶囊按钮
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                modifier = Modifier.height(24.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = null,
-                        tint = accentPrimary,
-                        modifier = Modifier.size(11.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "新版本",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Medium),
-                        color = accentPrimary
-                    )
-                }
+    // 宽度随内容自适应：卡片按最长一行定宽，行铺满卡片（Menu `.item` 100% 宽）。
+    AnchoredMenuPopup(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        contentWidth = true,
+        // 紧贴被长按的会话行
+        anchorGap = 0.dp,
+    ) {
+        entries.forEach { entry ->
+            DshMenuRow(onClick = onDismiss) {
+                DshMenuIcon(entry.iconResId)
+                DshMenuLabel(stringResource(entry.labelResId))
             }
         }
     }
 }
 
 @Composable
-private fun OfficialDrawerItem(
-    icon: ImageVector,
+private fun DrawerItem(
+    iconResId: Int,
     title: String,
     onClick: () -> Unit,
     textColor: Color,
@@ -619,23 +564,39 @@ private fun OfficialDrawerItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(34.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = icon,
+            painter = painterResource(id = iconResId),
             contentDescription = null,
             tint = iconTint,
-            modifier = Modifier.size(17.dp)
+            modifier = Modifier.size(16.dp)
         )
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal),
             color = textColor,
-            fontSize = 13.5.sp
+            fontSize = 13.sp,
+            lineHeight = 20.sp
         )
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

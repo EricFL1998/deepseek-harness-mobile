@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding back arrow (assets/onboarding-back.svg); tinted by the caller. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="17dp"
+    android:viewportWidth="20.2792"
+    android:viewportHeight="16.825">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.18823"
+        android:pathData="M1.01986,8.58958H20.2792M8.54303,0.407656L0.825554,8.58958L8.54303,16.4077" />
+</vector>

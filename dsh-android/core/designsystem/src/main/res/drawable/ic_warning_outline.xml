@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- IconWarningOutlineRegular (ui-primitives/icons). Tinted by the caller. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,14.5C11.5899,14.5 14.5,11.5899 14.5,8C14.5,4.41015 11.5899,1.5 8,1.5C4.41015,1.5 1.5,4.41015 1.5,8C1.5,11.5899 4.41015,14.5 8,14.5Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,4.29199V9.79199"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,10.708V11.708"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1" />
+</vector>

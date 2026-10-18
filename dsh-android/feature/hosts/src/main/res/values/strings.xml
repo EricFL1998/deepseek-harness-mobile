@@ -16,24 +16,6 @@
     <string name="nav_runtime">Runtime</string>
     <string name="nav_new_session">New Session</string>
 
-    <!-- Landing / Onboarding -->
-    <string name="landing_title">DeepSeek Harness</string>
-    <string name="landing_subtitle">Local Linux container runtime &amp; full plugin ecosystem</string>
-    <string name="feature_container_title">Local Linux User Space</string>
-    <string name="feature_container_desc">Compact Debian slim with Node 24, Python 3, and git</string>
-    <string name="feature_workspace_title">Real Phone Workspace</string>
-    <string name="feature_workspace_desc">Direct read/write to shared public Documents, visible in system Files app</string>
-    <string name="feature_plugins_title">Zero Plugin Modification</string>
-    <string name="feature_plugins_desc">Full 26 core slot placement, Web Island &amp; Native SDUI dual compatibility</string>
-    <string name="action_oauth_signin">Sign in with Official DeepSeek Account</string>
-    <string name="action_input_api_key">Enter API Key</string>
-    <string name="action_skip_setup">Configure Later, Explore Local Environment</string>
-    <string name="api_key_title">Add API Key to Get Started</string>
-    <string name="api_key_desc">Configure official DeepSeek model credential securely stored in Android Keystore.</string>
-    <string name="api_key_label">API Key (sk-...)</string>
-    <string name="action_save_continue">Save and Continue</string>
-    <string name="action_back">Back</string>
-
     <!-- Welcome & Chat Screen -->
     <string name="chat_welcome_title">Hi, I am DSH Agent</string>
     <string name="chat_welcome_desc">What would you like to build on your phone today?</string>
@@ -60,7 +42,7 @@
 
     <!-- Drawer -->
     <string name="drawer_user_name">DeepSeek User</string>
-    <string name="drawer_official_tag">Official OAuth</string>
+    <string name="drawer_account_tag">Official OAuth</string>
     <string name="drawer_balance">Balance: %1$s</string>
     <string name="drawer_nav_plugins">Plugin Market &amp; Ecosystem</string>
     <string name="drawer_nav_schedule">Scheduled Automation</string>

@@ -1,11 +1,15 @@
 package com.deepseek.dsh.runtime.host
 
 import kotlinx.coroutines.runBlocking
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.FileOutputStream
 
 class RuntimeInstallerAndBackupTest {
 
@@ -21,19 +25,37 @@ class RuntimeInstallerAndBackupTest {
             )
             val installer = RootfsInstaller(layout)
 
-            val dummyArchive = File(tempDir, "rootfs.tar.gz").apply {
-                writeText("dummy-rootfs-bytes")
+            // 构造一个符合契约的最小 rootfs tar.gz（etc/os-release + usr/bin/env）。
+            val archive = File(tempDir, "rootfs.tar.gz")
+            FileOutputStream(archive).use { fileOut ->
+                GzipCompressorOutputStream(fileOut).use { gzip ->
+                    TarArchiveOutputStream(gzip).use { tar ->
+                        fun put(name: String, content: String, mode: Int = 0b110_100_100) {
+                            val bytes = content.toByteArray()
+                            val entry = TarArchiveEntry(name).apply {
+                                size = bytes.size.toLong()
+                                this.mode = mode
+                            }
+                            tar.putArchiveEntry(entry)
+                            tar.write(bytes)
+                            tar.closeArchiveEntry()
+                        }
+                        put("etc/os-release", "ID=debian\n")
+                        put("usr/bin/env", "#!/bin/sh\n", 0b111_101_101)
+                    }
+                }
             }
 
             val progressList = mutableListOf<String>()
-            val result = installer.verifyAndInstall(dummyArchive) { progress ->
+            val result = installer.verifyAndInstall(archive) { progress ->
                 progressList.add(progress.step)
             }
 
-            assertTrue(result.isSuccess)
+            assertTrue(result.exceptionOrNull()?.message.orEmpty(), result.isSuccess)
             assertTrue(progressList.isNotEmpty())
-            assertTrue(layout.rootfsDir.exists())
-            assertTrue(layout.dshHomeDir.exists())
+            assertTrue(File(layout.rootfsDir, "etc/os-release").isFile)
+            assertTrue(File(layout.rootfsDir, "usr/bin/env").isFile)
+            assertTrue(installer.installedVersion() != null)
 
             tempDir.deleteRecursively()
         }

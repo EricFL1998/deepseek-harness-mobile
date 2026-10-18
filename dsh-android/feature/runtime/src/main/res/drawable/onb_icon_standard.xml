@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding key-details glyph (assets/onboarding-standard.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M8.4375,14.0625C10.6121,14.0625 12.375,12.2996 12.375,10.125C12.375,7.95038 10.6121,6.1875 8.4375,6.1875C6.26288,6.1875 4.5,7.95038 4.5,10.125C4.5,12.2996 6.26288,14.0625 8.4375,14.0625Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M16.875,10.125H30.375" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M8.4375,29.8125C10.6121,29.8125 12.375,28.0496 12.375,25.875C12.375,23.7004 10.6121,21.9375 8.4375,21.9375C6.26288,21.9375 4.5,23.7004 4.5,25.875C4.5,28.0496 6.26288,29.8125 8.4375,29.8125Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#3B86FF"
+        android:strokeWidth="2"
+        android:pathData="M16.875,25.875H30.375" />
+</vector>

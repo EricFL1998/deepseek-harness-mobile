@@ -16,23 +16,43 @@
     <string name="nav_runtime">本地 Linux 运行时</string>
     <string name="nav_new_session">新建会话</string>
 
-    <!-- 首次打开引导 / Landing Page -->
-    <string name="landing_title">DeepSeek Harness</string>
-    <string name="landing_subtitle">手机本地原生 Agent 运行时与完整插件生态</string>
-    <string name="feature_container_title">本地 Linux 用户空间容器</string>
-    <string name="feature_container_desc">Compact Debian slim 工具链全保留，Node 24、Python、git 真机执行</string>
-    <string name="feature_workspace_title">手机真实目录工作区</string>
-    <string name="feature_workspace_desc">直接读写内部存储公有文件夹，系统自带文件管理 App 原生可见</string>
-    <string name="feature_plugins_title">全插件生态零改动</string>
-    <string name="feature_plugins_desc">官方 26 个核心 Slot 原生映射，Web 岛与 SDUI 声明式渲染双兼容</string>
-    <string name="action_oauth_signin">使用 DeepSeek 官方账号授权</string>
-    <string name="action_input_api_key">输入 API Key 开始</string>
-    <string name="action_skip_setup">稍后配置，直接体验本地环境</string>
-    <string name="api_key_title">添加 API Key 开始使用</string>
-    <string name="api_key_desc">配置官方 DeepSeek 模型密钥，凭据将保存在手机 Keystore 加密存储中。</string>
-    <string name="api_key_label">API 密钥 (sk-...)</string>
-    <string name="action_save_continue">保存并进入工作区</string>
-    <string name="action_back">返回上一页</string>
+    <!-- 首次打开引导（对齐桌面端 Onboarding 文案，移动端布局适配） -->
+    <string name="onb_welcome">欢迎使用</string>
+    <string name="onb_brand">DeepSeek Harness</string>
+    <string name="onb_introduction">DeepSeek Harness 会以本地文件夹作为工作区，通过调用各种工具，读写本机文件，完成搜索整理资料、制作文档表格、编写代码、排查问题等各种任务。</string>
+    <string name="onb_start">开始设置</string>
+    <string name="onb_credit">准备可用额度</string>
+    <string name="onb_credit_description">DeepSeek Harness 执行任务时，会根据模型与工具使用的 token 量扣除额度。请提前添加额度，避免任务在执行过程中被迫中断。你的余额只会在 Agent 实际执行任务时消耗。</string>
+    <string name="onb_top_up">去充值</string>
+    <string name="onb_later">下一步</string>
+    <string name="onb_funded_top_up">去充值</string>
+    <string name="onb_purpose_prefix">你希望</string>
+    <string name="onb_purpose_suffix">帮你做什么？</string>
+    <string name="onb_purpose_description">我们会根据你的选择调整界面和工具，以更适合你的工作方式。</string>
+    <string name="onb_office">办公与创作</string>
+    <string name="onb_office_description">编辑文档、整理数据和制作演示文稿等</string>
+    <string name="onb_development">代码与开发</string>
+    <string name="onb_development_description">修改代码、调试问题、运行命令和管理项目文件等</string>
+    <string name="onb_continue">继续</string>
+    <string name="onb_process">你希望看到多少工作过程？</string>
+    <string name="onb_process_description">这只会影响工作过程的展示方式，不会影响 DeepSeek Harness 的工作能力。</string>
+    <string name="onb_compact">聚焦结果</string>
+    <string name="onb_compact_description">只看结果，保持界面简洁明了</string>
+    <string name="onb_standard">关键细节</string>
+    <string name="onb_standard_description">结果优先，仅展示重要步骤和关键操作</string>
+    <string name="onb_detailed">完整过程</string>
+    <string name="onb_detailed_description">查看完整工作过程，方便调试和排查问题</string>
+    <string name="onb_enter">进入应用</string>
+    <string name="onb_back">上一步</string>
+    <string name="onb_skip">跳过</string>
+    <string name="onb_skip_title">跳过设置？</string>
+    <string name="onb_skip_description">你可以随时前往 设置 → 通用设置 中调整工作过程、性能与用量展示方式或开启代码工作工具。</string>
+    <string name="onb_keep_setting">继续设置</string>
+    <string name="onb_no_credit_title">暂时跳过充值？</string>
+    <string name="onb_no_credit_description">没有可用额度时，DeepSeek Harness 将无法开始新的任务。你可以稍后前往 设置 → 账号与余额 进行充值。</string>
+    <string name="onb_understood">我知道了</string>
+    <string name="onb_go_top_up">前往充值</string>
+    <string name="onb_close">关闭</string>
 
     <!-- 主对话欢迎屏与交互 -->
     <string name="chat_welcome_title">嗨！我是运行在手机本地的 DSH Agent</string>
@@ -60,7 +80,7 @@
 
     <!-- 侧栏抽屉 -->
     <string name="drawer_user_name">DeepSeek 用户</string>
-    <string name="drawer_official_tag">官方 OAuth</string>
+    <string name="drawer_account_tag">官方 OAuth</string>
     <string name="drawer_balance">余额: %1$s</string>
     <string name="drawer_nav_plugins">插件发现与生态</string>
     <string name="drawer_nav_schedule">定时自动化任务</string>

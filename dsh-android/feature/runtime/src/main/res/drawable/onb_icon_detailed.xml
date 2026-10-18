@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding full-details glyph (assets/onboarding-detailed.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#00A4C9"
+        android:strokeWidth="2"
+        android:pathData="M28.125,3.375H7.875C6.63236,3.375 5.625,4.38236 5.625,5.625V30.375C5.625,31.6176 6.63236,32.625 7.875,32.625H28.125C29.3676,32.625 30.375,31.6176 30.375,30.375V5.625C30.375,4.38236 29.3676,3.375 28.125,3.375Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#00A4C9"
+        android:strokeWidth="2"
+        android:pathData="M12.375,12.375H23.625" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#00A4C9"
+        android:strokeWidth="2"
+        android:pathData="M12.375,21.375H19.125" />
+</vector>

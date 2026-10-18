@@ -76,7 +76,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // 1. 官方 DeepSeek 账号状态与余额
+        // 1. DeepSeek 账号状态与余额
         item {
             SettingsGroup(title = stringResource(R.string.settings_group_account)) {
                 SettingsRow(
