@@ -122,6 +122,17 @@ class MainActivity : ComponentActivity() {
 
         // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
 
+        // 在 Compose 启动前就预热 Host，尽量缩短启动页等待；首次安装等 rootfs 完成后再由 UI 启动。
+        if (File(filesDir, "profileInstalled").exists()) {
+            val workspace = File(
+                android.os.Environment.getExternalStorageDirectory(),
+                "Documents/DSH-Workspace"
+            )
+            (application as DshApplication).applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { runtimeManager.start(workspace.absolutePath) }
+            }
+        }
+
         setContent {
             DshTheme {
                 // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
@@ -1695,6 +1706,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 

@@ -101,7 +101,7 @@ class DefaultHostRuntimeManager(
                 runCatching { android.os.Process.sendSignal(pid, 9) }
             }
         }
-        Thread.sleep(200)
+        Thread.sleep(50)
     }
 
     /**
@@ -109,6 +109,10 @@ class DefaultHostRuntimeManager(
      * 文件锁释放与 spill 临时目录逻辑，无需重新下载整份 rootfs。
      */
     private fun applyBundledRuntimePatches() {
+        // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
+        val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
+        val patchRevision = "12"
+        if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js",
@@ -143,6 +147,10 @@ class DefaultHostRuntimeManager(
             }
         }
         File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
+        runCatching {
+            patchMarker.parentFile?.mkdirs()
+            patchMarker.writeText(patchRevision)
+        }
     }
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {
@@ -301,6 +309,8 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
+
 
 
 
