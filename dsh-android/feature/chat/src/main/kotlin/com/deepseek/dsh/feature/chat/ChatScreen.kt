@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1025,12 +1026,11 @@ fun BottomInputBar(
                                     else stringResource(R.string.chat_input_placeholder),
                                     fontSize = 14.sp,
                                     lineHeight = 24.sp,
-                                    color = panelColors.labelCaption
+                                    color = panelColors.labelCaption,
+                                    modifier = Modifier.offset(x = (-2).dp, y = (-2).dp)
                                 )
                             }
-                            Box(modifier = Modifier.padding(start = 3.dp)) {
-                                innerTextField()
-                            }
+                            innerTextField()
                         }
                     }
                 )
@@ -1262,6 +1262,12 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
+
 
 
 
