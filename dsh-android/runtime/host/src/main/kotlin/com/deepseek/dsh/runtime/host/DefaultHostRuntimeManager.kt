@@ -145,6 +145,22 @@ class DefaultHostRuntimeManager(
         }
         // proot 的 bind 目标需要存在；DSH 配置目录先创建，避免首次启动 mkdir 失败。
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
+        // rootfs 内没有 Android 的 DNS 配置，登录/模型请求会因解析失败报 network。
+        File(layout.rootfsDir, "etc/resolv.conf").apply {
+            parentFile?.mkdirs()
+            writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
+        }
+        // 把平台域名预先解析并写入 hosts，绕开 proot 内 glibc DNS 的 EAI_AGAIN。
+        runCatching {
+            val hosts = File(layout.rootfsDir, "etc/hosts")
+            val entries = listOf("platform.deepseek.com", "api.deepseek.com").mapNotNull { host ->
+                runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
+                    ?.let { "$it $host" }
+            }
+            if (entries.isNotEmpty()) {
+                hosts.writeText(entries.joinToString("\n", postfix = "\n"))
+            }
+        }
         // 上次异常退出可能残留 credentials 写锁，启动前清理。
         File(layout.rootfsDir, "root/.dsh/.credentials.yaml.lock").delete()
 

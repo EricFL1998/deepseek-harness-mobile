@@ -73,11 +73,12 @@ class RemoteClient(
     ): RemoteResult<kotlinx.serialization.json.JsonObject> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", method)
             put("payload", buildJsonObject { put("args", args) })
         }.toString()
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/$method")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
         try {

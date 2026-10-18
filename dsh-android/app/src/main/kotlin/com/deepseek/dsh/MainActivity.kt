@@ -320,7 +320,14 @@ fun MainAppHost(
                 ).show()
                 return@launch
             }
-            val authorizeUrl = view.authorizeUrl
+            var authorizeUrl = view.authorizeUrl
+            // Host 先返回 initializing，随后异步拿到平台授权链接。
+            var polls = 0
+            while (authorizeUrl.isNullOrBlank() && polls < 20) {
+                kotlinx.coroutines.delay(500)
+                authorizeUrl = dshRepository.getAccountState(activeHostId).getOrNull()?.authorizeUrl
+                polls++
+            }
             if (authorizeUrl.isNullOrBlank()) {
                 android.widget.Toast.makeText(
                     context,
