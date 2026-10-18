@@ -70,7 +70,6 @@ import com.deepseek.dsh.core.model.SurfaceKind
 import com.deepseek.dsh.feature.chat.ModernChatScreen
 import com.deepseek.dsh.feature.files.FilesScreen
 import com.deepseek.dsh.feature.files.WorkspaceManager
-import com.deepseek.dsh.feature.files.WorkspaceStorageType
 import com.deepseek.dsh.feature.sessions.ModernNavigationDrawerContent
 import com.deepseek.dsh.plugin.mobileui.SduiAction
 import com.deepseek.dsh.plugin.mobileui.SduiButton
@@ -95,8 +94,7 @@ class MainActivity : ComponentActivity() {
         File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace")
     }
 
-    /** Host 实际 bind 到 /workspace 的目录（优先直连用户可见 Documents）。 */
-    private val hostWorkspaceDir: File by lazy { visibleWorkspaceDir }
+
 
     private lateinit var runtimeManager: HostRuntimeManager
     private val runner = HostProcessRunner()
@@ -218,24 +216,11 @@ fun MainAppHost(
             )
         }
     }
-    val activeWorkspace = remember(currentAppSettings.workspacePath) {
-        // 旧版本默认 Documents 路径在 proot 下会 EACCES；迁移到 app-specific 外部目录。
-        val configured = currentAppSettings.workspacePath
-        val migrated = if (
-            configured.startsWith("/storage/emulated/0/Documents/DSH-Workspace") || configured.contains("/Android/data/com.deepseek.dsh/files/DSH-Workspace")
-        ) {
-            externalWorkspaceDir.absolutePath
-        } else if (
-            configured.contains("/Android/data/com.deepseek.dsh/") ||
-            configured.contains("/Android/media/com.deepseek.dsh/")
-        ) {
-            externalWorkspaceDir.absolutePath
-        } else configured
-        val custom = java.io.File(migrated)
-        if (custom.exists() || custom.mkdirs()) {
-            java.io.File(custom, "默认工作区").mkdirs()
-            custom
-        } else workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
+    // 首次启动已强制授予所有文件访问权限，工作区固定为公有 Documents，无需再迁移/回退。
+    val activeWorkspace = remember {
+        externalWorkspaceDir.mkdirs()
+        java.io.File(externalWorkspaceDir, "默认工作区").mkdirs()
+        externalWorkspaceDir
     }
 
     val availableHosts = remember {
@@ -1246,35 +1231,6 @@ private fun StoragePermissionGate(onRequest: () -> Unit) {
         }
     }
 }
-/** 权限横幅（保留兼容，不再在已授权流程中显示）。 */
-@Composable
-private fun AllFilesAccessBanner(onClick: () -> Unit) {
-    Surface(
-        color = MaterialTheme.colorScheme.errorContainer,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "需要「所有文件访问权限」才能读写共享工作区",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "去开启",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
 @Composable
 fun RuntimeControlScreen(
     runtimeManager: HostRuntimeManager,
@@ -1634,6 +1590,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
