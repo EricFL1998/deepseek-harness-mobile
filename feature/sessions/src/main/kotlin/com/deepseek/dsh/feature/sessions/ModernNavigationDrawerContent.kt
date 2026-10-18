@@ -469,7 +469,9 @@ fun ModernNavigationDrawerContent(
                     if (sortMode == SessionSortMode.RECENT) list.sortedByDescending { it.updatedAt } else list
                 }
                 folder.copy(sessions = sessions, isExpanded = true)
-            }.filter { it.sessions.isNotEmpty() }
+            }.filter {
+                it.sessions.isNotEmpty() || !(searchOpen && searchQuery.isNotBlank())
+            }
             val visibleWorkspaces = if (groupMode == WorkspaceGroupMode.SINGLE_LIST) {
                 val all = filteredWorkspaces.flatMap { it.sessions }.let {
                     if (sortMode == SessionSortMode.RECENT) it.sortedByDescending { s -> s.updatedAt } else it
@@ -1016,6 +1018,7 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 
 
