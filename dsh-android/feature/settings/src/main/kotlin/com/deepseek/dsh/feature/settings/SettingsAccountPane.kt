@@ -42,6 +42,7 @@ internal fun SettingsAccountPane(
     isSignedIn: Boolean = false,
     avatarUrl: String? = null,
     onManageAccount: () -> Unit,
+    onOpenUpdate: () -> Unit = {},
     onSignIn: () -> Unit = {},
     onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -218,4 +219,6 @@ private fun RemoteSettingsAvatar(url: String?, size: androidx.compose.ui.unit.Dp
         }
     }
 }
+
+
 

@@ -184,6 +184,16 @@ fun MainAppHost(
     val scope = rememberCoroutineScope()
 
     var activePage by remember { mutableStateOf(ActivePage.CHAT) }
+    var settingsInitialSection by remember {
+        mutableStateOf<com.deepseek.dsh.feature.settings.SettingsSectionTab?>(null)
+    }
+    val updateInfo by com.deepseek.dsh.feature.settings.UpdateCenter.update.collectAsState()
+    val currentVersion = remember {
+        com.deepseek.dsh.feature.settings.UpdateCenter.currentVersion(context)
+    }
+    LaunchedEffect(Unit) {
+        com.deepseek.dsh.feature.settings.UpdateCenter.ensureChecked(context)
+    }
 
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
@@ -575,6 +585,12 @@ fun MainAppHost(
                 ModernNavigationDrawerContent(
                     userName = accountState.profile?.name ?: "DeepSeek 用户",
                     avatarUrl = accountState.profile?.avatarUrl,
+                    updateVersion = updateInfo?.tag?.takeIf { it != currentVersion },
+                    onUpdateClick = {
+                        scope.launch { drawerState.close() }
+                        settingsInitialSection = com.deepseek.dsh.feature.settings.SettingsSectionTab.UPDATE
+                        activePage = ActivePage.SETTINGS
+                    },
                     userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
                     accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
                     isSignedIn = accountState.isSignedIn,
@@ -954,6 +970,7 @@ fun MainAppHost(
                         ActivePage.SETTINGS -> {
                             com.deepseek.dsh.feature.settings.SettingsRootScreen(
                                 settings = currentAppSettings,
+                                initialSection = settingsInitialSection,
                                 onUpdateSettings = { updated ->
                                     currentAppSettings = updated
                                     scope.launch {
@@ -1518,6 +1535,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

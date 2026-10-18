@@ -98,6 +98,8 @@ data class WorkspaceFolder(
 fun ModernNavigationDrawerContent(
     userName: String = "DeepSeek 用户",
     avatarUrl: String? = null,
+    updateVersion: String? = null,
+    onUpdateClick: () -> Unit = {},
     userTag: String = "未认证",
     accountBalance: String = "¥0.00",
     isSignedIn: Boolean = false,
@@ -511,6 +513,26 @@ fun ModernNavigationDrawerContent(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                if (updateVersion != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        onClick = onUpdateClick,
+                        modifier = Modifier.height(24.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "新版本",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -638,6 +660,7 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 
 

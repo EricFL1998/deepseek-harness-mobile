@@ -194,6 +194,7 @@ fun SettingsRootScreen(
                             isSignedIn = isSignedIn,
                         avatarUrl = avatarUrl,
                             onManageAccount = onManageAccount,
+                    onOpenUpdate = { activeSection = SettingsSectionTab.UPDATE },
                             onSignIn = onSignIn,
                             onSignOut = onSignOut,
                         )
@@ -288,4 +289,5 @@ private fun SettingsNavRow(
         )
     }
 }
+
 
