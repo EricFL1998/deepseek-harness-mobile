@@ -919,7 +919,7 @@ private fun ComposerTrigger(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(
-                max = if (trailingValue.isNullOrBlank()) 188.dp else 148.dp,
+                max = if (trailingValue.isNullOrBlank()) 132.dp else 96.dp,
             ),
         )
         if (!trailingValue.isNullOrBlank()) {
@@ -1067,6 +1067,7 @@ fun BottomInputBar(
                             leadingIconResId = currentPermission.iconResId(),
                             labelWeight = FontWeight.Medium,
                             onClick = onOpenPermissionMenu,
+                            modifier = Modifier.widthIn(max = 164.dp),
                         )
                         PermissionMenu(
                             expanded = permissionMenuOpen,
