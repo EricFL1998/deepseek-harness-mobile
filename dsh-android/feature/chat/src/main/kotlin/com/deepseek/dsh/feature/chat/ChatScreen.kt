@@ -478,7 +478,7 @@ private fun PermissionMenu(
         menuWidth = menuWidth,
         align = DshMenuAlign.Start,
         // 卡片底部与 trigger 顶部齐平，不能压住 Composer。
-        anchorGap = 56.dp,
+        anchorGap = 0.dp,
     ) {
         PermissionPreset.entries.forEach { preset ->
             val selected = preset == current
@@ -548,7 +548,7 @@ private fun ModelEffortMenu(
         align = DshMenuAlign.Start,
         maxHeight = 360.dp,
         // 卡片底部与 trigger 顶部齐平，不能压住 Composer。
-        anchorGap = 56.dp,
+        anchorGap = 0.dp,
     ) {
         when (page) {
             0 -> {
@@ -1257,6 +1257,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
