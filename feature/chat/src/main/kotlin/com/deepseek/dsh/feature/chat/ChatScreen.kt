@@ -191,7 +191,8 @@ fun ModernChatScreen(
     var pendingConfirm by remember { mutableStateOf<PermissionPreset?>(null) }
 
     val listState = rememberLazyListState()
-    val chatRows = remember(messages) { buildChatRows(messages) }
+    val collapsedTurns = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    val chatRows = remember(messages, isThinking) { buildChatRows(messages, isThinking) }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -247,7 +248,8 @@ fun ModernChatScreen(
                     key = { row ->
                         when (row) {
                             is ChatRow.Single -> row.message.messageId
-                            is ChatRow.Tools -> "tools_${row.messages.first().messageId}"
+                            is ChatRow.Process -> "proc_${row.key}"
+                            is ChatRow.TurnDone -> "done_${row.key}"
                         }
                     }
                 ) { row ->
@@ -258,15 +260,22 @@ fun ModernChatScreen(
                             onAnswerUserQuestion = onAnswerUserQuestion,
                             onOpenToolDetail = { toolDetail = it },
                         )
-                        is ChatRow.Tools -> ToolProcessGroup(
-                            tools = row.messages,
+                        is ChatRow.TurnDone -> TurnCompletedRow(
+                            durationMs = row.durationMs,
+                            expanded = collapsedTurns[row.key] != true,
+                            onClick = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
+                        )
+                        is ChatRow.Process -> ToolProcessGroup(
+                            items = row.items,
+                            expanded = collapsedTurns[row.key] != true,
+                            onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
                             onOpenDetail = { toolDetail = it },
                         )
                     }
                 }
 
                 val hasRunningProcess = chatRows.any { row ->
-                    row is ChatRow.Tools && row.messages.any { toolStatus(it) == "running" }
+                    row is ChatRow.Process && row.items.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
                 }
                 if (isThinking && !hasRunningProcess) {
                     item {
@@ -824,23 +833,58 @@ fun ReasoningCard(
     }
 }
 
+/** 回合结束：官方「已完成，用时 X」+ 分割线，点击折叠/展开整个过程块。 */
+@Composable
+private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick: () -> Unit = {}) {
+    val seconds = (durationMs / 1000).coerceAtLeast(0)
+    val label = when {
+        durationMs < 0 -> ""
+        seconds >= 60 -> "，用时 ${seconds / 60}分${seconds % 60}秒"
+        else -> "，用时 ${seconds}秒"
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.height(24.dp).clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "已完成$label",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
+        androidx.compose.material3.HorizontalDivider(
+            thickness = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+        )
+    }
+}
 /** 连续的 tool call 归入一个 process group（官方 stepProcess）：运行中显示当前动作，结束后折叠为摘要。 */
 @Composable
 private fun ToolProcessGroup(
-    tools: List<ChatMessage>,
+    items: List<ChatMessage>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
     onOpenDetail: (ToolDetailData) -> Unit,
 ) {
-    val running = tools.firstOrNull { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
+    val running = items.firstOrNull { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
     val isRunning = running != null
-    var expanded by remember(isRunning) { mutableStateOf(isRunning) }
-    val summary = remember(tools) { processSummary(tools) }
+    val summary = remember(items) { processSummary(items) }
     val activeName = running?.content?.split(2.toChar())?.getOrNull(3).orEmpty()
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(24.dp)
-                .clickable { expanded = !expanded },
+                .clickable(onClick = onToggle),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isRunning) {
@@ -875,7 +919,7 @@ private fun ToolProcessGroup(
         }
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(start = 20.dp, top = 2.dp)) {
-                tools.filterNot { it.role == MessageRole.TOOL && toolStatus(it) == "running" }.forEach { item ->
+                items.filterNot { it.role == MessageRole.TOOL && toolStatus(it) == "running" }.forEach { item ->
                     if (item.role == MessageRole.ASSISTANT) {
                         ReasoningCard(
                             isFinished = true,
@@ -1110,33 +1154,54 @@ private fun LiveToolStatus(messages: List<ChatMessage>) {
 }
 private sealed interface ChatRow {
     data class Single(val message: ChatMessage) : ChatRow
-    data class Tools(val messages: List<ChatMessage>) : ChatRow
+    data class Process(val key: String, val items: List<ChatMessage>) : ChatRow
+    data class TurnDone(val key: String, val durationMs: Long) : ChatRow
 }
 
-private fun buildChatRows(messages: List<ChatMessage>): List<ChatRow> {
+private fun buildChatRows(messages: List<ChatMessage>, isThinking: Boolean): List<ChatRow> {
     val rows = mutableListOf<ChatRow>()
-    var tools = mutableListOf<ChatMessage>()
-    fun flush() {
-        if (tools.isNotEmpty()) {
-            rows.add(ChatRow.Tools(tools.toList()))
-            tools = mutableListOf()
-        }
+    var process = mutableListOf<ChatMessage>()
+    var turnStart = 0L
+    var lastCreated = 0L
+    fun flush(closed: Boolean) {
+        if (process.isEmpty()) return
+        val key = process.first().messageId
+        val duration = if (turnStart > 0 && lastCreated > 0) (lastCreated - turnStart).coerceAtLeast(0L) else -1L
+        if (closed) rows.add(ChatRow.TurnDone(key, duration))
+        rows.add(ChatRow.Process(key, process.toList()))
+        process = mutableListOf()
     }
     for (message in messages) {
-        val reasoningOnly = message.role == MessageRole.ASSISTANT &&
-            message.content.contains('\u0001') &&
-            message.content.substringAfter('\u0001').isBlank()
-        if (message.role == MessageRole.TOOL || reasoningOnly) {
-            tools.add(message)
-        } else {
-            flush()
-            rows.add(ChatRow.Single(message))
+        lastCreated = maxOf(lastCreated, message.createdAt)
+        val sep = message.content.indexOf('\u0001')
+        when {
+            message.role == MessageRole.USER -> {
+                flush(closed = true)
+                turnStart = message.createdAt
+                rows.add(ChatRow.Single(message))
+            }
+            message.role == MessageRole.TOOL -> process.add(message)
+            message.role == MessageRole.ASSISTANT && sep >= 0 -> {
+                val reasoning = message.content.substring(0, sep)
+                val answer = message.content.substring(sep + 1)
+                if (reasoning.isNotBlank()) {
+                    process.add(message.copy(messageId = message.messageId + "_r", content = reasoning + '\u0001'))
+                }
+                if (answer.isNotBlank()) {
+                    flush(closed = true)
+                    rows.add(ChatRow.Single(message.copy(messageId = message.messageId + "_a", content = answer)))
+                }
+            }
+            else -> {
+                flush(closed = true)
+                rows.add(ChatRow.Single(message))
+            }
         }
     }
-    flush()
+    val running = process.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
+    flush(closed = !isThinking && !running)
     return rows
 }
-
 private fun toolStatus(message: ChatMessage): String =
     message.content.split(2.toChar()).getOrNull(4).orEmpty()
 
@@ -1807,6 +1872,13 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
+
+
 
 
 
