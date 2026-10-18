@@ -66,6 +66,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -94,6 +95,7 @@ data class WorkspaceFolder(
 @Composable
 fun ModernNavigationDrawerContent(
     userName: String = "DeepSeek 用户",
+    avatarUrl: String? = null,
     userTag: String = "未认证",
     accountBalance: String = "¥0.00",
     isSignedIn: Boolean = false,
@@ -475,7 +477,7 @@ fun ModernNavigationDrawerContent(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isSignedIn) {
-                        Text(text = "🐱", fontSize = 13.sp)
+                        RemoteAvatar(url = avatarUrl)
                     } else {
                         Icon(
                             imageVector = Icons.Default.MoreHoriz,
@@ -598,5 +600,31 @@ private fun DrawerItem(
 
 
 
+
+
+
+@Composable
+private fun RemoteAvatar(url: String?) {
+    var image by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    androidx.compose.runtime.LaunchedEffect(url) {
+        if (url.isNullOrBlank()) return@LaunchedEffect
+        image = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                java.net.URL(url).openStream().use { android.graphics.BitmapFactory.decodeStream(it) }
+            }.getOrNull()
+        }?.let { it.asImageBitmap() }
+    }
+    val bitmap = image
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else {
+        Text(text = "🐱", fontSize = 13.sp)
+    }
+}
 
 

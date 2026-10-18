@@ -489,6 +489,7 @@ fun MainAppHost(
             drawerContent = {
                 ModernNavigationDrawerContent(
                     userName = accountState.profile?.name ?: "DeepSeek 用户",
+                    avatarUrl = accountState.profile?.avatarUrl,
                     userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
                     accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
                     isSignedIn = accountState.isSignedIn,
@@ -799,6 +800,7 @@ fun MainAppHost(
                                 accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
                                 accountPhone = accountState.profile?.contact ?: "",
                                 isSignedIn = accountState.isSignedIn,
+                                avatarUrl = accountState.profile?.avatarUrl,
                                 onSignIn = { showSignInDialog = true },
                                 onSignOut = hostSignOut,
                                 onManageAccount = {

@@ -18,6 +18,12 @@ import androidx.compose.material.icons.filled.NorthEast
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -34,6 +40,7 @@ internal fun SettingsAccountPane(
     accountBalance: String,
     accountPhone: String,
     isSignedIn: Boolean = false,
+    avatarUrl: String? = null,
     onManageAccount: () -> Unit,
     onSignIn: () -> Unit = {},
     onSignOut: () -> Unit = {},
@@ -83,7 +90,7 @@ internal fun SettingsAccountPane(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        SettingsUserAvatar(size = 36.dp)
+                        RemoteSettingsAvatar(url = avatarUrl, size = 36.dp)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -177,3 +184,38 @@ private fun BalanceRow(label: String, amount: String) {
         )
     }
 }
+
+@Composable
+private fun RemoteSettingsAvatar(url: String?, size: androidx.compose.ui.unit.Dp) {
+    var image by androidx.compose.runtime.remember(url) {
+        androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+    }
+    androidx.compose.runtime.LaunchedEffect(url) {
+        if (url.isNullOrBlank()) return@LaunchedEffect
+        image = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                java.net.URL(url).openStream().use { android.graphics.BitmapFactory.decodeStream(it) }
+            }.getOrNull()
+        }?.let { it.asImageBitmap() }
+    }
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .size(size)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        val bitmap = image
+        if (bitmap != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Text(text = "🐱", fontSize = 15.sp)
+        }
+    }
+}
+
