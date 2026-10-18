@@ -510,6 +510,12 @@ fun MainAppHost(
         return
     }
 
+    // 首次进入必须先授予「所有文件访问权限」，否则不能进入引导/主界面。
+    if (!hasAllFilesAccess) {
+        StoragePermissionGate(onRequest = openAllFilesSettings)
+        return
+    }
+
     // 首次打开引导：完全替代旧 Landing 页，完成后写入本地进度，仅首次展示。
     var showOnboarding by remember { mutableStateOf(!onboardingPreferences.isCompleted) }
 
@@ -727,9 +733,6 @@ fun MainAppHost(
                                 onBack = { activePage = ActivePage.CHAT },
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
-                        }
-                        if (!hasAllFilesAccess) {
-                            AllFilesAccessBanner(onClick = openAllFilesSettings)
                         }
                     }
                 }
@@ -1193,7 +1196,57 @@ fun MainAppHost(
     }
 }
 
-/** 常驻权限提醒：没有「所有文件访问权限」时工作区无法被 Host 读写。 */
+/** 首次启动的强制权限门：未授权时不允许进入任何下一步。 */
+@Composable
+private fun StoragePermissionGate(onRequest: () -> Unit) {
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = DshIcons.ShieldOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(56.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "需要文件访问权限",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "DSH 的工作区位于 Documents/DSH-Workspace，必须授予「所有文件访问权限」才能读写文件并继续使用。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            androidx.compose.material3.Button(
+                onClick = onRequest,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("去开启权限")
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "授权后会自动进入应用",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+/** 权限横幅（保留兼容，不再在已授权流程中显示）。 */
 @Composable
 private fun AllFilesAccessBanner(onClick: () -> Unit) {
     Surface(
@@ -1581,6 +1634,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 
