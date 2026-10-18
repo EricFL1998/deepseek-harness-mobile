@@ -265,12 +265,13 @@ class RemoteClient(
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "session/selectModel")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("sessionId", sessionId)
-                    put("selection", buildJsonObject {
-                        put("provider", "deepseek-account")
+                    put("request", buildJsonObject {
+                        put("sessionId", sessionId)
+                        put("provider", "deepseek-official")
                         put("model", modelId)
                     })
                 })
@@ -278,7 +279,7 @@ class RemoteClient(
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/session/selectModel")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -324,35 +325,51 @@ class RemoteClient(
     override suspend fun getModelCatalog(hostId: String): RemoteResult<ModelCatalogInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "session/modelCatalog")
-            put("payload", buildJsonObject {
-                put("args", buildJsonObject {})
-            })
+            put("payload", buildJsonObject { put("args", buildJsonObject {}) })
         }.toString()
-
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/session/modelCatalog")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
-
         try {
             client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val bodyStr = response.body?.string() ?: "{}"
-                    try {
-                        val catalog = json.decodeFromString<ModelCatalogInfo>(bodyStr)
-                        return@withContext RemoteResult.Success(catalog)
-                    } catch (_: Exception) {}
+                if (!response.isSuccessful) {
+                    return@withContext RemoteResult.Failure("dsh/model/catalog-http", "HTTP ${response.code}")
                 }
+                val bodyStr = response.body?.string() ?: "{}"
+                val root = json.parseToJsonElement(bodyStr) as? kotlinx.serialization.json.JsonObject
+                val value = (root?.get("result") as? kotlinx.serialization.json.JsonObject)
+                    ?.get("value") as? kotlinx.serialization.json.JsonObject
+                    ?: return@withContext RemoteResult.Failure("dsh/model/catalog-malformed", "Missing catalog value")
+                val groups = (value["groups"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { g ->
+                    val obj = g as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                    val models = (obj["models"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { m ->
+                        val mo = m as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                        val id = mo["id"]?.toString()?.trim('"') ?: return@mapNotNull null
+                        ModelItem(
+                            id = id,
+                            name = mo["name"]?.toString()?.trim('"') ?: id,
+                            description = mo["description"]?.toString()?.trim('"'),
+                        )
+                    } ?: emptyList()
+                    ModelProviderGroup(
+                        id = obj["id"]?.toString()?.trim('"') ?: "",
+                        name = obj["name"]?.toString()?.trim('"') ?: "",
+                        models = models,
+                    )
+                } ?: emptyList()
+                val default = value["default"] as? kotlinx.serialization.json.JsonObject
+                val defaultModel = default?.get("model")?.toString()?.trim('"') ?: "DeepSeek-V3"
+                val routable = (value["routableProviders"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { it.toString().trim('"') } ?: emptyList()
+                RemoteResult.Success(ModelCatalogInfo(routableProviders = routable, groups = groups, defaultModel = defaultModel))
             }
-        } catch (_: Exception) {}
-
-        RemoteResult.Failure(
-            "dsh/model/catalog-unavailable",
-            "Model catalog is unavailable from DSH Host"
-        )
+        } catch (e: Exception) {
+            RemoteResult.Failure("dsh/model/catalog-error", e.message ?: "catalog failed")
+        }
     }
-
     override suspend fun getSessionStats(
         hostId: String,
         sessionId: String
@@ -1261,6 +1278,8 @@ class RemoteClient(
         }
     }
 }
+
+
 
 
 

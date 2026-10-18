@@ -212,9 +212,9 @@ fun MainAppHost(
     val messages = remember(repoMessages) { repoMessages }
 
     val catalogInfo by dshRepository.modelCatalogFlow.collectAsState()
-    val hostModelNames = remember(catalogInfo) {
-        catalogInfo.groups.flatMap { it.models.map { m -> m.id } }
-    }
+    val hostModels = remember(catalogInfo) { catalogInfo.groups.flatMap { it.models } }
+    val hostModelNames = remember(hostModels) { hostModels.map { it.name } }
+    val hostModelIdByName = remember(hostModels) { hostModels.associate { it.name to it.id } }
 
     val currentSessionStats by dshRepository.getStatsForSession(selectedSessionId ?: "").collectAsState(
         initial = com.deepseek.dsh.core.model.ComposerStats()
@@ -617,8 +617,22 @@ fun MainAppHost(
                             ModernChatScreen(
                                 messages = messages,
                                 onSendMessage = { text ->
-                                    selectedSessionId?.let { sid ->
-                                        scope.launch {
+                                    scope.launch {
+                                        var sid = selectedSessionId
+                                        if (sid == null) {
+                                            sid = dshRepository.createSession(
+                                                activeHostId,
+                                                text.take(24),
+                                                activeWorkspace.absolutePath
+                                            ).getOrNull()?.sessionId
+                                            if (sid != null) selectedSessionId = sid
+                                        }
+                                        if (sid != null) {
+                                            dshRepository.selectModel(
+                                                activeHostId,
+                                                sid,
+                                                hostModelIdByName[currentModel] ?: currentModel
+                                            )
                                             dshRepository.sendMessage(activeHostId, sid, text)
                                         }
                                     }
@@ -628,7 +642,11 @@ fun MainAppHost(
                                 onModelSelected = { model ->
                                     selectedSessionId?.let { sid ->
                                         scope.launch {
-                                            dshRepository.selectModel(activeHostId, sid, model)
+                                            dshRepository.selectModel(
+                                                activeHostId,
+                                                sid,
+                                                hostModelIdByName[model] ?: model
+                                            )
                                         }
                                     }
                                 },
@@ -1304,4 +1322,5 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
