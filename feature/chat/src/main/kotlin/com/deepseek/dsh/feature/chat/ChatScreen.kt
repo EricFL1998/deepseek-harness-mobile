@@ -1637,6 +1637,7 @@ private fun ComposerTrigger(
     leadingIconResId: Int? = null,
     trailingValue: String? = null,
     labelWeight: FontWeight = FontWeight.Normal,
+    compact: Boolean = false,
 ) {
     val colors = dshPanelColors()
     val interaction = remember { MutableInteractionSource() }
@@ -1651,9 +1652,9 @@ private fun ComposerTrigger(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(start = 5.dp, end = 3.dp),
+            .padding(start = if (compact) 5.dp else 8.dp, end = if (compact) 3.dp else 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 4.dp),
     ) {
         if (leadingIconResId != null) {
             Icon(
@@ -1730,6 +1731,7 @@ fun BottomInputBar(
 ) {
     val panelColors = dshPanelColors()
     val plusInteraction = remember { MutableInteractionSource() }
+    val tightComposer = selectedModel.length > 16
     val cardShape = RoundedCornerShape(28.dp)
     var permissionAnchor by remember { mutableStateOf<Rect?>(null) }
     var modelAnchor by remember { mutableStateOf<Rect?>(null) }
@@ -1794,7 +1796,7 @@ fun BottomInputBar(
                         .fillMaxWidth()
                         .padding(start = 5.dp, end = 5.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(if (tightComposer) 6.dp else 10.dp)
                 ) {
                     // 加号：28dp 圆形 selector 按钮（无 Material 涟漪）
                     Box(
@@ -1824,6 +1826,7 @@ fun BottomInputBar(
                             leadingIconResId = currentPermission.iconResId(),
                             labelWeight = FontWeight.Medium,
                             onClick = onOpenPermissionMenu,
+                            compact = tightComposer,
                             modifier = Modifier.widthIn(max = 140.dp),
                         )
                         PermissionMenu(
@@ -1842,6 +1845,7 @@ fun BottomInputBar(
                             // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
                             trailingValue = if (availableModels.isEmpty()) null else effortLabel,
                             onClick = onOpenModelMenu,
+                            compact = tightComposer,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         ModelEffortMenu(
@@ -2015,6 +2019,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
