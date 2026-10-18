@@ -600,10 +600,28 @@ fun MainAppHost(
                             }
 
                             val configuredModel = activeSession?.model ?: currentAppSettings.defaultModel
+                            val modelPrefs = remember {
+                                context.getSharedPreferences("dsh_model_prefs", android.content.Context.MODE_PRIVATE)
+                            }
+                            var lastUsedModel by remember {
+                                mutableStateOf(modelPrefs.getString("last_model_name", "").orEmpty())
+                            }
+                            val catalogDefaultName = hostModels
+                                .firstOrNull { it.id == catalogInfo.defaultModel }?.name
                             val currentModel = when {
-                                availableModelNames.isEmpty() -> "请选择模型"
+                                // Host 目录尚未返回时，先用上次使用的模型占位，避免闪“请选择模型”。
+                                availableModelNames.isEmpty() && lastUsedModel.isNotBlank() -> lastUsedModel
+                                availableModelNames.isEmpty() -> ""
+                                lastUsedModel in availableModelNames -> lastUsedModel
                                 configuredModel in availableModelNames -> configuredModel
-                                else -> availableModelNames.first()
+                                // 首次进入：选 Host 目录的默认/最新模型（当前为 DeepSeek-V41-Flash）。
+                                else -> catalogDefaultName ?: availableModelNames.first()
+                            }
+                            LaunchedEffect(currentModel, availableModelNames) {
+                                if (currentModel in availableModelNames && currentModel != lastUsedModel) {
+                                    lastUsedModel = currentModel
+                                    modelPrefs.edit().putString("last_model_name", currentModel).apply()
+                                }
                             }
                             val currentPermission = remember(activeSession?.permissionPreset) {
                                 when (activeSession?.permissionPreset) {
