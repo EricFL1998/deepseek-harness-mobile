@@ -240,6 +240,13 @@ fun ModernChatScreen(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_agent_preset_official),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "标准模式",
                     fontSize = 12.sp,
@@ -2008,6 +2015,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
