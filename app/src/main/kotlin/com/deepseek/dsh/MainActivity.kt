@@ -799,7 +799,7 @@ fun MainAppHost(
                             val result = dshRepository.createSession(
                                 hostId = activeHostId,
                                 title = "新对话 ${sessions.size + 1}",
-                                workspacePath = activeWorkspaceFolderPath
+                                workspacePath = activeWorkspaceCwd
                             )
                             result.onSuccess { newSession ->
                                 selectedSessionId = newSession.sessionId
@@ -1792,6 +1792,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
