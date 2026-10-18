@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +63,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -439,11 +443,14 @@ fun ModernNavigationDrawerContent(
         //    项目行 .projectRow 高 34、圆角 12、padding 0 8、gap 6、文件夹图标 16；
         //    会话行 .sessionRow 高 32、圆角 12、起始缩进 20、标题 14/20、时间 10/16 三级色。
         val sessionListState = androidx.compose.foundation.lazy.rememberLazyListState()
+        val scrubTitles = workspaces.flatMap { folder ->
+            folder.sessions.filterNot { it.archived }.map { it.title }
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
         LazyColumn(
             state = sessionListState,
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
                 .drawerScrollbar(sessionListState, textMuted),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
@@ -654,6 +661,15 @@ fun ModernNavigationDrawerContent(
                 }
             }
         }
+        DrawerScrollbarScrubber(
+            state = sessionListState,
+            titles = scrubTitles,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(14.dp)
+        )
+        }
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -798,6 +814,67 @@ private fun Modifier.drawerScrollbar(
         cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.5.dp.toPx())
     )
 }
+/** 可拖动的会话滚动条：拖动时跳转到对应位置并显示会话标题提示。 */
+@Composable
+private fun DrawerScrollbarScrubber(
+    state: androidx.compose.foundation.lazy.LazyListState,
+    titles: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    var dragging by remember { mutableStateOf(false) }
+    var tooltipTitle by remember { mutableStateOf("") }
+    var tooltipFraction by remember { mutableStateOf(0f) }
+    val colors = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    Box(
+        modifier = modifier
+            .pointerInput(state, titles) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        dragging = true
+                        tooltipFraction = (offset.y / size.height).coerceIn(0f, 1f)
+                    },
+                    onDragEnd = { dragging = false },
+                    onDragCancel = { dragging = false },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val fraction = (change.position.y / size.height).coerceIn(0f, 1f)
+                        tooltipFraction = fraction
+                        val total = state.layoutInfo.totalItemsCount
+                        if (total > 0) {
+                            scope.launch {
+                                state.scrollToItem((fraction * (total - 1)).toInt().coerceIn(0, total - 1))
+                            }
+                        }
+                        val index = (fraction * (titles.size - 1)).toInt().coerceIn(0, (titles.size - 1).coerceAtLeast(0))
+                        tooltipTitle = titles.getOrNull(index).orEmpty()
+                    }
+                )
+            }
+    ) {
+        if (dragging && tooltipTitle.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = colors.bgModulePlatform,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(y = (tooltipFraction * 800f).dp - 20.dp)
+                ) {
+                    Text(
+                        text = tooltipTitle,
+                        color = colors.labelPrimary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
 @Composable
 private fun ViewOptionsMenu(
     groupMode: WorkspaceGroupMode,
@@ -938,6 +1015,9 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
 
 
 
