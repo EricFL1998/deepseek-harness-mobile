@@ -876,6 +876,7 @@ fun MainAppHost(
                                 title = sessions.find { it.sessionId == selectedSessionId }?.title
                                     ?: stringResource(R.string.app_name),
                                 showModeCapsule = false,
+                                teamTasks = teamTasks,
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
 
@@ -1633,12 +1634,129 @@ fun PageBackBar(
     }
 }
 @Composable
+private fun HeaderChip(
+    label: String,
+    iconResId: Int,
+    trailingChevron: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val colors = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    Row(
+        modifier = Modifier
+            .height(24.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(id = iconResId),
+            contentDescription = null,
+            tint = colors.labelSecondary,
+            modifier = Modifier.size(13.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            color = colors.labelSecondary,
+            maxLines = 1
+        )
+        if (trailingChevron) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(
+                    id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_down
+                ),
+                contentDescription = null,
+                tint = colors.labelCaption,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeaderTeamPanel(
+    members: List<Pair<String, Boolean>>,
+    tasks: List<com.deepseek.dsh.core.model.TeamTaskItem>,
+) {
+    com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("成员 ${members.size}")
+    members.take(8).forEach { (name, running) ->
+        com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
+            com.deepseek.dsh.core.designsystem.DshMenuLabel(name, Modifier.weight(1f))
+            Text(
+                text = if (running) "运行中" else "未运行",
+                fontSize = 11.sp,
+                color = if (running) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+    com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("共享任务 ${tasks.size}")
+    tasks.take(8).forEach { task ->
+        com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(task.subject, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1)
+                Text(
+                    text = "${task.ownerName ?: "未分配"} · ${when (task.status) {
+                        "in_progress" -> "进行中"
+                        "completed" -> "已完成"
+                        else -> "待处理"
+                    }}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderJobsPanel(tasks: List<com.deepseek.dsh.core.model.TeamTaskItem>) {
+    val running = tasks.filter { it.status == "in_progress" }
+    val settled = tasks.filter { it.status != "in_progress" }
+    if (running.isNotEmpty()) {
+        com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("进行中")
+        running.forEach { task ->
+            com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(task.subject, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1)
+                    Text(task.ownerName ?: "lead", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                }
+            }
+        }
+    }
+    if (settled.isNotEmpty()) {
+        com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("已结束 ${settled.size}")
+        settled.take(8).forEach { task ->
+            com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
+                Text(task.subject, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1)
+            }
+        }
+    }
+}
+@Composable
 fun ModernTopAppBar(
     title: String,
     showModeCapsule: Boolean = false,
+    teamTasks: List<com.deepseek.dsh.core.model.TeamTaskItem> = emptyList(),
     onMenuClick: () -> Unit
 ) {
     val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    val members = remember(teamTasks) {
+        buildList {
+            add("lead" to teamTasks.any { it.ownerName == "lead" && it.status == "in_progress" })
+            teamTasks.mapNotNull { it.ownerName }
+                .filter { it != "lead" }
+                .distinct()
+                .forEach { name ->
+                    add(name to teamTasks.any { it.ownerName == name && it.status == "in_progress" })
+                }
+        }
+    }
+    val runningTasks = teamTasks.count { it.status == "in_progress" }
+    var teamPanelOpen by remember { mutableStateOf(false) }
+    var jobsPanelOpen by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -1793,6 +1911,10 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
 
 
 
