@@ -520,6 +520,19 @@ fun MainAppHost(
         return
     }
 
+    // 已安装后的每次重新打开：先显示启动页，等 Host 就绪后再进入 UI。
+    val rootfsWasInstalled = remember {
+        java.io.File(context.filesDir, "profileInstalled").exists()
+    }
+    if (rootfsWasInstalled && status.phase != RuntimePhase.RUNNING) {
+        HostStartupSplash(
+            phase = status.phase,
+            onRetry = {
+                scope.launch { runCatching { runtimeManager.start(activeWorkspace.absolutePath) } }
+            }
+        )
+        return
+    }
     // 首次打开引导：完全替代旧 Landing 页，完成后写入本地进度，仅首次展示。
     var showOnboarding by remember { mutableStateOf(!onboardingPreferences.isCompleted) }
 
@@ -1201,6 +1214,44 @@ fun MainAppHost(
 }
 
 /** 首次启动的强制权限门：未授权时不允许进入任何下一步。 */
+/** 重新打开 App 时的 Host 启动页：等本地运行时就绪后再进入主界面。 */
+@Composable
+private fun HostStartupSplash(phase: RuntimePhase, onRetry: () -> Unit) {
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(
+                    id = com.deepseek.dsh.core.designsystem.R.drawable.ic_dsh_fish_logo
+                ),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(56.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = if (phase == RuntimePhase.ERROR) "本地 Host 启动失败" else "正在启动本地 Host…",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            if (phase == RuntimePhase.ERROR) {
+                androidx.compose.material3.Button(onClick = onRetry) { Text("重试") }
+            } else {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+    }
+}
 @Composable
 private fun StoragePermissionGate(onRequest: () -> Unit) {
     androidx.compose.material3.Surface(
@@ -1604,6 +1655,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 
