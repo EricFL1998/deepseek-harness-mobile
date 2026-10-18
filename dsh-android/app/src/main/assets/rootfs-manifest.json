@@ -12,8 +12,8 @@
     "git"
   ],
   "downloadUrls": {
-    "x86_64": "http://10.0.2.2:8765/rootfs-x86_64.bin",
-    "arm64-v8a": "http://10.0.2.2:8765/rootfs-arm64-v8a.bin"
+    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v4.1.0/rootfs-x86_64.bin",
+    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v4.1.0/rootfs-arm64-v8a.bin"
   },
   "downloadSha256": {
     "x86_64": "0adf4211f5e7516789416acda7fe2667555f0c3ef58c62c7fa79815ff4d5e879",
@@ -23,5 +23,5 @@
   "sha256": "",
   "archiveSizeBytes": 264498846,
   "prootLibrary": "libproot.so",
-  "_comment": "首次运行按 ABI 下载 rootfs；10.0.2.2 为模拟器访问宿主机地址，正式发布替换为 CDN/对象存储 URL。"
+  "_comment": "首次启动从 GitHub Release 下载 rootfs；正式发布可替换为 CDN/对象存储。"
 }
