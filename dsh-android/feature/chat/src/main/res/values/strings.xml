@@ -27,7 +27,7 @@
     <string name="chat_input_placeholder">Message or run a task, / commands, @ files or sessions</string>
     <string name="chat_input_placeholder_plan">describe your task to generate plan</string>
     <string name="chat_thinking">Think</string>
-    <string name="chat_thinking_for">Deep-diving for %1$s ···</string>
+    <string name="chat_thinking_for">Thinking for %1$s ···</string>
     <string name="tool_executed_summary">Executed tools in local environment</string>
     <string name="action_copy">Copy</string>
     <string name="action_retry">Retry</string>
@@ -201,6 +201,7 @@
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
 </resources>
+
 
 
 

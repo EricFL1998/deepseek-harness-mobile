@@ -762,7 +762,7 @@ fun ReasoningCard(
     reasoningText: String,
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(!isFinished) }
+    var expanded by remember { mutableStateOf(false) }
     val preview = remember(reasoningText) { reasoningText.lineSequence().firstOrNull().orEmpty() }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -781,8 +781,7 @@ fun ReasoningCard(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = if (isFinished) stringResource(R.string.chat_thinking)
-                else stringResource(R.string.chat_thinking_for, elapsedSeconds),
+                text = stringResource(R.string.chat_thinking),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1092,7 +1091,7 @@ private fun LiveToolStatus(messages: List<ChatMessage>) {
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "深度求索中…",
+                text = "思考中…",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
             )
@@ -1794,6 +1793,9 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
 
 
 
