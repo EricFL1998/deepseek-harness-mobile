@@ -520,11 +520,19 @@ fun MainAppHost(
         return
     }
 
-    // 已安装后的每次重新打开：先显示启动页，等 Host 就绪后再进入 UI。
+    // 已安装后的每次重新打开：短暂显示启动页让 Host 先启动，但不阻塞到真正 RUNNING；
+    // 用户进入界面后通常还需要一点时间才会操作，Host 可在后台继续完成启动。
     val rootfsWasInstalled = remember {
         java.io.File(context.filesDir, "profileInstalled").exists()
     }
-    if (rootfsWasInstalled && status.phase != RuntimePhase.RUNNING) {
+    var startupSplashDone by remember { mutableStateOf(!rootfsWasInstalled) }
+    LaunchedEffect(rootfsWasInstalled) {
+        if (rootfsWasInstalled) {
+            kotlinx.coroutines.delay(900)
+            startupSplashDone = true
+        }
+    }
+    if (rootfsWasInstalled && !startupSplashDone) {
         HostStartupSplash(
             phase = status.phase,
             onRetry = {
@@ -1655,6 +1663,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
