@@ -337,7 +337,7 @@ fun MainAppHost(
                 return@launch
             }
             openUrl(authorizeUrl)
-            repeat(80) {
+            repeat(400) {
                 kotlinx.coroutines.delay(1500)
                 val state = dshRepository.getAccountState(activeHostId).getOrNull() ?: return@repeat
                 if (state.status == "credential-stored") {
@@ -1302,3 +1302,4 @@ private fun RootfsSetupScreen(
         }
     }
 }
+

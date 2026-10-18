@@ -6,6 +6,8 @@ import com.deepseek.dsh.runtime.bridge.BridgeServer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
@@ -20,6 +22,7 @@ class DefaultHostRuntimeManager(
 ) : HostRuntimeManager {
 
     private var bridgeServer: BridgeServer? = null
+    private val startMutex = Mutex()
 
     override suspend fun getStatus(): RuntimeStatus {
         return runner.statusFlow.value
@@ -126,7 +129,9 @@ class DefaultHostRuntimeManager(
         File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
     }
 
-    override suspend fun start(workspacePath: String): Result<RuntimeStatus> = withContext(Dispatchers.IO) {
+    override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {
+        if (runner.isRunning()) return@withLock Result.success(runner.statusFlow.value)
+        withContext(Dispatchers.IO) {
         layout.ensureDirectories()
 
         val hasRootfs = File(layout.rootfsDir, "etc/os-release").isFile ||
@@ -162,7 +167,9 @@ class DefaultHostRuntimeManager(
             }
         }
         // 上次异常退出可能残留 credentials 写锁，启动前清理。
-        File(layout.rootfsDir, "root/.dsh/.credentials.yaml.lock").delete()
+        File(layout.rootfsDir, "root/.dsh").listFiles()
+            ?.filter { it.name.startsWith(".credentials.yaml.lock") }
+            ?.forEach { it.delete() }
 
         // 1. 启动本地 BridgeServer 并获得 loopback 端口
         val bridge = BridgeServer(context)
@@ -237,6 +244,7 @@ class DefaultHostRuntimeManager(
         // 可能被网络策略干扰，直接把阶段推进到 RUNNING。
         runner.markReady()
         Result.success(runner.statusFlow.value)
+        }
     }
 
     override suspend fun stop(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -251,4 +259,5 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
 

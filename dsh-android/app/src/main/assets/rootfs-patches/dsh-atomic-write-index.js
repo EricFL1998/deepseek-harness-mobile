@@ -65,14 +65,12 @@ async function writeFileAtomic(filename, content, options) {
 	});
 	const temp = `${filename}.${randomBytes(6).toString("hex")}.tmp`;
 	try {
-		await writeFile(temp, content, {
-			mode: options.mode,
-			flag: "wx"
-		});
+		await writeFile(temp, content, { mode: options.mode, flag: "wx" });
 		await renameAtomicTemp(temp, filename);
-	} catch (error) {
-		await rm(temp, { force: true });
-		throw error;
+	} catch {
+		// proot 下 rename/unlink 可能 ENOSYS：退化为直接写目标文件。
+		await writeFile(filename, content, { mode: options.mode });
+		try { await rm(temp, { force: true }); } catch {}
 	}
 }
 /** Whether an exclusive create found an existing lock. */
@@ -186,33 +184,10 @@ const DEFAULT_LOCK_WAIT_MS = 2e3;
 * @returns the operation's result; the lock releases on both outcomes.
 */
 async function withFileLock(filename, operation, options) {
-	const lockPath = `${filename}.lock`;
-	const deadline = Date.now() + (options?.waitMs ?? DEFAULT_LOCK_WAIT_MS);
-	let delay = LOCK_RETRY_INITIAL_MS;
-	let retriedUnconfirmedPermissionError = false;
-	for (;;) {
-		try {
-			await writeFile(lockPath, `${process.pid}\n`, {
-				mode: 384,
-				flag: "wx"
-			});
-			break;
-		} catch (error) {
-			if (!await isLockContention(error, lockPath)) {
-				if (process.platform !== "win32" || error?.code !== "EPERM" || retriedUnconfirmedPermissionError) throw error;
-				retriedUnconfirmedPermissionError = true;
-			} else if (await takeOverExitedLock(lockPath)) continue;
-		}
-		if (Date.now() >= deadline) throw new Error(`atomic-write: timed out waiting for the writer lock at ${lockPath}`);
-		await new Promise((resolve) => setTimeout(resolve, delay));
-		delay = Math.min(delay * 2, LOCK_RETRY_MAX_MS);
-	}
-	try {
-		return await operation();
-	} finally {
-		try { await rm(lockPath, { force: true }); } catch {}
-	}
+	// Android/proot 下 unlink 不可用会残留 .lock；单进程 Host 直接执行操作。
+	return await operation();
 }
 //#endregion
 export { withFileLock, writeFileAtomic };
+
 
