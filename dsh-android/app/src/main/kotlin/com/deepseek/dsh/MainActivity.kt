@@ -539,7 +539,14 @@ fun MainAppHost(
                     com.deepseek.dsh.feature.sessions.SessionDisplayItem(
                         sessionId = s.sessionId,
                         title = s.title,
-                        timeAgo = if (sIdx == 0) "活跃" else "历史",
+                        timeAgo = run {
+                            val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
+                            if (elapsed < 24L * 60 * 60 * 1000) {
+                                "${(elapsed / (60 * 60 * 1000)).coerceAtLeast(1)}小时"
+                            } else {
+                                "${(elapsed / (24 * 60 * 60 * 1000)).coerceAtLeast(1)}天"
+                            }
+                        },
                         isActiveDot = (s.sessionId == selectedSessionId)
                     )
                 },
@@ -1449,6 +1456,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
