@@ -216,6 +216,33 @@ fun MainAppHost(
     val hostModelNames = remember(hostModels) { hostModels.map { it.name } }
     val hostModelIdByName = remember(hostModels) { hostModels.associate { it.name to it.id } }
 
+    // Host 冷启动需要先拉起 proot/DSH，模型目录返回前用上次缓存让菜单立刻可用。
+    val modelCatalogCache = remember {
+        context.getSharedPreferences("dsh_model_catalog_cache", android.content.Context.MODE_PRIVATE)
+    }
+    var cachedModelNames by remember {
+        mutableStateOf(
+            modelCatalogCache.getString("names", "").orEmpty()
+                .split('\u0001').filter { it.isNotBlank() }
+        )
+    }
+    var cachedModelIds by remember {
+        mutableStateOf(
+            modelCatalogCache.getString("ids", "").orEmpty()
+                .split('\u0001').filter { it.isNotBlank() }
+        )
+    }
+    LaunchedEffect(hostModels) {
+        if (hostModels.isNotEmpty()) {
+            cachedModelNames = hostModels.map { it.name }
+            cachedModelIds = hostModels.map { it.id }
+            modelCatalogCache.edit()
+                .putString("names", cachedModelNames.joinToString("\u0001"))
+                .putString("ids", cachedModelIds.joinToString("\u0001"))
+                .apply()
+        }
+    }
+
     val currentSessionStats by dshRepository.getStatsForSession(selectedSessionId ?: "").collectAsState(
         initial = com.deepseek.dsh.core.model.ComposerStats()
     )
@@ -276,16 +303,21 @@ fun MainAppHost(
     val accountState by oauthManager.accountFlow.collectAsState()
     val dshApplication = context.applicationContext as DshApplication
 
-    // 模型来源与官方一致：Host 目录优先；其次 API Key / 已登录账号的 DeepSeek 模型；
-    // 两者都没有时为空，菜单会提示先登录或添加 API Key。
-    val availableModelNames = remember(hostModelNames, accountState.hasApiKey, accountState.isSignedIn) {
+    // Host 目录优先；Host 冷启动期间用上次缓存立即渲染，避免“请选择模型”闪烁。
+    val effectiveModelNames = remember(hostModelNames, cachedModelNames, accountState) {
         when {
             hostModelNames.isNotEmpty() -> hostModelNames
-            accountState.hasApiKey || accountState.isSignedIn ->
-                listOf("DeepSeek-V3", "DeepSeek-R1")
+            accountState.hasApiKey || accountState.isSignedIn -> cachedModelNames
             else -> emptyList()
         }
     }
+    val effectiveModelIdByName = remember(
+        hostModelNames, hostModelIdByName, cachedModelNames, cachedModelIds
+    ) {
+        if (hostModelNames.isNotEmpty()) hostModelIdByName
+        else cachedModelNames.zip(cachedModelIds).toMap()
+    }
+    val availableModelNames = effectiveModelNames
 
     // 官方账号菜单的登录入口：浏览器 OAuth 为主，API Key 为备选（与官方 SignInDialog 一致）。
     var showSignInDialog by remember { mutableStateOf(false) }
@@ -649,7 +681,7 @@ fun MainAppHost(
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
-                                                hostModelIdByName[currentModel] ?: currentModel
+                                                effectiveModelIdByName[currentModel] ?: currentModel
                                             )
                                             dshRepository.sendMessage(activeHostId, sid, text)
                                         }
@@ -663,7 +695,7 @@ fun MainAppHost(
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
-                                                hostModelIdByName[model] ?: model
+                                                effectiveModelIdByName[model] ?: model
                                             )
                                         }
                                     }
@@ -1340,5 +1372,6 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
