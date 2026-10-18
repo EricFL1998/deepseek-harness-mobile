@@ -335,7 +335,7 @@ fun ModernChatScreen(
                         onChipClick = { prompt -> onSendMessage(prompt) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .offset(y = (-36).dp)
+                            .offset(y = (-64).dp)
                     )
                     Spacer(modifier = Modifier.height(18.dp))
                     composerBlock()
@@ -2021,6 +2021,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
