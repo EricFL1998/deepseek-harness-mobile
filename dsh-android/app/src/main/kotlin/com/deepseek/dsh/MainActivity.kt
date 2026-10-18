@@ -95,8 +95,8 @@ class MainActivity : ComponentActivity() {
         File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace")
     }
 
-    /** Host 实际 bind 到 /workspace 的私有目录；之后镜像到用户可见的 Documents。 */
-    private val hostWorkspaceDir: File by lazy { File(filesDir, "workspace") }
+    /** Host 实际 bind 到 /workspace 的目录（优先直连用户可见 Documents）。 */
+    private val hostWorkspaceDir: File by lazy { visibleWorkspaceDir }
 
     private lateinit var runtimeManager: HostRuntimeManager
     private val runner = HostProcessRunner()
@@ -188,7 +188,7 @@ fun MainAppHost(
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
 
-    val externalWorkspaceDir = remember { java.io.File(context.filesDir, "workspace") }
+    val externalWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
     val visibleWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
 
     var hasAllFilesAccess by remember { mutableStateOf(android.os.Environment.isExternalStorageManager()) }
@@ -256,17 +256,7 @@ fun MainAppHost(
     val repoMessages by dshRepository.getMessages(activeHostId, selectedSessionId ?: "")
         .collectAsState(initial = emptyList())
     val messages = remember(repoMessages) { repoMessages }
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val hostDir = java.io.File(context.filesDir, "workspace")
-                runCatching {
-                    visibleWorkspaceDir.mkdirs()
-                    hostDir.copyRecursively(visibleWorkspaceDir, overwrite = true)
-                }
-            }
-        }
-    }
+
 
     val catalogInfo by dshRepository.modelCatalogFlow.collectAsState()
     val hostModels = remember(catalogInfo) { catalogInfo.groups.flatMap { it.models } }
@@ -1521,6 +1511,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 
