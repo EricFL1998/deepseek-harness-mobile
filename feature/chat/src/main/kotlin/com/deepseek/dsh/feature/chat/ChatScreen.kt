@@ -798,7 +798,7 @@ private fun MenuNavRow(label: String, value: String, onClick: () -> Unit) {
         Spacer(Modifier.weight(1f))
         DshMenuValue(value)
         DshMenuIcon(
-            resId = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_right,
+            resId = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_right_official,
             size = 12.dp,
         )
     }
@@ -2008,6 +2008,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
