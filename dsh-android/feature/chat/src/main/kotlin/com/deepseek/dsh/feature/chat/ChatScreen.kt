@@ -1028,7 +1028,9 @@ fun BottomInputBar(
                                     color = panelColors.labelCaption
                                 )
                             }
-                            innerTextField()
+                            Box(modifier = Modifier.padding(start = 3.dp)) {
+                                innerTextField()
+                            }
                         }
                     }
                 )
@@ -1260,6 +1262,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
