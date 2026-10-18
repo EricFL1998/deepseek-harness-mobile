@@ -1009,6 +1009,8 @@ fun MainAppHost(
                                     }
                                 },
                                 isSending = isSending,
+                                workspaceName = activeWorkspaceName,
+                                onWorkspaceClick = { scope.launch { drawerState.open() } },
                                 isThinking = selectedSessionId != null && selectedSessionId in runningSessionIds,
                                 onStopClick = {
                                     val sid = selectedSessionId
@@ -1790,6 +1792,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

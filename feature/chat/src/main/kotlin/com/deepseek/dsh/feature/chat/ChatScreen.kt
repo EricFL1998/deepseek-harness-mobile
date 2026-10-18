@@ -165,6 +165,8 @@ fun ModernChatScreen(
     messages: List<ChatMessage>,
     onSendMessage: (String) -> Unit,
     isSending: Boolean = false,
+    workspaceName: String = "默认工作区",
+    onWorkspaceClick: () -> Unit = {},
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
@@ -289,6 +291,57 @@ fun ModernChatScreen(
             ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
         }
 
+        // 官方新会话上下文：工作区 + 模式，位于输入框上方。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(28.dp)
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onWorkspaceClick)
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = workspaceName,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "标准模式",
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
         BottomInputBar(
             inputText = inputText,
             onInputChange = { inputText = it },
@@ -694,13 +747,28 @@ fun EmptyWelcomeView(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(
-            text = stringResource(R.string.chat_welcome_title),
-            fontSize = 26.sp,
-            lineHeight = 32.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.chat_welcome_title),
+                fontSize = 26.sp,
+                lineHeight = 32.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+            ) {
+                Text(
+                    text = "预览版",
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = stringResource(R.string.chat_welcome_desc),
@@ -708,29 +776,6 @@ fun EmptyWelcomeView(
             lineHeight = 20.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            QuickChip(label = stringResource(R.string.chip_init_workspace)) {
-                onChipClick(ctx.getString(R.string.chip_init_workspace))
-            }
-            QuickChip(label = stringResource(R.string.chip_organize_docs)) {
-                onChipClick(ctx.getString(R.string.chip_organize_docs))
-            }
-            QuickChip(label = stringResource(R.string.chip_automation)) {
-                onChipClick(ctx.getString(R.string.chip_automation))
-            }
-            QuickChip(label = stringResource(R.string.chip_run_cli)) {
-                onChipClick(ctx.getString(R.string.chip_run_cli))
-            }
-        }
     }
 }
 
@@ -1872,6 +1917,8 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
 
 
 
