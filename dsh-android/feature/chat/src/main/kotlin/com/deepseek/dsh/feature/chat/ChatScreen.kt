@@ -920,7 +920,7 @@ private fun ComposerTrigger(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(
                 max = if (trailingValue.isNullOrBlank()) 132.dp else 132.dp,
-            ),
+            ).alignByBaseline(),
         )
         if (!trailingValue.isNullOrBlank()) {
             Text(
@@ -930,7 +930,7 @@ private fun ComposerTrigger(
                 lineHeight = 20.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 60.dp),
+                modifier = Modifier.widthIn(max = 60.dp).alignByBaseline(),
             )
         }
         Icon(
