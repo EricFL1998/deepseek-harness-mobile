@@ -190,6 +190,7 @@ fun ModernChatScreen(
     var pendingConfirm by remember { mutableStateOf<PermissionPreset?>(null) }
 
     val listState = rememberLazyListState()
+    val chatRows = remember(messages) { buildChatRows(messages) }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -241,21 +242,32 @@ fun ModernChatScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(
-                    messages.filterNot { message ->
-                        message.role == MessageRole.TOOL &&
-                            message.content.split(2.toChar()).getOrNull(4) == "running"
-                    },
-                    key = { it.messageId }
-                ) { msg ->
-                    ModernMessageItem(
-                        message = msg,
-                        onRetry = { onSendMessage(msg.content) },
-                        onAnswerUserQuestion = onAnswerUserQuestion,
-                        onOpenToolDetail = { toolDetail = it },
-                    )
+                    items = chatRows,
+                    key = { row ->
+                        when (row) {
+                            is ChatRow.Single -> row.message.messageId
+                            is ChatRow.Tools -> "tools_${row.messages.first().messageId}"
+                        }
+                    }
+                ) { row ->
+                    when (row) {
+                        is ChatRow.Single -> ModernMessageItem(
+                            message = row.message,
+                            onRetry = { onSendMessage(row.message.content) },
+                            onAnswerUserQuestion = onAnswerUserQuestion,
+                            onOpenToolDetail = { toolDetail = it },
+                        )
+                        is ChatRow.Tools -> ToolProcessGroup(
+                            tools = row.messages,
+                            onOpenDetail = { toolDetail = it },
+                        )
+                    }
                 }
 
-                if (isThinking) {
+                val hasRunningProcess = chatRows.any { row ->
+                    row is ChatRow.Tools && row.messages.any { toolStatus(it) == "running" }
+                }
+                if (isThinking && !hasRunningProcess) {
                     item {
                         LiveToolStatus(messages = messages)
                     }
@@ -812,6 +824,67 @@ fun ReasoningCard(
     }
 }
 
+/** 连续的 tool call 归入一个 process group（官方 stepProcess）：运行中显示当前动作，结束后折叠为摘要。 */
+@Composable
+private fun ToolProcessGroup(
+    tools: List<ChatMessage>,
+    onOpenDetail: (ToolDetailData) -> Unit,
+) {
+    val running = tools.firstOrNull { toolStatus(it) == "running" }
+    val isRunning = running != null
+    var expanded by remember(isRunning) { mutableStateOf(isRunning) }
+    val summary = remember(tools) { processSummary(tools) }
+    val activeName = running?.content?.split(2.toChar())?.getOrNull(3).orEmpty()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isRunning) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(13.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Build,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = if (isRunning) processVerb(activeName, done = false) else summary,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(start = 20.dp, top = 2.dp)) {
+                tools.filterNot { toolStatus(it) == "running" }.forEach { tool ->
+                    ToolMessageItem(
+                        content = tool.content,
+                        onOpenDetail = onOpenDetail,
+                    )
+                }
+            }
+        }
+    }
+}
 /** 工具调用/结果：官方披露行样式，点击展开参数或输出。 */
 @Composable
 private fun ToolMessageItem(
@@ -1025,6 +1098,52 @@ private fun LiveToolStatus(messages: List<ChatMessage>) {
             )
         }
     }
+}
+private sealed interface ChatRow {
+    data class Single(val message: ChatMessage) : ChatRow
+    data class Tools(val messages: List<ChatMessage>) : ChatRow
+}
+
+private fun buildChatRows(messages: List<ChatMessage>): List<ChatRow> {
+    val rows = mutableListOf<ChatRow>()
+    var tools = mutableListOf<ChatMessage>()
+    fun flush() {
+        if (tools.isNotEmpty()) {
+            rows.add(ChatRow.Tools(tools.toList()))
+            tools = mutableListOf()
+        }
+    }
+    for (message in messages) {
+        if (message.role == MessageRole.TOOL) {
+            tools.add(message)
+        } else {
+            flush()
+            rows.add(ChatRow.Single(message))
+        }
+    }
+    flush()
+    return rows
+}
+
+private fun toolStatus(message: ChatMessage): String =
+    message.content.split(2.toChar()).getOrNull(4).orEmpty()
+
+private fun processVerb(name: String, done: Boolean): String = when {
+    name.contains("bash") || name.contains("shell") -> if (done) "执行了命令" else "运行命令"
+    name.contains("read") -> if (done) "已读取文件" else "读取文件"
+    name.contains("write") || name.contains("edit") -> if (done) "已编辑文件" else "编辑文件"
+    name.contains("grep") || name.contains("glob") -> if (done) "已搜索文件" else "搜索文件"
+    name.contains("ask_user_question") -> if (done) "已询问" else "等待回答"
+    name.contains("web") -> if (done) "已获取网页" else "获取网页"
+    else -> if (done) "已调用工具" else "调用工具"
+}
+
+private fun processSummary(tools: List<ChatMessage>): String {
+    val verbs = tools.mapNotNull { message ->
+        val name = message.content.split(2.toChar()).getOrNull(3) ?: return@mapNotNull null
+        processVerb(name, done = true)
+    }.distinct()
+    return verbs.joinToString("，")
 }
 data class ToolDetailData(
     val callId: String,
@@ -1675,6 +1794,12 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
+
 
 
 
