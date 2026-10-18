@@ -361,7 +361,8 @@ fun ModernNavigationDrawerContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 4.dp, end = 2.dp, top = 0.dp, bottom = 0.dp),
+                .height(32.dp)
+                .padding(start = 4.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -1015,6 +1016,7 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 
 
