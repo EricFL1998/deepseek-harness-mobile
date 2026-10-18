@@ -33,9 +33,21 @@ class HostService : Service() {
             else -> {
                 val notification = buildForegroundNotification("DSH Agent 运行时保持后台运行")
                 startForeground(NOTIFICATION_ID, notification)
-                return START_STICKY
+                return START_NOT_STICKY
             }
         }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // 用户从最近任务移除 App：不再保留 Host 后台进程。
+        val manager = HostRuntimeHolder.manager
+        Thread {
+            if (manager != null) {
+                kotlinx.coroutines.runBlocking { runCatching { manager.stop() } }
+            }
+        }.start()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -63,3 +75,5 @@ class HostService : Service() {
             .build()
     }
 }
+
+

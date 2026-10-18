@@ -96,8 +96,9 @@ class MainActivity : ComponentActivity() {
 
 
 
-    private lateinit var runtimeManager: HostRuntimeManager
-    private val runner = HostProcessRunner()
+    private val app: DshApplication get() = application as DshApplication
+    private val runtimeManager: HostRuntimeManager get() = app.runtimeManager
+    private val runner: HostProcessRunner get() = app.hostRunner
     private val surfaceCatalogStore = SurfaceCatalogStore()
     private val deepseekOAuthManager = com.deepseek.dsh.core.protocol.DeepSeekOAuthManager()
     private lateinit var workspaceManager: WorkspaceManager
@@ -105,33 +106,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val layout = RuntimeLayout(
-            baseDir = filesDir,
-            nativeLibraryDir = File(applicationInfo.nativeLibraryDir)
-        )
-        runtimeManager = DefaultHostRuntimeManager(
-            context = applicationContext,
-            layout = layout,
-            runner = runner
-        )
-
         workspaceManager = WorkspaceManager(
             preferredPublicDir = visibleWorkspaceDir,
             appPrivateDir = filesDir
         )
 
         // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
-
-        // 在 Compose 启动前就预热 Host，尽量缩短启动页等待；首次安装等 rootfs 完成后再由 UI 启动。
-        if (File(filesDir, "profileInstalled").exists()) {
-            val workspace = File(
-                android.os.Environment.getExternalStorageDirectory(),
-                "Documents/DSH-Workspace"
-            )
-            (application as DshApplication).applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                runCatching { runtimeManager.start(workspace.absolutePath) }
-            }
-        }
 
         setContent {
             DshTheme {
@@ -151,12 +131,24 @@ class MainActivity : ComponentActivity() {
                     surfaceStore = surfaceCatalogStore,
                     oauthManager = deepseekOAuthManager,
                     workspaceManager = workspaceManager,
-                    layout = layout,
+                    layout = app.runtimeLayout,
                     dshRepository = app.dshRepository,
                     settingsRepository = app.settingsRepository
                 )
             }
         }
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            val app = application as DshApplication
+            Thread {
+                kotlinx.coroutines.runBlocking {
+                    runCatching { app.runtimeManager.stop() }
+                }
+            }.start()
+        }
+        super.onDestroy()
     }
 }
 
@@ -1262,9 +1254,11 @@ fun MainAppHost(
             )
         }
     }
+
 }
 
 /** 首次启动的强制权限门：未授权时不允许进入任何下一步。 */
+
 /** 重新打开 App 时的 Host 启动页：等本地运行时就绪后再进入主界面。 */
 @Composable
 private fun HostStartupSplash(phase: RuntimePhase, onRetry: () -> Unit) {
@@ -1706,6 +1700,11 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
+
 
 
 

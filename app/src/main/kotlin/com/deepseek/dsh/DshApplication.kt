@@ -1,6 +1,11 @@
 package com.deepseek.dsh
 
 import android.app.Application
+import com.deepseek.dsh.runtime.host.DefaultHostRuntimeManager
+import com.deepseek.dsh.runtime.host.HostProcessRunner
+import com.deepseek.dsh.runtime.host.HostRuntimeHolder
+import com.deepseek.dsh.runtime.host.HostRuntimeManager
+import com.deepseek.dsh.runtime.host.RuntimeLayout
 import androidx.room.Room
 import com.deepseek.dsh.core.data.DefaultSettingsRepository
 import com.deepseek.dsh.core.data.DshDatabase
@@ -11,12 +16,21 @@ import com.deepseek.dsh.core.protocol.RemoteClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
 class DshApplication : Application() {
 
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    lateinit var runtimeLayout: RuntimeLayout
+        private set
+
+    val hostRunner = HostProcessRunner()
+
+    lateinit var runtimeManager: HostRuntimeManager
+        private set
 
     val database: DshDatabase by lazy {
         Room.databaseBuilder(
@@ -78,5 +92,28 @@ class DshApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        runtimeLayout = RuntimeLayout(
+            baseDir = filesDir,
+            nativeLibraryDir = java.io.File(applicationInfo.nativeLibraryDir)
+        )
+        runtimeManager = DefaultHostRuntimeManager(
+            context = applicationContext,
+            layout = runtimeLayout,
+            runner = hostRunner
+        )
+        HostRuntimeHolder.manager = runtimeManager
+        // App 打开即开始预热点 Host（Activity/Compose 之前）；不常驻后台。
+        if (java.io.File(filesDir, "profileInstalled").exists()) {
+            val workspace = java.io.File(
+                android.os.Environment.getExternalStorageDirectory(),
+                "Documents/DSH-Workspace"
+            )
+            applicationScope.launch(Dispatchers.IO) {
+                runCatching { runtimeManager.start(workspace.absolutePath) }
+            }
+        }
     }
 }
+
+
+
