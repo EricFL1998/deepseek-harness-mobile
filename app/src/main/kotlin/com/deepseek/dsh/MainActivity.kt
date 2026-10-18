@@ -748,6 +748,8 @@ fun MainAppHost(
                         title = s.title,
                         isRunning = s.sessionId in runningSessionIds,
                         hasUnread = s.sessionId in unreadSessionIds,
+                        updatedAt = s.updatedAt,
+                        archived = s.archived,
                         timeAgo = run {
                             val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
                             when {
@@ -1911,6 +1913,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

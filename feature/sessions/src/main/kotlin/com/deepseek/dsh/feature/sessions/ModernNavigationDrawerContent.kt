@@ -6,6 +6,8 @@ import com.deepseek.dsh.core.designsystem.DshMenuDivider
 import com.deepseek.dsh.core.designsystem.DshMenuIcon
 import com.deepseek.dsh.core.designsystem.DshMenuLabel
 import com.deepseek.dsh.core.designsystem.DshMenuRow
+import com.deepseek.dsh.core.designsystem.DshMenuSectionLabel
+import com.deepseek.dsh.core.designsystem.DshMenuCheck
 import com.deepseek.dsh.core.designsystem.AnchoredMenuPopup
 import com.deepseek.dsh.feature.sessions.R
 import androidx.compose.ui.res.stringResource
@@ -77,13 +79,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.SessionInfo
 
+enum class WorkspaceGroupMode { WORKSPACE, TREE, SINGLE_LIST }
+enum class SessionSortMode { MANUAL, RECENT }
+enum class ArchiveFilter { HIDE_ARCHIVED, ALL, ONLY_ARCHIVED }
+
 data class SessionDisplayItem(
     val sessionId: String,
     val title: String,
     val timeAgo: String,
     val isActiveDot: Boolean = false,
     val isRunning: Boolean = false,
-    val hasUnread: Boolean = false
+    val hasUnread: Boolean = false,
+    val updatedAt: Long = 0L,
+    val archived: Boolean = false,
 )
 
 data class WorkspaceFolder(
@@ -146,6 +154,10 @@ fun ModernNavigationDrawerContent(
     var showAccountMenu by remember { mutableStateOf(false) }
     var workspaceMenuId by remember { mutableStateOf<String?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
+    var viewMenuOpen by remember { mutableStateOf(false) }
+    var groupMode by remember { mutableStateOf(WorkspaceGroupMode.WORKSPACE) }
+    var sortMode by remember { mutableStateOf(SessionSortMode.MANUAL) }
+    var archiveFilter by remember { mutableStateOf(ArchiveFilter.HIDE_ARCHIVED) }
     var searchQuery by remember { mutableStateOf("") }
     val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(searchOpen) {
@@ -374,19 +386,36 @@ fun ModernNavigationDrawerContent(
                     modifier = Modifier.size(14.dp)
                 )
             }
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable { },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_filter_official),
-                    contentDescription = "筛选",
-                    tint = textMuted,
-                    modifier = Modifier.size(14.dp)
-                )
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { viewMenuOpen = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_filter_official),
+                        contentDescription = "视图选项",
+                        tint = textMuted,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                AnchoredMenuPopup(
+                    expanded = viewMenuOpen,
+                    onDismiss = { viewMenuOpen = false },
+                    contentWidth = true,
+                    anchorGap = 4.dp
+                ) {
+                    ViewOptionsMenu(
+                        groupMode = groupMode,
+                        sortMode = sortMode,
+                        archiveFilter = archiveFilter,
+                        onGroupMode = { groupMode = it; viewMenuOpen = false },
+                        onSortMode = { sortMode = it; viewMenuOpen = false },
+                        onArchiveFilter = { archiveFilter = it; viewMenuOpen = false },
+                    )
+                }
             }
             Box(
                 modifier = Modifier
@@ -414,22 +443,36 @@ fun ModernNavigationDrawerContent(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            val visibleWorkspaces = if (searchOpen && searchQuery.isNotBlank()) {
-                workspaces.map { folder ->
-                    folder.copy(
-                        sessions = folder.sessions.filter {
-                            it.title.contains(searchQuery, ignoreCase = true)
-                        },
-                        isExpanded = true
-                    )
-                }.filter { it.sessions.isNotEmpty() }
+            val filteredWorkspaces = workspaces.map { folder ->
+                val sessions = folder.sessions.filter { session ->
+                    val archiveOk = when (archiveFilter) {
+                        ArchiveFilter.HIDE_ARCHIVED -> !session.archived
+                        ArchiveFilter.ALL -> true
+                        ArchiveFilter.ONLY_ARCHIVED -> session.archived
+                    }
+                    val searchOk = !(searchOpen && searchQuery.isNotBlank()) ||
+                        session.title.contains(searchQuery, ignoreCase = true)
+                    archiveOk && searchOk
+                }.let { list ->
+                    if (sortMode == SessionSortMode.RECENT) list.sortedByDescending { it.updatedAt } else list
+                }
+                folder.copy(sessions = sessions, isExpanded = true)
+            }.filter { it.sessions.isNotEmpty() }
+            val visibleWorkspaces = if (groupMode == WorkspaceGroupMode.SINGLE_LIST) {
+                val all = filteredWorkspaces.flatMap { it.sessions }.let {
+                    if (sortMode == SessionSortMode.RECENT) it.sortedByDescending { s -> s.updatedAt } else it
+                }
+                if (all.isEmpty()) emptyList() else listOf(
+                    WorkspaceFolder(id = "__all", name = "", sessions = all, isExpanded = true)
+                )
             } else {
-                workspaces
+                filteredWorkspaces
             }
             visibleWorkspaces.forEachIndexed { folderIndex, folder ->
                 val isExpanded = if (searchOpen && searchQuery.isNotBlank()) true else (expandedMap[folder.id] ?: folder.isExpanded)
 
                 item(key = "fld_${folder.id}") {
+                    if (folder.id != "__all") {
                     Box {
                     Row(
                         modifier = Modifier
@@ -491,8 +534,9 @@ fun ModernNavigationDrawerContent(
                     )
                     }
                 }
+                }
 
-                if (isExpanded) {
+                if (isExpanded || folder.id == "__all") {
                     items(folder.sessions, key = { it.sessionId }) { session ->
                         val isSelected = session.sessionId == selectedSessionId
                         Box {
@@ -722,6 +766,42 @@ private fun SessionRowMenu(
 }
 
 /** 工作区长按菜单：与账户/会话菜单同一 Dsh 菜单材质。 */
+/** 视图选项菜单：分组方式 / 排序方式 / 筛选会话（对齐官方 Drawer 菜单）。 */
+@Composable
+private fun ViewOptionsMenu(
+    groupMode: WorkspaceGroupMode,
+    sortMode: SessionSortMode,
+    archiveFilter: ArchiveFilter,
+    onGroupMode: (WorkspaceGroupMode) -> Unit,
+    onSortMode: (SessionSortMode) -> Unit,
+    onArchiveFilter: (ArchiveFilter) -> Unit,
+) {
+    DshMenuSectionLabel("分组方式")
+    GroupModeRow("按工作区", groupMode == WorkspaceGroupMode.WORKSPACE) { onGroupMode(WorkspaceGroupMode.WORKSPACE) }
+    GroupModeRow("按工作区树", groupMode == WorkspaceGroupMode.TREE) { onGroupMode(WorkspaceGroupMode.TREE) }
+    GroupModeRow("单列表", groupMode == WorkspaceGroupMode.SINGLE_LIST) { onGroupMode(WorkspaceGroupMode.SINGLE_LIST) }
+    DshMenuSectionLabel("排序方式")
+    GroupModeRow("手动排序", sortMode == SessionSortMode.MANUAL) { onSortMode(SessionSortMode.MANUAL) }
+    GroupModeRow("最近更新", sortMode == SessionSortMode.RECENT) { onSortMode(SessionSortMode.RECENT) }
+    DshMenuSectionLabel("筛选会话")
+    GroupModeRow("隐藏已归档", archiveFilter == ArchiveFilter.HIDE_ARCHIVED) {
+        onArchiveFilter(ArchiveFilter.HIDE_ARCHIVED)
+    }
+    GroupModeRow("全部对话（显示已归档）", archiveFilter == ArchiveFilter.ALL) {
+        onArchiveFilter(ArchiveFilter.ALL)
+    }
+    GroupModeRow("仅显示已归档", archiveFilter == ArchiveFilter.ONLY_ARCHIVED) {
+        onArchiveFilter(ArchiveFilter.ONLY_ARCHIVED)
+    }
+}
+
+@Composable
+private fun GroupModeRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    DshMenuRow(onClick = onClick) {
+        DshMenuLabel(label, Modifier.weight(1f))
+        if (selected) DshMenuCheck()
+    }
+}
 @Composable
 private fun WorkspaceRowMenu(
     expanded: Boolean,
@@ -827,6 +907,16 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
