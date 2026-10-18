@@ -43,9 +43,8 @@ object UpdateCenter {
 
     fun hasUpdate(context: Context): Boolean {
         val latest = _update.value ?: return false
-        val current = currentVersion(context)
-        val base = current.removeSuffix("-mobile")
-        return latest.tag.isNotBlank() && latest.tag != current && latest.tag != base
+        // 必须与带 -mobile 的完整版本区分，不能把官方版本当成移动端新版本。
+        return latest.tag.isNotBlank() && latest.tag != currentVersion(context)
     }
 
     suspend fun check(context: Context) {
@@ -98,6 +97,7 @@ object UpdateCenter {
         if (!checked) check(context)
     }
 }
+
 
 
 

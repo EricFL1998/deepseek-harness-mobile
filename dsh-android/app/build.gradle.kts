@@ -10,7 +10,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.deepseek.dsh"
+        applicationId = "dsh.mobile"
         minSdk = 26
         targetSdk = 35
         versionCode = 2
@@ -96,6 +96,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
+
 
 
 
