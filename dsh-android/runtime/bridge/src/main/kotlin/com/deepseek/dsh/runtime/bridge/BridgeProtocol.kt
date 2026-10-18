@@ -35,5 +35,7 @@ enum class BridgeMethod(val methodName: String) {
     SHOW_NOTIFICATION("android_notify"),
     SPEAK_TTS("android_tts"),
     PICK_FILE("android_pick_file"),
-    SHARE_TEXT("android_share")
+    SHARE_TEXT("android_share"),
+    EXEC_SHELL("android_exec_shell")
 }
+

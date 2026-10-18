@@ -139,6 +139,15 @@ class BridgeServer(
                     BridgeResponse(id = request.id, result = res)
                 }
 
+                BridgeMethod.EXEC_SHELL.methodName -> {
+                    val params = request.params as? JsonObject
+                    val command = params?.get("command")?.jsonPrimitive?.content ?: ""
+                    val cwd = params?.get("cwd")?.jsonPrimitive?.content ?: ""
+                    val timeoutMs = params?.get("timeoutMs")?.jsonPrimitive?.content?.toLongOrNull() ?: 120_000L
+                    val result = execShell(command, cwd, timeoutMs)
+                    BridgeResponse(id = request.id, result = result)
+                }
+
                 else -> {
                     BridgeResponse(
                         id = request.id,
@@ -154,7 +163,34 @@ class BridgeServer(
         }
     }
 
-    private fun showNotification(title: String, content: String) {
+
+    private fun execShell(command: String, cwd: String, timeoutMs: Long): JsonObject {
+        val builder = ProcessBuilder("/system/bin/sh", "-c", command)
+        builder.redirectErrorStream(false)
+        if (cwd.isNotBlank()) {
+            val dir = java.io.File(cwd)
+            if (dir.isDirectory) builder.directory(dir)
+        }
+        val process = builder.start()
+        val stdout = StringBuilder()
+        val stderr = StringBuilder()
+        val outThread = Thread {
+            runCatching { process.inputStream.bufferedReader().use { r -> r.forEachLine { stdout.appendLine(it) } } }
+        }
+        val errThread = Thread {
+            runCatching { process.errorStream.bufferedReader().use { r -> r.forEachLine { stderr.appendLine(it) } } }
+        }
+        outThread.start(); errThread.start()
+        val finished = process.waitFor(timeoutMs.coerceAtLeast(1_000), java.util.concurrent.TimeUnit.MILLISECONDS)
+        if (!finished) process.destroyForcibly()
+        outThread.join(2_000); errThread.join(2_000)
+        return buildJsonObject {
+            put("exitCode", if (finished) process.exitValue() else -1)
+            put("stdout", stdout.toString())
+            put("stderr", stderr.toString())
+            put("timedOut", !finished)
+        }
+    }    private fun showNotification(title: String, content: String) {
         val channelId = "dsh_bridge_notify"
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -170,3 +206,4 @@ class BridgeServer(
         nm.notify((System.currentTimeMillis() % 10000).toInt(), notification)
     }
 }
+
