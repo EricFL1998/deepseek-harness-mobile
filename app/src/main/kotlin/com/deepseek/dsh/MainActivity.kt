@@ -227,7 +227,9 @@ fun MainAppHost(
     LaunchedEffect(Unit) {
         // 首次安装等 rootfs 准备完成后再启动；之后每次重新打开 App 立即启动 Host。
         if (java.io.File(context.filesDir, "profileInstalled").exists()) {
-            runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
+            }
         }
     }
     val availableHosts = remember {
@@ -500,7 +502,9 @@ fun MainAppHost(
                 status.phase == RuntimePhase.UNINSTALLED ||
                 status.phase == RuntimePhase.ERROR)
         ) {
-            runtimeManager.start(activeWorkspace.absolutePath)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runtimeManager.start(activeWorkspace.absolutePath)
+            }
         }
     }
 
@@ -520,23 +524,46 @@ fun MainAppHost(
         return
     }
 
-    // 已安装后的每次重新打开：短暂显示启动页让 Host 先启动，但不阻塞到真正 RUNNING；
-    // 用户进入界面后通常还需要一点时间才会操作，Host 可在后台继续完成启动。
+    // 已安装后的每次重新打开：轮询 Host 的真实运行状态；
+    // 一旦 endpoint（port）就绪就进入 UI，不等 markReady/RUNNING。
     val rootfsWasInstalled = remember {
         java.io.File(context.filesDir, "profileInstalled").exists()
     }
-    var startupSplashDone by remember { mutableStateOf(!rootfsWasInstalled) }
-    LaunchedEffect(rootfsWasInstalled) {
-        if (rootfsWasInstalled) {
-            kotlinx.coroutines.delay(900)
-            startupSplashDone = true
+    var hostProgressReady by remember { mutableStateOf(!rootfsWasInstalled) }
+    var hostStartupError by remember { mutableStateOf(false) }
+    var hostRetryKey by remember { mutableStateOf(0) }
+    LaunchedEffect(rootfsWasInstalled, hostRetryKey) {
+        if (!rootfsWasInstalled) return@LaunchedEffect
+        while (!hostProgressReady) {
+            val current = runCatching { runtimeManager.getStatus() }.getOrNull()
+            if (current == null) {
+                kotlinx.coroutines.delay(300)
+                continue
+            }
+            when {
+                current.phase == RuntimePhase.RUNNING || current.port != null -> {
+                    hostProgressReady = true
+                    hostStartupError = false
+                }
+                current.phase == RuntimePhase.ERROR -> {
+                    hostStartupError = true
+                    break
+                }
+                else -> kotlinx.coroutines.delay(300)
+            }
         }
     }
-    if (rootfsWasInstalled && !startupSplashDone) {
+    if (rootfsWasInstalled && !hostProgressReady) {
         HostStartupSplash(
-            phase = status.phase,
+            phase = if (hostStartupError) RuntimePhase.ERROR else RuntimePhase.STARTING,
             onRetry = {
-                scope.launch { runCatching { runtimeManager.start(activeWorkspace.absolutePath) } }
+                hostStartupError = false
+                hostRetryKey += 1
+                scope.launch {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
+                    }
+                }
             }
         )
         return
@@ -1663,6 +1690,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 
