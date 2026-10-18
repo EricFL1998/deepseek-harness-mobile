@@ -92,7 +92,7 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     /** 使用 app-specific 外部目录，proot/Android 11+ 才能稳定读写（不受 MANAGE_EXTERNAL_STORAGE 限制）。 */
     private val externalWorkspaceDir: File by lazy {
-        File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace")
+        File(getExternalMediaDirs().firstOrNull() ?: getExternalFilesDir(null) ?: filesDir, "DSH-Workspace")
     }
 
     private lateinit var runtimeManager: HostRuntimeManager
@@ -185,7 +185,7 @@ fun MainAppHost(
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
 
-    val externalWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
+    val externalWorkspaceDir = remember { java.io.File(context.getExternalMediaDirs().firstOrNull() ?: context.getExternalFilesDir(null) ?: context.filesDir, "DSH-Workspace") }
 
     var hasAllFilesAccess by remember { mutableStateOf(android.os.Environment.isExternalStorageManager()) }
     LaunchedEffect(hasAllFilesAccess) {
@@ -208,7 +208,7 @@ fun MainAppHost(
         // 旧版本默认 Documents 路径在 proot 下会 EACCES；迁移到 app-specific 外部目录。
         val configured = currentAppSettings.workspacePath
         val migrated = if (
-            configured.startsWith("/storage/emulated/0/Documents/DSH-Workspace")
+            configured.startsWith("/storage/emulated/0/Documents/DSH-Workspace") || configured.contains("/Android/data/com.deepseek.dsh/files/DSH-Workspace")
         ) {
             externalWorkspaceDir.absolutePath
         } else if (
@@ -747,11 +747,18 @@ fun MainAppHost(
                                         try {
                                         var sid = selectedSessionId
                                         if (sid == null || sid !in liveSessionIds) {
-                                            sid = dshRepository.createSession(
+                                            suspend fun createOnce(): String? = dshRepository.createSession(
                                                 activeHostId,
                                                 text.take(24),
                                                 "/workspace"
                                             ).getOrNull()?.sessionId
+                                            sid = createOnce()
+                                            if (sid == null) {
+                                                // Host 可能刚崩溃/尚未就绪：重启一次再重试。
+                                                runtimeManager.start(activeWorkspace.absolutePath)
+                                                kotlinx.coroutines.delay(10000)
+                                                sid = createOnce()
+                                            }
                                             if (sid != null) {
                                                 // proot 下 Host 的 mkdir 可能返回 ENOENT；先在 Android 侧建好会话目录。
                                                 java.io.File(
@@ -1499,6 +1506,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 
