@@ -61,6 +61,8 @@ enum class SettingsSectionTab(
     ARCHIVED("archived-sessions", "归档会话", "已归档的会话记录与快照", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
     MOBILE_RUNTIME("mobile-runtime", "移动运行时", "Linux 容器休眠、长任务守护与高危拦截", com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
     MOBILE_WORKSPACE("mobile-workspace", "手机工作区", "公有存储绑定、系统文件可见性", com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open),
+    NOTIFICATIONS("notifications", "通知", "任务完成通知与系统权限", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule),
+    REMOTE("remote", "远程连接", "连接另一台机器上的 DSH Host", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin),
     UPDATE("update", "更新", "检查 GitHub Release 与新版本", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
 }
 
@@ -91,6 +93,9 @@ fun SettingsRootScreen(
     onManageAccount: () -> Unit = {},
     onCreateBackup: () -> Unit = {},
     onExportDiagnostics: () -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {},
+    onConnectRemote: (String, String) -> Unit = { _, _ -> },
+    onDisconnectRemote: () -> Unit = {},
     onClose: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -242,6 +247,25 @@ fun SettingsRootScreen(
                             onExportDiagnostics = onExportDiagnostics,
                         )
 
+                        SettingsSectionTab.NOTIFICATIONS -> SettingsNotificationsPane(
+                            settings = currentSettings,
+                            onUpdateSettings = {
+                                currentSettings = it
+                                onUpdateSettings(it)
+                            },
+                            onRequestNotificationPermission = onRequestNotificationPermission,
+                        )
+
+                        SettingsSectionTab.REMOTE -> SettingsRemotePane(
+                            settings = currentSettings,
+                            onUpdateSettings = {
+                                currentSettings = it
+                                onUpdateSettings(it)
+                            },
+                            onConnectRemote = onConnectRemote,
+                            onDisconnectRemote = onDisconnectRemote,
+                        )
+
                         SettingsSectionTab.UPDATE -> SettingsUpdatePane()
                         SettingsSectionTab.MOBILE_WORKSPACE -> SettingsMobileWorkspacePane(
                             settings = currentSettings,
@@ -289,5 +313,8 @@ private fun SettingsNavRow(
         )
     }
 }
+
+
+
 
 

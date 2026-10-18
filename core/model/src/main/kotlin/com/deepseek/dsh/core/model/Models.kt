@@ -125,6 +125,11 @@ data class AppSettings(
     val showCodingView: Boolean = true,     // 显示代码工作视图（轨迹 / 代码差异 / 完整预设切换）
     val transcriptView: String = "standard", // 工作步骤展示：compact / standard / detailed（首次引导写入）
     val enableSoundNotice: Boolean = true,  // 任务完成语音/提示音
+    val notificationsEnabled: Boolean = true,
+    val notifyOnTurnComplete: Boolean = true,
+    val notifyOnError: Boolean = true,
+    val remoteHostUrl: String = "",
+    val remoteHostToken: String = "",
     val workspacePath: String = "/storage/emulated/0/Documents/DSH-Workspace"
 )
 
@@ -266,3 +271,4 @@ data class SurfaceCatalog(
     val dshVersion: String,
     val surfaces: List<SurfaceItem> = emptyList()
 )
+

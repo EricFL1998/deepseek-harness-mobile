@@ -252,6 +252,19 @@ fun MainAppHost(
     val runningSessionIds by dshRepository.runningSessionIdsFlow.collectAsState()
     val unreadSessionIds by dshRepository.unreadSessionIdsFlow.collectAsState()
     LaunchedEffect(selectedSessionId) { dshRepository.markSessionViewed(selectedSessionId) }
+
+    // 会话完成通知：运行中的会话从 running 变为结束且当前不在前台时提醒。
+    var wasSessionRunning by remember { mutableStateOf(false) }
+    val sessionRunningNow = selectedSessionId != null && selectedSessionId in runningSessionIds
+    LaunchedEffect(sessionRunningNow) {
+        if (wasSessionRunning && !sessionRunningNow) {
+            if (currentAppSettings.notificationsEnabled && currentAppSettings.notifyOnTurnComplete) {
+                val title = sessions.find { it.sessionId == selectedSessionId }?.title ?: "会话"
+                DshNotifications.notify(context, "DSH 已完成", "$title 已完成本轮回复")
+            }
+        }
+        wasSessionRunning = sessionRunningNow
+    }
     var didInitialResume by remember { mutableStateOf(false) }
     LaunchedEffect(sessions, liveSessionIds) {
         // 每次打开 App：自动进入最近更新的会话，而不是停留在空白新会话页。
@@ -463,7 +476,9 @@ fun MainAppHost(
     LaunchedEffect(status.phase, status.port, status.token) {
         val port = status.port
         if (port != null) {
-            dshApplication.bindLocalHost(port, status.token)
+            if (currentAppSettings.remoteHostUrl.isBlank()) {
+                dshApplication.bindLocalHost(port, status.token)
+            }
             dshRepository.refreshSessions(activeHostId)
             dshRepository.refreshModelCatalog(activeHostId)
             dshRepository.refreshPluginInventory(activeHostId)
@@ -1909,6 +1924,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 

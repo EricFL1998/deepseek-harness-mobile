@@ -29,6 +29,11 @@ class DefaultSettingsRepository(
                     showCodingView = entity.showCodingView,
                     transcriptView = entity.transcriptView,
                     enableSoundNotice = entity.enableSoundNotice,
+                    notificationsEnabled = entity.notificationsEnabled,
+                    notifyOnTurnComplete = entity.notifyOnTurnComplete,
+                    notifyOnError = entity.notifyOnError,
+                    remoteHostUrl = entity.remoteHostUrl,
+                    remoteHostToken = entity.remoteHostToken,
                     workspacePath = entity.workspacePath
                 )
             } else {
@@ -58,8 +63,14 @@ class DefaultSettingsRepository(
                 showCodingView = updated.showCodingView,
                 transcriptView = updated.transcriptView,
                 enableSoundNotice = updated.enableSoundNotice,
+                notificationsEnabled = updated.notificationsEnabled,
+                notifyOnTurnComplete = updated.notifyOnTurnComplete,
+                notifyOnError = updated.notifyOnError,
+                remoteHostUrl = updated.remoteHostUrl,
+                remoteHostToken = updated.remoteHostToken,
                 workspacePath = updated.workspacePath
             )
         )
     }
 }
+

@@ -13,9 +13,10 @@ import androidx.room.RoomDatabase
         SurfaceCatalogEntity::class,
         AppSettingsEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class DshDatabase : RoomDatabase() {
     abstract fun dshDao(): DshDao
 }
+

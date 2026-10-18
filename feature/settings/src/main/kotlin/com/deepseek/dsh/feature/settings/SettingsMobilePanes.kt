@@ -358,3 +358,158 @@ private fun RuntimeActionRow(
         SettingsChevronRight()
     }
 }
+
+@Composable
+internal fun SettingsNotificationsPane(
+    settings: AppSettings,
+    onUpdateSettings: (AppSettings) -> Unit,
+    onRequestNotificationPermission: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    var current by remember(settings) { mutableStateOf(settings) }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = SettingsPaneDimens.Horizontal,
+            end = SettingsPaneDimens.Horizontal,
+            top = SettingsPaneDimens.Top,
+            bottom = SettingsPaneDimens.Bottom,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { SettingsPaneTitle("通知") }
+        item {
+            SettingsCard {
+                NotificationSwitchRow(
+                    title = "开启通知",
+                    subtitle = "允许 DSH 在系统通知栏提醒你",
+                    checked = current.notificationsEnabled,
+                ) {
+                    current = current.copy(notificationsEnabled = it)
+                    onUpdateSettings(current)
+                }
+                SettingsCardDivider()
+                NotificationSwitchRow(
+                    title = "会话完成通知",
+                    subtitle = "Agent 完成一轮回复后发送通知",
+                    checked = current.notifyOnTurnComplete,
+                ) {
+                    current = current.copy(notifyOnTurnComplete = it)
+                    onUpdateSettings(current)
+                }
+                SettingsCardDivider()
+                NotificationSwitchRow(
+                    title = "错误通知",
+                    subtitle = "会话或工具执行失败时提醒",
+                    checked = current.notifyOnError,
+                ) {
+                    current = current.copy(notifyOnError = it)
+                    onUpdateSettings(current)
+                }
+            }
+        }
+        item {
+            SettingsCard(onClick = onRequestNotificationPermission) {
+                Text(
+                    text = "打开系统通知权限",
+                    style = SettingsText.RowTitle,
+                    color = LocalSettingsPalette.current.labelPrimary,
+                )
+                Text(
+                    text = "若系统通知被关闭，请在 Android 设置中允许 DSH 通知",
+                    style = SettingsText.RowDesc,
+                    color = LocalSettingsPalette.current.labelTertiary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = SettingsText.RowTitle, color = LocalSettingsPalette.current.labelPrimary)
+            Text(subtitle, style = SettingsText.RowDesc, color = LocalSettingsPalette.current.labelTertiary)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+internal fun SettingsRemotePane(
+    settings: AppSettings,
+    onUpdateSettings: (AppSettings) -> Unit,
+    onConnectRemote: (String, String) -> Unit = { _, _ -> },
+    onDisconnectRemote: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    var url by remember(settings) { mutableStateOf(settings.remoteHostUrl) }
+    var token by remember(settings) { mutableStateOf(settings.remoteHostToken) }
+    val palette = LocalSettingsPalette.current
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = SettingsPaneDimens.Horizontal,
+            end = SettingsPaneDimens.Horizontal,
+            top = SettingsPaneDimens.Top,
+            bottom = SettingsPaneDimens.Bottom,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { SettingsPaneTitle("远程连接") }
+        item {
+            SettingsCard {
+                Text("Host 地址", style = SettingsText.RowTitle, color = palette.labelPrimary)
+                androidx.compose.material3.OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    singleLine = true,
+                    placeholder = { Text("http://192.168.1.10:45153") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
+                Text("访问令牌（可选）", style = SettingsText.RowTitle, color = palette.labelPrimary, modifier = Modifier.padding(top = 12.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    singleLine = true,
+                    placeholder = { Text("token") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            onUpdateSettings(settings.copy(remoteHostUrl = url.trim(), remoteHostToken = token.trim()))
+                            onConnectRemote(url.trim(), token.trim())
+                        },
+                        enabled = url.isNotBlank(),
+                    ) { Text("保存并连接") }
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            onUpdateSettings(settings.copy(remoteHostUrl = "", remoteHostToken = ""))
+                            onDisconnectRemote()
+                        },
+                    ) { Text("断开") }
+                }
+                Text(
+                    text = if (url.isBlank()) "当前使用本机 Host" else "当前已配置远程 Host：$url",
+                    style = SettingsText.RowDesc,
+                    color = palette.labelTertiary,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
+        }
+    }
+}
+

@@ -47,6 +47,11 @@ data class AppSettingsEntity(
     val showCodingView: Boolean,
     val transcriptView: String,
     val enableSoundNotice: Boolean,
+    val notificationsEnabled: Boolean = true,
+    val notifyOnTurnComplete: Boolean = true,
+    val notifyOnError: Boolean = true,
+    val remoteHostUrl: String = "",
+    val remoteHostToken: String = "",
     val workspacePath: String
 )
 
@@ -92,3 +97,4 @@ data class SurfaceCatalogEntity(
     val capabilitiesJson: String?,
     val updatedAt: Long?
 )
+
