@@ -130,6 +130,8 @@ class DefaultHostRuntimeManager(
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tool-bash/lib/index.js",
             "rootfs-patches/dsh-tool-fs-search-index.js" to
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tool-fs-search/lib/index.js",
+            "rootfs-patches/dsh-storage-json-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-storage-json/lib/index.js",
         )
         patches.forEach { (asset, relative) ->
             val target = File(layout.rootfsDir, relative)
@@ -164,7 +166,20 @@ class DefaultHostRuntimeManager(
         }
         // proot 的 bind 目标需要存在；DSH 配置目录先创建，避免首次启动 mkdir 失败。
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
+        // profile 需要从自身目录解析 @deepseek-ai/* bundle；链接到 rootfs 全局 node_modules。
+        val profileNodeModules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules").apply { mkdirs() }
+        val presetLink = File(profileNodeModules, "@deepseek-ai")
+        if (!presetLink.exists()) {
+            runCatching {
+                java.nio.file.Files.createSymbolicLink(
+                    presetLink.toPath(),
+                    java.nio.file.Paths.get("../../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai")
+                )
+            }
+        }
         File(layout.rootfsDir, "root/.dsh/sessions/--workspace--").mkdirs()
+        File(layout.rootfsDir, "root/.dsh/storages").mkdirs()
+        File(layout.rootfsDir, "root/.dsh/storages/session-projection").mkdirs()
         File(workspacePath).mkdirs()
         // proot 需要能 chdir 进 bind 目标；rootfs 内 /workspace 必须是可进入目录。
         File(layout.rootfsDir, "workspace").apply {
@@ -286,6 +301,9 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
+
+
 
 
 
