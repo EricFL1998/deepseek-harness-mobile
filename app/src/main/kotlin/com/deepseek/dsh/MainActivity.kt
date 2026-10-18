@@ -252,11 +252,16 @@ fun MainAppHost(
     val runningSessionIds by dshRepository.runningSessionIdsFlow.collectAsState()
     val unreadSessionIds by dshRepository.unreadSessionIdsFlow.collectAsState()
     LaunchedEffect(selectedSessionId) { dshRepository.markSessionViewed(selectedSessionId) }
+    var didInitialResume by remember { mutableStateOf(false) }
     LaunchedEffect(sessions, liveSessionIds) {
-        val current = selectedSessionId
-        selectedSessionId = when {
-            current != null && current in liveSessionIds -> current
-            else -> sessions.firstOrNull { it.sessionId in liveSessionIds }?.sessionId
+        // 每次打开 App：自动进入最近更新的会话，而不是停留在空白新会话页。
+        if (!didInitialResume && sessions.isNotEmpty()) {
+            didInitialResume = true
+            val candidates = sessions.filter { !it.archived }.ifEmpty { sessions }
+            selectedSessionId = (
+                candidates.filter { it.sessionId in liveSessionIds }.ifEmpty { candidates }
+                    .maxByOrNull { it.updatedAt }
+                )?.sessionId
         }
     }
 
@@ -1913,6 +1918,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
