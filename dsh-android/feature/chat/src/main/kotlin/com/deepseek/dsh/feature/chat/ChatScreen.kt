@@ -1077,23 +1077,6 @@ fun ModernMessageItem(
             ToolMessageItem(content = message.content, onAnswerUserQuestion = onAnswerUserQuestion)
         } else {
             Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_dsh_fish_logo),
-                        contentDescription = "DeepSeek",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "DeepSeek",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
 
                 val contentParts = message.content.split('\u0001', limit = 2)
                 if (contentParts.size == 2 && contentParts[0].isNotBlank()) {
@@ -1113,51 +1096,6 @@ fun ModernMessageItem(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                        Icon(
-                            imageVector = DshIcons.CopyOutline,
-                            contentDescription = stringResource(R.string.action_copy),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    IconButton(onClick = onRetry, modifier = Modifier.size(24.dp)) {
-                        Icon(
-                            imageVector = DshIcons.RefreshOutline,
-                            contentDescription = stringResource(R.string.action_retry),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                        Icon(
-                            imageVector = DshIcons.LikeOutline,
-                            contentDescription = stringResource(R.string.action_like),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                        Icon(
-                            imageVector = DshIcons.DislikeOutline,
-                            contentDescription = stringResource(R.string.action_dislike),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
-                        Icon(
-                            imageVector = DshIcons.ShareOutline,
-                            contentDescription = stringResource(R.string.action_share),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
             }
         }
     }
@@ -1557,6 +1495,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
