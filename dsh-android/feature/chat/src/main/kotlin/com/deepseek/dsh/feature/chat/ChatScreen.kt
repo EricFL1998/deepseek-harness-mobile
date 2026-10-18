@@ -239,7 +239,13 @@ fun ModernChatScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(messages, key = { it.messageId }) { msg ->
+                items(
+                    messages.filterNot { message ->
+                        message.role == MessageRole.TOOL &&
+                            message.content.split(2.toChar()).getOrNull(4) == "running"
+                    },
+                    key = { it.messageId }
+                ) { msg ->
                     ModernMessageItem(
                         message = msg,
                         onRetry = { onSendMessage(msg.content) },
@@ -249,12 +255,7 @@ fun ModernChatScreen(
 
                 if (isThinking) {
                     item {
-                        ReasoningCard(
-                            isFinished = false,
-                            elapsedSeconds = "3",
-                            reasoningText = "正在解析任务目标，规划多轮工具调用链路，校验本地文件系统访问上下文…",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        LiveToolStatus(messages = messages)
                     }
                 }
             }
@@ -953,6 +954,61 @@ private fun ToolMessageItem(
     }
 }
 
+/** 运行中：显示当前正在执行的 tool call（官方 live process title）。 */
+@Composable
+private fun LiveToolStatus(messages: List<ChatMessage>) {
+    val active = messages.lastOrNull { message ->
+        if (message.role != MessageRole.TOOL) return@lastOrNull false
+        message.content.split(2.toChar()).getOrNull(4) == "running"
+    }
+    val alpha = 1f
+    Row(
+        modifier = Modifier.fillMaxWidth().height(24.dp).padding(start = 22.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (active != null) {
+            val parts = active.content.split(2.toChar())
+            val name = parts.getOrNull(3).orEmpty()
+            val args = parts.getOrNull(6).orEmpty()
+            val summary = remember(name, args) { toolSummary(name, args, "", "running") }
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                strokeWidth = 1.5.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = toolTitle(name),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+            )
+            if (summary.isNotBlank()) {
+                Box(modifier = Modifier.padding(horizontal = 8.dp).size(2.dp).clip(CircleShape).background(MaterialTheme.colorScheme.outline.copy(alpha = alpha)))
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = alpha),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        } else {
+            Icon(
+                imageVector = DshIcons.ThinkOutline,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "深度求索中…",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+            )
+        }
+    }
+}
 private fun toolExpandedText(
     name: String,
     args: String,
@@ -1495,6 +1551,10 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
 
 
 

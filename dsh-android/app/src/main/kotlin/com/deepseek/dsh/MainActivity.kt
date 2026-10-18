@@ -794,6 +794,7 @@ fun MainAppHost(
                                     }
                                 },
                                 isSending = isSending,
+                                isThinking = selectedSessionId != null && selectedSessionId in runningSessionIds,
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
                                 onModelSelected = { model ->
@@ -1511,6 +1512,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
