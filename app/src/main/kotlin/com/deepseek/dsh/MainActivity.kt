@@ -369,7 +369,7 @@ fun MainAppHost(
         if (hostModelNames.isNotEmpty()) hostModelIdByName
         else cachedModelNames.zip(cachedModelIds).toMap()
     }
-    val availableModelNames = effectiveModelNames
+    val availableModelNames = effectiveModelNames.distinct()
 
     // 官方账号菜单的登录入口：浏览器 OAuth 为主，API Key 为备选（与官方 SignInDialog 一致）。
     var showSignInDialog by remember { mutableStateOf(false) }
@@ -1020,6 +1020,7 @@ fun MainAppHost(
                                 },
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
+                                modelGroups = catalogInfo.groups,
                                 onModelSelected = { model ->
                                     selectedSessionId?.let { sid ->
                                         scope.launch {
@@ -1792,6 +1793,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 

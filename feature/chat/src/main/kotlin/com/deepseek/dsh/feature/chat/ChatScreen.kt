@@ -171,6 +171,7 @@ fun ModernChatScreen(
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
     availableModels: List<String> = MODEL_CATALOG,
+    modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     onModelSelected: (String) -> Unit = {},
     selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
     onPermissionSelected: (PermissionPreset) -> Unit = {},
@@ -302,7 +303,8 @@ fun ModernChatScreen(
             onStop = onStopClick,
             dockPluginSurfaces = dockPluginSurfaces,
             onDockPluginClick = onDockPluginClick,
-            stats = stats
+            stats = stats,
+            showDockStats = messages.isNotEmpty() || isSending
         )
     }
     Column(
@@ -639,13 +641,20 @@ private fun ModelEffortMenu(
     anchorBounds: Rect?,
     selectedModel: String,
     availableModels: List<String>,
+    modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     effortLabel: String,
     onDismiss: () -> Unit,
     onModelSelected: (String) -> Unit,
     onEffortSelected: (ReasoningLevel) -> Unit,
 ) {
     var page by remember { mutableStateOf(0) }
-    LaunchedEffect(expanded) { if (expanded) page = 0 }
+    var modelQuery by remember { mutableStateOf("") }
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            page = 0
+            modelQuery = ""
+        }
+    }
 
     // 模型菜单：首层宽度按「标签 + 数值 + 12dp 箭头」实测收敛，卡片最小 240dp。
     val labelStyle = TextStyle(fontSize = 13.sp, lineHeight = 20.sp)
@@ -679,7 +688,7 @@ private fun ModelEffortMenu(
     ) {
         when (page) {
             0 -> {
-                if (availableModels.isEmpty()) {
+                if (availableModels.distinct().isEmpty()) {
                     // 官方空目录文案：暂无可用模型。
                     DshMenuSectionLabel("暂无可用模型")
                 } else {
@@ -696,14 +705,76 @@ private fun ModelEffortMenu(
                 }
             }
 
-            1 -> availableModels.forEach { model ->
-                val selected = model == selectedModel
-                DshMenuRow(onClick = { onModelSelected(model) }) {
-                    DshMenuLabel(model, Modifier.weight(1f))
-                    if (selected) DshMenuCheck()
+            1 -> {
+                val fallbackGroups = remember(availableModels) {
+                    if (modelGroups.isNotEmpty()) emptyList()
+                    else availableModels.distinct().groupBy { name ->
+                        if (name.startsWith("DeepSeek", ignoreCase = true)) "DeepSeek 账号"
+                        else name.substringBefore("-").substringBefore(" ").ifBlank { "模型" }
+                    }.map { (provider, names) ->
+                        com.deepseek.dsh.core.model.ModelProviderGroup(
+                            id = provider,
+                            name = provider,
+                            models = names.map { com.deepseek.dsh.core.model.ModelItem(id = it, name = it) }
+                        )
+                    }
+                }
+                val groups = if (modelGroups.isNotEmpty()) {
+                    modelGroups.map { group ->
+                        group.copy(
+                            name = if (group.id == "deepseek-account") "DeepSeek 账号" else group.name
+                        )
+                    }
+                } else fallbackGroups
+                val totalModels = groups.sumOf { it.models.size }
+                val showSearch = totalModels > 4
+                val query = modelQuery.trim().lowercase()
+                if (showSearch) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = modelQuery,
+                            onValueChange = { modelQuery = it },
+                            textStyle = TextStyle(
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.fillMaxWidth(),
+                            decorationBox = { inner ->
+                                if (modelQuery.isEmpty()) {
+                                    Text("搜索模型...", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                                }
+                                inner()
+                            }
+                        )
+                    }
+                }
+                groups.forEach { group ->
+                    val models = group.models.filter {
+                        query.isEmpty() || it.name.lowercase().contains(query)
+                    }
+                    if (models.isNotEmpty()) {
+                        DshMenuSectionLabel(group.name)
+                        models.forEach { model ->
+                            val selected = model.name == selectedModel
+                            DshMenuRow(onClick = { onModelSelected(model.name) }) {
+                                DshMenuLabel(model.name, Modifier.weight(1f))
+                                if (selected) DshMenuCheck()
+                            }
+                        }
+                    }
                 }
             }
-
             else -> ReasoningLevel.entries.forEach { level ->
                 val label = stringResource(level.labelResId)
                 val selected = label == effortLabel
@@ -1582,7 +1653,7 @@ private fun ComposerTrigger(
                 painter = painterResource(id = leadingIconResId),
                 contentDescription = null,
                 tint = colors.labelSecondary,
-                modifier = Modifier.size(14.dp).offset(y = (-3).dp),
+                modifier = Modifier.size(14.dp),
             )
         }
         Text(
@@ -1595,7 +1666,7 @@ private fun ComposerTrigger(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(
                 max = if (trailingValue.isNullOrBlank()) 132.dp else 132.dp,
-            ).alignByBaseline(),
+            )
         )
         if (!trailingValue.isNullOrBlank()) {
             Text(
@@ -1605,7 +1676,7 @@ private fun ComposerTrigger(
                 lineHeight = 20.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 60.dp).alignByBaseline(),
+                modifier = Modifier.widthIn(max = 60.dp)
             )
         }
         Icon(
@@ -1630,6 +1701,7 @@ fun BottomInputBar(
     onPlusClick: () -> Unit,
     selectedModel: String,
     availableModels: List<String> = MODEL_CATALOG,
+    modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     effortLabel: String,
     onOpenModelMenu: () -> Unit,
     modelMenuOpen: Boolean,
@@ -1646,7 +1718,8 @@ fun BottomInputBar(
     onStop: () -> Unit,
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     onDockPluginClick: (SurfaceItem) -> Unit = {},
-    stats: ComposerStats = ComposerStats()
+    stats: ComposerStats = ComposerStats(),
+    showDockStats: Boolean = true
 ) {
     val panelColors = dshPanelColors()
     val plusInteraction = remember { MutableInteractionSource() }
@@ -1768,7 +1841,8 @@ fun BottomInputBar(
                             expanded = modelMenuOpen,
                             anchorBounds = modelAnchor,
                             selectedModel = selectedModel,
-                            availableModels = availableModels,
+                            availableModels = availableModels.distinct(),
+                            modelGroups = modelGroups,
                             effortLabel = effortLabel,
                             onDismiss = onModelMenuDismiss,
                             onModelSelected = onModelSelected,
@@ -1818,6 +1892,7 @@ fun BottomInputBar(
 
         ComposerDockBar(
             stats = stats,
+            showStats = showDockStats,
             dockPluginSurfaces = dockPluginSurfaces,
             onPluginClick = { pluginItem ->
                 onDockPluginClick(pluginItem)
@@ -1933,6 +2008,11 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
 
 
 

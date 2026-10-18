@@ -41,10 +41,12 @@ import com.deepseek.dsh.feature.chat.R
 @Composable
 fun ComposerDockBar(
     stats: ComposerStats = ComposerStats(),
+    showStats: Boolean = true,
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     onPluginClick: (SurfaceItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    if (!showStats && dockPluginSurfaces.isEmpty()) return
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -53,6 +55,7 @@ fun ComposerDockBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        if (showStats) {
         // 1. 推理速率（IconGaugeOutline + "<speed> tok/s"）
         StatReading(
             label = stringResource(R.string.stat_tok_per_sec, stats.outputSpeedTokensPerSec),
@@ -95,6 +98,7 @@ fun ComposerDockBar(
             )
         }
 
+        }
         // 4. 插件动态注入的 conversation.composer.dock 项
         dockPluginSurfaces.forEach { item ->
             Row(
@@ -170,4 +174,6 @@ private fun ContextRing(percent: Int) {
         )
     }
 }
+
+
 
