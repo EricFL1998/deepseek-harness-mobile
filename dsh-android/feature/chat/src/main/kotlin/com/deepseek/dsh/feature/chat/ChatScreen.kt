@@ -1007,7 +1007,7 @@ private fun ComposerTrigger(
                 painter = painterResource(id = leadingIconResId),
                 contentDescription = null,
                 tint = colors.labelSecondary,
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(14.dp).offset(y = (-3).dp),
             )
         }
         Text(
@@ -1359,6 +1359,8 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
 
 
 

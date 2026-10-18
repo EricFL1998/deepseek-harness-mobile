@@ -1280,11 +1280,11 @@ class RemoteClient(
                             val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
                             val reasoning = blocks?.mapNotNull { part ->
                                 val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                                if (obj["type"]?.toString()?.trim('"') == "reasoning") obj["text"]?.toString()?.trim('"') else null
+                                if (obj["type"]?.toString()?.trim('"') == "reasoning") obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } else null
                             }?.joinToString("").orEmpty()
                             val answer = blocks?.mapNotNull { part ->
                                 val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.toString()?.trim('"') else null
+                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } else null
                             }?.joinToString("").orEmpty()
                             val content = when {
                                 reasoning.isBlank() -> answer
@@ -1309,7 +1309,7 @@ class RemoteClient(
                             val blocks = message?.get("content") as? kotlinx.serialization.json.JsonArray
                             val body = blocks?.mapNotNull { part ->
                                 val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.toString()?.trim('"') else null
+                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } else null
                             }?.joinToString("\n").orEmpty()
                             val failed = data["error"] != null ||
                                 message?.get("isError")?.toString() == "true"
@@ -1331,6 +1331,7 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
 
 
 

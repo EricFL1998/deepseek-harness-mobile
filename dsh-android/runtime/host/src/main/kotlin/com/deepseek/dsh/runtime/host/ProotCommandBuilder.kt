@@ -60,6 +60,8 @@ object ProotCommandBuilder {
         cmd.add("-i")
         cmd.add("HOME=/root")
         cmd.add("DSH_HOME=/root/.dsh")
+        // Android/proot 没有可用的 bubblewrap/Landlock 后端；默认完全权限才能执行 shell 工具。
+        cmd.add("DSH_PERMISSION_MODE=danger-full-access")
         cmd.add("PATH=/opt/dsh/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
         cmd.add("NODE_ENV=production")
         cmd.add("LANG=C.UTF-8")
@@ -82,5 +84,6 @@ object ProotCommandBuilder {
         return cmd
     }
 }
+
 
 
