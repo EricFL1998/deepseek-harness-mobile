@@ -474,7 +474,12 @@ fun MainAppHost(
     }
 
     // 首次启动先准备 rootfs：未安装/未下载完成之前不进入 onboarding。
-    var rootfsReady by remember { mutableStateOf<Boolean?>(null) }
+    // 已安装过就直接视为就绪，避免重新打开时闪一下安装进度条；首次安装仍走 null→安装。
+    var rootfsReady by remember {
+        mutableStateOf<Boolean?>(
+            if (java.io.File(context.filesDir, "profileInstalled").exists()) true else null
+        )
+    }
     var rootfsSetupProgress by remember { mutableStateOf(0f to "检查本地运行时...") }
     var rootfsSetupError by remember { mutableStateOf<String?>(null) }
     var rootfsInstallAttempt by remember { mutableStateOf(0) }
@@ -1690,6 +1695,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
