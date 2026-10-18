@@ -1393,6 +1393,7 @@ fun BottomInputBar(
                         )
                     }
 
+                    // 生成中：发送按钮切换为停止按钮，两者不同时出现。
                     if (isGenerating) {
                         Surface(
                             shape = CircleShape,
@@ -1409,23 +1410,21 @@ fun BottomInputBar(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-
-                    // 发送：主按钮（主题色圆形 + 上箭头）
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = onSend,
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = DshIcons.SendUpArrow,
-                                contentDescription = stringResource(R.string.action_send),
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
+                    } else {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            onClick = onSend,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = DshIcons.SendUpArrow,
+                                    contentDescription = stringResource(R.string.action_send),
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1551,6 +1550,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 

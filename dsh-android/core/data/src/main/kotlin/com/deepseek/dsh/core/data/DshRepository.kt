@@ -290,6 +290,11 @@ class DshRepository(
         client.selectModel(hostId, sessionId, model, provider)
     }
 
+    suspend fun cancelSession(hostId: String, sessionId: String): Boolean {
+        runningSessionIdsFlow.value = runningSessionIdsFlow.value - sessionId
+        return client.cancelSession(hostId, sessionId)
+    }
+
     suspend fun answerUserQuestion(hostId: String, sessionId: String, callId: String, questionId: String, selected: String) {
         client.answerUserQuestion(hostId, sessionId, callId, questionId, selected)
     }
@@ -394,8 +399,11 @@ class DshRepository(
                             unreadSessionIdsFlow.value = unreadSessionIdsFlow.value + event.sessionId
                         }
                     }
-                    is RemoteEvent.MessageDelta -> {}
+                    is RemoteEvent.MessageDelta -> {
+                        runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
+                    }
                     is RemoteEvent.MessageDone -> {
+                        runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.message.sessionId
                         dao.touchSession(event.message.hostId, event.message.sessionId, System.currentTimeMillis())
                         dao.insertMessages(
                             listOf(
@@ -437,6 +445,9 @@ class DshRepository(
         }
     }
 }
+
+
+
 
 
 

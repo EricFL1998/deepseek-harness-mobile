@@ -324,6 +324,22 @@ class RemoteClient(
     }
 
 
+    override suspend fun cancelSession(hostId: String, sessionId: String): Boolean =
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val payload = buildJsonObject {
+                put("type", "client-request")
+                put("rpcId", java.util.UUID.randomUUID().toString())
+                put("method", "session/cancel")
+                put("payload", buildJsonObject {
+                    put("args", buildJsonObject { put("sessionId", sessionId) })
+                })
+            }.toString()
+            val request = Request.Builder()
+                .url("$baseUrl/api/session/cancel")
+                .post(payload.toRequestBody(mediaTypeJson))
+                .build()
+            runCatching { client.newCall(request).execute().use { it.isSuccessful } }.getOrDefault(false)
+        }
     override suspend fun answerUserQuestion(
         hostId: String,
         sessionId: String,
@@ -1372,6 +1388,7 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
 
 
 

@@ -795,6 +795,12 @@ fun MainAppHost(
                                 },
                                 isSending = isSending,
                                 isThinking = selectedSessionId != null && selectedSessionId in runningSessionIds,
+                                onStopClick = {
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch { dshRepository.cancelSession(activeHostId, sid) }
+                                    }
+                                },
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
                                 onModelSelected = { model ->
@@ -1512,6 +1518,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
