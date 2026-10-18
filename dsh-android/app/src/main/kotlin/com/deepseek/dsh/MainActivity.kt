@@ -745,7 +745,7 @@ fun MainAppHost(
                                     scope.launch {
                                         try {
                                         var sid = selectedSessionId
-                                        if (sid == null) {
+                                        if (sid == null || sid !in liveSessionIds) {
                                             sid = dshRepository.createSession(
                                                 activeHostId,
                                                 text.take(24),
@@ -1493,6 +1493,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
