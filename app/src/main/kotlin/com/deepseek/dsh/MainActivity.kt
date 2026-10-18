@@ -802,24 +802,11 @@ fun MainAppHost(
                         scope.launch { drawerState.close() }
                     },
                     onNewChatClick = {
-                        scope.launch {
-                            val result = dshRepository.createSession(
-                                hostId = activeHostId,
-                                title = "新会话",
-                                workspacePath = activeWorkspaceCwd
-                            )
-                            result.onSuccess { newSession ->
-                                selectedSessionId = newSession.sessionId
-                                activePage = ActivePage.CHAT
-                                drawerState.close()
-                            }.onFailure { err ->
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "创建会话失败: ${err.message ?: "Host 不可达"}",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
+                        // 官方行为：新会话在发出第一条消息前不创建 Host 会话；
+                        // 离开后自然消失，不会留下空白会话。
+                        selectedSessionId = null
+                        activePage = ActivePage.CHAT
+                        scope.launch { drawerState.close() }
                     },
                     onNavigatePlugins = {
                         scope.launch {
@@ -1922,6 +1909,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 
