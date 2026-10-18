@@ -147,7 +147,6 @@ class DefaultHostRuntimeManager(
                 // 新版 proot 自带独立 loader：loader 也随 jniLibs 解压到 nativeLibraryDir。
                 "PROOT_LOADER" to "${layout.nativeLibraryDir.absolutePath}/libproot-loader.so",
                 "PROOT_TMP_DIR" to layout.cacheDir.absolutePath,
-                "PROOT_NO_SECCOMP" to "1",
             ),
             onEndpointFound = { endpoint ->
                 if (!endpointDeferred.isCompleted) {
