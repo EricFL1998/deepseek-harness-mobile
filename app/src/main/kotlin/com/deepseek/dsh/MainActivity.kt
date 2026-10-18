@@ -805,7 +805,7 @@ fun MainAppHost(
                         scope.launch {
                             val result = dshRepository.createSession(
                                 hostId = activeHostId,
-                                title = "",
+                                title = "新会话",
                                 workspacePath = activeWorkspaceCwd
                             )
                             result.onSuccess { newSession ->
@@ -1922,6 +1922,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
