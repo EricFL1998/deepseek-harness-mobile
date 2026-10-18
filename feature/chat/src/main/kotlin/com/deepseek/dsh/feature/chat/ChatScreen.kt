@@ -36,6 +36,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -805,7 +806,7 @@ fun ReasoningCard(
                 Spacer(modifier = Modifier.weight(1f))
             }
             Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.outline
@@ -829,7 +830,7 @@ private fun ToolProcessGroup(
     tools: List<ChatMessage>,
     onOpenDetail: (ToolDetailData) -> Unit,
 ) {
-    val running = tools.firstOrNull { toolStatus(it) == "running" }
+    val running = tools.firstOrNull { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
     val isRunning = running != null
     var expanded by remember(isRunning) { mutableStateOf(isRunning) }
     val summary = remember(tools) { processSummary(tools) }
@@ -866,7 +867,7 @@ private fun ToolProcessGroup(
                 modifier = Modifier.weight(1f)
             )
             Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.outline
@@ -874,11 +875,20 @@ private fun ToolProcessGroup(
         }
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(start = 20.dp, top = 2.dp)) {
-                tools.filterNot { toolStatus(it) == "running" }.forEach { tool ->
-                    ToolMessageItem(
-                        content = tool.content,
-                        onOpenDetail = onOpenDetail,
-                    )
+                tools.filterNot { it.role == MessageRole.TOOL && toolStatus(it) == "running" }.forEach { item ->
+                    if (item.role == MessageRole.ASSISTANT) {
+                        ReasoningCard(
+                            isFinished = true,
+                            elapsedSeconds = "",
+                            reasoningText = item.content.substringBefore('\u0001'),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        ToolMessageItem(
+                            content = item.content,
+                            onOpenDetail = onOpenDetail,
+                        )
+                    }
                 }
             }
         }
@@ -956,7 +966,7 @@ private fun ToolMessageItem(
                 )
             }
             Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.outline
@@ -1113,7 +1123,10 @@ private fun buildChatRows(messages: List<ChatMessage>): List<ChatRow> {
         }
     }
     for (message in messages) {
-        if (message.role == MessageRole.TOOL) {
+        val reasoningOnly = message.role == MessageRole.ASSISTANT &&
+            message.content.contains('\u0001') &&
+            message.content.substringAfter('\u0001').isBlank()
+        if (message.role == MessageRole.TOOL || reasoningOnly) {
             tools.add(message)
         } else {
             flush()
@@ -1129,6 +1142,7 @@ private fun toolStatus(message: ChatMessage): String =
 
 private fun processVerb(name: String, done: Boolean): String = when {
     name.contains("bash") || name.contains("shell") -> if (done) "执行了命令" else "运行命令"
+    name.contains("image") -> if (done) "已读取图片" else "读取图片"
     name.contains("read") -> if (done) "已读取文件" else "读取文件"
     name.contains("write") || name.contains("edit") -> if (done) "已编辑文件" else "编辑文件"
     name.contains("grep") || name.contains("glob") -> if (done) "已搜索文件" else "搜索文件"
@@ -1138,11 +1152,11 @@ private fun processVerb(name: String, done: Boolean): String = when {
 }
 
 private fun processSummary(tools: List<ChatMessage>): String {
-    val verbs = tools.mapNotNull { message ->
+    val verbs = tools.filter { it.role == MessageRole.TOOL }.mapNotNull { message ->
         val name = message.content.split(2.toChar()).getOrNull(3) ?: return@mapNotNull null
         processVerb(name, done = true)
     }.distinct()
-    return verbs.joinToString("，")
+    return verbs.joinToString("并")
 }
 data class ToolDetailData(
     val callId: String,
@@ -1793,6 +1807,10 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
 
 
 
