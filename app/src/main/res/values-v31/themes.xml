@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DSH" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FBFBFB</item>
+        <item name="android:statusBarColor">#FBFBFB</item>
+        <item name="android:navigationBarColor">#FBFBFB</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">#FBFBFB</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#FBFBFB</item>
+    </style>
+</resources>
