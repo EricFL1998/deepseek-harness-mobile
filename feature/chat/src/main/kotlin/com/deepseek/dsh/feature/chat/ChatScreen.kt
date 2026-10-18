@@ -1680,7 +1680,7 @@ private fun ComposerTrigger(
             )
         }
         Icon(
-            painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_down),
+            painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_down_official),
             contentDescription = null,
             tint = colors.labelCaption,
             modifier = Modifier.size(14.dp),
@@ -2008,6 +2008,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
