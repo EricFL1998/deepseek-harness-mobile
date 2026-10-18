@@ -286,6 +286,10 @@ class DshRepository(
         client.selectModel(hostId, sessionId, model, provider)
     }
 
+    suspend fun answerUserQuestion(hostId: String, sessionId: String, callId: String, questionId: String, selected: String) {
+        client.answerUserQuestion(hostId, sessionId, callId, questionId, selected)
+    }
+
     suspend fun selectPermissionPreset(hostId: String, sessionId: String, preset: String) {
         dao.updateSessionPermission(hostId, sessionId, preset)
         client.selectPermissionPreset(hostId, sessionId, preset)
@@ -417,6 +421,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 

@@ -90,6 +90,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
+    /** 使用 app-specific 外部目录，proot/Android 11+ 才能稳定读写（不受 MANAGE_EXTERNAL_STORAGE 限制）。 */
+    private val externalWorkspaceDir: File by lazy {
+        File(getExternalFilesDir(null) ?: filesDir, "DSH-Workspace")
+    }
 
     private lateinit var runtimeManager: HostRuntimeManager
     private val runner = HostProcessRunner()
@@ -111,7 +115,7 @@ class MainActivity : ComponentActivity() {
         )
 
         workspaceManager = WorkspaceManager(
-            preferredPublicDir = File("/storage/emulated/0/Documents/DSH-Workspace"),
+            preferredPublicDir = externalWorkspaceDir,
             appPrivateDir = filesDir
         )
 
@@ -1029,6 +1033,8 @@ fun RuntimeControlScreen(
 ) {
     val status by runner.statusFlow.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val workspaceDir = remember { java.io.File(context.getExternalFilesDir(null) ?: context.filesDir, "DSH-Workspace") }
     var installProgress by remember { mutableStateOf<Pair<Float, String>?>(null) }
     var isInstalling by remember { mutableStateOf(false) }
 
@@ -1148,7 +1154,7 @@ fun RuntimeControlScreen(
                         androidx.compose.material3.Button(
                             onClick = {
                                 scope.launch {
-                                    val result = runtimeManager.start("/storage/emulated/0/Documents/DSH-Workspace")
+                                    val result = runtimeManager.start(workspaceDir.absolutePath)
                                     result.exceptionOrNull()?.let { error ->
                                         installProgress = 0f to "启动失败：${error.message}"
                                     }
@@ -1378,6 +1384,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 

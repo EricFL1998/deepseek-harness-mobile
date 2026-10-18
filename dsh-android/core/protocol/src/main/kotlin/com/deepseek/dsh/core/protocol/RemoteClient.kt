@@ -323,6 +323,43 @@ class RemoteClient(
         }
     }
 
+
+    override suspend fun answerUserQuestion(
+        hostId: String,
+        sessionId: String,
+        callId: String,
+        questionId: String,
+        selected: String
+    ): Boolean = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "userQuestions/answer")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject {
+                    put("agentId", sessionId)
+                    put("callId", callId)
+                    put("answer", buildJsonObject {
+                        put("answers", kotlinx.serialization.json.JsonArray(listOf(
+                            buildJsonObject {
+                                put("id", questionId)
+                                put("selected", kotlinx.serialization.json.JsonArray(listOf(
+                                    kotlinx.serialization.json.JsonPrimitive(selected)
+                                )))
+                            }
+                        )))
+                    })
+                })
+            })
+        }.toString()
+        val request = Request.Builder()
+            .url("$baseUrl/api/userQuestions/answer")
+            .post(payload.toRequestBody(mediaTypeJson))
+            .build()
+        runCatching {
+            client.newCall(request).execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
     override suspend fun getModelCatalog(hostId: String): RemoteResult<ModelCatalogInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
@@ -1331,6 +1368,7 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
 
 
 
