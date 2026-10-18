@@ -128,6 +128,8 @@ class DefaultHostRuntimeManager(
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-fs-local/lib/index.js",
             "rootfs-patches/dsh-tool-bash-index.js" to
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tool-bash/lib/index.js",
+            "rootfs-patches/dsh-tool-fs-search-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tool-fs-search/lib/index.js",
         )
         patches.forEach { (asset, relative) ->
             val target = File(layout.rootfsDir, relative)
@@ -284,6 +286,7 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
 
 
 

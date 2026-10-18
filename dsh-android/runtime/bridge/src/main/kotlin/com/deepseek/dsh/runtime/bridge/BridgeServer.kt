@@ -139,6 +139,14 @@ class BridgeServer(
                     BridgeResponse(id = request.id, result = res)
                 }
 
+                BridgeMethod.EXEC_PROOT.methodName -> {
+                    val params = request.params as? JsonObject
+                    val argv = (params?.get("argv") as? kotlinx.serialization.json.JsonArray)
+                        ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } ?: emptyList()
+                    val cwd = params?.get("cwd")?.jsonPrimitive?.content ?: "/"
+                    val timeoutMs = params?.get("timeoutMs")?.jsonPrimitive?.content?.toLongOrNull() ?: 120_000L
+                    BridgeResponse(id = request.id, result = execProot(argv, cwd, timeoutMs))
+                }
                 BridgeMethod.EXEC_SHELL.methodName -> {
                     val params = request.params as? JsonObject
                     val command = params?.get("command")?.jsonPrimitive?.content ?: ""
@@ -165,10 +173,20 @@ class BridgeServer(
 
 
     private fun execShell(command: String, cwd: String, timeoutMs: Long): JsonObject {
-        val builder = ProcessBuilder("/system/bin/sh", "-c", command)
+        val visibleWorkspace = java.io.File(
+            android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace"
+        ).absolutePath
+        fun mapPath(path: String): String = when {
+            path == "/workspace" -> visibleWorkspace
+            path.startsWith("/workspace/") -> visibleWorkspace + path.removePrefix("/workspace")
+            else -> path
+        }
+        val mappedCommand = command.replace("/workspace", visibleWorkspace)
+        val mappedCwd = mapPath(cwd)
+        val builder = ProcessBuilder("/system/bin/sh", "-c", mappedCommand)
         builder.redirectErrorStream(false)
-        if (cwd.isNotBlank()) {
-            val dir = java.io.File(cwd)
+        if (mappedCwd.isNotBlank()) {
+            val dir = java.io.File(mappedCwd)
             if (dir.isDirectory) builder.directory(dir)
         }
         val process = builder.start()
@@ -180,6 +198,42 @@ class BridgeServer(
         val errThread = Thread {
             runCatching { process.errorStream.bufferedReader().use { r -> r.forEachLine { stderr.appendLine(it) } } }
         }
+        outThread.start(); errThread.start()
+        val finished = process.waitFor(timeoutMs.coerceAtLeast(1_000), java.util.concurrent.TimeUnit.MILLISECONDS)
+        if (!finished) process.destroyForcibly()
+        outThread.join(2_000); errThread.join(2_000)
+        return buildJsonObject {
+            put("exitCode", if (finished) process.exitValue() else -1)
+            put("stdout", stdout.toString())
+            put("stderr", stderr.toString())
+            put("timedOut", !finished)
+        }
+    }
+    private fun execProot(argv: List<String>, cwd: String, timeoutMs: Long): JsonObject {
+        val nativeLib = context.applicationInfo.nativeLibraryDir
+        val rootfs = java.io.File(context.filesDir, "rootfs").absolutePath
+        val visible = java.io.File(
+            android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace"
+        ).absolutePath
+        val command = mutableListOf(
+            "$nativeLib/libproot.so", "-r", rootfs,
+            "-b", "/proc", "-b", "/dev", "-b", "/sys",
+            "-b", "$visible:/workspace", "--link2symlink", "-w", cwd
+        )
+        command.addAll(argv)
+        val builder = ProcessBuilder(command)
+        builder.redirectErrorStream(false)
+        builder.environment()["PROOT_LOADER"] = "$nativeLib/libproot-loader.so"
+        builder.environment()["PROOT_TMP_DIR"] = java.io.File(context.cacheDir, "proot-tmp").apply { mkdirs() }.absolutePath
+        return runProcess(builder, timeoutMs)
+    }
+
+    private fun runProcess(builder: ProcessBuilder, timeoutMs: Long): JsonObject {
+        val process = builder.start()
+        val stdout = StringBuilder()
+        val stderr = StringBuilder()
+        val outThread = Thread { runCatching { process.inputStream.bufferedReader().use { r -> r.forEachLine { stdout.appendLine(it) } } } }
+        val errThread = Thread { runCatching { process.errorStream.bufferedReader().use { r -> r.forEachLine { stderr.appendLine(it) } } } }
         outThread.start(); errThread.start()
         val finished = process.waitFor(timeoutMs.coerceAtLeast(1_000), java.util.concurrent.TimeUnit.MILLISECONDS)
         if (!finished) process.destroyForcibly()
@@ -206,4 +260,7 @@ class BridgeServer(
         nm.notify((System.currentTimeMillis() % 10000).toInt(), notification)
     }
 }
+
+
+
 
