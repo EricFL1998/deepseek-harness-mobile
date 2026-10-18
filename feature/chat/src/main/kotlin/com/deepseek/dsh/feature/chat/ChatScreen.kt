@@ -1824,7 +1824,7 @@ fun BottomInputBar(
                             leadingIconResId = currentPermission.iconResId(),
                             labelWeight = FontWeight.Medium,
                             onClick = onOpenPermissionMenu,
-                            modifier = Modifier.widthIn(max = 112.dp),
+                            modifier = Modifier.widthIn(max = 140.dp),
                         )
                         PermissionMenu(
                             expanded = permissionMenuOpen,
@@ -2015,6 +2015,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
