@@ -608,6 +608,9 @@ fun MainAppHost(
     }
 
     var workspaceRevision by remember { mutableStateOf(0) }
+    var activeWorkspaceName by remember { mutableStateOf("默认工作区") }
+    val activeWorkspaceCwd = "/workspace/$activeWorkspaceName"
+    val activeWorkspaceFolderPath = java.io.File(activeWorkspace, activeWorkspaceName).absolutePath
     var showAddWorkspaceDialog by remember { mutableStateOf(false) }
     var newWorkspaceName by remember { mutableStateOf("") }
     var renameWorkspaceFolder by remember {
@@ -618,50 +621,55 @@ fun MainAppHost(
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
     if (showAddWorkspaceDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showAddWorkspaceDialog = false },
-            title = { Text("新建工作区") },
-            text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = newWorkspaceName,
-                    onValueChange = { newWorkspaceName = it },
-                    singleLine = true,
-                    placeholder = { Text("工作区名称") }
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { showAddWorkspaceDialog = false },
+            title = "新建工作区",
+            closeLabel = "关闭",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "取消",
+                    primary = false,
+                    enabled = true,
+                    onClick = { showAddWorkspaceDialog = false },
                 )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "创建",
+                    primary = true,
                     enabled = newWorkspaceName.isNotBlank(),
                     onClick = {
                         val name = newWorkspaceName.trim()
                         if (name.isNotEmpty()) {
                             java.io.File(activeWorkspace, name).mkdirs()
+                            activeWorkspaceName = name
                             workspaceRevision += 1
                         }
                         showAddWorkspaceDialog = false
-                    }
-                ) { Text("创建") }
+                    },
+                )
             },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showAddWorkspaceDialog = false }) {
-                    Text("取消")
-                }
-            }
+            content = {
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = newWorkspaceName,
+                    onValueChange = { newWorkspaceName = it },
+                    placeholder = "工作区名称",
+                )
+            },
         )
     }
     renameWorkspaceFolder?.let { folder ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { renameWorkspaceFolder = null },
-            title = { Text("重命名工作区") },
-            text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = renameWorkspaceName,
-                    onValueChange = { renameWorkspaceName = it },
-                    singleLine = true
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { renameWorkspaceFolder = null },
+            title = "重命名工作区",
+            closeLabel = "关闭",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "取消", primary = false, enabled = true,
+                    onClick = { renameWorkspaceFolder = null },
                 )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "保存", primary = true,
                     enabled = renameWorkspaceName.isNotBlank(),
                     onClick = {
                         val target = java.io.File(
@@ -670,42 +678,48 @@ fun MainAppHost(
                         val renamed = java.io.File(target.parentFile, renameWorkspaceName.trim())
                         if (target.exists() && renamed.absolutePath != target.absolutePath) {
                             runCatching { target.renameTo(renamed) }
+                            if (folder.name == activeWorkspaceName) activeWorkspaceName = renameWorkspaceName.trim()
                             workspaceRevision += 1
                         }
                         renameWorkspaceFolder = null
-                    }
-                ) { Text("保存") }
+                    },
+                )
             },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { renameWorkspaceFolder = null }) {
-                    Text("取消")
-                }
-            }
+            content = {
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = renameWorkspaceName,
+                    onValueChange = { renameWorkspaceName = it },
+                    placeholder = "工作区名称",
+                )
+            },
         )
     }
 
     deleteWorkspaceFolder?.let { folder ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { deleteWorkspaceFolder = null },
-            title = { Text("删除工作区") },
-            text = { Text("将删除「${folder.name}」及其中的所有文件，此操作不可撤销。") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { deleteWorkspaceFolder = null },
+            title = "删除工作区",
+            closeLabel = "关闭",
+            description = "将删除「${folder.name}」及其中的所有文件，此操作不可撤销。",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "取消", primary = false, enabled = true,
+                    onClick = { deleteWorkspaceFolder = null },
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "删除", primary = true, enabled = true,
                     onClick = {
                         val target = java.io.File(
                             folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
                         )
                         runCatching { target.deleteRecursively() }
+                        if (folder.name == activeWorkspaceName) activeWorkspaceName = "默认工作区"
                         workspaceRevision += 1
                         deleteWorkspaceFolder = null
-                    }
-                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                    },
+                )
             },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { deleteWorkspaceFolder = null }) {
-                    Text("取消")
-                }
-            }
         )
     }
     val files = remember(activePage, activeWorkspace) {
@@ -772,6 +786,8 @@ fun MainAppHost(
                     onSignIn = { showSignInDialog = true },
                     onSignOut = hostSignOut,
                     workspaces = workspaceFolders,
+                    selectedWorkspaceName = activeWorkspaceName,
+                    onSelectWorkspace = { folder -> activeWorkspaceName = folder.name },
                     selectedSessionId = selectedSessionId,
                     onSelectSession = { sessionId ->
                         selectedSessionId = sessionId
@@ -783,7 +799,7 @@ fun MainAppHost(
                             val result = dshRepository.createSession(
                                 hostId = activeHostId,
                                 title = "新对话 ${sessions.size + 1}",
-                                workspacePath = activeWorkspace.absolutePath
+                                workspacePath = activeWorkspaceFolderPath
                             )
                             result.onSuccess { newSession ->
                                 selectedSessionId = newSession.sessionId
@@ -954,7 +970,7 @@ fun MainAppHost(
                                             suspend fun createOnce(): String? = dshRepository.createSession(
                                                 activeHostId,
                                                 text.take(24),
-                                                "/workspace/默认工作区"
+                                                activeWorkspaceCwd
                                             ).getOrNull()?.sessionId
                                             sid = createOnce()
                                             if (sid == null) {
@@ -1774,6 +1790,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 

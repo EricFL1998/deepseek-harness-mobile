@@ -120,6 +120,8 @@ fun ModernNavigationDrawerContent(
     onNavigateSettings: () -> Unit = {},
     onAddWorkspace: () -> Unit = {},
     onRenameWorkspace: (WorkspaceFolder) -> Unit = {},
+    selectedWorkspaceName: String = "",
+    onSelectWorkspace: (WorkspaceFolder) -> Unit = {},
     onDeleteWorkspace: (WorkspaceFolder) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -349,8 +351,16 @@ fun ModernNavigationDrawerContent(
                             .padding(top = if (folderIndex == 0) 0.dp else 4.dp)
                             .height(32.dp)
                             .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (folder.name == selectedWorkspaceName) {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
                             .combinedClickable(
                                 onClick = {
+                                    onSelectWorkspace(folder)
                                     expandedMap = expandedMap.toMutableMap().apply {
                                         put(folder.id, !isExpanded)
                                     }
@@ -383,38 +393,12 @@ fun ModernNavigationDrawerContent(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    androidx.compose.material3.DropdownMenu(
+                    WorkspaceRowMenu(
                         expanded = workspaceMenuId == folder.id,
-                        onDismissRequest = { workspaceMenuId = null }
-                    ) {
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = { Text("重命名") },
-                            leadingIcon = {
-                                Icon(
-                                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official),
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = {
-                                workspaceMenuId = null
-                                onRenameWorkspace(folder)
-                            }
-                        )
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = { Text("删除工作区", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = {
-                                Icon(
-                                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_delete_workspace_official),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            onClick = {
-                                workspaceMenuId = null
-                                onDeleteWorkspace(folder)
-                            }
-                        )
-                    }
+                        onDismiss = { workspaceMenuId = null },
+                        onRename = { onRenameWorkspace(folder) },
+                        onDelete = { onDeleteWorkspace(folder) },
+                    )
                     }
                 }
 
@@ -647,6 +631,40 @@ private fun SessionRowMenu(
     }
 }
 
+/** 工作区长按菜单：与账户/会话菜单同一 Dsh 菜单材质。 */
+@Composable
+private fun WorkspaceRowMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    AnchoredMenuPopup(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        contentWidth = true,
+        anchorGap = 0.dp,
+    ) {
+        DshMenuRow(onClick = { onDismiss(); onRename() }) {
+            DshMenuIcon(com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official)
+            DshMenuLabel("重命名")
+        }
+        DshMenuRow(onClick = { onDismiss(); onDelete() }, danger = true) {
+            val error = com.deepseek.dsh.core.designsystem.dshPanelColors().stateErrorPrimary
+            DshMenuIcon(
+                com.deepseek.dsh.core.designsystem.R.drawable.ic_action_delete_workspace_official,
+                tint = error
+            )
+            Text(
+                text = "删除工作区",
+                color = error,
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                fontWeight = FontWeight.Normal
+            )
+        }
+    }
+}
 @Composable
 private fun DrawerItem(
     iconResId: Int,
@@ -719,6 +737,9 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
 
 
 
