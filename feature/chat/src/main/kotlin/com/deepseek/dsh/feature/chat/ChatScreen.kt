@@ -1651,9 +1651,9 @@ private fun ComposerTrigger(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(start = 8.dp, end = 4.dp),
+            .padding(start = 5.dp, end = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         if (leadingIconResId != null) {
             Icon(
@@ -1794,7 +1794,7 @@ fun BottomInputBar(
                         .fillMaxWidth()
                         .padding(start = 5.dp, end = 5.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // 加号：28dp 圆形 selector 按钮（无 Material 涟漪）
                     Box(
@@ -2015,6 +2015,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
