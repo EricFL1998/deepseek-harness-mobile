@@ -1038,7 +1038,7 @@ fun BottomInputBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 4.dp, end = 4.dp, bottom = 6.dp),
+                        .padding(start = 5.dp, end = 5.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -1260,6 +1260,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
