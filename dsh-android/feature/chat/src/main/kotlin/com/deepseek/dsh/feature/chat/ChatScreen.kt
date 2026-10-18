@@ -919,7 +919,7 @@ private fun ComposerTrigger(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(
-                max = if (trailingValue.isNullOrBlank()) 132.dp else 96.dp,
+                max = if (trailingValue.isNullOrBlank()) 132.dp else 132.dp,
             ),
         )
         if (!trailingValue.isNullOrBlank()) {
@@ -1067,7 +1067,7 @@ fun BottomInputBar(
                             leadingIconResId = currentPermission.iconResId(),
                             labelWeight = FontWeight.Medium,
                             onClick = onOpenPermissionMenu,
-                            modifier = Modifier.widthIn(max = 164.dp),
+                            modifier = Modifier.widthIn(max = 112.dp),
                         )
                         PermissionMenu(
                             expanded = permissionMenuOpen,
@@ -1078,15 +1078,14 @@ fun BottomInputBar(
                         )
                     }
 
-                    Spacer(modifier = Modifier.weight(1f))
-
                     // 模型与推理等级：trigger（当前模型 + 推理等级 + 箭头），菜单锚定在此
-                    Box(modifier = Modifier.onGloballyPositioned { modelAnchor = it.boundsInWindow() }) {
+                    Box(modifier = Modifier.weight(1f).onGloballyPositioned { modelAnchor = it.boundsInWindow() }) {
                         ComposerTrigger(
                             label = selectedModel,
                             // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
                             trailingValue = if (availableModels.isEmpty()) null else effortLabel,
                             onClick = onOpenModelMenu,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                         ModelEffortMenu(
                             expanded = modelMenuOpen,
@@ -1258,6 +1257,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
