@@ -304,12 +304,8 @@ fun MainAppHost(
     val dshApplication = context.applicationContext as DshApplication
 
     // Host 目录优先；Host 冷启动期间用上次缓存立即渲染，避免“请选择模型”闪烁。
-    val effectiveModelNames = remember(hostModelNames, cachedModelNames, accountState) {
-        when {
-            hostModelNames.isNotEmpty() -> hostModelNames
-            accountState.hasApiKey || accountState.isSignedIn -> cachedModelNames
-            else -> emptyList()
-        }
+    val effectiveModelNames = remember(hostModelNames, cachedModelNames) {
+        if (hostModelNames.isNotEmpty()) hostModelNames else cachedModelNames
     }
     val effectiveModelIdByName = remember(
         hostModelNames, hostModelIdByName, cachedModelNames, cachedModelIds
