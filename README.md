@@ -18,7 +18,6 @@
 ## 模块拓扑与工程结构
 
 ```
-dsh-android/
 ├── app/                           # 主入口：MainActivity (Compose), DshApplication, 资产与资源
 ├── core/
 │   ├── model/                     # 核心领域模型 (HostDescriptor, DshSlotRegistry, ChatMessage, SessionInfo)
@@ -204,6 +203,7 @@ Android 窗口无法对弹层背后的内容做 backdrop blur，因此菜单/面
 - `RootfsInstaller` 支持下载进度、SHA-256 校验、tar.gz 安全解包（含硬链接可执行位恢复）；
 - proot 已替换为 `build-proot-android` 的 Android NDK 构建（含独立 loader），放在 `jniLibs/{x86_64,arm64-v8a}/libproot.so` + `libproot-loader.so`，通过 `PROOT_LOADER` 启动；已能拉起 Node；
 - 当前剩余问题：DSH 启动时 profile bundle（`@deepseek-ai/dsh-base` / `dsh-web-app`）在 proot 内解析失败，容器内同一 rootfs 正常，需继续修该解析路径。
+
 
 
 
