@@ -717,6 +717,16 @@ fun MainAppHost(
 
                             ModernChatScreen(
                                 messages = messages,
+                                onAnswerUserQuestion = { callId, questionId, selected ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            dshRepository.answerUserQuestion(
+                                                activeHostId, sid, callId, questionId, selected
+                                            )
+                                        }
+                                    }
+                                },
                                 onSendMessage = { text ->
                                     scope.launch {
                                         var sid = selectedSessionId
@@ -1462,6 +1472,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

@@ -162,6 +162,7 @@ private val MODEL_CATALOG = listOf("DeepSeek-V3", "DeepSeek-R1", "DeepSeek-V3.2"
 fun ModernChatScreen(
     messages: List<ChatMessage>,
     onSendMessage: (String) -> Unit,
+    onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "DeepSeek-V3",
     availableModels: List<String> = MODEL_CATALOG,
@@ -218,7 +219,8 @@ fun ModernChatScreen(
                 items(messages, key = { it.messageId }) { msg ->
                     ModernMessageItem(
                         message = msg,
-                        onRetry = { onSendMessage(msg.content) }
+                        onRetry = { onSendMessage(msg.content) },
+                        onAnswerUserQuestion = onAnswerUserQuestion,
                     )
                 }
 
@@ -782,12 +784,16 @@ fun ReasoningCard(
 
 /** 工具调用/结果：官方披露行样式，点击展开参数或输出。 */
 @Composable
-private fun ToolMessageItem(content: String) {
-    val parts = content.split('\u0002')
+private fun ToolMessageItem(
+    content: String,
+    onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
+) {
+    val parts = content.split(2.toChar())
     if (parts.size < 5) return
-    val name = parts[2]
-    val status = parts[3]
-    val body = parts[4]
+    val callId = if (parts.size >= 6) parts[2] else ""
+    val name = if (parts.size >= 6) parts[3] else parts[2]
+    val status = if (parts.size >= 6) parts[4] else parts[3]
+    val body = if (parts.size >= 6) parts.drop(5).joinToString(2.toChar().toString()) else parts[4]
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
         Row(
@@ -834,7 +840,67 @@ private fun ToolMessageItem(content: String) {
                 tint = MaterialTheme.colorScheme.outline
             )
         }
-        AnimatedVisibility(visible = expanded && body.isNotBlank()) {
+        if (name.contains("ask_user_question") && status == "running") {
+            val askQuestions = remember(body) { parseAskQuestions(body) }
+            if (askQuestions.isNotEmpty()) {
+                Column(modifier = Modifier.padding(start = 22.dp, top = 4.dp)) {
+                    askQuestions.forEach { q ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = androidx.compose.foundation.BorderStroke(
+                                0.5.dp, MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                if (q.header.isNotBlank()) {
+                                    Text(
+                                        text = q.header,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                Text(
+                                    text = q.question,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                q.options.forEach { option ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                if (callId.isNotBlank()) {
+                                                    onAnswerUserQuestion(callId, q.id, option.label)
+                                                }
+                                            }
+                                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .clip(CircleShape)
+                                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = option.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else AnimatedVisibility(visible = expanded && body.isNotBlank()) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
@@ -854,13 +920,33 @@ private fun ToolMessageItem(content: String) {
         }
     }
 }
-/**
- * 消息项：用户气泡、助手正文与五项消息操作。
- */
+
+private data class AskOption(val label: String, val description: String)
+private data class AskQuestion(val id: String, val question: String, val header: String, val options: List<AskOption>)
+
+private fun parseAskQuestions(raw: String): List<AskQuestion> = runCatching {
+    val root = org.json.JSONObject(raw)
+    val arr = root.optJSONArray("questions") ?: return emptyList()
+    (0 until arr.length()).mapNotNull { index ->
+        val obj = arr.optJSONObject(index) ?: return@mapNotNull null
+        val id = obj.optString("id")
+        val question = obj.optString("question")
+        if (id.isBlank() || question.isBlank()) return@mapNotNull null
+        val optionArray = obj.optJSONArray("options")
+        val options = if (optionArray == null) emptyList() else {
+            (0 until optionArray.length()).mapNotNull { oi ->
+                val oo = optionArray.optJSONObject(oi) ?: return@mapNotNull null
+                AskOption(oo.optString("label"), oo.optString("description"))
+            }
+        }
+        AskQuestion(id, question, obj.optString("header"), options)
+    }
+}.getOrDefault(emptyList())
 @Composable
 fun ModernMessageItem(
     message: ChatMessage,
-    onRetry: () -> Unit = {}
+    onRetry: () -> Unit = {},
+    onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
 ) {
     val isUser = message.role == MessageRole.USER
 
@@ -882,7 +968,7 @@ fun ModernMessageItem(
                 )
             }
         } else if (message.role == MessageRole.TOOL) {
-            ToolMessageItem(content = message.content)
+            ToolMessageItem(content = message.content, onAnswerUserQuestion = onAnswerUserQuestion)
         } else {
             Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
                 Row(
@@ -970,6 +1056,12 @@ fun ModernMessageItem(
         }
     }
 }
+
+/**
+ * composer trigger 药丸（模型 / 权限选择器）：
+ * 28dp 高、R8、左 8dp / 右 4dp 内边距、4dp 间距、13sp/20 二级色标签、
+ * 14dp 菜单/箭头图标，按压用 hover 填充且无 Material 涟漪。
+ */
 
 /**
  * composer trigger 药丸（模型 / 权限选择器）：
@@ -1359,6 +1451,11 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
 
 
 

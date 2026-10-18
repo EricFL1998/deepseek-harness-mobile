@@ -1338,7 +1338,7 @@ class RemoteClient(
                             val name = data["name"]?.toString()?.trim('"') ?: "tool"
                             val args = data["arguments"]?.toString()?.trim('"') ?: ""
                             toolNames[callId] = name
-                            emit("tool_$callId", MessageRole.TOOL, "\u0002TOOL\u0002$name\u0002running\u0002$args")
+                            emit("tool_$callId", MessageRole.TOOL, "\u0002TOOL\u0002$callId\u0002$name\u0002running\u0002$args")
                         }
                         "tool/result" -> {
                             val message = data["message"] as? kotlinx.serialization.json.JsonObject
@@ -1355,7 +1355,7 @@ class RemoteClient(
                             emit(
                                 "tool_$callId",
                                 MessageRole.TOOL,
-                                "\u0002TOOL\u0002$name\u0002${if (failed) "error" else "ok"}\u0002$body"
+                                "\u0002TOOL\u0002$callId\u0002$name\u0002${if (failed) "error" else "ok"}\u0002$body"
                             )
                         }
                     }
@@ -1370,6 +1370,7 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
 
 
 
