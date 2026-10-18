@@ -77,7 +77,9 @@ data class SessionDisplayItem(
     val sessionId: String,
     val title: String,
     val timeAgo: String,
-    val isActiveDot: Boolean = false
+    val isActiveDot: Boolean = false,
+    val isRunning: Boolean = false,
+    val hasUnread: Boolean = false
 )
 
 data class WorkspaceFolder(
@@ -386,6 +388,22 @@ fun ModernNavigationDrawerContent(
                                         .weight(1f)
                                         .padding(start = 4.dp, end = 6.dp)
                                 )
+                                if (session.isRunning) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = Modifier.size(12.dp),
+                                        strokeWidth = 1.5.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                } else if (session.hasUnread) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF34C759))
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
                                 Text(
                                     text = session.timeAgo,
                                     color = textMuted,
@@ -620,6 +638,7 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 
 

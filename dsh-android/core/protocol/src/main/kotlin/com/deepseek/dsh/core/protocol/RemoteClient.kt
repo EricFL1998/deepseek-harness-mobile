@@ -1312,6 +1312,8 @@ class RemoteClient(
                     }
 
                     when (eventType) {
+                        "turn/start" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, true))
+                        "turn/end" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
                         "assistant/message" -> {
                             val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
                             val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
@@ -1368,6 +1370,7 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
 
 
 

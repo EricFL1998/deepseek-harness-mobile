@@ -40,6 +40,7 @@ sealed interface RemoteEvent {
 
     @Serializable
     data class SessionUpdated(val session: SessionInfo) : RemoteEvent
+    data class SessionRunning(val sessionId: String, val running: Boolean) : RemoteEvent
 
     @Serializable
     data class Error(val code: String, val message: String) : RemoteEvent
@@ -76,5 +77,6 @@ interface DshClientProtocol {
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
 }
+
 
 

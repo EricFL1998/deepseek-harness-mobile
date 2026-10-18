@@ -234,6 +234,9 @@ fun MainAppHost(
 
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
     val liveSessionIds by dshRepository.liveSessionIdsFlow.collectAsState()
+    val runningSessionIds by dshRepository.runningSessionIdsFlow.collectAsState()
+    val unreadSessionIds by dshRepository.unreadSessionIdsFlow.collectAsState()
+    LaunchedEffect(selectedSessionId) { dshRepository.markSessionViewed(selectedSessionId) }
     LaunchedEffect(sessions, liveSessionIds) {
         val current = selectedSessionId
         selectedSessionId = when {
@@ -539,6 +542,8 @@ fun MainAppHost(
                     com.deepseek.dsh.feature.sessions.SessionDisplayItem(
                         sessionId = s.sessionId,
                         title = s.title,
+                        isRunning = s.sessionId in runningSessionIds,
+                        hasUnread = s.sessionId in unreadSessionIds,
                         timeAgo = run {
                             val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
                             if (elapsed < 24L * 60 * 60 * 1000) {
@@ -1456,6 +1461,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 

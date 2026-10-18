@@ -219,6 +219,10 @@ class DshRepository(
     }
 
     val liveSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+    val runningSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+    val unreadSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
+    private var viewedSessionId: String? = null
+    fun markSessionViewed(sessionId: String?) { viewedSessionId = sessionId; if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId }
 
     suspend fun refreshSessions(hostId: String) {
         when (val res = client.listSessions(hostId)) {
@@ -379,6 +383,16 @@ class DshRepository(
         scope.launch(Dispatchers.IO) {
             client.subscribeEvents(hostId).collect { event ->
                 when (event) {
+                    is RemoteEvent.SessionRunning -> {
+                        runningSessionIdsFlow.value = if (event.running) {
+                            runningSessionIdsFlow.value + event.sessionId
+                        } else {
+                            runningSessionIdsFlow.value - event.sessionId
+                        }
+                        if (!event.running && event.sessionId != viewedSessionId) {
+                            unreadSessionIdsFlow.value = unreadSessionIdsFlow.value + event.sessionId
+                        }
+                    }
                     is RemoteEvent.MessageDelta -> {}
                     is RemoteEvent.MessageDone -> {
                         dao.insertMessages(
@@ -421,6 +435,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 
