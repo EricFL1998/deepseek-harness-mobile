@@ -67,6 +67,22 @@ class RemoteClient(
     }
 
     /** 官方 account 系列 RPC 的共用请求与 result.value 解包。 */
+    private fun findFirstSessionId(element: kotlinx.serialization.json.JsonElement?): String? {
+        when (element) {
+            is kotlinx.serialization.json.JsonObject -> {
+                (element["sessionId"] as? kotlinx.serialization.json.JsonPrimitive)
+                    ?.content?.takeIf { it.isNotBlank() }?.let { return it }
+                element.values.forEach { value ->
+                    findFirstSessionId(value)?.let { return it }
+                }
+            }
+            is kotlinx.serialization.json.JsonArray -> element.forEach { value ->
+                findFirstSessionId(value)?.let { return it }
+            }
+            else -> Unit
+        }
+        return null
+    }
     private suspend fun accountRpc(
         method: String,
         args: kotlinx.serialization.json.JsonObject,
@@ -211,13 +227,15 @@ class RemoteClient(
                         ?.get("value") as? kotlinx.serialization.json.JsonObject
                 }.getOrNull()
                 val createdId = value?.get("sessionId")?.toString()?.trim('"')
-                if (createdId.isNullOrBlank()) {
+                val resolvedId = createdId?.takeIf { it.isNotBlank() }
+                    ?: findFirstSessionId(runCatching { json.parseToJsonElement(bodyStr) }.getOrNull())
+                if (resolvedId.isNullOrBlank()) {
                     return@withContext RemoteResult.Failure("dsh/session/create-malformed", "Host did not return sessionId")
                 }
                 RemoteResult.Success(
                     SessionInfo(
                         hostId = hostId,
-                        sessionId = createdId,
+                        sessionId = resolvedId,
                         title = title,
                         workspacePath = workspacePath,
                         status = "ready",
@@ -1389,6 +1407,10 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
+
+
+
 
 
 

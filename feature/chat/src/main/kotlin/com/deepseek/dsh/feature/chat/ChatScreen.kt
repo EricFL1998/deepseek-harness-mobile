@@ -202,96 +202,7 @@ fun ModernChatScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .imePadding()
-    ) {
-        if (messages.isEmpty() && !isSending) {
-            EmptyWelcomeView(
-                onChipClick = { prompt -> onSendMessage(prompt) },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-        } else if (messages.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    androidx.compose.material3.CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "正在创建会话…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(
-                    items = chatRows,
-                    key = { row ->
-                        when (row) {
-                            is ChatRow.Single -> row.message.messageId
-                            is ChatRow.Process -> "proc_${row.key}"
-                            is ChatRow.TurnDone -> "done_${row.key}"
-                        }
-                    }
-                ) { row ->
-                    when (row) {
-                        is ChatRow.Single -> ModernMessageItem(
-                            message = row.message,
-                            onRetry = { onSendMessage(row.message.content) },
-                            onAnswerUserQuestion = onAnswerUserQuestion,
-                            onOpenToolDetail = { toolDetail = it },
-                        )
-                        is ChatRow.TurnDone -> TurnCompletedRow(
-                            durationMs = row.durationMs,
-                            expanded = collapsedTurns[row.key] != true,
-                            onClick = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
-                        )
-                        is ChatRow.Process -> ToolProcessGroup(
-                            items = row.items,
-                            expanded = collapsedTurns[row.key] != true,
-                            onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
-                            onOpenDetail = { toolDetail = it },
-                        )
-                    }
-                }
-
-                val hasRunningProcess = chatRows.any { row ->
-                    row is ChatRow.Process && row.items.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
-                }
-                if (isThinking && !hasRunningProcess) {
-                    item {
-                        LiveToolStatus(messages = messages)
-                    }
-                }
-            }
-        }
-
-        toolDetail?.let { detail ->
-            ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
-        }
-
-        // 官方新会话上下文：工作区 + 模式，位于输入框上方。
+    val composerBlock: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -393,6 +304,111 @@ fun ModernChatScreen(
             onDockPluginClick = onDockPluginClick,
             stats = stats
         )
+    }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .imePadding()
+    ) {
+        if (messages.isEmpty() && !isSending) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    EmptyWelcomeView(
+                        onChipClick = { prompt -> onSendMessage(prompt) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(18.dp))
+                    composerBlock()
+                }
+            }
+        } else if (messages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "正在创建会话…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(
+                    items = chatRows,
+                    key = { row ->
+                        when (row) {
+                            is ChatRow.Single -> row.message.messageId
+                            is ChatRow.Process -> "proc_${row.key}"
+                            is ChatRow.TurnDone -> "done_${row.key}"
+                        }
+                    }
+                ) { row ->
+                    when (row) {
+                        is ChatRow.Single -> ModernMessageItem(
+                            message = row.message,
+                            onRetry = { onSendMessage(row.message.content) },
+                            onAnswerUserQuestion = onAnswerUserQuestion,
+                            onOpenToolDetail = { toolDetail = it },
+                        )
+                        is ChatRow.TurnDone -> TurnCompletedRow(
+                            durationMs = row.durationMs,
+                            expanded = collapsedTurns[row.key] != true,
+                            onClick = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
+                        )
+                        is ChatRow.Process -> ToolProcessGroup(
+                            items = row.items,
+                            expanded = collapsedTurns[row.key] != true,
+                            onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
+                            onOpenDetail = { toolDetail = it },
+                        )
+                    }
+                }
+
+                val hasRunningProcess = chatRows.any { row ->
+                    row is ChatRow.Process && row.items.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
+                }
+                if (isThinking && !hasRunningProcess) {
+                    item {
+                        LiveToolStatus(messages = messages)
+                    }
+                }
+            }
+        }
+
+        toolDetail?.let { detail ->
+            ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
+        }
+
+        if (!(messages.isEmpty() && !isSending)) {
+            composerBlock()
+        }
     }
 
     // 加号：分组命令菜单（添加 / 指令）
@@ -1917,6 +1933,10 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
 
 
 
