@@ -58,6 +58,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -142,6 +144,12 @@ fun ModernNavigationDrawerContent(
 
     var showAccountMenu by remember { mutableStateOf(false) }
     var workspaceMenuId by remember { mutableStateOf<String?>(null) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(searchOpen) {
+        if (searchOpen) searchFocus.requestFocus()
+    }
     var sessionMenuId by remember { mutableStateOf<String?>(null) }
 
     Column(
@@ -269,7 +277,61 @@ fun ModernNavigationDrawerContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 4. "工作区" 标题行与右侧操作按钮 [搜索 / 排序 / 外部打开]
+        // 4. "工作区" 标题行；点击搜索后整行变为搜索栏（官方 Drawer 行为）。
+        if (searchOpen) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 2.dp, bottom = 2.dp)
+                    .height(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_search_official),
+                    contentDescription = null,
+                    tint = textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                androidx.compose.foundation.text.BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = textPrimary,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    ),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(searchFocus),
+                    decorationBox = { inner ->
+                        if (searchQuery.isEmpty()) {
+                            Text("搜索会话名称", color = textMuted, fontSize = 13.sp)
+                        }
+                        inner()
+                    }
+                )
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_close),
+                    contentDescription = "关闭搜索",
+                    tint = textMuted,
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clickable {
+                            if (searchQuery.isNotEmpty()) {
+                                searchQuery = ""
+                            } else {
+                                searchOpen = false
+                            }
+                        }
+                )
+            }
+        } else {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -290,7 +352,10 @@ fun ModernNavigationDrawerContent(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable { },
+                    .clickable {
+                        searchQuery = ""
+                        searchOpen = true
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -320,14 +385,14 @@ fun ModernNavigationDrawerContent(
                     .clip(RoundedCornerShape(6.dp))
                     .clickable(onClick = onAddWorkspace),
                 contentAlignment = Alignment.Center
-            ) {
-                Icon(
+            ) {                Icon(
                     painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_project_add_official),
                     contentDescription = "新建工作区",
                     tint = textMuted,
                     modifier = Modifier.size(14.dp)
                 )
             }
+        }
         }
         Spacer(modifier = Modifier.height(2.dp))
 
@@ -340,8 +405,20 @@ fun ModernNavigationDrawerContent(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            workspaces.forEachIndexed { folderIndex, folder ->
-                val isExpanded = expandedMap[folder.id] ?: folder.isExpanded
+            val visibleWorkspaces = if (searchOpen && searchQuery.isNotBlank()) {
+                workspaces.map { folder ->
+                    folder.copy(
+                        sessions = folder.sessions.filter {
+                            it.title.contains(searchQuery, ignoreCase = true)
+                        },
+                        isExpanded = true
+                    )
+                }.filter { it.sessions.isNotEmpty() }
+            } else {
+                workspaces
+            }
+            visibleWorkspaces.forEachIndexed { folderIndex, folder ->
+                val isExpanded = if (searchOpen && searchQuery.isNotBlank()) true else (expandedMap[folder.id] ?: folder.isExpanded)
 
                 item(key = "fld_${folder.id}") {
                     Box {
@@ -741,6 +818,9 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
+
+
 
 
 
