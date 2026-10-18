@@ -29,6 +29,8 @@ data class InstallProgress(
 @Serializable
 data class RootfsManifest(
     val runtimeVersion: String = "",
+    val rootfsName: String = RootfsNaming.ARCHIVE_PREFIX,
+    val releaseTag: String = "",
     val baseDistro: String = "",
     val libc: String = "",
     val pageSize: String = "",
@@ -73,6 +75,9 @@ class RootfsInstaller(
     fun isInstalled(manifest: RootfsManifest): Boolean {
         val version = installedVersion() ?: return false
         if (version != manifest.runtimeVersion) return false
+        val marker = runCatching { json.decodeFromString<InstallMarker>(markerFile().readText()) }.getOrNull()
+        val currentAbi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+        if (!marker?.abi.isNullOrBlank() && currentAbi.isNotBlank() && marker.abi != currentAbi) return false
         return File(layout.rootfsDir, "etc/os-release").isFile ||
             File(layout.rootfsDir, "usr/bin/env").isFile
     }
@@ -123,7 +128,11 @@ class RootfsInstaller(
         val archive = when {
             localOverride.isFile -> localOverride
             archiveUrl.isNotBlank() -> {
-                val target = File(layout.cacheDir, "rootfs-${abi ?: manifest.runtimeVersion}.tar.gz")
+                val target = RootfsNaming.archiveCacheFile(
+                    layout.cacheDir,
+                    manifest.runtimeVersion,
+                    abi ?: android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" }
+                )
                 if (!(target.isFile && digestMatches(target, expectedSha))) {
                     onProgress(InstallProgress("下载 rootfs（${manifest.baseDistro.ifBlank { "Debian" }}）...", 0.02f))
                     val downloaded = download(effectiveManifest, target) { fraction ->
@@ -164,7 +173,7 @@ class RootfsInstaller(
             }
 
             onProgress(InstallProgress("解包 Compact rootfs...", 0.55f))
-            val staging = File(layout.cacheDir, "rootfs-staging")
+            val staging = RootfsNaming.stagingDir(layout.cacheDir, manifest.runtimeVersion)
             staging.deleteRecursively()
             staging.mkdirs()
             extractTarGz(archive, staging) { fraction ->
@@ -178,6 +187,13 @@ class RootfsInstaller(
             }
 
             onProgress(InstallProgress("替换 rootfs 目录...", 0.9f))
+            // 保留 DSH_HOME（账号、会话、插件配置），升级 rootfs 时不清空用户数据。
+            val preservedHome = File(layout.runtimeMetaDir, "dsh-home-preserved")
+            if (layout.dshHomeDir.exists()) {
+                preservedHome.deleteRecursively()
+                preservedHome.parentFile?.mkdirs()
+                runCatching { layout.dshHomeDir.copyRecursively(preservedHome, overwrite = true) }
+            }
             layout.rootfsDir.deleteRecursively()
             if (!source.renameTo(layout.rootfsDir)) {
                 source.copyRecursively(layout.rootfsDir, overwrite = true)
@@ -185,6 +201,10 @@ class RootfsInstaller(
             }
             layout.optDshDir.mkdirs()
             layout.dshHomeDir.mkdirs()
+            if (preservedHome.exists()) {
+                runCatching { preservedHome.copyRecursively(layout.dshHomeDir, overwrite = true) }
+                preservedHome.deleteRecursively()
+            }
 
             onProgress(InstallProgress("自检运行时工具链...", 0.95f))
             val toolchain = verifyToolchainIntegrity()
@@ -199,6 +219,9 @@ class RootfsInstaller(
                         baseDistro = manifest.baseDistro,
                         installedAt = System.currentTimeMillis(),
                         archiveBytes = archive.length(),
+                        abi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty(),
+                        rootfsName = RootfsNaming.ARCHIVE_PREFIX,
+                        releaseTag = RootfsNaming.releaseTag(manifest.runtimeVersion),
                     )
                 )
             )
@@ -336,7 +359,7 @@ class RootfsInstaller(
         return calculateSha256(file).equals(expected.removePrefix("sha256:"), ignoreCase = true)
     }
 
-    private fun markerFile(): File = File(layout.runtimeMetaDir, "rootfs-installed.json")
+    private fun markerFile(): File = RootfsNaming.markerFile(layout.baseDir)
 
     private fun calculateSha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -356,5 +379,12 @@ class RootfsInstaller(
         val baseDistro: String,
         val installedAt: Long,
         val archiveBytes: Long,
+        val schemaVersion: Int = RootfsNaming.SCHEMA_VERSION,
+        val abi: String = "",
+        val rootfsName: String = RootfsNaming.ARCHIVE_PREFIX,
+        val releaseTag: String = "",
     )
 }
+
+
+

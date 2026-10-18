@@ -20,7 +20,7 @@ data class RuntimeLayout(
     val baseDir: File,
     val nativeLibraryDir: File
 ) {
-    val rootfsDir: File get() = File(baseDir, "rootfs")
+    val rootfsDir: File get() = File(baseDir, RootfsNaming.INSTALL_DIR)
     val optDshDir: File get() = File(rootfsDir, "opt/dsh")
     val dshHomeDir: File get() = File(rootfsDir, "root/.dsh")
     val runtimeMetaDir: File get() = File(baseDir, "runtime")
@@ -43,4 +43,5 @@ data class RuntimeLayout(
         backupsDir.mkdirs()
     }
 }
+
 

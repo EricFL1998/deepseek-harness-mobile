@@ -1,5 +1,7 @@
 {
+  "rootfsName": "dsh-rootfs",
   "runtimeVersion": "4.1.0-webprofile",
+  "releaseTag": "rootfs-v4.1.0",
   "baseDistro": "debian-12-slim",
   "libc": "glibc",
   "pageSize": "16k-compatible",
@@ -25,3 +27,4 @@
   "prootLibrary": "libproot.so",
   "_comment": "首次启动从 GitHub Release 下载 rootfs；正式发布可替换为 CDN/对象存储。"
 }
+
