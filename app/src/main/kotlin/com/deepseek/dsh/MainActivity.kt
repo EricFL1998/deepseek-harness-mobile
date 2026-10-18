@@ -223,6 +223,13 @@ fun MainAppHost(
         externalWorkspaceDir
     }
 
+    // UI 一开始就预热 Host，和引导/登录并行，避免用户点击登录时才冷启动。
+    LaunchedEffect(Unit) {
+        // 首次安装等 rootfs 准备完成后再启动；之后每次重新打开 App 立即启动 Host。
+        if (java.io.File(context.filesDir, "profileInstalled").exists()) {
+            runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
+        }
+    }
     val availableHosts = remember {
         mutableStateListOf<com.deepseek.dsh.core.model.HostDescriptor>(
             com.deepseek.dsh.core.model.HostDescriptor.Local()
@@ -383,7 +390,19 @@ fun MainAppHost(
     val beginHostSignIn: () -> Unit = {
         scope.launch {
             val callbackOrigin = dshApplication.defaultClient.currentBaseUrl()
-            val view = dshRepository.startAccountSignIn(activeHostId, callbackOrigin).getOrNull()
+            var view = dshRepository.startAccountSignIn(activeHostId, callbackOrigin).getOrNull()
+            if (view == null) {
+                // Host 冷启动需要时间；等待就绪后再重试，而不是直接报错。
+                runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
+                repeat(10) {
+                    kotlinx.coroutines.delay(2000)
+                    view = dshRepository.startAccountSignIn(
+                        activeHostId,
+                        dshApplication.defaultClient.currentBaseUrl()
+                    ).getOrNull()
+                    if (view != null) return@repeat
+                }
+            }
             if (view == null) {
                 android.widget.Toast.makeText(
                     context,
@@ -1585,6 +1604,9 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
 
 
 
