@@ -116,6 +116,7 @@ fun ModernNavigationDrawerContent(
     onNavigateFiles: () -> Unit,
     onNavigateHosts: () -> Unit = {},
     onNavigateSettings: () -> Unit = {},
+    onAddWorkspace: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // 严格动态跟随手机系统的 MaterialTheme 调色板
@@ -284,7 +285,12 @@ fun ModernNavigationDrawerContent(
                     .clickable { },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = textMuted, modifier = Modifier.size(14.dp))
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_search_official),
+                    contentDescription = "搜索",
+                    tint = textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
             }
             Box(
                 modifier = Modifier
@@ -293,16 +299,26 @@ fun ModernNavigationDrawerContent(
                     .clickable { },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = textMuted, modifier = Modifier.size(14.dp))
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_filter_official),
+                    contentDescription = "筛选",
+                    tint = textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
             }
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onNavigateFiles),
+                    .clickable(onClick = onAddWorkspace),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Folder", tint = textMuted, modifier = Modifier.size(14.dp))
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_action_project_add_official),
+                    contentDescription = "新建工作区",
+                    tint = textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
             }
         }
         Spacer(modifier = Modifier.height(2.dp))
@@ -660,6 +676,7 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 
 

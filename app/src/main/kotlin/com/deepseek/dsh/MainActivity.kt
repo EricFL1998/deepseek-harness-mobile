@@ -232,8 +232,10 @@ fun MainAppHost(
             externalWorkspaceDir.absolutePath
         } else configured
         val custom = java.io.File(migrated)
-        if (custom.exists() || custom.mkdirs()) custom
-        else workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
+        if (custom.exists() || custom.mkdirs()) {
+            java.io.File(custom, "默认工作区").mkdirs()
+            custom
+        } else workspaceManager.resolveActiveWorkspace(WorkspaceStorageType.REAL_EXTERNAL)
     }
 
     val availableHosts = remember {
@@ -539,12 +541,50 @@ fun MainAppHost(
         return
     }
 
+    var workspaceRevision by remember { mutableStateOf(0) }
+    var showAddWorkspaceDialog by remember { mutableStateOf(false) }
+    var newWorkspaceName by remember { mutableStateOf("") }
+    if (showAddWorkspaceDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAddWorkspaceDialog = false },
+            title = { Text("新建工作区") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = newWorkspaceName,
+                    onValueChange = { newWorkspaceName = it },
+                    singleLine = true,
+                    placeholder = { Text("工作区名称") }
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = newWorkspaceName.isNotBlank(),
+                    onClick = {
+                        val name = newWorkspaceName.trim()
+                        if (name.isNotEmpty()) {
+                            java.io.File(activeWorkspace, name).mkdirs()
+                            workspaceRevision += 1
+                        }
+                        showAddWorkspaceDialog = false
+                    }
+                ) { Text("创建") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showAddWorkspaceDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
     val files = remember(activePage, activeWorkspace) {
         workspaceManager.listFiles(activeWorkspace)
     }
 
-    val workspaceFolders = remember(sessions, selectedSessionId, activeWorkspace) {
+
+    val workspaceFolders = remember(sessions, selectedSessionId, activeWorkspace, workspaceRevision) {
+        // 根目录 DSH-Workspace 本身不是工作区，只展示其子文件夹。
         val workspaceDirs = workspaceManager.listWorkspaceDirectories(activeWorkspace)
+            .filter { it.absolutePath != activeWorkspace.absolutePath }
         workspaceDirs.mapIndexed { idx, dir ->
             val dirSessions = sessions.filter { s ->
                 val wsPath = s.workspacePath
@@ -654,6 +694,10 @@ fun MainAppHost(
                             drawerState.close()
                             activePage = ActivePage.FILES
                         }
+                    },
+                    onAddWorkspace = {
+                        newWorkspaceName = ""
+                        showAddWorkspaceDialog = true
                     },
                     onNavigateSettings = {
                         scope.launch {
@@ -773,7 +817,7 @@ fun MainAppHost(
                                             suspend fun createOnce(): String? = dshRepository.createSession(
                                                 activeHostId,
                                                 text.take(24),
-                                                "/workspace"
+                                                "/workspace/默认工作区"
                                             ).getOrNull()?.sessionId
                                             sid = createOnce()
                                             if (sid == null) {
@@ -1537,6 +1581,12 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
+
+
 
 
 
