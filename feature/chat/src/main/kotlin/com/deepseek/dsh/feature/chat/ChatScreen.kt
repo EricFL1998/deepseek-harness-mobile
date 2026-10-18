@@ -208,7 +208,7 @@ fun ModernChatScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(28.dp)
-                .padding(horizontal = 6.dp),
+                .padding(start = 14.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
@@ -2008,6 +2008,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
