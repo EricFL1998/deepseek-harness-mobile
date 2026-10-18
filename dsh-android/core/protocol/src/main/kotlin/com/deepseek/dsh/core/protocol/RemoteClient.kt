@@ -1216,6 +1216,7 @@ class RemoteClient(
 
     private val followSockets = mutableListOf<okhttp3.WebSocket>()
     private val eventBus = kotlinx.coroutines.flow.MutableSharedFlow<RemoteEvent>(extraBufferCapacity = 128)
+    private val toolNames = mutableMapOf<String, String>()
 
     /** 订阅 session/follow 流，驱动 Host 执行已入队的 prompt，并接收工具/消息帧。 */
     private fun followSession(sessionId: String, hostId: String) {
@@ -1243,47 +1244,82 @@ class RemoteClient(
                 }
                 webSocket.send(open.toString())
             }
-            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+            override fun onMessage(
+                webSocket: okhttp3.WebSocket, text: String) {
                 try {
                     val root = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject ?: return
                     if (root["type"]?.toString()?.trim('"') != "item") return
                     val value = root["value"] as? kotlinx.serialization.json.JsonObject ?: return
                     if (value["type"]?.toString()?.trim('"') != "event") return
                     val event = value["event"] as? kotlinx.serialization.json.JsonObject ?: return
-                    if (event["type"]?.toString()?.trim('"') != "assistant/message") return
+                    val eventType = event["type"]?.toString()?.trim('"') ?: return
                     val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
-                    val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
-                    val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
-                    val reasoning = blocks?.mapNotNull { part ->
-                        val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                        if (obj["type"]?.toString()?.trim('"') == "reasoning") obj["text"]?.toString()?.trim('"') else null
-                    }?.joinToString("").orEmpty()
-                    val answer = blocks?.mapNotNull { part ->
-                        val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                        if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.toString()?.trim('"') else null
-                    }?.joinToString("").orEmpty()
-                    val content = when {
-                        reasoning.isBlank() -> answer
-                        answer.isBlank() -> reasoning
-                        else -> reasoning + "\u0001" + answer
-                    }
-                    println("DSH_ASSISTANT len=" + content.length + " seps=" + content.count { it.code == 1 })
-                    if (content.isBlank()) return
                     val seq = event["seq"]?.toString()?.toLongOrNull() ?: System.currentTimeMillis()
-                    eventBus.tryEmit(
-                        RemoteEvent.MessageDone(
-                            sessionId = sessionId,
-                            message = ChatMessage(
-                                hostId = hostId,
+
+                    fun emit(messageId: String, role: MessageRole, content: String) {
+                        if (content.isBlank()) return
+                        eventBus.tryEmit(
+                            RemoteEvent.MessageDone(
                                 sessionId = sessionId,
-                                messageId = "assistant_$seq",
-                                role = MessageRole.ASSISTANT,
-                                content = content,
-                                seq = seq,
-                                createdAt = System.currentTimeMillis(),
-                            ),
+                                message = ChatMessage(
+                                    hostId = hostId,
+                                    sessionId = sessionId,
+                                    messageId = messageId,
+                                    role = role,
+                                    content = content,
+                                    seq = seq,
+                                    createdAt = System.currentTimeMillis(),
+                                ),
+                            )
                         )
-                    )
+                    }
+
+                    when (eventType) {
+                        "assistant/message" -> {
+                            val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
+                            val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
+                            val reasoning = blocks?.mapNotNull { part ->
+                                val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                if (obj["type"]?.toString()?.trim('"') == "reasoning") obj["text"]?.toString()?.trim('"') else null
+                            }?.joinToString("").orEmpty()
+                            val answer = blocks?.mapNotNull { part ->
+                                val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.toString()?.trim('"') else null
+                            }?.joinToString("").orEmpty()
+                            val content = when {
+                                reasoning.isBlank() -> answer
+                                answer.isBlank() -> reasoning
+                                else -> reasoning + "\u0001" + answer
+                            }
+                            emit("assistant_$seq", MessageRole.ASSISTANT, content)
+                        }
+                        "tool/call" -> {
+                            val callId = data["callId"]?.toString()?.trim('"')
+                                ?: data["callID"]?.toString()?.trim('"') ?: return
+                            val name = data["name"]?.toString()?.trim('"') ?: "tool"
+                            val args = data["arguments"]?.toString()?.trim('"') ?: ""
+                            toolNames[callId] = name
+                            emit("tool_$callId", MessageRole.TOOL, "\u0002TOOL\u0002$name\u0002running\u0002$args")
+                        }
+                        "tool/result" -> {
+                            val message = data["message"] as? kotlinx.serialization.json.JsonObject
+                            val callId = message?.get("toolCallId")?.toString()?.trim('"')
+                                ?: data["callId"]?.toString()?.trim('"') ?: return
+                            val name = toolNames[callId] ?: "tool"
+                            val blocks = message?.get("content") as? kotlinx.serialization.json.JsonArray
+                            val body = blocks?.mapNotNull { part ->
+                                val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.toString()?.trim('"') else null
+                            }?.joinToString("\n").orEmpty()
+                            val failed = data["error"] != null ||
+                                message?.get("isError")?.toString() == "true"
+                            emit(
+                                "tool_$callId",
+                                MessageRole.TOOL,
+                                "\u0002TOOL\u0002$name\u0002${if (failed) "error" else "ok"}\u0002$body"
+                            )
+                        }
+                    }
                 } catch (_: Exception) {
                 }
             }
@@ -1295,6 +1331,7 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
 
 
 

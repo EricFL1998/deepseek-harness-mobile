@@ -251,13 +251,7 @@ fun ModernNavigationDrawerContent(
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
-            DrawerItem(
-                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model,
-                title = "运行控制",
-                onClick = onNavigateRuntime,
-                textColor = textPrimary,
-                iconTint = textSecondary
-            )
+
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -626,5 +620,6 @@ private fun RemoteAvatar(url: String?) {
         Text(text = "🐱", fontSize = 13.sp)
     }
 }
+
 
 

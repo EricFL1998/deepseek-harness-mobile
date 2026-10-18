@@ -36,6 +36,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -778,6 +779,81 @@ fun ReasoningCard(
         }
     }
 }
+
+/** 工具调用/结果：官方披露行样式，点击展开参数或输出。 */
+@Composable
+private fun ToolMessageItem(content: String) {
+    val parts = content.split('\u0002')
+    if (parts.size < 5) return
+    val name = parts[2]
+    val status = parts[3]
+    val body = parts[4]
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = name,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .size(2.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outline)
+            )
+            Text(
+                text = when (status) {
+                    "running" -> "执行中…"
+                    "error" -> "失败"
+                    else -> "已完成"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = if (status == "error") MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.outline,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
+        AnimatedVisibility(visible = expanded && body.isNotBlank()) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.padding(start = 22.dp, top = 4.dp)
+            ) {
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+        }
+    }
+}
 /**
  * 消息项：用户气泡、助手正文与五项消息操作。
  */
@@ -805,6 +881,8 @@ fun ModernMessageItem(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
+        } else if (message.role == MessageRole.TOOL) {
+            ToolMessageItem(content = message.content)
         } else {
             Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
                 Row(
@@ -1281,6 +1359,9 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
 
 
 
