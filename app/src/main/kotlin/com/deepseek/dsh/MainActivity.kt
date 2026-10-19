@@ -1273,53 +1273,20 @@ fun MainAppHost(
                         }
 
                         ActivePage.PLUGINS -> {
-                            PluginsScreen(
-                                surfaces = catalog.surfaces,
-                                pluginManagerSnapshot = pluginManagerSnapshot,
-                                pluginRows = pluginRows,
-                                settingsNamespaces = settingsNamespaces,
-                                onOpenSurface = { item ->
-                                    if (item.kind == SurfaceKind.OVERLAY) {
-                                        activeOverlaySurface = item
-                                    } else {
-                                        activeSheetSurface = item
-                                    }
-                                },
-                                onOpenSdui = {
-                                    activePage = ActivePage.SDUI_SAMPLE
-                                },
-                                onInstallPlugin = { pkgName ->
-                                    scope.launch {
-                                        val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
-                                        if (hostRes.isSuccess) {
-                                            android.widget.Toast.makeText(context, "插件安装成功", android.widget.Toast.LENGTH_SHORT).show()
-                                            dshRepository.refreshPluginInventory(activeHostId)
-                                        } else {
-                                            val errMsg = hostRes.exceptionOrNull()?.message ?: "安装失败"
-                                            android.widget.Toast.makeText(context, "插件安装失败: $errMsg", android.widget.Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                },
-                                onToggleBundle = { packageName, enabled ->
-                                    scope.launch {
-                                        dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
-                                    }
-                                },
-                                onUninstall = { item ->
-                                    scope.launch {
-                                        dshRepository.uninstallPlugin(activeHostId, item.pluginId)
-                                        surfaceStore.removeSurfaceItem(item.pluginId, item.slot)
-                                    }
-                                }
-                            ,
-                                onCreatePlugin = {
-                                    pendingAgentPreset = "cordis"
-                                    selectedSessionId = null
-                                    activePage = ActivePage.CHAT
-                                }
-                            )
+                            val hostPort = status.port
+                            if (hostPort != null) {
+                                com.deepseek.dsh.OfficialClientPanel(
+                                    port = hostPort,
+                                    token = status.token,
+                                    panelLabel = "插件",
+                                )
+                            } else {
+                                androidx.compose.material3.Text(
+                                    "Host 未就绪",
+                                    modifier = Modifier.padding(24.dp),
+                                )
+                            }
                         }
-
                         ActivePage.AUTOMATION -> {
                             AutomationTasksScreen(
                                 tasks = automationTasks,
@@ -2240,6 +2207,7 @@ private fun parseWorkspaceId(raw: String?): String? {
     if (raw.isNullOrBlank()) return null
     return Regex("\"workspaceId\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.getOrNull(1)
 }
+
 
 
 
