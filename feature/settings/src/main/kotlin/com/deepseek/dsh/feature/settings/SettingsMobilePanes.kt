@@ -222,65 +222,6 @@ internal fun SettingsMobileRuntimePane(
  * 与设置卡片同一材质：工作区真实目录行 + 容器挂载说明。
  */
 @Composable
-internal fun SettingsMobileWorkspacePane(
-    settings: AppSettings,
-    modifier: Modifier = Modifier,
-) {
-    val palette = LocalSettingsPalette.current
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = SettingsPaneDimens.Horizontal,
-            end = SettingsPaneDimens.Horizontal,
-            top = SettingsPaneDimens.Top,
-            bottom = SettingsPaneDimens.Bottom,
-        ),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        item(key = "workspace_path") {
-            SettingsCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = {})
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Folder,
-                        contentDescription = null,
-                        tint = palette.labelSecondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "工作区真实目录",
-                            style = SettingsText.RowTitleMedium,
-                            color = palette.labelPrimary,
-                        )
-                        Text(
-                            text = settings.workspacePath,
-                            style = SettingsText.RowDesc,
-                            color = palette.labelTertiary,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    SettingsChevronRight()
-                }
-                SettingsCardDivider(modifier = Modifier.padding(vertical = 12.dp))
-                Text(
-                    text = "容器内自动 bind 挂载为 /workspace，系统自带文件管理器可直接查阅与导出产物。",
-                    style = SettingsText.RowDesc,
-                    color = palette.labelTertiary,
-                )
-            }
-        }
-    }
-}
-
-/** 设置行：图标 + 标题/说明 + 右侧开关。 */
-@Composable
 private fun RuntimeSwitchRow(
     icon: ImageVector,
     title: String,

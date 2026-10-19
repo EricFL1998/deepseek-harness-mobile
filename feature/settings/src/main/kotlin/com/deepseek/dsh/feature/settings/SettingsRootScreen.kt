@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * 6 大标准 Section (对齐 dsh-upstream/packages/client/ui-settings-*)
- * + 手机专属 2 大增强 Section (mobile-runtime, mobile-workspace)
+ * + 手机专属增强 Section (mobile-runtime)
  */
 enum class SettingsSectionTab(
     val id: String,
@@ -62,7 +62,6 @@ enum class SettingsSectionTab(
     AGENT_PRESETS("agent-presets", "Agent 预设", "工作过程模式：紧凑 / 标准 / 详细", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_agent_preset),
     ARCHIVED("archived-sessions", "归档会话", "已归档的会话记录与快照", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
     MOBILE_RUNTIME("mobile-runtime", "移动运行时", "Linux 容器休眠、长任务守护与高危拦截", com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
-    MOBILE_WORKSPACE("mobile-workspace", "手机工作区", "公有存储绑定、系统文件可见性", com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open),
     NOTIFICATIONS("notifications", "通知", "任务完成通知与系统权限", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule),
     REMOTE("remote", "远程连接", "连接另一台机器上的 DSH Host", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin),
     UPDATE("update", "更新", "检查 GitHub Release 与新版本", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
@@ -286,9 +285,6 @@ fun SettingsRootScreen(
                         )
 
                         SettingsSectionTab.UPDATE -> SettingsUpdatePane()
-                        SettingsSectionTab.MOBILE_WORKSPACE -> SettingsMobileWorkspacePane(
-                            settings = currentSettings,
-                        )
                     }
                 }
             }
@@ -332,6 +328,7 @@ private fun SettingsNavRow(
         )
     }
 }
+
 
 
 
