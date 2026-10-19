@@ -1,7 +1,8 @@
 {
   "rootfsName": "dsh-rootfs",
-  "runtimeVersion": "1.0.0-dsh0.2.1-rc.2-bridge1.1.0",
-  "releaseTag": "rootfs-v1.0.0",
+  "runtimeVersion": "1.0.1-dsh0.2.1-rc.2-bridge1.1.0",
+  "releaseTag": "rootfs-v1.0.1",
+  "bridgeVersion": "1.1.0",
   "baseDistro": "debian-12-slim",
   "libc": "glibc",
   "pageSize": "16k-compatible",
@@ -10,22 +11,18 @@
     "node-24",
     "pnpm",
     "@deepseek-ai/dsh@0.2.1-rc.2",
+    "dsh-mobile-bridge-plugin@1.1.0",
     "python3",
-    "git",
-    "dsh-mobile-bridge-plugin@1.1.0"
+    "git"
   ],
   "downloadUrls": {
-    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest/download/rootfs-x86_64.bin",
-    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest/download/rootfs-arm64-v8a.bin"
+    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/download/rootfs-v1.0.1/rootfs-x86_64.bin",
+    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/download/rootfs-v1.0.1/rootfs-arm64-v8a.bin"
   },
   "downloadSha256": {
-    "x86_64": "D1CF3122884D92562967304CD3B3C4D3F4C1D1D1B14B5FF7EE88EC7CB152178E",
-    "arm64-v8a": "C8AF41CB7728D6A438BFF99F189591150576E0B735928D1FF6DC783558D1F548"
+    "x86_64": "0A2842FEF1D05BE4BB9575BFA7707B4A5235E50A819DF86C23399EEF824A49C1",
+    "arm64-v8a": "93EC3B3128164A483F7AFF8645727A0F90F27177B8121CA261A7D809A38A1421"
   },
-  "downloadUrl": "",
-  "sha256": "",
-  "archiveSizeBytes": 309313641,
-  "prootLibrary": "libproot.so",
-  "_comment": "首次启动从 GitHub Release 下载 rootfs；正式发布可替换为 CDN/对象存储。",
-  "bridgeVersion": "1.1.0"
+  "archiveSizeBytes": 304973060,
+  "prootLibrary": "libproot.so"
 }
