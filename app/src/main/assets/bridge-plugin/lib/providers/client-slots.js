@@ -12,7 +12,7 @@
 import { BridgeFailure, optionalObject, optionalPositiveInt, optionalString, requiredString, } from "../protocol/provider.js";
 import { projectJson } from "../protocol/json.js";
 import { evaluateBundleFile } from "../slots/evaluate.js";
-import { extractStaticRegistrations, toSlotRegistration } from "../slots/static-slots.js";
+import { extractStaticRegistrations, resolveStaticLabel, toSlotRegistration } from "../slots/static-slots.js";
 import { DEFAULT_RENDER_BUDGET, renderComponent, treeToSvg } from "../slots/render-tree.js";
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -104,7 +104,7 @@ export function createClientSlotsProvider(options) {
         return rows;
     };
     /** Static registrations across the configured roots, cached per file version. */
-    const staticRegistrations = async (warnings) => staticRegistrationsFor(options.clientRoots?.() ?? [], staticCache, warnings);
+    const staticRegistrations = async (warnings) => staticRegistrationsFor(options.clientRoots?.() ?? [], staticCache, warnings, options.localeTags ?? []);
     /** Every client half found under the configured roots, sorted for a stable walk. */
     const installationCatalogue = () => {
         if (scan.catalogue !== undefined)
@@ -387,7 +387,7 @@ function listClientBundles(root) {
                 // which must never run inside the bridge VM.
                 if (!isUiClientPackage(candidate.dir, candidate.id))
                     continue;
-                rows.push({ id: candidate.id, path: clientPath, rev: `${stat.mtimeMs}:${stat.size}` });
+                rows.push({ id: candidate.id, dir: candidate.dir, path: clientPath, rev: `${stat.mtimeMs}:${stat.size}` });
             }
             catch {
                 // No client half: most packages are Host-only.
@@ -440,7 +440,7 @@ function isUiClientPackage(dir, id) {
  * @param warnings sink for per-bundle notes.
  * @returns registrations from all bundles, in package order.
  */
-async function staticRegistrationsFor(roots, cache, warnings) {
+async function staticRegistrationsFor(roots, cache, warnings, localeTags) {
     const all = [];
     for (const root of roots) {
         for (const bundle of listClientBundles(root)) {
@@ -451,7 +451,14 @@ async function staticRegistrationsFor(roots, cache, warnings) {
             }
             try {
                 const source = await readFile(bundle.path, 'utf8');
-                const registrations = extractStaticRegistrations(source).map(registration => toSlotRegistration(bundle.id, registration));
+                const locales = await localeDictionaries(bundle.dir, localeTags);
+                const registrations = extractStaticRegistrations(source).map(registration => {
+                    const projected = toSlotRegistration(bundle.id, registration);
+                    const label = projected.label ?? resolveStaticLabel(locales, projected.id ?? projected.key);
+                    // A package without a dictionary entry keeps no label: the client shows the id,
+                    // which is honest, instead of a name nobody wrote.
+                    return label === undefined ? projected : { ...projected, label };
+                });
                 cache.set(`${bundle.id}@${bundle.rev}`, registrations);
                 all.push(...registrations);
             }
@@ -461,4 +468,29 @@ async function staticRegistrationsFor(roots, cache, warnings) {
         }
     }
     return all;
+}
+/**
+ * The package's own locale dictionaries, most preferred tag first.
+ *
+ * A client package ships `locale/<tag>.json`; that file is what the browser reads to
+ * label its contributions, so it is also what a static reader must consult. Missing
+ * files simply contribute nothing.
+ * @param dir absolute package directory.
+ * @param tags preferred language tags.
+ * @returns parsed dictionaries in preference order.
+ */
+async function localeDictionaries(dir, tags) {
+    if (dir === undefined)
+        return [];
+    const out = [];
+    for (const tag of tags.length === 0 ? ['zh', 'en'] : tags) {
+        const candidate = join(dir, 'locale', `${tag}.json`);
+        try {
+            out.push(JSON.parse(await readFile(candidate, 'utf8')));
+        }
+        catch {
+            // No dictionary for this tag: try the next.
+        }
+    }
+    return out;
 }

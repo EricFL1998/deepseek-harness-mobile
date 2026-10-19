@@ -45,3 +45,16 @@ export declare function extractStaticRegistrations(source: string): StaticRegist
  * @returns the registration as a client sees it.
  */
 export declare function toSlotRegistration(entryId: string, registration: StaticRegistration): SlotRegistration;
+/**
+ * A display label for one registration, read from its package's own locale files.
+ *
+ * The browser resolves labels through a locale dictionary at render time; static
+ * reading has no render, so the dictionaries themselves are the source. Candidates are
+ * tried in the order the page would use: the registration's own id as a key, then the
+ * package's `meta.title`. A registration with no dictionary entry keeps no label —
+ * showing an id is honest, inventing a name is not.
+ * @param locales parsed locale dictionaries, most preferred first.
+ * @param id registration id, when it has one.
+ * @returns the resolved label, or undefined.
+ */
+export declare function resolveStaticLabel(locales: readonly Readonly<Record<string, unknown>>[], id: string | undefined): string | undefined;
