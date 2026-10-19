@@ -7,12 +7,15 @@ containing a newer `@deepseek-ai/dsh`. Follow every step; do not update DSH in p
 
 ## 0. Invariants
 
+- Rootfs build and release is managed by dedicated repo: `https://github.com/EricFL1998/deepseek-harness-mobile-rootfs`
+- GitHub Actions automatically builds multi-arch images (x86_64, arm64-v8a) and publishes GitHub Releases.
 - Rootfs versioning restarts from `1.0.0`; it is independent of DSH version.
 - Canonical installed dir: `files/rootfs`
 - Canonical marker: `files/runtime/rootfs-installed.json`
 - Canonical cache name: `dsh-rootfs-<runtimeVersion>-<abi>.tar.gz`
 - Canonical release tag: `rootfs-v<version>`
-- Canonical release assets: `rootfs-x86_64.bin`, `rootfs-arm64-v8a.bin`
+- Canonical release assets: `rootfs-x86_64.bin`, `rootfs-arm64-v8a.bin`, `rootfs-manifest.json`
+- Canonical release download base: `https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/download/`
 - `runtimeVersion` format: `<rootfsVersion>-dsh<dshVersion>`
   - example: `1.0.0-dsh0.2.1-rc.2`
 - Never lose user state: the app preserves `root/.dsh` during reinstall.
