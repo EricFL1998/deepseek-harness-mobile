@@ -42,8 +42,10 @@ class DefaultHostRuntimeManager(
 
     override suspend fun availableRootfsVersion(): String? = withContext(Dispatchers.IO) {
         runCatching {
+            val installer = RootfsInstaller(layout)
             val raw = context.assets.open("rootfs-manifest.json").bufferedReader().use { it.readText() }
-            RootfsInstaller(layout).parseManifest(raw).runtimeVersion
+            val bundled = installer.parseManifest(raw)
+            installer.resolveLatestManifest(bundled).runtimeVersion
         }.getOrNull()
     }
 
@@ -58,7 +60,9 @@ class DefaultHostRuntimeManager(
         val installer = RootfsInstaller(layout)
         val manifest = try {
             val raw = context.assets.open("rootfs-manifest.json").bufferedReader().use { it.readText() }
-            installer.parseManifest(raw)
+            val bundled = installer.parseManifest(raw)
+            onProgress(0.01f, "检查最新 rootfs 版本...")
+            installer.resolveLatestManifest(bundled)
         } catch (e: Exception) {
             return@withContext Result.failure(IllegalStateException("读取 rootfs-manifest.json 失败: ${e.message}"))
         }

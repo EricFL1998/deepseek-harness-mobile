@@ -14,8 +14,8 @@
     "git"
   ],
   "downloadUrls": {
-    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/download/rootfs-v1.0.0/rootfs-x86_64.bin",
-    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/download/rootfs-v1.0.0/rootfs-arm64-v8a.bin"
+    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest/download/rootfs-x86_64.bin",
+    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest/download/rootfs-arm64-v8a.bin"
   },
   "downloadSha256": {
     "x86_64": "D1CF3122884D92562967304CD3B3C4D3F4C1D1D1B14B5FF7EE88EC7CB152178E",
