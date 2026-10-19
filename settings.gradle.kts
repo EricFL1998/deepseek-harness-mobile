@@ -1,16 +1,10 @@
 pluginManagement {
     repositories {
-        maven { url = java.net.URI("https://maven.aliyun.com/repository/public") }
-        maven { url = java.net.URI("https://maven.aliyun.com/repository/google") }
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
+        maven { url = java.net.URI("https://maven.aliyun.com/repository/public") }
+        maven { url = java.net.URI("https://maven.aliyun.com/repository/google") }
     }
 }
 dependencyResolutionManagement {
@@ -58,3 +52,4 @@ include(":tooling:frontend-patch")
 
 // App
 include(":app")
+
