@@ -725,7 +725,7 @@ private fun ModelEffortMenu(
                 } else {
                     MenuNavRow(
                         label = stringResource(R.string.model_menu_model),
-                        value = displayModelName(selectedModel),
+                        value = selectedModel,
                         onClick = { page = 1 },
                     )
                     MenuNavRow(
@@ -1880,7 +1880,7 @@ fun BottomInputBar(
                     // 模型与推理等级：trigger（当前模型 + 推理等级 + 箭头），菜单锚定在此
                     Box(modifier = Modifier.weight(1f).onGloballyPositioned { modelAnchor = it.boundsInWindow() }) {
                         ComposerTrigger(
-                            label = displayModelName(selectedModel),
+                            label = selectedModel,
                             // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
                             trailingValue = if (availableModels.isEmpty()) null else effortLabel,
                             onClick = onOpenModelMenu,
@@ -2061,6 +2061,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
