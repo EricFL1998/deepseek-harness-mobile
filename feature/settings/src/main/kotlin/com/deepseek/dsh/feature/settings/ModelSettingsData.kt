@@ -32,9 +32,9 @@ fun parseModelProviders(
     settingsRaw: String?,
     credentialsRaw: String?,
 ): List<ModelProviderUi> {
-    val providers = (responseValue(providersRaw) as? JsonArray) ?: return emptyList()
+    val providers = (responseValue(providersRaw) as? JsonArray) ?: JsonArray(emptyList())
     val namespaces = runCatching {
-        val value = responseValue(settingsRaw) as? JsonObject ?: return emptyList()
+        val value = responseValue(settingsRaw) as? JsonObject ?: return@runCatching emptyMap<String, JsonObject?>()
         (value["namespaces"] as? JsonArray).orEmpty().mapNotNull { item ->
             val obj = item as? JsonObject ?: return@mapNotNull null
             val ns = (obj["ns"] as? JsonPrimitive)?.content ?: return@mapNotNull null
@@ -42,7 +42,7 @@ fun parseModelProviders(
         }.toMap()
     }.getOrElse { emptyMap() }
     val credentials = runCatching {
-        val value = responseValue(credentialsRaw) as? JsonObject ?: return emptyList()
+        val value = responseValue(credentialsRaw) as? JsonObject ?: return@runCatching emptyMap()
         value.entries.associate { (ref, info) ->
             val configured = (info as? JsonObject)?.get("configured")?.toString() == "true"
             val writable = (info as? JsonObject)?.get("writable")?.toString() != "false"
@@ -50,7 +50,7 @@ fun parseModelProviders(
         }
     }.getOrElse { emptyMap() }
 
-    return providers.mapNotNull { item ->
+    val parsed = providers.mapNotNull { item ->
         val obj = item as? JsonObject ?: return@mapNotNull null
         val provider = (obj["provider"] as? JsonPrimitive)?.content ?: return@mapNotNull null
         val displayName = (obj["displayName"] as? JsonPrimitive)?.content ?: provider
@@ -82,5 +82,17 @@ fun parseModelProviders(
             keyWritable = credentials[keyRef]?.second ?: true,
         )
     }
+    // 官方内置 DeepSeek API 提供商始终存在；Host 目录未返回时也要能看到并配置。
+    val hasDeepSeek = parsed.any { it.id.contains("deepseek", ignoreCase = true) || it.name.contains("DeepSeek", ignoreCase = true) }
+    return if (hasDeepSeek) parsed else parsed + ModelProviderUi(
+        id = "deepseek",
+        name = "DeepSeek",
+        models = emptyList(),
+        keyRef = "DEEPSEEK_API_KEY",
+        keyConfigured = credentials["DEEPSEEK_API_KEY"]?.first ?: false,
+        keyWritable = credentials["DEEPSEEK_API_KEY"]?.second ?: true,
+    )
 }
+
+
 
