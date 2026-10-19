@@ -12,8 +12,10 @@
 import { BridgeFailure, optionalObject, optionalPositiveInt, optionalString, requiredString, } from "../protocol/provider.js";
 import { projectJson } from "../protocol/json.js";
 import { evaluateBundleFile } from "../slots/evaluate.js";
+import { extractStaticRegistrations, toSlotRegistration } from "../slots/static-slots.js";
 import { DEFAULT_RENDER_BUDGET, renderComponent, treeToSvg } from "../slots/render-tree.js";
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { placementOf } from "../slot-placements.js";
 import { OFFICIAL_ARTWORK, OFFICIAL_PLUGIN_ITEMS, readOfficialItemText, } from "../official-items.js";
@@ -36,6 +38,8 @@ export function createClientSlotsProvider(options) {
     const cache = new Map();
     /** Incremental walk over the installation's client halves, plus what it found. */
     const scan = { cursor: 0, seen: new Set(), registrations: [], emptySlots: new Set() };
+    /** 静态抽取结果：不执行 bundle，按文件版本缓存。 */
+    const staticCache = new Map();
     /**
      * The client bundles this provider may evaluate, in declared order.
      *
@@ -79,6 +83,10 @@ export function createClientSlotsProvider(options) {
      * warning so a client can tell "nothing registered" from "not scanned yet".
      */
     const entriesFromInstallation = () => {
+        // Execution is opt-in: a request that only needs formatting must never run a
+        // bundle, or one Client/Host package's mount work can end the process.
+        if (options.executeBundles !== true)
+            return [];
         const wanted = options.entryIds.length === 0 ? undefined : new Set(options.entryIds);
         const batch = options.maxClientBundles ?? DEFAULT_MAX_CLIENT_BUNDLES;
         const catalogue = installationCatalogue();
@@ -95,6 +103,8 @@ export function createClientSlotsProvider(options) {
         }
         return rows;
     };
+    /** Static registrations across the configured roots, cached per file version. */
+    const staticRegistrations = async (warnings) => staticRegistrationsFor(options.clientRoots?.() ?? [], staticCache, warnings);
     /** Every client half found under the configured roots, sorted for a stable walk. */
     const installationCatalogue = () => {
         if (scan.catalogue !== undefined)
@@ -196,6 +206,13 @@ export function createClientSlotsProvider(options) {
             /** Every captured registration, optionally narrowed to one slot. */
             list: async (args, warnings) => {
                 const slot = optionalString(args, 'slot');
+                // 静态抽取先做：它只读文本，不受内存限制，也不执行插件代码。
+                for (const registration of await staticRegistrations(warnings)) {
+                    if (!scan.seen.has(`static:${registration.slot}#${registration.id ?? ''}`)) {
+                        scan.seen.add(`static:${registration.slot}#${registration.id ?? ''}`);
+                        scan.registrations.push(registration);
+                    }
+                }
                 const entries = await evaluateAll(warnings);
                 // Incremental scan: this batch joins what earlier requests collected, and the
                 // next request continues the walk. Bundles already evaluated are not repeated.
@@ -412,4 +429,36 @@ function isUiClientPackage(dir, id) {
     catch {
         return false;
     }
+}
+/**
+ * Registrations read from every UI client bundle's source.
+ *
+ * This is the discovery path that works on a phone Host: it reads text instead of
+ * executing bundles, so a client half's mount work never runs and the heap stays flat.
+ * Results are cached per file version, and a missing or unreadable bundle contributes
+ * nothing rather than failing the whole list.
+ * @param warnings sink for per-bundle notes.
+ * @returns registrations from all bundles, in package order.
+ */
+async function staticRegistrationsFor(roots, cache, warnings) {
+    const all = [];
+    for (const root of roots) {
+        for (const bundle of listClientBundles(root)) {
+            const cached = cache.get(`${bundle.id}@${bundle.rev}`);
+            if (cached !== undefined) {
+                all.push(...cached);
+                continue;
+            }
+            try {
+                const source = await readFile(bundle.path, 'utf8');
+                const registrations = extractStaticRegistrations(source).map(registration => toSlotRegistration(bundle.id, registration));
+                cache.set(`${bundle.id}@${bundle.rev}`, registrations);
+                all.push(...registrations);
+            }
+            catch (error) {
+                warnings.warn(`${bundle.id}: cannot read its client bundle (${error.message})`);
+            }
+        }
+    }
+    return all;
 }

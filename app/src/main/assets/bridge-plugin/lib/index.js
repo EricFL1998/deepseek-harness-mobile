@@ -160,7 +160,9 @@ function assembleProviders(ctx, config, events) {
         installModules: () => installModulesPath(),
         // A prebuilt web client composes no boot graph, so the client halves on disk are
         // the only place its real slot declarations can be read from.
-        clientRoots: () => (config.clientBundleScan ? roots : []),
+        // Text is read for static extraction; execution stays behind its own switch.
+        clientRoots: () => roots,
+        executeBundles: config.clientBundleScan,
         localeTags: config.localeTags,
     }));
     registry.add(createHostSlotsProvider({

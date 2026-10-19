@@ -1,6 +1,6 @@
 {
   "name": "dsh-mobile-bridge-plugin",
-  "version": "1.19.0",
+  "version": "1.22.0",
   "description": "DSH Host plugin exposing the official web client's own runtime data to native clients as a versioned, capability-negotiated bridge/v1 JSON protocol",
   "license": "MIT",
   "type": "module",

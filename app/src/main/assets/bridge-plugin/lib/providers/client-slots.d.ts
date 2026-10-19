@@ -28,6 +28,15 @@ export interface ClientSlotsOptions {
     readonly installModules?: () => string | undefined;
     /** Directories whose packages may ship a `lib/client.js` client half. */
     readonly clientRoots?: () => readonly string[];
+    /**
+     * Whether a bundle may be *executed* in the VM.
+     *
+     * Reading a bundle's text is always safe; running it is not, because a Client/Host
+     * package's `apply` performs real mount work (`ctx.slots.provideRoot`, transports) and
+     * throwing there has taken the Host down. Execution therefore stays opt-in and never
+     * happens behind an icon or format request.
+     */
+    readonly executeBundles?: boolean;
     /** How many client bundles one request may evaluate; discovery beyond it is skipped. */
     readonly maxClientBundles?: number;
     /** Locale tags to read the official roster's text with, preferred first. */
