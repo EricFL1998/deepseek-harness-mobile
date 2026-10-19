@@ -1,7 +1,7 @@
 {
   "rootfsName": "dsh-rootfs",
-  "runtimeVersion": "4.2.0-dsh0.2.1-rc.2",
-  "releaseTag": "rootfs-v4.2.0",
+  "runtimeVersion": "1.0.0-dsh0.2.1-rc.2",
+  "releaseTag": "rootfs-v1.0.0",
   "baseDistro": "debian-12-slim",
   "libc": "glibc",
   "pageSize": "16k-compatible",
@@ -14,8 +14,8 @@
     "git"
   ],
   "downloadUrls": {
-    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v4.2.0/rootfs-x86_64.bin",
-    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v4.2.0/rootfs-arm64-v8a.bin"
+    "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v1.0.0/rootfs-x86_64.bin",
+    "arm64-v8a": "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v1.0.0/rootfs-arm64-v8a.bin"
   },
   "downloadSha256": {
     "x86_64": "D1CF3122884D92562967304CD3B3C4D3F4C1D1D1B14B5FF7EE88EC7CB152178E",
@@ -27,5 +27,6 @@
   "prootLibrary": "libproot.so",
   "_comment": "首次启动从 GitHub Release 下载 rootfs；正式发布可替换为 CDN/对象存储。"
 }
+
 
 
