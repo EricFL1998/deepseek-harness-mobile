@@ -507,6 +507,8 @@ fun MainAppHost(
     var installedRootfsVersion by remember { mutableStateOf<String?>(null) }
     var availableRootfsVersion by remember { mutableStateOf<String?>(null) }
     var showRootfsUpdatePrompt by remember { mutableStateOf(false) }
+    var rootfsUpdateBannerDismissed by remember { mutableStateOf(false) }
+    var forceRootfsInstall by remember { mutableStateOf(false) }
     LaunchedEffect(rootfsReady) {
         if (rootfsReady == true) {
             val installed = runtimeManager.installedRootfsVersion()
@@ -540,6 +542,7 @@ fun MainAppHost(
                     enabled = true,
                     onClick = {
                         showRootfsUpdatePrompt = false
+                        forceRootfsInstall = true
                         rootfsReady = false
                         scope.launch {
                             runCatching { runtimeManager.stop() }
@@ -554,6 +557,22 @@ fun MainAppHost(
 
     LaunchedEffect(rootfsInstallAttempt) {
         if (runtimeManager.isRootfsInstalled()) {
+            forceRootfsInstall = false
+            rootfsReady = true
+            return@LaunchedEffect
+        }
+        // 旧版 rootfs 仍完整可用时不要自动覆盖：先提示更新，由用户确认。
+        val installedVersion = runtimeManager.installedRootfsVersion()
+        val availableVersion = runtimeManager.availableRootfsVersion()
+        val rootfsFilesPresent = java.io.File(context.filesDir, "rootfs/etc/os-release").isFile ||
+            java.io.File(context.filesDir, "rootfs/usr/bin/env").isFile
+        if (!forceRootfsInstall && rootfsFilesPresent &&
+            installedVersion != null && availableVersion != null && installedVersion != availableVersion
+        ) {
+            installedRootfsVersion = installedVersion
+            availableRootfsVersion = availableVersion
+            rootfsUpdateAvailable = true
+            showRootfsUpdatePrompt = true
             rootfsReady = true
             return@LaunchedEffect
         }
@@ -955,6 +974,14 @@ fun MainAppHost(
                             !pageHasOwnHeader -> PageBackBar(
                                 onBack = { activePage = ActivePage.CHAT },
                                 onMenuClick = { scope.launch { drawerState.open() } },
+                            )
+                        }
+                        if (rootfsUpdateAvailable && !rootfsUpdateBannerDismissed) {
+                            RootfsUpdateBanner(
+                                installed = installedRootfsVersion.orEmpty(),
+                                available = availableRootfsVersion.orEmpty(),
+                                onUpdate = { showRootfsUpdatePrompt = true },
+                                onDismiss = { rootfsUpdateBannerDismissed = true },
                             )
                         }
                     }
@@ -1855,6 +1882,61 @@ private fun HeaderJobsPanel(tasks: List<com.deepseek.dsh.core.model.TeamTaskItem
     }
 }
 @Composable
+private fun RootfsUpdateBanner(
+    installed: String,
+    available: String,
+    onUpdate: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.bgModulePlatform)
+            .clickable(onClick = onUpdate)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(
+                id = com.deepseek.dsh.core.designsystem.R.drawable.ic_stat_gauge
+            ),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "运行时更新可用",
+                fontSize = 13.sp,
+                color = colors.labelPrimary
+            )
+            Text(
+                text = "$installed → $available",
+                fontSize = 11.sp,
+                color = colors.labelTertiary
+            )
+        }
+        Text(
+            text = "更新",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(
+                id = com.deepseek.dsh.core.designsystem.R.drawable.ic_close
+            ),
+            contentDescription = "关闭提醒",
+            tint = colors.labelTertiary,
+            modifier = Modifier
+                .size(18.dp)
+                .clickable(onClick = onDismiss)
+        )
+    }
+}
+@Composable
 fun ModernTopAppBar(
     title: String,
     showModeCapsule: Boolean = false,
@@ -2030,6 +2112,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 
