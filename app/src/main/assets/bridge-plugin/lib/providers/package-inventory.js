@@ -5,12 +5,12 @@
  * so third-party bundle icons and titles stay fully backend-driven.
  */
 import { BridgeFailure, optionalString, requiredString } from "../protocol/provider.js";
-import { firstString } from "../protocol/json.js";
+import { firstString, localizedString } from "../protocol/json.js";
 /** Localized display text of one package or row, as the Host resolves it. */
-function displayText(meta) {
-    const title = firstString(meta, ['title']);
-    const description = firstString(meta, ['description']);
-    const icon = firstString(meta, ['icon']);
+function displayText(meta, localeTags = []) {
+    const title = localizedString(meta, ['title'], localeTags);
+    const description = localizedString(meta, ['description'], localeTags);
+    const icon = localizedString(meta, ['icon'], localeTags);
     return {
         ...(title === undefined ? {} : { title }),
         ...(description === undefined ? {} : { description }),
@@ -35,10 +35,11 @@ export function createPackageInventoryProvider(options) {
                 if (manager === undefined) {
                     throw new BridgeFailure('provider/unavailable', 'this Host composition has no plugin manager');
                 }
+                const localeTags = options.localeTags ?? [];
                 const name = optionalString(args, 'name');
                 const bundles = await manager.listBundles();
                 const rows = (name === undefined ? bundles : bundles.filter(bundle => bundle.name === name))
-                    .map(projectBundle);
+                    .map(bundle => projectBundle(bundle, localeTags));
                 return { bundles: rows, managementAvailable: true };
             },
             /** Every running Loader entry the Host reports. */
@@ -83,12 +84,12 @@ export function createPackageInventoryProvider(options) {
  * @param bundle - the Host record.
  * @returns the wire row, with absent optional fields omitted.
  */
-function projectBundle(bundle) {
-    const text = displayText(bundle.meta);
+function projectBundle(bundle, localeTags) {
+    const text = displayText(bundle.meta, localeTags);
     const rows = (bundle.rows ?? []).map(row => ({
         rowId: row.rowId,
         moduleName: row.moduleName,
-        ...displayText(row.meta),
+        ...displayText(row.meta, localeTags),
     }));
     return {
         name: bundle.name,

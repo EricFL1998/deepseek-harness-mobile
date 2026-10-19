@@ -13,6 +13,9 @@ import { BridgeFailure, optionalObject, optionalPositiveInt, optionalString, req
 import { projectJson } from "../protocol/json.js";
 import { evaluateBundleFile } from "../slots/evaluate.js";
 import { DEFAULT_RENDER_BUDGET, renderComponent, treeToSvg } from "../slots/render-tree.js";
+import { OFFICIAL_ARTWORK, OFFICIAL_PLUGIN_ITEMS, readOfficialItemText, } from "../official-items.js";
+/** The slot the Host's own Plugins page lists its official plugins in. */
+const OFFICIAL_ITEM_SLOT = 'plugins.item';
 /**
  * Build the `client-slots` provider.
  * @param options - service accessor, entry selection, and budgets.
@@ -91,6 +94,42 @@ export function createClientSlotsProvider(options) {
         }
         return undefined;
     };
+    /**
+     * The official roster, as registrations the client can render.
+     *
+     * Used only when no evaluated bundle contributed to `plugins.item` — a prebuilt
+     * web client composes no entry graph at all, so the slot would otherwise be
+     * empty even though the page has an Official group. Text is read from each
+     * package's own locale file; a package that is not installed contributes
+     * nothing, so the roster always describes this Host rather than a design.
+     */
+    const officialItems = async (warnings) => {
+        const modules = options.installModules?.();
+        if (modules === undefined)
+            return [];
+        const tags = options.localeTags ?? [];
+        const registrations = [];
+        for (const item of OFFICIAL_PLUGIN_ITEMS) {
+            let text;
+            for (const tag of tags) {
+                text = await readOfficialItemText(modules, item, tag);
+                if (text !== undefined)
+                    break;
+            }
+            if (text === undefined) {
+                warnings.warn(`official plugin ${item.id} has no readable locale; skipped`);
+                continue;
+            }
+            registrations.push({
+                slot: OFFICIAL_ITEM_SLOT,
+                id: item.id,
+                order: item.order,
+                label: text.title,
+                package: item.packageName,
+            });
+        }
+        return registrations;
+    };
     return {
         id: 'client-slots',
         version: 1,
@@ -123,6 +162,14 @@ export function createClientSlotsProvider(options) {
                     }
                 }
                 const occupied = new Set(registrations.map(registration => registration.slot));
+                // 只有官方分组整列为空时才回落：评估到的真实注册永远优先。
+                const asksOfficial = slot === undefined || slot === OFFICIAL_ITEM_SLOT;
+                if (asksOfficial && !occupied.has(OFFICIAL_ITEM_SLOT)) {
+                    for (const registration of await officialItems(warnings)) {
+                        registrations.push(registration);
+                        occupied.add(registration.slot);
+                    }
+                }
                 return {
                     slot: slot ?? null,
                     registrations: registrations.sort(compareRegistrations),
@@ -176,6 +223,11 @@ export function createClientSlotsProvider(options) {
             'icon-svg': async (args, warnings) => {
                 const componentId = requiredString(args, 'componentId');
                 const size = optionalPositiveInt(args, 'size', 24, options.maxIconSize);
+                const artwork = OFFICIAL_ARTWORK[componentId];
+                if (artwork !== undefined) {
+                    // 官方条目的图形是固定 artwork，不来自被评估的 bundle。
+                    return { componentId, size, svg: artwork };
+                }
                 const entries = await evaluateAll(warnings);
                 const found = findComponent(entries, componentId);
                 if (found === undefined) {

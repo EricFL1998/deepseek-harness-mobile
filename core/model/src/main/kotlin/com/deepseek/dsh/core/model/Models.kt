@@ -257,6 +257,10 @@ data class PluginBundleItem(
     val iconKey: String = "default",
     val version: String? = null,
     val official: Boolean = false,
+    /** 这个包是否真的落在设备上（与「随安装提供」相对）。 */
+    val installed: Boolean = false,
+    /** Host 报告的可用性：`installation` / `installed` / `missing`。 */
+    val availability: String = "",
     val removable: Boolean = true,
     val error: String? = null,
     val rows: List<PluginComponentInfo> = emptyList(),

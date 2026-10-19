@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
@@ -83,18 +84,76 @@ internal sealed interface SvgShape {
     fun draw(scope: DrawScope, tint: Color)
 }
 
+/**
+ * 一个形状的填充或描边来源。
+ *
+ * 图标集本身是单色的，因此「没写 `fill`/`stroke`」必须继续使用调用方的 tint；
+ * 官方 artwork 则自带固定配色，甚至带渐变。两者都要支持，所以显式区分三种情况。
+ */
+internal sealed interface SvgFill {
+    /** `fill="none"` / `stroke="none"`：不绘制。 */
+    data object None : SvgFill
+
+    /** 没有声明：沿用调用方的 tint，保持单色图标集的原样。 */
+    data object Tint : SvgFill
+
+    /** 声明了具体颜色或渐变。 */
+    data class Paint(val paint: SvgPaint) : SvgFill
+}
+
+/** 具体绘制用色。 */
+internal sealed interface SvgPaint {
+    /** `#RRGGBB` 一类固定色。 */
+    data class Solid(val color: Color) : SvgPaint
+
+    /** `url(#id)` 指向的线性渐变，坐标与 stops 来自 `<linearGradient>`。 */
+    data class Linear(
+        val x1: Float,
+        val y1: Float,
+        val x2: Float,
+        val y2: Float,
+        val stops: List<Pair<Float, Color>>,
+    ) : SvgPaint
+}
+
+/** 把 paint 解析成可绘制画刷；渐变点数不足时退回首个 stop 的纯色。 */
+private fun SvgPaint.brush(): Brush = when (this) {
+    is SvgPaint.Solid -> SolidColor(color)
+    is SvgPaint.Linear -> {
+        if (stops.isEmpty()) {
+            SolidColor(Color.Transparent)
+        } else if (stops.size == 1) {
+            SolidColor(stops.first().second)
+        } else {
+            Brush.linearGradient(
+                *stops.map { (offset, color) -> offset to color }.toTypedArray(),
+                start = Offset(x1, y1),
+                end = Offset(x2, y2),
+            )
+        }
+    }
+}
+
+/** 按来源选择画刷：沿用 tint 时用纯色，声明颜色时用声明值，None 时返回 null。 */
+private fun SvgFill.brushOrNull(tint: Color): Brush? = when (this) {
+    SvgFill.None -> null
+    SvgFill.Tint -> SolidColor(tint)
+    is SvgFill.Paint -> paint.brush()
+}
+
 /** `path`：任意路径数据。 */
 private class SvgPathShape(
     private val path: Path,
-    private val filled: Boolean,
+    private val fill: SvgFill,
+    private val stroke: SvgFill,
     private val strokeWidth: Float,
 ) : SvgShape {
     override fun draw(scope: DrawScope, tint: Color) {
-        if (filled) {
-            scope.drawPath(path, SolidColor(tint), style = Fill)
-        }
+        fill.brushOrNull(tint)?.let { scope.drawPath(path, it, style = Fill) }
         if (strokeWidth > 0f) {
-            scope.drawPath(path, SolidColor(tint), style = Stroke(width = strokeWidth))
+            stroke.brushOrNull(tint)?.let {
+                scope.drawPath(path, it, style = Stroke(width = strokeWidth))
+            }
         }
     }
 }
@@ -104,26 +163,36 @@ private class SvgEllipseShape(
     private val center: Offset,
     private val radiusX: Float,
     private val radiusY: Float,
-    private val filled: Boolean,
+    private val fill: SvgFill,
+    private val stroke: SvgFill,
     private val strokeWidth: Float,
 ) : SvgShape {
     override fun draw(scope: DrawScope, tint: Color) {
         val topLeft = Offset(center.x - radiusX, center.y - radiusY)
         val size = Size(radiusX * 2, radiusY * 2)
-        if (filled) scope.drawOval(SolidColor(tint), topLeft, size, style = Fill)
-        if (strokeWidth > 0f) scope.drawOval(SolidColor(tint), topLeft, size, style = Stroke(width = strokeWidth))
+        fill.brushOrNull(tint)?.let { scope.drawOval(it, topLeft, size, style = Fill) }
+        if (strokeWidth > 0f) {
+            stroke.brushOrNull(tint)?.let {
+                scope.drawOval(it, topLeft, size, style = Stroke(width = strokeWidth))
+            }
+        }
     }
 }
 
 /** `rect`：可带圆角。 */
 private class SvgRectShape(
     private val path: Path,
-    private val filled: Boolean,
+    private val fill: SvgFill,
+    private val stroke: SvgFill,
     private val strokeWidth: Float,
 ) : SvgShape {
     override fun draw(scope: DrawScope, tint: Color) {
-        if (filled) scope.drawPath(path, SolidColor(tint), style = Fill)
-        if (strokeWidth > 0f) scope.drawPath(path, SolidColor(tint), style = Stroke(width = strokeWidth))
+        fill.brushOrNull(tint)?.let { scope.drawPath(path, it, style = Fill) }
+        if (strokeWidth > 0f) {
+            stroke.brushOrNull(tint)?.let {
+                scope.drawPath(path, it, style = Stroke(width = strokeWidth))
+            }
+        }
     }
 }
 
@@ -131,13 +200,14 @@ private class SvgRectShape(
 private class SvgPolyShape(
     private val path: Path,
     private val closed: Boolean,
-    private val filled: Boolean,
+    private val fill: SvgFill,
+    private val stroke: SvgFill,
     private val strokeWidth: Float,
 ) : SvgShape {
     override fun draw(scope: DrawScope, tint: Color) {
-        if (closed && filled) scope.drawPath(path, SolidColor(tint), style = Fill)
+        if (closed) fill.brushOrNull(tint)?.let { scope.drawPath(path, it, style = Fill) }
         val width = if (strokeWidth > 0f) strokeWidth else 1f
-        scope.drawPath(path, SolidColor(tint), style = Stroke(width = width))
+        stroke.brushOrNull(tint)?.let { scope.drawPath(path, it, style = Stroke(width = width)) }
     }
 }
 
@@ -156,6 +226,29 @@ internal object SvgShapes {
     private val ELEMENT = Regex("""<([A-Za-z][A-Za-z0-9:]*)((?:[^>"']|"[^"]*"|'[^']*')*)/?>""")
     private val ATTRIBUTE = Regex("""([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*("([^"]*)"|'([^']*)')""")
 
+    /** 一个 `<linearGradient>` 的属性与其内部文本。 */
+    private val GRADIENT = Regex(
+        """<linearGradient((?:[^>"']|"[^"]*"|'[^']*')*)>(.*?)</linearGradient>""",
+        RegexOption.DOT_MATCHES_ALL,
+    )
+
+    /** 一个 `<stop>`。 */
+    private val STOP = Regex("""<stop((?:[^>"']|"[^"]*"|'[^']*')*)/?>""")
+
+    /** `url(#id)` 渐变引用。 */
+    private val GRADIENT_REFERENCE = Regex("""url\(\s*#([^)\s]+)\s*\)""")
+
+    /** 少数常见命名色；其余非十六进制颜色忽略，交由调用方 tint 兜底。 */
+    private val NAMED_COLORS = mapOf(
+        "black" to Color(0xFF000000),
+        "white" to Color(0xFFFFFFFF),
+        "red" to Color(0xFFFF0000),
+        "green" to Color(0xFF008000),
+        "blue" to Color(0xFF0000FF),
+        "gray" to Color(0xFF808080),
+        "grey" to Color(0xFF808080),
+    )
+
     /** 不绘制、但需要穿过其子元素的容器。 */
     private val CONTAINERS = setOf("svg", "g", "defs", "clipPath", "mask", "symbol", "title", "desc")
 
@@ -168,17 +261,88 @@ internal object SvgShapes {
     fun parse(svg: String): Parsed {
         val shapes = mutableListOf<SvgShape>()
         var viewBox = Rect(0f, 0f, 24f, 24f)
+        // 渐变要先收集：形状用 `url(#id)` 引用它们，而引用可能出现在定义之前。
+        val gradients = gradientsOf(svg)
         for (match in ELEMENT.findAll(svg)) {
             val tag = match.groupValues[1]
             val attributes = attributesOf(match.groupValues[2])
             when {
                 tag == "svg" -> viewBox = viewBoxOf(attributes) ?: viewBox
                 tag in CONTAINERS -> Unit
-                else -> shapeOf(tag, attributes)?.let(shapes::add)
+                else -> shapeOf(tag, attributes, gradients)?.let(shapes::add)
             }
         }
         return Parsed(shapes, viewBox)
     }
+
+    /**
+     * 收集文档里的线性渐变。
+     *
+     * 只支持 `linearGradient`；径向/锥形渐变与滤镜不在绘制范围内，引用它们的
+     * 形状会退回声明色或 tint 而不是画成空白。
+     * @param svg 完整文档文本。
+     * @returns 渐变 id → 绘制参数。
+     */
+    private fun gradientsOf(svg: String): Map<String, SvgPaint.Linear> {
+        val out = mutableMapOf<String, SvgPaint.Linear>()
+        for (block in GRADIENT.findAll(svg)) {
+            val attributes = attributesOf(block.groupValues[1])
+            val id = attributes["id"] ?: continue
+            val stops = STOP.findAll(block.groupValues[2]).mapNotNull { stop ->
+                val stopAttributes = attributesOf(stop.groupValues[1])
+                val offset = stopAttributes["offset"]?.let { raw ->
+                    raw.trim().removeSuffix("%").toFloatOrNull()
+                        ?.let { value -> if (raw.contains("%")) value / 100f else value }
+                } ?: 0f
+                val color = stopAttributes["stop-color"]?.let(::colorOf)
+                    ?: stopAttributes["stop_color"]?.let(::colorOf)
+                    ?: return@mapNotNull null
+                offset.coerceIn(0f, 1f) to color
+            }.toList()
+            if (stops.isEmpty()) continue
+            out[id] = SvgPaint.Linear(
+                x1 = attributes["x1"]?.toFloatOrNull() ?: 0f,
+                y1 = attributes["y1"]?.toFloatOrNull() ?: 0f,
+                x2 = attributes["x2"]?.toFloatOrNull() ?: 1f,
+                y2 = attributes["y2"]?.toFloatOrNull() ?: 1f,
+                stops = stops,
+            )
+        }
+        return out
+    }
+
+    /** `#RGB` / `#RRGGBB` / `#AARRGGBB` 与少量命名色。 */
+    private fun colorOf(raw: String): Color? {
+        val text = raw.trim()
+        if (text.isEmpty() || text == "none" || text == "transparent") return null
+        NAMED_COLORS[text.lowercase()]?.let { return it }
+        val hex = text.removePrefix("#")
+        return runCatching {
+            when (hex.length) {
+                3 -> {
+                    val r = hex[0].digit() * 17
+                    val g = hex[1].digit() * 17
+                    val b = hex[2].digit() * 17
+                    Color(r, g, b)
+                }
+                6 -> Color(
+                    hex.substring(0, 2).toInt(16),
+                    hex.substring(2, 4).toInt(16),
+                    hex.substring(4, 6).toInt(16),
+                )
+                8 -> Color(
+                    hex.substring(2, 4).toInt(16),
+                    hex.substring(4, 6).toInt(16),
+                    hex.substring(6, 8).toInt(16),
+                    hex.substring(0, 2).toInt(16),
+                )
+                else -> null
+            }
+        }.getOrNull()
+    }
+
+    /** 单个十六进制位展开成 0..255。 */
+    private fun Char.digit(): Int = this.digitToInt(16)
 
     /** 读取一个元素的属性表（小写名字 → 值）。 */
     private fun attributesOf(text: String): Map<String, String> {
@@ -201,30 +365,35 @@ internal object SvgShapes {
     }
 
     /** 把一个元素变成形状；不认识的标签返回 null。 */
-    private fun shapeOf(tag: String, attributes: Map<String, String>): SvgShape? {
-        val filled = fillOf(attributes)
+    private fun shapeOf(
+        tag: String,
+        attributes: Map<String, String>,
+        gradients: Map<String, SvgPaint.Linear>,
+    ): SvgShape? {
+        val fill = fillOf(attributes, "fill", gradients)
+        val stroke = fillOf(attributes, "stroke", gradients)
         val strokeWidth = attributes["stroke-width"]?.toFloatOrNull()
-            ?: if (attributes["stroke"] != null && attributes["stroke"] != "none") 1f else 0f
+            ?: if (stroke is SvgFill.Paint || stroke == SvgFill.Tint) 1f else 0f
         return when (tag) {
             "path" -> {
                 val data = attributes["d"] ?: return null
                 val path = runCatching {
                     PathParser().parsePathString(data).toPath()
                 }.getOrNull() ?: return null
-                SvgPathShape(path, filled, strokeWidth)
+                SvgPathShape(path, fill, stroke, strokeWidth)
             }
             "circle" -> {
                 val centerX = attributes["cx"]?.toFloatOrNull() ?: 0f
                 val centerY = attributes["cy"]?.toFloatOrNull() ?: 0f
                 val radius = attributes["r"]?.toFloatOrNull() ?: return null
-                SvgEllipseShape(Offset(centerX, centerY), radius, radius, filled, strokeWidth)
+                SvgEllipseShape(Offset(centerX, centerY), radius, radius, fill, stroke, strokeWidth)
             }
             "ellipse" -> {
                 val centerX = attributes["cx"]?.toFloatOrNull() ?: 0f
                 val centerY = attributes["cy"]?.toFloatOrNull() ?: 0f
                 val radiusX = attributes["rx"]?.toFloatOrNull() ?: return null
                 val radiusY = attributes["ry"]?.toFloatOrNull() ?: return null
-                SvgEllipseShape(Offset(centerX, centerY), radiusX, radiusY, filled, strokeWidth)
+                SvgEllipseShape(Offset(centerX, centerY), radiusX, radiusY, fill, stroke, strokeWidth)
             }
             "rect" -> {
                 val x = attributes["x"]?.toFloatOrNull() ?: 0f
@@ -232,7 +401,7 @@ internal object SvgShapes {
                 val width = attributes["width"]?.toFloatOrNull() ?: return null
                 val height = attributes["height"]?.toFloatOrNull() ?: return null
                 val radius = attributes["rx"]?.toFloatOrNull() ?: attributes["ry"]?.toFloatOrNull() ?: 0f
-                SvgRectShape(roundedRect(x, y, width, height, radius), filled, strokeWidth)
+                SvgRectShape(roundedRect(x, y, width, height, radius), fill, stroke, strokeWidth)
             }
             "line" -> {
                 val x1 = attributes["x1"]?.toFloatOrNull() ?: 0f
@@ -243,7 +412,13 @@ internal object SvgShapes {
                     moveTo(x1, y1)
                     lineTo(x2, y2)
                 }
-                SvgPolyShape(path, closed = false, filled = false, strokeWidth = if (strokeWidth > 0f) strokeWidth else 1f)
+                SvgPolyShape(
+                    path,
+                    closed = false,
+                    fill = SvgFill.None,
+                    stroke = if (stroke == SvgFill.None) SvgFill.Tint else stroke,
+                    strokeWidth = if (strokeWidth > 0f) strokeWidth else 1f,
+                )
             }
             "polyline", "polygon" -> {
                 val points = attributes["points"]?.trim()?.split(Regex("""[\s,]+"""))
@@ -260,16 +435,41 @@ internal object SvgShapes {
                 }
                 val closed = tag == "polygon"
                 if (closed) path.close()
-                SvgPolyShape(path, closed, filled, strokeWidth)
+                SvgPolyShape(path, closed, fill, stroke, strokeWidth)
             }
             else -> null
         }
     }
 
-    /** `fill` 缺省为黑（即填充），`fill="none"` 关闭填充。 */
-    private fun fillOf(attributes: Map<String, String>): Boolean {
-        val fill = attributes["fill"] ?: return true
-        return fill != "none" && fill != "transparent"
+    /**
+     * 解析一条绘制来源。
+     *
+     * 缺省填充为 tint（单色图标集依赖这一点）；`none`/`transparent` 表示不画；
+     * 具体颜色与 `url(#id)` 渐变按声明绘制。
+     * @param attributes 元素属性表。
+     * @param name `fill` 或 `stroke`。
+     * @param gradients 文档内已收集的渐变。
+     * @returns 绘制来源。
+     */
+    private fun fillOf(
+        attributes: Map<String, String>,
+        name: String,
+        gradients: Map<String, SvgPaint.Linear>,
+    ): SvgFill {
+        val raw = attributes[name]
+        // 描边缺省是不画：只有显式声明 stroke 才描边。
+        if (raw == null) return if (name == "fill") SvgFill.Tint else SvgFill.None
+        val value = raw.trim()
+        if (value == "none" || value == "transparent") return SvgFill.None
+        val reference = GRADIENT_REFERENCE.find(value)
+        if (reference != null) {
+            val gradient = gradients[reference.groupValues[1]]
+            if (gradient != null) return SvgFill.Paint(gradient)
+            return SvgFill.Tint
+        }
+        val color = colorOf(value) ?: return SvgFill.Tint
+        val alpha = attributes["$name-opacity"]?.toFloatOrNull()?.coerceIn(0f, 1f) ?: 1f
+        return SvgFill.Paint(SvgPaint.Solid(color.copy(alpha = color.alpha * alpha)))
     }
 
     /** 构造一个可带圆角的矩形路径。 */

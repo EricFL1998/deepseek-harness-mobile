@@ -93,11 +93,8 @@ class BridgePluginInstaller(
         packageName: String = BridgePluginManifest.DEFAULT_PACKAGE,
         version: String = BridgePluginManifest.load(context)?.version.orEmpty(),
     ): Boolean {
-        val inHostInstall = File(hostInstallModulesDir(), packageName)
         val inProfile = File(profileDir, "node_modules/$packageName")
-        if (!File(if (inHostInstall.isDirectory) inHostInstall else inProfile, "package.json").isFile) {
-            return false
-        }
+        if (!File(inProfile, "package.json").isFile) return false
         val manifestFile = File(profileDir, "package.json")
         if (!manifestFile.isFile) return false
         return runCatching {
@@ -138,11 +135,14 @@ class BridgePluginInstaller(
     }
 
     /**
-     * 把 APK 内置的插件文件铺进 Host 的安装目录。
+     * 把 APK 内置的插件文件铺进 profile 的 `node_modules`。
      *
-     * 为什么放在安装目录而不是 profile：DSH 启动时会核对 profile 的外部依赖，装不
-     * 上的会被移除；而设备上没有可用的 pnpm/git 源。安装目录里的包会被当作「随
-     * DSH 一起发布的 bundle」直接解析，不经过那次核对，因此能稳定加载。
+     * 位置由解析规则决定：patch 行里的 `dsh-mobile-bridge-plugin` 是从 **profile
+     * 目录**解析的（实测报错 `Cannot find package ... imported from
+     * /root/.dsh/profiles/web/`），所以包必须在那里。放 Host 安装目录不行。
+     *
+     * 普通目录足够：DSH 只在启动时核对 profile 的 **manifest**，不会删除
+     * `node_modules` 里的文件。这也是为什么插件挂载点改到了 web-app 的 patch 里。
      *
      * 文件按版本整目录替换：内容变了才重写，避免每次启动都复制十几万字节。
      * @param packageName 目标包名。
@@ -155,7 +155,7 @@ class BridgePluginInstaller(
             return false
         }
         val version = BridgePluginManifest.load(context)?.version.orEmpty()
-        val target = File(hostInstallModulesDir(), packageName)
+        val target = File(profileDir, "node_modules/$packageName")
         val stamp = File(target, ".bundled-version")
         if (target.isDirectory && stamp.isFile && stamp.readText().trim() == version) {
             // 版本一致且文件齐备：不必重拷。
@@ -189,12 +189,6 @@ class BridgePluginInstaller(
         target.mkdirs()
         children.forEach { child -> copyAssetTree("$assetRoot/$child", File(target, child)) }
     }
-
-    /** DSH 安装自带的 bundle 目录；随安装发布，不参与 profile 依赖核对。 */
-    private fun hostInstallModulesDir(): File = File(
-        layout.rootfsDir,
-        "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules",
-    )
 
     /**
      * 读取 rootfs 内已安装的插件版本。

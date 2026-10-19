@@ -1,6 +1,6 @@
 {
   "packageName": "dsh-mobile-bridge-plugin",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "repository": "https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin",
   "entryId": "dsh-mobile-bridge-plugin",
   "_comment": "插件从 GitHub 源码安装，不进 APK。这份清单只说明期望版本与安装源；'version' 是 rootfs 首次打包时的基准，实际最新版本以插件仓库的 release tag 为准。"

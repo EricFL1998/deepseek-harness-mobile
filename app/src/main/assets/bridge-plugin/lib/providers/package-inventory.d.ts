@@ -53,6 +53,8 @@ export interface PackageInventoryOptions {
     readonly pluginManager: () => PluginManagerFace | undefined;
     /** Resolve the inventory service, or undefined when absent. */
     readonly pluginInventory: () => PluginInventoryFace | undefined;
+    /** Locale tags used to resolve locale-mapped titles and descriptions. */
+    readonly localeTags?: readonly string[];
 }
 /**
  * Build the `package-inventory` provider.

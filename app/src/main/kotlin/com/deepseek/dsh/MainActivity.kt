@@ -61,6 +61,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.designsystem.DshTheme
@@ -1058,8 +1060,8 @@ fun MainAppHost(
                             )
 
                             !pageHasOwnHeader -> PageBackBar(
+                                title = pageTitleOf(activePage),
                                 onBack = { activePage = ActivePage.CHAT },
-                                onMenuClick = { scope.launch { drawerState.open() } },
                             )
                         }
                     }
@@ -1347,6 +1349,11 @@ fun MainAppHost(
                                 onToggleBundle = { packageName, enabled ->
                                     scope.launch {
                                         dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                        // 双向同步：开关值以 Host 的实际状态为准。成功时
+                                        // 这只是确认；失败时它会把开关拨回真实状态，而不是
+                                        // 让界面停在用户按下的那个位置。
+                                        dshRepository.refreshBridgePluginCatalog()
+                                        dshRepository.refreshPluginInventory(activeHostId)
                                     }
                                 },
                                 onUninstall = { item ->
@@ -1906,13 +1913,14 @@ fun RuntimeControlScreen(
  * 现代轻量顶栏组件（参考截图 1, 2, 3）
  */
 /**
- * 全屏子页面的极简返回条：左侧菜单、右侧返回对话，不显示标题，
- * 因此不会与页面自身的标题栏形成双 header。
+ * 全屏子页面的顶栏，与设置页一致：左侧返回、标题居中、右侧留空。
+ *
+ * 手势返回由外层 `BackHandler` 提供，所以这个按钮只是同一动作的可见入口。
  */
 @Composable
 fun PageBackBar(
+    title: String,
     onBack: () -> Unit,
-    onMenuClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -1922,24 +1930,49 @@ fun PageBackBar(
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onMenuClick, modifier = Modifier.size(44.dp)) {
-            Icon(
-                imageVector = DshIcons.PanelLeftOutline,
-                contentDescription = "Menu",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
-            )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp),
-            )
-        }
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        // 与左侧按钮等宽，标题才会真正居中。
+        Spacer(modifier = Modifier.size(40.dp))
     }
+}
+
+/** 子页面顶栏标题；与抽屉里的条目文案保持一致。 */
+private fun pageTitleOf(page: ActivePage): String = when (page) {
+    ActivePage.PLUGINS -> "插件"
+    ActivePage.AUTOMATION -> "自动化任务"
+    ActivePage.TASKBOARD -> "任务看板"
+    ActivePage.FILES -> "文件"
+    ActivePage.HOSTS -> "远程连接"
+    ActivePage.APPROVAL -> "授权请求"
+    ActivePage.RUNTIME -> "运行时"
+    ActivePage.SDUI_SAMPLE -> "界面示例"
+    ActivePage.SETTINGS -> "设置"
+    ActivePage.CHAT -> "deepseek"
 }
 @Composable
 private fun HeaderChip(

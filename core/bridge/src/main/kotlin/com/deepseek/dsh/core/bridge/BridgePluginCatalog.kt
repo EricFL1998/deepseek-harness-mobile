@@ -82,7 +82,14 @@ object BridgePluginCatalog {
                     locale = registration.locale,
                     order = registration.order ?: 0,
                     componentId = registration.componentId,
-                    iconSvg = iconOf(registry, registration.componentId, iconSize, warnings),
+                    // 官方条目没有可评估的组件：bridge 直接按注册 id 返回固定
+                    // artwork，所以取图标的键在两种情况下都可用。
+                    iconSvg = iconOf(
+                        registry,
+                        registration.componentId ?: registration.identity,
+                        iconSize,
+                        warnings,
+                    ),
                 )
             }
             .orEmpty()
@@ -98,6 +105,7 @@ object BridgePluginCatalog {
                 removable = bundle.removable,
                 enabled = bundle.enabled,
                 installed = bundle.installed,
+                availability = bundle.availability,
                 errorCode = bundle.errorCode,
                 iconDataUrl = bundle.icon,
                 rows = bundle.rows.map { row ->
@@ -235,6 +243,8 @@ data class BridgePluginBundleSummary(
     val removable: Boolean,
     val enabled: Boolean,
     val installed: Boolean,
+    /** Host 报告的可用性：随安装提供、已安装或缺失。 */
+    val availability: String = "",
     val errorCode: String?,
     val iconDataUrl: String?,
     val rows: List<BridgePluginRowSummary> = emptyList(),

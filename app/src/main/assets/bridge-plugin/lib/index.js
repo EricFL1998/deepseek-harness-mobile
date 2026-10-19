@@ -10,6 +10,7 @@
  * format alone.
  */
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import z from '@deepseek-ai/schemastery';
 import { webServerOf } from "./host-services.js";
 import { createBridgeHandler, writeReply } from "./handler.js";
@@ -75,6 +76,23 @@ function admissionOf(ctx, request) {
     return connection.requestRejection({ headers: request.headers });
 }
 /**
+ * Absolute path of the Host installation's own `node_modules`.
+ *
+ * The official roster lives beside the DSH installation rather than in the
+ * profile, so this is the one directory whose `@deepseek-ai/*` packages describe
+ * what this Host actually ships.
+ * @returns the directory, or undefined when the installation cannot be located.
+ */
+function installModulesPath() {
+    try {
+        const require = createRequire(import.meta.url);
+        return join(dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'node_modules');
+    }
+    catch {
+        return undefined;
+    }
+}
+/**
  * Assemble the provider table from whatever the composition provides.
  * @param ctx - the plugin context.
  * @param config - resolved config.
@@ -99,10 +117,13 @@ function assembleProviders(ctx, config) {
         },
         maxIconSize: config.maxIconSize,
         iconViewBox: config.iconViewBox,
+        installModules: () => installModulesPath(),
+        localeTags: config.localeTags,
     }));
     registry.add(createPackageInventoryProvider({
         pluginManager: () => ctx.get('pluginManager'),
         pluginInventory: () => ctx.get('pluginInventory'),
+        localeTags: config.localeTags,
     }));
     const allowlist = config.rpcAllowlist.map(entry => ({
         namespace: entry.namespace,

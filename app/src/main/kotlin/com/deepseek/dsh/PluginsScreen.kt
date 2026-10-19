@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginConfigItem
+import com.deepseek.dsh.core.model.PluginComponentInfo
 import com.deepseek.dsh.core.model.PluginManagerSnapshot
 import com.deepseek.dsh.core.model.PluginRowInfo
 import androidx.compose.foundation.background
@@ -74,6 +75,7 @@ import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
 import com.deepseek.dsh.core.designsystem.dshPanelColors
 import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.core.model.SurfaceKind
+import com.deepseek.dsh.core.bridge.BridgePluginBundleSummary
 import com.deepseek.dsh.core.bridge.BridgePluginCatalogData
 import com.deepseek.dsh.core.bridge.BridgePluginCatalogSource
 
@@ -134,6 +136,41 @@ fun PluginsScreen(
         }
     }
     var disabledPlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    /**
+     * 三个分组的来源。
+     *
+     * 全部由 Host 报告的事实推导，客户端不维护「哪些是实验性」的白名单：
+     *
+     * - **实验性插件** = Host 标记为 `optional` 的 bundle（安装里带、但默认关闭）；
+     * - **已安装插件** = 既非官方也非可选、且确实装上了的 bundle，也就是第三方；
+     * - 内置配置来自 `plugins.item` 的官方条目。
+     *
+     * bridge 不可用时退回 Host 原生清单（没有图标，但分组仍成立）。
+     */
+    val derivedExperimentalBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
+        val fromBridge = bridgeCatalog.bundles
+            .filter { it.optional }
+            .map { it.toPluginBundleItem() }
+            .filter(::pinnedToMainList)
+            .sortedBy { optionalBundleRank(it.packageName) }
+        fromBridge.ifEmpty { pluginManagerSnapshot?.experimentalBundles.orEmpty() }
+    }
+    /** 默认收起、只有「更多插件」里才出现的实验性插件；启用后会升进上面的主列表。 */
+    val derivedMoreBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
+        bridgeCatalog.bundles
+            .filter { it.optional }
+            .map { it.toPluginBundleItem() }
+            .filterNot(::pinnedToMainList)
+            .sortedBy { optionalBundleRank(it.packageName) }
+    }
+    val derivedInstalledBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
+        val fromBridge = bridgeCatalog.bundles
+            .filter { it.installed && !it.official && !it.optional }
+            .filterNot { BUILTIN_PROFILE_BUNDLES.contains(it.name) }
+            .map { it.toPluginBundleItem() }
+        fromBridge.ifEmpty { pluginManagerSnapshot?.installedBundles.orEmpty() }
+    }
 
     fun keyOf(item: SurfaceItem): String = "${item.pluginId}::${item.slot}"
     fun enabledOf(item: SurfaceItem): Boolean = keyOf(item) !in disabledPlugins
@@ -223,7 +260,7 @@ fun PluginsScreen(
                         }
                     }
 
-                    val experimentalBundles = pluginManagerSnapshot?.experimentalBundles ?: emptyList()
+                    val experimentalBundles = derivedExperimentalBundles
                     if (experimentalBundles.isNotEmpty()) {
                         item(key = "experimental_group_head") {
                             PluginsGroupTitle(
@@ -246,7 +283,33 @@ fun PluginsScreen(
                         }
                     }
 
-                    // 1. 已安装插件（首页即官方插件管理页的唯一列表；不预置演示/测试插件）
+                    // 默认收起的实验性插件：与官方页面一致，放在主列表之外的「更多插件」。
+                    if (derivedMoreBundles.isNotEmpty()) {
+                        item(key = "more_group_head") {
+                            PluginsGroupTitle(
+                                text = "更多插件",
+                                modifier = Modifier.padding(
+                                    top = PluginsDimens.SectionGap,
+                                    bottom = PluginsDimens.GroupTitleGap,
+                                ),
+                            )
+                        }
+                        itemsIndexed(
+                            items = derivedMoreBundles,
+                            key = { index, bundle -> "more_${index}_${bundle.packageName}" },
+                        ) { index, bundle ->
+                            InstalledHostBundleRow(
+                                bundle = bundle,
+                                showDivider = index != derivedMoreBundles.lastIndex,
+                                onOpen = { selectedBundle = bundle },
+                                onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
+                                onUninstall = { },
+                                locked = isLockedBundle(bundle.packageName),
+                            )
+                        }
+                    }
+
+                    // 1. 已安装插件：只列第三方（官方与实验性已各自成组）
                     item(key = "installed_group_head") {
                         PluginsGroupTitle(
                             text = "已安装插件",
@@ -257,7 +320,7 @@ fun PluginsScreen(
                         )
                     }
 
-                    val hostBundles = pluginManagerSnapshot?.installedBundles ?: emptyList()
+                    val hostBundles = derivedInstalledBundles
                     if (surfaces.isEmpty() && hostBundles.isEmpty()) {
                         item(key = "installed_empty") {
                             Text(
@@ -345,7 +408,110 @@ fun PluginsScreen(
  * 安装与版本判断，这里负责在插件页里禁止停用/卸载。两边都以常量而非字符串
  * 字面量出现，改名时只需改一处定义。
  */
+/**
+ * 把 bridge 的 bundle 摘要转成列表行模型。
+ *
+ * 图标是 Host 给出的 `meta.icon` data URL，原样传给行渲染；没有就是没有，
+ * 不用本地常量顶替。
+ * @param summary bridge 的 bundle 摘要。
+ * @returns 列表行模型。
+ */
+private fun BridgePluginBundleSummary.toPluginBundleItem(): PluginBundleItem = PluginBundleItem(
+    packageName = name,
+    title = title,
+    description = description.orEmpty(),
+    isExperimental = optional,
+    enabled = enabled,
+    official = official,
+    installed = installed,
+    availability = availability,
+    version = version,
+    removable = removable,
+    error = errorCode,
+    iconData = iconDataUrl,
+    rows = rows.map { row ->
+        PluginComponentInfo(
+            rowId = row.rowId,
+            moduleName = row.moduleName,
+            title = row.title,
+            description = row.description.orEmpty(),
+            enabled = true,
+        )
+    },
+)
+
 private const val BRIDGE_PLUGIN_PACKAGE = "dsh-mobile-bridge-plugin"
+
+
+
+/**
+ * 官方插件页的分组规则，逐条对应 `ui-plugin-manager` 的实现。
+ *
+ * 这些包名是官方页面的固定清单，不是内容数据：它们决定「哪些默认显示、哪些先收起来、
+ * 哪些开关默认是开的」。内容（标题/描述/图标/开关状态）全部来自 Host。
+ */
+/** 基础层 bundle：`/plugins` 页面永远不列它们，即使 profile 声明为依赖。 */
+private val BUILTIN_PROFILE_BUNDLES = setOf(
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-web-app",
+    "@deepseek-ai/dsh-headless",
+    "@deepseek-ai/dsh-sdk-app",
+    "@deepseek-ai/dsh-acp-app",
+    "@deepseek-ai/dsh-sdk-minimal",
+)
+
+/** 实验性插件里常驻主列表的四个，顺序即显示顺序。 */
+private val EXTENSION_BUNDLES = listOf(
+    "@deepseek-ai/dsh-experimental-agent-team-profile",
+    "@deepseek-ai/dsh-experimental-voice-input-bundle",
+    "@deepseek-ai/dsh-experimental-auto-review",
+    "@deepseek-ai/dsh-experimental-inspector-profile",
+)
+
+/** 其余实验性插件：默认收在「更多插件」里，一旦启用就升进主列表。 */
+private val MORE_BUNDLES = listOf(
+    "@deepseek-ai/dsh-experimental-tool-worktree",
+    "@deepseek-ai/dsh-experimental-cot-translation-bundle",
+    "@deepseek-ai/dsh-experimental-terminal-bundle",
+    "@deepseek-ai/dsh-experimental-session-search",
+    "@deepseek-ai/dsh-experimental-session-titles-bundle",
+    "@deepseek-ai/dsh-experimental-badge-skill-bundle",
+    "@deepseek-ai/dsh-experimental-ralph-bundle",
+    "@deepseek-ai/dsh-experimental-plugin-market-bundle",
+    "@deepseek-ai/dsh-subagent-codex",
+    "@deepseek-ai/dsh-subagent-claude-code",
+)
+
+/**
+ * 官方页面的排序：常驻的按固定顺序，不认识的排在其后，被收起的按「更多」顺序。
+ * @param name 包名。
+ * @returns 排序键。
+ */
+private fun optionalBundleRank(name: String): Int {
+    val alwaysHeld = EXTENSION_BUNDLES.indexOf(name)
+    if (alwaysHeld >= 0) return alwaysHeld
+    val heldBack = MORE_BUNDLES.indexOf(name)
+    return if (heldBack < 0) EXTENSION_BUNDLES.size else EXTENSION_BUNDLES.size + 1 + heldBack
+}
+
+/**
+ * 一个实验性插件是否进主列表：常驻的那四个总是进，被收起的只有启用后才进。
+ * @param bundle 实验性 bundle。
+ * @returns 是否在主列表显示。
+ */
+private fun pinnedToMainList(bundle: PluginBundleItem): Boolean =
+    !MORE_BUNDLES.contains(bundle.packageName) || bundle.enabled
+
+/**
+ * 这个包是否随 DSH 安装一起提供。
+ *
+ * `@deepseek-ai/dsh-experimental-*` 是官方发布但默认关闭的可选包，它们和基础层
+ * 一样属于「内置」；只有用户自己装的包才需要按包名区分来源。
+ * @param packageName bundle 的包名。
+ * @returns 是否内置。
+ */
+private fun isBuiltInBundle(packageName: String): Boolean =
+    packageName.startsWith("@deepseek-ai/")
 
 /**
  * 这个 bundle 是否是客户端必需的基础设施。
@@ -690,17 +856,60 @@ private fun BundleDetailContent(
             Spacer(Modifier.width(8.dp))
             Text("插件", color = colors.labelSecondary, fontSize = 12.sp)
         }
-        Spacer(Modifier.height(20.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PluginsIconFrame(
-                icon = Icons.Default.Build,
-                frameSize = 48.dp,
-                frameRadius = 16.dp,
-                glyphSize = 22.dp,
-            )
+        Spacer(Modifier.height(18.dp))
+        // 头部：真实图标 + 标题 / 描述 / 包名，成一块；右侧只放开关或「必需」标记。
+        Row(verticalAlignment = Alignment.Top) {
+            BundleArtwork(bundle)
             Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = bundle.title,
+                        color = colors.labelPrimary,
+                        fontSize = 19.sp,
+                        lineHeight = 26.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (!bundle.version.isNullOrBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("v${bundle.version}", color = colors.labelTertiary, fontSize = 12.sp)
+                    }
+                }
+                if (bundle.isExperimental) {
+                    Spacer(Modifier.height(3.dp))
+                    Text("实验性", color = colors.labelSecondary, fontSize = 11.sp)
+                }
+                // 标题就是包名时不再重复一遍。
+                if (bundle.title != bundle.packageName) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = bundle.packageName,
+                        color = colors.labelTertiary,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (bundle.description.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = bundle.description,
+                        color = colors.labelSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                    )
+                }
+                if (bundle.error != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("异常：${bundle.error}", color = colors.stateErrorPrimary, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.width(10.dp))
             if (isLockedBundle(bundle.packageName)) {
-                // 与列表行一致：必需插件只呈现状态，不提供开关。
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -718,34 +927,6 @@ private fun BundleDetailContent(
                 DshSwitch(checked = bundle.enabled, onCheckedChange = onToggle)
             }
         }
-        Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = bundle.title,
-                color = colors.labelPrimary,
-                fontSize = 20.sp,
-                lineHeight = 28.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            if (!bundle.version.isNullOrBlank()) {
-                Spacer(Modifier.width(8.dp))
-                Text("v${bundle.version}", color = colors.labelTertiary, fontSize = 12.sp)
-            }
-            if (bundle.isExperimental) {
-                Spacer(Modifier.width(8.dp))
-                Text("实验性", color = colors.labelSecondary, fontSize = 11.sp)
-            }
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(bundle.packageName, color = colors.labelTertiary, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-        if (bundle.description.isNotBlank()) {
-            Spacer(Modifier.height(10.dp))
-            Text(bundle.description, color = colors.labelSecondary, fontSize = 13.sp, lineHeight = 20.sp)
-        }
-        if (bundle.error != null) {
-            Spacer(Modifier.height(8.dp))
-            Text("异常：${bundle.error}", color = colors.stateErrorPrimary, fontSize = 12.sp)
-        }
         Spacer(Modifier.height(28.dp))
         Text(
             text = "包含的组件 共 ${bundle.rows.size} 个 · ${bundle.rows.count { it.enabled }} 运行中",
@@ -762,12 +943,7 @@ private fun BundleDetailContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                PluginsIconFrame(
-                    icon = Icons.Default.Build,
-                    frameSize = 36.dp,
-                    frameRadius = 10.dp,
-                    glyphSize = 16.dp,
-                )
+                BundleArtwork(bundle = bundle, frameSize = 34.dp)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(component.title, color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Text(component.description.ifBlank { component.moduleName }, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -780,7 +956,14 @@ private fun BundleDetailContent(
         Spacer(Modifier.height(28.dp))
         Text("来源信息", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
-        DetailFactRow(label = "代码来源", value = if (bundle.official) "内置" else bundle.packageName, monospace = true)
+        // 代码来源：DSH 自己的包（含 `@deepseek-ai/dsh-experimental-*` 这些可选实验
+        // 包）都随安装提供，标「内置」；第三方包才显示包名，用户据此判断来源。
+        val builtIn = isBuiltInBundle(bundle.packageName)
+        DetailFactRow(
+            label = "代码来源",
+            value = if (builtIn) "内置" else bundle.packageName,
+            monospace = !builtIn,
+        )
         DetailFactRow(label = "当前版本", value = bundle.version ?: "—")
         if (bundle.removable && !isLockedBundle(bundle.packageName)) {
             Spacer(Modifier.height(16.dp))
@@ -789,15 +972,88 @@ private fun BundleDetailContent(
     }
 }
 
+/**
+ * 一个插件包或 row 的图标。
+ *
+ * Host 的 `meta.icon` 有两种形态：位图 data URL 与 SVG data URL。规范里实验性
+ * 插件的图标都是 SVG，只按位图解码会让整列回落成占位图标，所以两种都认。
+ */
+
+/**
+ * 把 SVG 的 data URL 解成可以交给 [DshSvgIcon] 的文本。
+ *
+ * 支持 `data:image/svg+xml;base64,...` 与 `data:image/svg+xml;utf8,...`/裸文本；
+ * 不是 SVG 的 data URL 返回 null，调用方继续按位图处理。
+ * @param dataUrl Host 给出的 `meta.icon`。
+ * @returns SVG 文本，或 null。
+ */
+private fun decodeSvgDataUrl(dataUrl: String): String? {
+    if (!dataUrl.startsWith("data:image/svg+xml", ignoreCase = true)) return null
+    val payload = dataUrl.substringAfter(",", missingDelimiterValue = "")
+    if (payload.isEmpty()) return null
+    if (dataUrl.substringBefore(",").contains("base64", ignoreCase = true)) {
+        return runCatching {
+            String(Base64.decode(payload, Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull()?.takeIf { it.contains("<svg", ignoreCase = true) }
+    }
+    return runCatching { java.net.URLDecoder.decode(payload, "UTF-8") }
+        .getOrNull()
+        ?.takeIf { it.contains("<svg", ignoreCase = true) }
+}
+
+
+/**
+ * 一个 bundle 的图形：有 Host 给的 `meta.icon` 就用它，没有才回落到通用图标。
+ *
+ * 实验性插件的图标是 SVG data URL，[PluginMetaIcon] 两种编码都认；这里只负责
+ * 选出用哪个，以及在没有图标时保持版式不塌。
+ * @param bundle 要画的 bundle。
+ * @param frameSize 外框边长。
+ */
+@Composable
+private fun BundleArtwork(bundle: PluginBundleItem, frameSize: Dp = 48.dp) {
+    if (bundle.iconData.isNullOrBlank()) {
+        PluginsIconFrame(
+            icon = Icons.Default.Build,
+            frameSize = frameSize,
+            frameRadius = if (frameSize >= 44.dp) 16.dp else 10.dp,
+            glyphSize = if (frameSize >= 44.dp) 22.dp else 16.dp,
+        )
+        return
+    }
+    Box(
+        modifier = Modifier
+            .size(frameSize)
+            .clip(RoundedCornerShape(if (frameSize >= 44.dp) 16.dp else 10.dp))
+            .background(LocalDshPanelColors.current.bgModulePlatform),
+        contentAlignment = Alignment.Center,
+    ) {
+        PluginMetaIcon(
+            iconData = bundle.iconData,
+            size = frameSize * 0.62f,
+            radius = 0.dp,
+            glyphSize = 16.dp,
+        )
+    }
+}
+
 @Composable
 private fun PluginMetaIcon(iconData: String?, size: Dp, radius: Dp, glyphSize: Dp) {
+    val svgText = remember(iconData) { iconData?.let(::decodeSvgDataUrl) }
     val bitmap = remember(iconData) {
-        if (iconData.isNullOrBlank() || !iconData.contains(",")) null else runCatching {
+        if (svgText != null || iconData.isNullOrBlank() || !iconData.contains(",")) null else runCatching {
             val bytes = Base64.decode(iconData.substringAfter(","), Base64.DEFAULT)
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         }.getOrNull()
     }
-    if (bitmap != null) {
+    if (svgText != null) {
+        DshSvgIcon(
+            svg = svgText,
+            size = size,
+            tint = LocalDshPanelColors.current.labelPrimary,
+            modifier = Modifier.size(size),
+        )
+    } else if (bitmap != null) {
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
@@ -940,20 +1196,24 @@ private fun InstalledHostBundleRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Box(
-                        modifier = Modifier
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(colors.bgModulePlatform)
-                            .padding(horizontal = 4.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Host",
-                            color = colors.labelSecondary,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                    // 与官方页面一致：包不在设备上时标「未安装」，而不是假装可用。
+                    if (bundle.availability == "missing") {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .height(16.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(colors.bgModulePlatform)
+                                .padding(horizontal = 5.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "未安装",
+                                color = colors.labelSecondary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                 }
                 Text(

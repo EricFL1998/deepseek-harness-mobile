@@ -24,6 +24,10 @@ export interface ClientSlotsOptions {
     readonly maxIconSize: number;
     /** Coordinate space the client's icons are authored in. */
     readonly iconViewBox: string;
+    /** Absolute path of the Host installation's `node_modules`, or undefined when unknown. */
+    readonly installModules?: () => string | undefined;
+    /** Locale tags to read the official roster's text with, preferred first. */
+    readonly localeTags?: readonly string[];
 }
 /**
  * Build the `client-slots` provider.

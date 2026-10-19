@@ -47,3 +47,15 @@ export declare function stringRecord(value: unknown): Record<string, string>;
  * @returns the first present string, or undefined.
  */
 export declare function firstString(value: unknown, fields: readonly string[]): string | undefined;
+/**
+ * Read the first localized field of a record.
+ *
+ * The Host writes display text either as a plain string or as a locale map such as
+ * `{ zh: "...", en: "..." }`. A native client shows one of those, so the map is
+ * resolved to the first requested tag rather than dropped.
+ * @param value - candidate record.
+ * @param fields - field names in preference order.
+ * @param tags - locale tags in preference order.
+ * @returns the resolved text, or undefined.
+ */
+export declare function localizedString(value: unknown, fields: readonly string[], tags: readonly string[]): string | undefined;
