@@ -1,6 +1,7 @@
 package com.deepseek.dsh.core.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 enum class HostKind {
@@ -330,4 +331,17 @@ data class PluginSettingsPage(
     val title: String,
     val description: String? = null,
     val module: String? = null,
+)
+
+/**
+ * 一份插件设置文档：Host 投影出来的表单、它的当前值与版本。
+ *
+ * 表单来自插件自己的 `Config` schema，客户端只负责画字段与回写，不重新定义字段。
+ */
+@Serializable
+data class PluginSettingsDocument(
+    val ns: String,
+    val revision: Int = 0,
+    val schema: JsonObject = JsonObject(emptyMap()),
+    val value: JsonObject = JsonObject(emptyMap()),
 )

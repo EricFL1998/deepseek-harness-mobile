@@ -3,6 +3,7 @@ package com.deepseek.dsh.core.bridge
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 /**
  * `bridge/v1` 线协议模型。
@@ -309,4 +310,21 @@ data class BridgeSlotSurface(
 @Serializable
 data class BridgeSlotSurfaceList(
     val surfaces: List<BridgeSlotSurface> = emptyList(),
+)
+
+/** `settings/describe` 的响应体。 */
+@Serializable
+data class BridgeSettingsDocument(
+    val ns: String,
+    val revision: Int = 0,
+    val applies: String? = null,
+    val schema: JsonObject = JsonObject(emptyMap()),
+    val value: JsonObject = JsonObject(emptyMap()),
+)
+
+/** `settings/update` 的响应体。 */
+@Serializable
+data class BridgeSettingsWriteResult(
+    val ns: String,
+    val updated: Boolean = false,
 )

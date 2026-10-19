@@ -112,6 +112,26 @@ class BridgeRegistry(
      * 与 `slotRegistrations` 的区别：那条路要评估客户端 bundle，预构建的 web 客户端
      * 没有可评估的 entry；这条路读的是 Host 自己的服务端数据，因此在这些 Host 上仍然可用。
      */
+    /** 读取一份插件设置文档（表单 + 当前值 + 版本）。 */
+    suspend fun settingsDescribe(ns: String): BridgeResult<BridgeSettingsDocument> = query(
+        provider = BridgeSettingsProvider,
+        op = "describe",
+        args = BridgeArgs.of("ns", ns),
+    ) { json.decodeFromString(BridgeSettingsDocument.serializer(), it.toString()) }
+
+    /** 回写编辑后的字段；`expectedRevision` 不匹配时 Host 会拒绝。 */
+    suspend fun settingsUpdate(
+        ns: String,
+        patch: JsonObject,
+        expectedRevision: Int,
+    ): BridgeResult<BridgeSettingsWriteResult> = query(
+        provider = BridgeSettingsProvider,
+        op = "update",
+        args = BridgeArgs.ofObject("patch", patch) +
+            BridgeArgs.ofInt("expectedRevision", expectedRevision) +
+            BridgeArgs.of("ns", ns),
+    ) { json.decodeFromString(BridgeSettingsWriteResult.serializer(), it.toString()) }
+
     suspend fun hostSlotSurfaces(): BridgeResult<BridgeSlotSurfaceList> = query(
         provider = BridgeHostSlotsProvider,
         op = "list",
@@ -229,3 +249,4 @@ internal fun JsonElement.asNodeList(): List<BridgeRenderNode> = jsonArray.map {
 }
 
 internal const val BridgeHostSlotsProvider = "host-slots"
+internal const val BridgeSettingsProvider = "settings"

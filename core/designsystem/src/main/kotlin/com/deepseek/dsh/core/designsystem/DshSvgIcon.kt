@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -82,6 +83,9 @@ private inline fun DrawScope.withTransform(
 internal sealed interface SvgShape {
     /** 用给定颜色绘制自己。 */
     fun draw(scope: DrawScope, tint: Color)
+
+    /** 把自己画成遮罩：用白色按亮度做 alpha，供 `DstIn` 使用。 */
+    fun drawAsMask(scope: DrawScope)
 }
 
 /**
@@ -116,6 +120,13 @@ internal sealed interface SvgPaint {
     ) : SvgPaint
 }
 
+/** 遮罩用的亮度：白=保留、黑=挖掉。 */
+private fun luminanceOf(paint: SvgPaint): Float = when (paint) {
+    is SvgPaint.Solid -> paint.color.luminance()
+    is SvgPaint.Linear -> if (paint.stops.isEmpty()) 0f
+    else paint.stops.map { (_, color) -> color.luminance() }.average().toFloat()
+}
+
 /** 把 paint 解析成可绘制画刷；渐变点数不足时退回首个 stop 的纯色。 */
 private fun SvgPaint.brush(): Brush = when (this) {
     is SvgPaint.Solid -> SolidColor(color)
@@ -141,6 +152,34 @@ private fun SvgFill.brushOrNull(tint: Color): Brush? = when (this) {
     is SvgFill.Paint -> paint.brush()
 }
 
+
+/** 遮罩画刷：白色配亮度 alpha；纯黑返回 null，即完全不画。 */
+private fun maskBrushOf(paint: SvgPaint): Brush? {
+    val alpha = luminanceOf(paint)
+    return if (alpha <= 0.004f) null else SolidColor(Color.White.copy(alpha = alpha))
+}
+
+/** 按遮罩语义画一条填充/描边。 */
+private fun drawMasked(
+    scope: DrawScope,
+    fill: SvgFill,
+    stroke: SvgFill,
+    strokeWidth: Float,
+    path: Path?,
+    oval: Pair<Offset, Size>? = null,
+) {
+    ((fill as? SvgFill.Paint)?.paint)?.let(::maskBrushOf)?.let { brush ->
+        if (path != null) scope.drawPath(path, brush, style = Fill)
+        else if (oval != null) scope.drawOval(brush, oval.first, oval.second, style = Fill)
+    }
+    if (strokeWidth > 0f) {
+        ((stroke as? SvgFill.Paint)?.paint)?.let(::maskBrushOf)?.let { brush ->
+            if (path != null) scope.drawPath(path, brush, style = Stroke(width = strokeWidth))
+            else if (oval != null) scope.drawOval(brush, oval.first, oval.second, style = Stroke(width = strokeWidth))
+        }
+    }
+}
+
 /** `path`：任意路径数据。 */
 private class SvgPathShape(
     private val path: Path,
@@ -156,6 +195,8 @@ private class SvgPathShape(
             }
         }
     }
+
+    override fun drawAsMask(scope: DrawScope) = drawMasked(scope, fill, stroke, strokeWidth, path)
 }
 
 /** `circle` / `ellipse`：由中心与半径描述。 */
@@ -177,6 +218,12 @@ private class SvgEllipseShape(
             }
         }
     }
+
+    override fun drawAsMask(scope: DrawScope) = drawMasked(
+        scope, fill, stroke, strokeWidth,
+        path = null,
+        oval = Offset(center.x - radiusX, center.y - radiusY) to Size(radiusX * 2, radiusY * 2),
+    )
 }
 
 /** `rect`：可带圆角。 */
@@ -194,6 +241,8 @@ private class SvgRectShape(
             }
         }
     }
+
+    override fun drawAsMask(scope: DrawScope) = drawMasked(scope, fill, stroke, strokeWidth, path)
 }
 
 /** `line` / `polyline` / `polygon`：折线。 */
@@ -209,6 +258,32 @@ private class SvgPolyShape(
         val width = if (strokeWidth > 0f) strokeWidth else 1f
         stroke.brushOrNull(tint)?.let { scope.drawPath(path, it, style = Stroke(width = width)) }
     }
+
+    override fun drawAsMask(scope: DrawScope) =
+        drawMasked(scope, fill, stroke, if (strokeWidth > 0f) strokeWidth else 1f, path)
+}
+
+/**
+ * 带 `mask="url(#id)"` 的形状：先画自己，再按遮罩亮度用 `DstIn` 挖掉不可见部分。
+ *
+ * Compose 没有声明式遮罩，用离屏图层还原同样的效果。
+ */
+private class SvgMaskedShape(
+    private val child: SvgShape,
+    private val mask: List<SvgShape>,
+) : SvgShape {
+    override fun draw(scope: DrawScope, tint: Color) {
+        val canvas = scope.drawContext.canvas
+        val bounds = androidx.compose.ui.geometry.Rect(
+            0f, 0f, scope.size.width, scope.size.height,
+        )
+        canvas.saveLayer(bounds, androidx.compose.ui.graphics.Paint())
+        child.draw(scope, tint)
+        for (shape in mask) shape.drawAsMask(scope)
+        canvas.restore()
+    }
+
+    override fun drawAsMask(scope: DrawScope) = child.drawAsMask(scope)
 }
 
 /**
@@ -224,6 +299,15 @@ internal object SvgShapes {
 
     /** 元素名与其属性文本。 */
     private val ELEMENT = Regex("""<([A-Za-z][A-Za-z0-9:]*)((?:[^>"']|"[^"]*"|'[^']*')*)/?>""")
+
+    /** 开/闭合标签：解析容器层级需要知道 `</g>` 何时出现。 */
+    private val TOKEN = Regex("""<(/?)([A-Za-z][A-Za-z0-9:]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(/?)>""")
+
+    /** 一个 `<mask>` 的属性与其内部文本。 */
+    private val MASK_BLOCK = Regex(
+        """<mask((?:[^>"']|"[^"]*"|'[^']*')*)>(.*?)</mask>""",
+        RegexOption.DOT_MATCHES_ALL,
+    )
     private val ATTRIBUTE = Regex("""([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*("([^"]*)"|'([^']*)')""")
 
     /** 一个 `<linearGradient>` 的属性与其内部文本。 */
@@ -261,18 +345,59 @@ internal object SvgShapes {
     fun parse(svg: String): Parsed {
         val shapes = mutableListOf<SvgShape>()
         var viewBox = Rect(0f, 0f, 24f, 24f)
-        // 渐变要先收集：形状用 `url(#id)` 引用它们，而引用可能出现在定义之前。
+        // 渐变与遮罩都要先收集：形状用 `url(#id)` 引用它们，引用可能出现在定义之前。
         val gradients = gradientsOf(svg)
-        for (match in ELEMENT.findAll(svg)) {
-            val tag = match.groupValues[1]
-            val attributes = attributesOf(match.groupValues[2])
-            when {
-                tag == "svg" -> viewBox = viewBoxOf(attributes) ?: viewBox
-                tag in CONTAINERS -> Unit
-                else -> shapeOf(tag, attributes, gradients)?.let(shapes::add)
+        val masks = masksOf(svg, gradients)
+        // 每个容器帧记住它生效的遮罩；形状归属当前帧，闭合时弹栈。
+        val frames = ArrayDeque<String?>()
+        for (match in TOKEN.findAll(svg)) {
+            val closing = match.groupValues[1] == "/"
+            val tag = match.groupValues[2]
+            val attributes = attributesOf(match.groupValues[3])
+            val selfClosing = match.groupValues[4] == "/"
+            if (closing) {
+                if (tag in CONTAINERS && frames.isNotEmpty()) frames.removeLast()
+                continue
             }
+            if (tag !in CONTAINERS) {
+                val shape = shapeOf(tag, attributes, gradients) ?: continue
+                val maskId = frames.lastOrNull()
+                val maskShapes = maskId?.let(masks::get)
+                shapes += if (maskShapes == null) shape else SvgMaskedShape(shape, maskShapes)
+                continue
+            }
+            if (tag == "svg") viewBox = viewBoxOf(attributes) ?: viewBox
+            val maskId = attributes["mask"]?.let {
+                GRADIENT_REFERENCE.find(it)?.groupValues?.get(1)
+            }
+            if (!selfClosing) frames.addLast(maskId ?: frames.lastOrNull())
         }
         return Parsed(shapes, viewBox)
+    }
+
+    /**
+     * 收集文档里的 `<mask>`。
+     *
+     * 遮罩内容按亮度参与 `DstIn`，因此内部形状照常解析；`maskUnits` 等坐标细节
+     * 只影响裁剪范围，这里按整幅 viewBox 使用。
+     * @param svg 完整文档。
+     * @param gradients 已解析的渐变表。
+     * @returns 遮罩 id 到形状列表。
+     */
+    private fun masksOf(svg: String, gradients: Map<String, SvgPaint.Linear>): Map<String, List<SvgShape>> {
+        val out = mutableMapOf<String, List<SvgShape>>()
+        for (block in MASK_BLOCK.findAll(svg)) {
+            val attributes = attributesOf(block.groupValues[1])
+            val id = attributes["id"] ?: continue
+            val shapes = mutableListOf<SvgShape>()
+            for (element in ELEMENT.findAll(block.groupValues[2])) {
+                val tag = element.groupValues[1]
+                if (tag in CONTAINERS) continue
+                shapeOf(tag, attributesOf(element.groupValues[2]), gradients)?.let(shapes::add)
+            }
+            if (shapes.isNotEmpty()) out[id] = shapes
+        }
+        return out
     }
 
     /**

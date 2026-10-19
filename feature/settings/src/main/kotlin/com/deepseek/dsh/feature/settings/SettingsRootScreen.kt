@@ -87,6 +87,11 @@ fun SettingsRootScreen(
     initialSection: SettingsSectionTab? = null,
     /** 插件声明的设置页入口；点开只有标题与说明，内容页尚未实现。 */
     pluginSettingsPages: List<com.deepseek.dsh.core.model.PluginSettingsPage> = emptyList(),
+    /** 读取一份插件设置表单。 */
+    loadPluginSettings: suspend (String) -> com.deepseek.dsh.core.model.PluginSettingsDocument? = { null },
+    /** 回写插件设置字段。 */
+    savePluginSettings: suspend (String, kotlinx.serialization.json.JsonObject, Int) -> Boolean =
+        { _, _, _ -> false },
     availableModels: List<String> = emptyList(),
     modelProvidersRaw: String? = null,
     modelSettingsRaw: String? = null,
@@ -174,8 +179,13 @@ fun SettingsRootScreen(
                 label = "settings_nav"
             ) { section ->
                 if (activePluginPage != null) {
-                    PluginSettingsStub(
-                        page = activePluginPage!!,
+                    val page = activePluginPage!!
+                    PluginSettingsPage(
+                        ns = page.id,
+                        title = page.title,
+                        description = page.description,
+                        loadDocument = loadPluginSettings,
+                        saveDocument = savePluginSettings,
                         onBack = { activePluginPage = null },
                     )
                 } else if (section == null) {

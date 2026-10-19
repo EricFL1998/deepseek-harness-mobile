@@ -16,6 +16,8 @@ import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.ComposerStats
 import com.deepseek.dsh.core.model.MessageRole
+import kotlinx.serialization.json.JsonObject
+import com.deepseek.dsh.core.model.PluginSettingsDocument
 import com.deepseek.dsh.core.model.PluginSettingsPage
 import com.deepseek.dsh.core.model.ModelCatalogInfo
 import com.deepseek.dsh.core.model.PluginBundleItem
@@ -148,6 +150,42 @@ class DshRepository(
                     module = surface.module,
                 )
             }
+    }
+
+
+    /**
+     * 读取一份插件设置文档。
+     *
+     * @param ns 设置命名空间，等于 Host 里那一行的 entry id。
+     * @returns 表单与当前值；失败时返回 null，由页面显示「暂时读不到」。
+     */
+    suspend fun pluginSettingsDocument(ns: String): PluginSettingsDocument? {
+        val registry = bridgeRegistry ?: return null
+        return when (val result = registry.settingsDescribe(ns)) {
+            is BridgeResult.Success -> PluginSettingsDocument(
+                ns = result.value.ns,
+                revision = result.value.revision,
+                schema = result.value.schema,
+                value = result.value.value,
+            )
+            is BridgeResult.Failure -> null
+        }
+    }
+
+    /**
+     * 回写插件设置。
+     *
+     * @param ns 设置命名空间。
+     * @param patch 编辑后的字段。
+     * @param expectedRevision 打开表单时的版本，Host 用它拒绝覆盖别人的修改。
+     * @returns 是否写入成功。
+     */
+    suspend fun updatePluginSettings(ns: String, patch: JsonObject, expectedRevision: Int): Boolean {
+        val registry = bridgeRegistry ?: return false
+        return when (val result = registry.settingsUpdate(ns, patch, expectedRevision)) {
+            is BridgeResult.Success -> result.value.updated
+            is BridgeResult.Failure -> false
+        }
     }
 
     /**

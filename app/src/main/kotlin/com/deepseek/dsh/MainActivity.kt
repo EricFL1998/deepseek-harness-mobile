@@ -1435,6 +1435,10 @@ fun MainAppHost(
                         ActivePage.SETTINGS -> {
                             com.deepseek.dsh.feature.settings.SettingsRootScreen(
                                 pluginSettingsPages = pluginSettingsPages,
+                                loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
+                                savePluginSettings = { ns, patch, revision ->
+                                    dshRepository.updatePluginSettings(ns, patch, revision)
+                                },
                                 settings = currentAppSettings,
                                 initialSection = settingsInitialSection,
                                 onUpdateSettings = { updated ->
