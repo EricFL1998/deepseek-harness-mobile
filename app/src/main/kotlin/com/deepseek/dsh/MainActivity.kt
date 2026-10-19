@@ -1129,7 +1129,24 @@ fun MainAppHost(
                         Box(modifier = Modifier.weight(1f)) {
                     when (activePage) {
                         ActivePage.CHAT -> {
-                            val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK }
+                            // 输入区下方的插件胶囊：宿主目录里的 DOCK surface 与真实 slot 注册
+                            // （conversation.*dock）合并，后者的落点由 bridge 翻译。
+                            val registeredDockPlugins = pluginSlotEntries
+                                .filter {
+                                    it.placement == "conversation" &&
+                                        (it.slot.endsWith(".dock") || it.slot == "conversation.composer.bar")
+                                }
+                                .map {
+                                    SurfaceItem(
+                                        pluginId = it.module ?: it.id ?: it.slot,
+                                        slot = it.slot,
+                                        order = it.order,
+                                        title = it.title ?: it.id ?: it.slot,
+                                        kind = SurfaceKind.DOCK,
+                                    )
+                                }
+                            val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK } +
+                                registeredDockPlugins
                             var reasoningLevel by remember {
                                 mutableStateOf(
                                     runCatching {

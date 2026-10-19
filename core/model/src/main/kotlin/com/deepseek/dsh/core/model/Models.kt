@@ -355,6 +355,7 @@ data class PluginSettingsDocument(
 @Serializable
 data class PluginSlotEntry(
     val placement: String,
+    val order: Int = 0,
     val slot: String,
     val id: String? = null,
     val title: String? = null,

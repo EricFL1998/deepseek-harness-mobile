@@ -156,6 +156,7 @@ class DshRepository(
             is BridgeResult.Success -> all.value.registrations.map { registration ->
                 PluginSlotEntry(
                     placement = registration.placement ?: "other",
+                    order = registration.order ?: 0,
                     slot = registration.slot,
                     id = registration.id,
                     title = registration.label,
