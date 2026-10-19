@@ -1,0 +1,33 @@
+# dsh-mobile-bridge-plugin bundle patch — one row: the bridge Host plugin.
+#
+# The bridge is deliberately one row, not a family: its providers are internal
+# modules of this package, so a deployment switches the whole protocol on or off
+# and never ends up with half a wire.
+#
+# Configuration is per deployment. The defaults are the ones a phone client
+# expects: every composed client entry is evaluated, artwork is capped at 256px,
+# and the `rpc` provider refuses everything until a profile names the methods it
+# wants to expose.
+
+- insert:
+    - id: dsh-mobile-bridge-plugin
+      name: dsh-mobile-bridge-plugin
+      config:
+        enabled: true
+        # Empty: evaluate every entry the Host composes.
+        slotEntries: []
+        maxModuleBytes: 524288
+        maxIconSize: 256
+        iconViewBox: '0 0 24 24'
+        maxRenderDepth: 24
+        maxRenderNodes: 4000
+        maxRenderBytes: 524288
+        localeTags:
+          - zh
+          - en
+        # Nothing is reachable through `rpc` until a profile names it here.
+        rpcAllowlist: []
+        maxRpcResultBytes: 1048576
+        rpcTimeoutMs: 30000
+        # Every bridge request goes through the Host's own connection fence.
+        requireHostSession: true

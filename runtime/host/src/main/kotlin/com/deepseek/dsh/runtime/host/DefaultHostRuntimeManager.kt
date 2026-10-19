@@ -194,7 +194,7 @@ class DefaultHostRuntimeManager(
     private fun applyBundledRuntimePatches() {
         // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
-        val patchRevision = "13"
+        val patchRevision = "14"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
@@ -230,10 +230,43 @@ class DefaultHostRuntimeManager(
             }
         }
         File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
+        applyBridgeBundleRow()
         runCatching {
             patchMarker.parentFile?.mkdirs()
             patchMarker.writeText(patchRevision)
         }
+    }
+
+    /**
+     * 把 bridge 插件挂进 web-app 这一层，而不是 profile 的 bundles。
+     *
+     * profile 的 `dsh.profile.bundles` 在每次启动时会被核对：设备上没有可用的
+     * pnpm/git 源，外部依赖判定不成立，条目被删掉，bridge 路由随之 404 —— 实测
+     * 重启一次就复现。web-app 自己的 patch 属于「随安装发布的状态」，不受那次
+     * 核对影响，因此插件在这一层是稳定的。
+     *
+     * 幂等：已经追加过就不再重复写，避免文件无限增长。
+     */
+    private fun applyBridgeBundleRow() {
+        val webAppPatch = File(
+            layout.rootfsDir,
+            "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/" +
+                "@deepseek-ai/dsh-web-app/cordis.patch.yml",
+        )
+        if (!webAppPatch.isFile) return
+        val row = runCatching {
+            context.assets.open("rootfs-patches/bridge-bundle-row.yml").bufferedReader().use { it.readText() }
+        }.getOrNull() ?: return
+        runCatching {
+            val current = webAppPatch.readText()
+            if (current.contains(BRIDGE_BUNDLE_ID)) return
+            webAppPatch.appendText("\n$row\n")
+        }
+    }
+
+    private companion object {
+        /** bridge 插件在 cordis 树里的行 id；用于幂等判断。 */
+        const val BRIDGE_BUNDLE_ID = "id: dsh-mobile-bridge-plugin"
     }
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {

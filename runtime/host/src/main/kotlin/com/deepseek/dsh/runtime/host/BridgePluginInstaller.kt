@@ -75,17 +75,24 @@ class BridgePluginInstaller(
         get() = File(layout.rootfsDir, "root/.dsh/profiles/web")
 
     /**
-     * 确保 profile 里有 bridge 插件条目，然后才启动 Host。
+     * 确保 profile 把 bridge 插件登记为一个已安装的 bundle。
      *
-     * DSH 在启动时会核对 profile：依赖装不上（例如 git 源在设备上取不到）就会被
-     * 清掉，于是插件在 Host 里彻底消失、bridge 路由 404。插件的存在属于客户端的
-     * 契约责任，所以在每次启动前显式补齐，不依赖上一次运行留下的状态。
+     * 两处都要写，缺一不可：
      *
-     * 只登记真正可以加载的包：先确认宿主安装目录或 profile 的 `node_modules` 里有
-     * 它，否则写进 bundles 只会让 Host 启动报错。
-     * @return 是否补上了条目。
+     * - `dependencies` 声明它确实是一个安装过的包；
+     * - `dsh.profile.bundles` 让它进入加载顺序。
+     *
+     * 只写 bundles 会被 DSH 判为无效配置（有 bundle 却没有对应依赖），启动时走恢复
+     * 路径把 bundles 重置回模板默认值 —— 这正是此前插件每次重启都消失、bridge 路由
+     * 404 的原因。
+     * @param packageName 目标包名。
+     * @param version 写进 dependencies 的版本号。
+     * @return 是否改写了 profile。
      */
-    fun ensureProfileEntry(packageName: String = BridgePluginManifest.DEFAULT_PACKAGE): Boolean {
+    fun ensureProfileEntry(
+        packageName: String = BridgePluginManifest.DEFAULT_PACKAGE,
+        version: String = BridgePluginManifest.load(context)?.version.orEmpty(),
+    ): Boolean {
         val inHostInstall = File(hostInstallModulesDir(), packageName)
         val inProfile = File(profileDir, "node_modules/$packageName")
         if (!File(if (inHostInstall.isDirectory) inHostInstall else inProfile, "package.json").isFile) {
@@ -100,14 +107,31 @@ class BridgePluginInstaller(
             val bundles = (profile["bundles"] as? JsonArray)
                 ?.mapNotNull { (it as? JsonPrimitive)?.content }
                 ?: emptyList()
-            if (bundles.contains(packageName)) return@runCatching false
+            val dependencies = root["dependencies"] as? JsonObject ?: JsonObject(emptyMap())
+            val declaredVersion = (dependencies[packageName] as? JsonPrimitive)?.content
 
-            val updatedProfile = JsonObject(
-                profile + mapOf(
-                    "bundles" to JsonArray(bundles.map { JsonPrimitive(it) } + JsonPrimitive(packageName))
-                )
+            if (bundles.contains(packageName) && declaredVersion != null) return@runCatching false
+
+            val updatedDependencies = if (declaredVersion == null) {
+                JsonObject(dependencies + (packageName to JsonPrimitive(version.ifBlank { "1.0.0" })))
+            } else {
+                dependencies
+            }
+            val updatedBundles = if (bundles.contains(packageName)) {
+                JsonArray(bundles.map { JsonPrimitive(it) })
+            } else {
+                JsonArray(bundles.map { JsonPrimitive(it) } + JsonPrimitive(packageName))
+            }
+            val updatedRoot = JsonObject(
+                root + mapOf(
+                    "dependencies" to updatedDependencies,
+                    "dsh" to JsonObject(
+                        dsh + mapOf(
+                            "profile" to JsonObject(profile + mapOf("bundles" to updatedBundles)),
+                        ),
+                    ),
+                ),
             )
-            val updatedRoot = JsonObject(root + mapOf("dsh" to JsonObject(dsh + mapOf("profile" to updatedProfile))))
             manifestFile.writeText(json.encodeToString(JsonObject.serializer(), updatedRoot))
             true
         }.getOrDefault(false)
