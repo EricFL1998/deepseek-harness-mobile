@@ -71,6 +71,7 @@ interface DshClientProtocol {
     suspend fun setBundleEnabled(hostId: String, packageName: String, enabled: Boolean): RemoteResult<Boolean>
     suspend fun openSettingsDocument(hostId: String): RemoteResult<Boolean>
     suspend fun getRemoteSettings(hostId: String): RemoteResult<Map<String, String>>
+    suspend fun rpcRaw(hostId: String, method: String, argsJson: String): RemoteResult<String>
     suspend fun updateRemoteSettings(hostId: String, ns: String, patchJson: String): RemoteResult<Boolean>
     suspend fun getAutomationTasks(hostId: String): RemoteResult<List<AutomationTaskItem>>
     suspend fun getTeamTasks(hostId: String): RemoteResult<List<TeamTaskItem>>
@@ -79,6 +80,7 @@ interface DshClientProtocol {
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
 }
+
 
 
 

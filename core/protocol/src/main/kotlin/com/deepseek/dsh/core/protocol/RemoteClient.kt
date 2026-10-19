@@ -999,6 +999,7 @@ class RemoteClient(
     override suspend fun getRemoteSettings(hostId: String): RemoteResult<Map<String, String>> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "settings/describe")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {})
@@ -1048,6 +1049,7 @@ class RemoteClient(
         val patchObj = runCatching { json.parseToJsonElement(patchJson) }.getOrNull() ?: buildJsonObject {}
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "settings/update")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
@@ -1071,6 +1073,29 @@ class RemoteClient(
         }
     }
 
+    override suspend fun rpcRaw(hostId: String, method: String, argsJson: String): RemoteResult<String> =
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val args = runCatching { json.parseToJsonElement(argsJson) }.getOrNull() ?: buildJsonObject {}
+            val payload = buildJsonObject {
+                put("type", "client-request")
+                put("rpcId", java.util.UUID.randomUUID().toString())
+                put("method", method)
+                put("payload", buildJsonObject { put("args", args) })
+            }.toString()
+            val request = Request.Builder()
+                .url("$baseUrl/api")
+                .post(payload.toRequestBody(mediaTypeJson))
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    val text = response.body?.string().orEmpty()
+                    if (response.isSuccessful) RemoteResult.Success(text)
+                    else RemoteResult.Failure("dsh/rpc-failed", "HTTP ${response.code}: ${text.take(200)}")
+                }
+            } catch (e: Exception) {
+                RemoteResult.Failure("dsh/rpc-network", e.message ?: "rpc failed")
+            }
+        }
     override suspend fun getAutomationTasks(
         hostId: String
     ): RemoteResult<List<AutomationTaskItem>> = withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1454,6 +1479,7 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
     }
     else -> null
 }
+
 
 
 

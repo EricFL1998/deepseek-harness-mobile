@@ -85,7 +85,11 @@ fun SettingsRootScreen(
     onSignIn: () -> Unit = {},
     onSignOut: () -> Unit = {},
     initialSection: SettingsSectionTab? = null,
-    availableModels: List<String> = listOf("DeepSeek-V3", "DeepSeek-R1"),
+    availableModels: List<String> = emptyList(),
+    modelProvidersRaw: String? = null,
+    modelSettingsRaw: String? = null,
+    modelCredentialsRaw: String? = null,
+    onSetModelApiKey: (String, String) -> Unit = { _, _ -> },
     builtInPlugins: List<BuiltInPluginInfo> = emptyList(),
     pluginSnapshot: PluginInventorySnapshotInfo? = null,
     runtimeStatus: com.deepseek.dsh.runtime.host.RuntimeStatus? = null,
@@ -220,7 +224,14 @@ fun SettingsRootScreen(
                         )
 
                         SettingsSectionTab.MODELS -> SettingsModelsPane(
-                            models = availableModels
+                            accountSignedIn = isSignedIn,
+                            accountName = accountName,
+                            accountModels = availableModels,
+                            providersRaw = modelProvidersRaw,
+                            settingsRaw = modelSettingsRaw,
+                            credentialsRaw = modelCredentialsRaw,
+                            onOpenConfigFile = onOpenSettingsDocument,
+                            onSetApiKey = onSetModelApiKey,
                         )
 
                         SettingsSectionTab.PLUGINS -> SettingsPluginsPane(
@@ -320,6 +331,7 @@ private fun SettingsNavRow(
         )
     }
 }
+
 
 
 

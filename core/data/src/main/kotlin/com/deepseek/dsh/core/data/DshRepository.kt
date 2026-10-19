@@ -179,6 +179,12 @@ class DshRepository(
         }
     }
 
+    suspend fun rpcRaw(hostId: String, method: String, argsJson: String): Result<String> =
+        when (val res = client.rpcRaw(hostId, method, argsJson)) {
+            is RemoteResult.Success -> Result.success(res.data)
+            is RemoteResult.Failure -> Result.failure(IllegalStateException("${res.code}: ${res.message}"))
+        }
+
     suspend fun installPlugin(hostId: String, packageName: String): Result<Boolean> {
         return when (val res = client.installPlugin(hostId, packageName)) {
             is RemoteResult.Success -> {
@@ -451,6 +457,8 @@ class DshRepository(
         }
     }
 }
+
+
 
 
 

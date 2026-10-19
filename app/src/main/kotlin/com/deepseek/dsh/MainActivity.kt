@@ -325,6 +325,9 @@ fun MainAppHost(
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
+    var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
+    var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
+    var modelCredentialsRaw by remember { mutableStateOf<String?>(null) }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
@@ -379,6 +382,13 @@ fun MainAppHost(
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
+            modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
+            modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
+            val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
+                modelProvidersRaw, modelSettingsRaw, null
+            ).map { it.keyRef }.distinct()
+            val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
+            modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
             dshRepository.refreshModelCatalog(activeHostId)
             dshRepository.refreshPluginInventory(activeHostId)
         }
@@ -466,7 +476,14 @@ fun MainAppHost(
                     val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
                     val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
                     oauthManager.applyHostAccount(profile, balance)
-                    dshRepository.refreshModelCatalog(activeHostId)
+                    modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
+            modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
+            val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
+                modelProvidersRaw, modelSettingsRaw, null
+            ).map { it.keyRef }.distinct()
+            val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
+            modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
+            dshRepository.refreshModelCatalog(activeHostId)
                     dshRepository.refreshPluginInventory(activeHostId)
                     return@launch
                 }
@@ -490,6 +507,13 @@ fun MainAppHost(
                 dshApplication.bindLocalHost(port, status.token)
             }
             dshRepository.refreshSessions(activeHostId)
+            modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
+            modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
+            val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
+                modelProvidersRaw, modelSettingsRaw, null
+            ).map { it.keyRef }.distinct()
+            val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
+            modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
             dshRepository.refreshModelCatalog(activeHostId)
             dshRepository.refreshPluginInventory(activeHostId)
             dshRepository.refreshAutomationTasks(activeHostId)
@@ -1333,8 +1357,25 @@ fun MainAppHost(
                                     }
                                 },
                                 availableModels = availableModelNames,
+                                modelProvidersRaw = modelProvidersRaw,
+                                modelSettingsRaw = modelSettingsRaw,
+                                modelCredentialsRaw = modelCredentialsRaw,
+                                onSetModelApiKey = { ref, value ->
+                                    scope.launch {
+                                        val args = org.json.JSONObject()
+                                            .put("ref", ref)
+                                            .put("value", value)
+                                            .toString()
+                                        dshRepository.rpcRaw(activeHostId, "credentials/set", args)
+                                        val refsJson = "{\"refs\":[\"$ref\"]}"
+                                        modelCredentialsRaw = dshRepository
+                                            .rpcRaw(activeHostId, "credentials/describe", refsJson)
+                                            .getOrNull()
+                                        dshRepository.refreshModelCatalog(activeHostId)
+                                    }
+                                },
                                 builtInPlugins = builtInPluginsList,
-                                pluginSnapshot = pluginSnapshot,
+
                                 runtimeStatus = status,
                                 onStartRuntime = {
                                     scope.launch {
@@ -2134,6 +2175,11 @@ private fun formatAmount(raw: String): String {
     val num = clean.toDoubleOrNull() ?: return "¥$raw"
     return String.format(java.util.Locale.US, "¥%.2f", num)
 }
+
+
+
+
+
 
 
 
