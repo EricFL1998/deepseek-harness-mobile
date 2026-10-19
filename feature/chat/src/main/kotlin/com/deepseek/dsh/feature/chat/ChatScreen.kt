@@ -196,6 +196,8 @@ fun ModernChatScreen(
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     /** 插件声明在工具卡片上的动作（落点 tool.card）。 */
     pluginToolActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    /** 插件声明在助手消息上的动作（落点 conversation.chat.assistant-actions）。 */
+    pluginAssistantActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
     /** 点击插件动作；当前没有落地页，由上层说明来源。 */
     onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
     onDockPluginClick: (SurfaceItem) -> Unit = {},
@@ -422,12 +424,37 @@ fun ModernChatScreen(
                     }
                 ) { row ->
                     when (row) {
-                        is ChatRow.Single -> ModernMessageItem(
-                            message = row.message,
-                            onRetry = { onSendMessage(row.message.content) },
-                            onAnswerUserQuestion = onAnswerUserQuestion,
-                            onOpenToolDetail = { toolDetail = it },
-                        )
+                        is ChatRow.Single -> Column {
+                            ModernMessageItem(
+                                message = row.message,
+                                onRetry = { onSendMessage(row.message.content) },
+                                onAnswerUserQuestion = onAnswerUserQuestion,
+                                onOpenToolDetail = { toolDetail = it },
+                            )
+                            // 助手消息下方的插件动作：只挂在助手这一侧，用户消息不加。
+                            if (pluginAssistantActions.isNotEmpty() &&
+                                row.message.role == MessageRole.ASSISTANT &&
+                                row.message.content.isNotBlank() &&
+                                !row.message.content.contains('\u0001')
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(start = 40.dp, bottom = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    pluginAssistantActions.forEach { entry ->
+                                        Text(
+                                            text = entry.title ?: entry.id ?: entry.slot,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { onPluginAction(entry) }
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         is ChatRow.TurnDone -> TurnCompletedRow(
                             durationMs = row.durationMs,
                             expanded = collapsedTurns[row.key] != true,

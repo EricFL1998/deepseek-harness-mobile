@@ -1398,6 +1398,10 @@ fun MainAppHost(
                                 },
                                 dockPluginSurfaces = dockPlugins,
                                 pluginToolActions = pluginSlotEntries.filter { it.placement == "tool.card" },
+                                // 只挂助手动作；用户消息侧的 slot 不属于这一处。
+                                pluginAssistantActions = pluginSlotEntries.filter {
+                                    it.slot == "conversation.chat.assistant-actions"
+                                },
                                 onPluginAction = { entry -> pluginDrawerEntry = entry },
                                 onDockPluginClick = { pluginItem ->
                                     activeSheetSurface = pluginItem
