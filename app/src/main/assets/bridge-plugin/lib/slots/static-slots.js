@@ -176,6 +176,11 @@ export function resolveStaticLabel(locales, id) {
         const nested = findByLeaf(dictionary, id, 'title');
         if (nested !== undefined)
             return nested;
+        // Last resort: a package with one contribution names it in `meta.title`, which is
+        // the same text its row shows elsewhere in the UI.
+        const meta = valueAtPath(dictionary, ['meta', 'title']);
+        if (typeof meta === 'string' && meta.trim() !== '')
+            return meta;
     }
     return undefined;
 }
