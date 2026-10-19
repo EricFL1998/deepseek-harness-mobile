@@ -167,8 +167,16 @@ class RootfsInstaller(
                 )
                 if (!(target.isFile && digestMatches(target, expectedSha))) {
                     onProgress(InstallProgress("下载 rootfs（${manifest.baseDistro.ifBlank { "Debian" }}）...", 0.02f))
-                    val downloaded = download(effectiveManifest, target) { fraction ->
+                    var downloaded = download(effectiveManifest, target) { fraction ->
                         onProgress(InstallProgress("下载 rootfs... ${(fraction * 100).toInt()}%", 0.02f + fraction * 0.48f))
+                    }
+                    // 若新仓库返回 404，尝试 fallback 回退主仓库对应 tag
+                    if (downloaded.isFailure && abi != null) {
+                        val fallbackUrl = "https://github.com/EricFL1998/deepseek-harness-mobile/releases/download/rootfs-v1.0.0/rootfs-${abi}.bin"
+                        onProgress(InstallProgress("主节点重试下载 rootfs...", 0.02f))
+                        downloaded = download(effectiveManifest.copy(downloadUrl = fallbackUrl), target) { fraction ->
+                            onProgress(InstallProgress("下载 rootfs... ${(fraction * 100).toInt()}%", 0.02f + fraction * 0.48f))
+                        }
                     }
                     if (downloaded.isFailure) return@withContext downloaded
                 }

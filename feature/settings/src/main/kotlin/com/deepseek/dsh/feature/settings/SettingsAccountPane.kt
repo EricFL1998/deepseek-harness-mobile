@@ -178,8 +178,15 @@ private fun BalanceRow(label: String, amount: String) {
             modifier = Modifier.weight(1f),
         )
         Spacer(modifier = Modifier.width(16.dp))
+        val formattedAmount = if (amount.startsWith("¥")) {
+            val num = amount.removePrefix("¥").toDoubleOrNull()
+            if (num != null) String.format(java.util.Locale.US, "¥%.2f", num) else amount
+        } else {
+            val num = amount.toDoubleOrNull()
+            if (num != null) String.format(java.util.Locale.US, "¥%.2f", num) else amount
+        }
         Text(
-            text = amount,
+            text = formattedAmount,
             style = SettingsText.Amount,
             color = palette.labelPrimary,
         )

@@ -891,7 +891,7 @@ fun MainAppHost(
                         activePage = ActivePage.SETTINGS
                     },
                     userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
-                    accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
+                    accountBalance = accountState.wallets.firstOrNull()?.let { formatAmount(it.balance) } ?: "¥0.00",
                     isSignedIn = accountState.isSignedIn,
                     onSignIn = { showSignInDialog = true },
                     onSignOut = hostSignOut,
@@ -1352,7 +1352,7 @@ fun MainAppHost(
                                     }
                                 },
                                 accountName = accountState.profile?.name ?: "DeepSeek 用户",
-                                accountBalance = accountState.wallets.firstOrNull()?.let { "¥${it.balance}" } ?: "¥0.00",
+                                accountBalance = accountState.wallets.firstOrNull()?.let { formatAmount(it.balance) } ?: "¥0.00",
                                 accountPhone = accountState.profile?.contact ?: "",
                                 isSignedIn = accountState.isSignedIn,
                                 avatarUrl = accountState.profile?.avatarUrl,
@@ -2127,6 +2127,12 @@ private fun RootfsSetupScreen(
             }
         }
     }
+}
+
+private fun formatAmount(raw: String): String {
+    val clean = raw.removePrefix("¥").trim()
+    val num = clean.toDoubleOrNull() ?: return "¥$raw"
+    return String.format(java.util.Locale.US, "¥%.2f", num)
 }
 
 
