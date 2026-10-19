@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
@@ -92,11 +94,11 @@ internal fun SettingsModelsPane(
         }
         providers.forEach { provider ->
             item(key = "provider_${provider.id}") {
-                SettingsCard {
+                SettingsCard(verticalPadding = 12.dp) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -163,13 +165,23 @@ private fun SettingsOutlineAction(text: String, onClick: () -> Unit) {
         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
         color = androidx.compose.ui.graphics.Color.Transparent,
         border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL3),
-        onClick = onClick,
+        modifier = Modifier.height(28.dp),
     ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            color = palette.labelPrimary,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-        )
+        Row(
+            modifier = Modifier
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = palette.labelPrimary,
+            )
+        }
     }
 }
+
+
+
