@@ -14,6 +14,9 @@ data class ModelProviderUi(
     val keyRef: String,
     val keyConfigured: Boolean,
     val keyWritable: Boolean = true,
+    val settingsNs: String = "",
+    val settingsPath: List<String> = emptyList(),
+    val baseUrl: String = "",
 )
 
 /** 提取 server-response 里的 result.value。 */
@@ -64,6 +67,7 @@ fun parseModelProviders(
         }
         val apiKeyEnv = (profile?.get("apiKeyEnv") as? JsonPrimitive)?.content
         val keyRef = apiKeyEnv ?: provider.uppercase().replace('-', '_') + "_API_KEY"
+        val baseUrl = (profile?.get("baseURL") as? JsonPrimitive)?.content.orEmpty()
         val modelList = (profile?.get("models") as? JsonArray)?.mapNotNull { model ->
             when (model) {
                 is JsonObject -> (model["name"] as? JsonPrimitive)?.content
@@ -80,6 +84,9 @@ fun parseModelProviders(
             keyRef = keyRef,
             keyConfigured = credentials[keyRef]?.first ?: false,
             keyWritable = credentials[keyRef]?.second ?: true,
+            settingsNs = settingsNs,
+            settingsPath = settingsPath,
+            baseUrl = baseUrl,
         )
     }
     // 官方内置 DeepSeek API 提供商始终存在；Host 目录未返回时也要能看到并配置。
@@ -91,8 +98,11 @@ fun parseModelProviders(
         keyRef = "DEEPSEEK_API_KEY",
         keyConfigured = credentials["DEEPSEEK_API_KEY"]?.first ?: false,
         keyWritable = credentials["DEEPSEEK_API_KEY"]?.second ?: true,
+        settingsNs = "llm",
+        settingsPath = listOf("providers", "deepseek"),
     )
 }
+
 
 
 

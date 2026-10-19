@@ -37,7 +37,7 @@ internal fun SettingsModelsPane(
     settingsRaw: String?,
     credentialsRaw: String?,
     onOpenConfigFile: () -> Unit,
-    onSetApiKey: (String, String) -> Unit,
+    onSaveProvider: (ModelProviderUi, String, String, List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalSettingsPalette.current
@@ -95,7 +95,7 @@ internal fun SettingsModelsPane(
                         provider = provider,
                         onCancel = { editingId = null },
                         onSave = { key, baseUrl, models ->
-                            onSetApiKey(provider.keyRef, key)
+                            onSaveProvider(provider, key, baseUrl, models)
                             editingId = null
                         },
                     )
@@ -262,5 +262,6 @@ private fun SettingsSmallButton(text: String, primary: Boolean = false, onClick:
         }
     }
 }
+
 
 

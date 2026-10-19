@@ -1361,21 +1361,56 @@ fun MainAppHost(
                                 modelProvidersRaw = modelProvidersRaw,
                                 modelSettingsRaw = modelSettingsRaw,
                                 modelCredentialsRaw = modelCredentialsRaw,
-                                onSetModelApiKey = { ref, value ->
+                                onSaveModelProvider = { provider, key, baseUrl, models ->
                                     scope.launch {
-                                        val args = org.json.JSONObject()
-                                            .put("ref", ref)
-                                            .put("value", value)
-                                            .toString()
-                                        dshRepository.rpcRaw(activeHostId, "credentials/set", args)
-                                        val refsJson = "{\"refs\":[\"$ref\"]}"
+                                        if (key.isNotBlank()) {
+                                            val credArgs = org.json.JSONObject()
+                                                .put("ref", provider.keyRef)
+                                                .put("value", key)
+                                                .toString()
+                                            dshRepository.rpcRaw(activeHostId, "credentials/set", credArgs)
+                                        }
+                                        if (provider.settingsNs.isNotBlank()) {
+                                            val ops = org.json.JSONArray()
+                                            if (key.isNotBlank()) {
+                                                ops.put(org.json.JSONObject()
+                                                    .put("op", "set")
+                                                    .put("path", org.json.JSONArray(provider.settingsPath + "apiKeyEnv"))
+                                                    .put("value", provider.keyRef))
+                                            }
+                                            if (baseUrl.isNotBlank()) {
+                                                ops.put(org.json.JSONObject()
+                                                    .put("op", "set")
+                                                    .put("path", org.json.JSONArray(provider.settingsPath + "baseURL"))
+                                                    .put("value", baseUrl))
+                                            }
+                                            if (models.isNotEmpty()) {
+                                                val modelArray = org.json.JSONArray()
+                                                models.forEach { model ->
+                                                    modelArray.put(org.json.JSONObject().put("id", model).put("name", model))
+                                                }
+                                                ops.put(org.json.JSONObject()
+                                                    .put("op", "set")
+                                                    .put("path", org.json.JSONArray(provider.settingsPath + "models"))
+                                                    .put("value", modelArray))
+                                            }
+                                            val args = org.json.JSONObject()
+                                                .put("ns", provider.settingsNs)
+                                                .put("ops", ops)
+                                                .put("expectedRevision", org.json.JSONObject.NULL)
+                                                .toString()
+                                            dshRepository.rpcRaw(activeHostId, "settings/mutate", args)
+                                        }
+                                        modelSettingsRaw = dshRepository
+                                            .rpcRaw(activeHostId, "settings/describe", "{}")
+                                            .getOrNull()
+                                        val refsJson = "{\"refs\":[\"${provider.keyRef}\"]}"
                                         modelCredentialsRaw = dshRepository
                                             .rpcRaw(activeHostId, "credentials/describe", refsJson)
                                             .getOrNull()
                                         dshRepository.refreshModelCatalog(activeHostId)
                                     }
-                                },
-                                builtInPlugins = builtInPluginsList,
+                                },                                builtInPlugins = builtInPluginsList,
 
                                 runtimeStatus = status,
                                 onStartRuntime = {
@@ -2176,6 +2211,7 @@ private fun formatAmount(raw: String): String {
     val num = clean.toDoubleOrNull() ?: return "¥$raw"
     return String.format(java.util.Locale.US, "¥%.2f", num)
 }
+
 
 
 

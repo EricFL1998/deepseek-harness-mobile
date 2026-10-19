@@ -294,7 +294,7 @@ class RemoteClient(
                 put("args", buildJsonObject {
                     put("request", buildJsonObject {
                         put("sessionId", sessionId)
-                        put("provider", provider ?: "deepseek-account")
+                        if (!provider.isNullOrBlank()) put("provider", provider)
                         put("model", modelId)
                         if (!reasoningEffort.isNullOrBlank()) {
                             put("reasoningEffort", reasoningEffort)
@@ -1457,6 +1457,7 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
     }
     else -> null
 }
+
 
 
 

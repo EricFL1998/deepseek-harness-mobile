@@ -1173,7 +1173,7 @@ private fun PluginsInstallDialog(
             DshTextInput(
                 value = packageInput,
                 onValueChange = onPackageInputChange,
-                placeholder = "例如 dsh-plugin-whale-pet",
+                placeholder = "npm 包名 / Git 地址 / 本地目录",
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(10.dp))
@@ -1211,4 +1211,5 @@ private fun PluginsInstallDialog(
         },
     )
 }
+
 
