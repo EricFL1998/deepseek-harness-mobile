@@ -179,6 +179,22 @@ class DshRepository(
         }
     }
 
+    suspend fun workspaceCreate(hostId: String, path: String): Result<String> =
+        rpcRaw(hostId, "workspace/create", "{\"request\":{\"path\":\"${path.replace("\"", "\\\"")}\"}}")
+
+    suspend fun workspaceRename(hostId: String, workspaceId: String, title: String): Result<String> =
+        rpcRaw(
+            hostId,
+            "workspace/rename",
+            "{\"request\":{\"workspaceId\":\"${workspaceId.replace("\"", "\\\"")}\",\"title\":\"${title.replace("\"", "\\\"")}\"}}"
+        )
+
+    suspend fun workspaceDelete(hostId: String, workspaceId: String): Result<String> =
+        rpcRaw(
+            hostId,
+            "workspace/delete",
+            "{\"request\":{\"workspaceId\":\"${workspaceId.replace("\"", "\\\"")}\"}}"
+        )
     suspend fun rpcRaw(hostId: String, method: String, argsJson: String): Result<String> =
         when (val res = client.rpcRaw(hostId, method, argsJson)) {
             is RemoteResult.Success -> Result.success(res.data)
@@ -457,6 +473,8 @@ class DshRepository(
         }
     }
 }
+
+
 
 
 

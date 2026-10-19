@@ -65,6 +65,11 @@ fun parseModelProviders(
         for (segment in settingsPath) {
             profile = profile?.get(segment) as? JsonObject ?: null
         }
+        if (provider == "deepseek-account") return@mapNotNull null
+        // 仅展示已配置（有 profile 值或已存密钥）的提供商；未启用的目录项不占列表。
+        if (profile == null && credentials["${provider.uppercase().replace('-', '_')}_API_KEY"]?.first != true) {
+            return@mapNotNull null
+        }
         val apiKeyEnv = (profile?.get("apiKeyEnv") as? JsonPrimitive)?.content
         val keyRef = apiKeyEnv ?: provider.uppercase().replace('-', '_') + "_API_KEY"
         val baseUrl = (profile?.get("baseURL") as? JsonPrimitive)?.content.orEmpty()
@@ -102,6 +107,7 @@ fun parseModelProviders(
         settingsPath = listOf("providers", "deepseek"),
     )
 }
+
 
 
 

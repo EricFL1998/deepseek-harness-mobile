@@ -138,7 +138,7 @@ private fun ModelProviderEditor(
 ) {
     val palette = LocalSettingsPalette.current
     var keyInput by remember(provider.id) { mutableStateOf("") }
-    var baseUrlInput by remember(provider.id) { mutableStateOf("") }
+    var baseUrlInput by remember(provider.id) { mutableStateOf(provider.baseUrl) }
     var customOpen by remember(provider.id) { mutableStateOf(false) }
     var models by remember(provider.id) { mutableStateOf(provider.models) }
     var newModel by remember(provider.id) { mutableStateOf("") }
@@ -262,6 +262,7 @@ private fun SettingsSmallButton(text: String, primary: Boolean = false, onClick:
         }
     }
 }
+
 
 
 

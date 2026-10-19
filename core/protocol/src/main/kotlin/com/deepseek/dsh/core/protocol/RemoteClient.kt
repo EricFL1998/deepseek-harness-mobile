@@ -1061,7 +1061,7 @@ class RemoteClient(
                 put("payload", buildJsonObject { put("args", args) })
             }.toString()
             val request = Request.Builder()
-                .url("$baseUrl/api")
+                .url("$baseUrl/api/$method")
                 .post(payload.toRequestBody(mediaTypeJson))
                 .build()
             try {
@@ -1457,6 +1457,7 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
     }
     else -> null
 }
+
 
 
 
