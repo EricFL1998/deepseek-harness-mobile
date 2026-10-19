@@ -180,6 +180,8 @@ data class BridgeSlotRegistration(
     val order: Int? = null,
     val label: String? = null,
     val priority: Int? = null,
+    /** bridge 判定的原生落点，例如 `drawer` / `conversation` / `settings.page`。 */
+    val placement: String? = null,
     @SerialName("package") val packageName: String? = null,
     val locale: String? = null,
     val render: BridgeSlotRender? = null,

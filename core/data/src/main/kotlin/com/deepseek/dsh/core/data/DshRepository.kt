@@ -19,6 +19,7 @@ import com.deepseek.dsh.core.model.MessageRole
 import kotlinx.serialization.json.JsonObject
 import com.deepseek.dsh.core.model.PluginSettingsDocument
 import com.deepseek.dsh.core.model.PluginSettingsPage
+import com.deepseek.dsh.core.model.PluginSlotEntry
 import com.deepseek.dsh.core.model.ModelCatalogInfo
 import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginConfigItem
@@ -115,6 +116,17 @@ class DshRepository(
     val pluginSlotSurfacesFlow: StateFlow<List<BridgeSlotSurface>>
         get() = _pluginSlotSurfacesFlow.asStateFlow()
 
+    private val _pluginSlotEntriesFlow = MutableStateFlow<List<PluginSlotEntry>>(emptyList())
+
+    /**
+     * 插件声明的全部界面入口，带原生落点。
+     *
+     * 来源是真实客户端 bundle 的注册（`client-slots`），落点由 bridge 翻译。已经
+     * 有专门屏幕的位置（设置、插件列表）由那些屏幕自行消费，这里保留全量，供
+     * 「插件入口」这类汇总视图使用。
+     */
+    val pluginSlotEntriesFlow: StateFlow<List<PluginSlotEntry>> = _pluginSlotEntriesFlow.asStateFlow()
+
     /** 插件声明、映射到原生设置页的入口；内容页尚未实现。 */
     val pluginSettingsPagesFlow: StateFlow<List<PluginSettingsPage>> =
         _pluginSettingsPagesFlow.asStateFlow()
@@ -140,6 +152,18 @@ class DshRepository(
             }
         }
         _pluginSlotSurfacesFlow.value = surfaces
+        _pluginSlotEntriesFlow.value = when (val all = registry.slotRegistrations()) {
+            is BridgeResult.Success -> all.value.registrations.map { registration ->
+                PluginSlotEntry(
+                    placement = registration.placement ?: "other",
+                    slot = registration.slot,
+                    id = registration.id,
+                    title = registration.label,
+                    module = registration.packageName,
+                )
+            }
+            is BridgeResult.Failure -> emptyList()
+        }
         _pluginSettingsPagesFlow.value = surfaces
             .filter { it.slot == SETTINGS_PAGE_SLOT }
             .map { surface ->

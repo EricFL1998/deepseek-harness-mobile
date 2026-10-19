@@ -13,6 +13,7 @@ import { BridgeFailure, optionalObject, optionalPositiveInt, optionalString, req
 import { projectJson } from "../protocol/json.js";
 import { evaluateBundleFile } from "../slots/evaluate.js";
 import { DEFAULT_RENDER_BUDGET, renderComponent, treeToSvg } from "../slots/render-tree.js";
+import { placementOf } from "../slot-placements.js";
 import { OFFICIAL_ARTWORK, OFFICIAL_PLUGIN_ITEMS, readOfficialItemText, } from "../official-items.js";
 /** The slot the Host's own Plugins page lists its official plugins in. */
 const OFFICIAL_ITEM_SLOT = 'plugins.item';
@@ -156,6 +157,8 @@ export function createClientSlotsProvider(options) {
                             ...(registration.label === undefined ? {} : { label: registration.label }),
                             ...(registration.priority === undefined ? {} : { priority: registration.priority }),
                             package: entry.bundle.entryId,
+                            // 原生落点由 bridge 判定：客户端不再各自维护一张 slot→屏幕的对照表。
+                            placement: placementOf(registration.slot).placement,
                             ...(registration.locale === undefined ? {} : { locale: registration.locale }),
                             render: { kind: registration.kind, componentId: registration.componentId },
                         });

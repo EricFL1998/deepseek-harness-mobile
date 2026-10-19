@@ -345,3 +345,30 @@ data class PluginSettingsDocument(
     val schema: JsonObject = JsonObject(emptyMap()),
     val value: JsonObject = JsonObject(emptyMap()),
 )
+
+/**
+ * 插件声明的一个界面入口，已经带有原生落点。
+ *
+ * 落点由 bridge 从 slot 名翻译而来，客户端只负责把每个落点渲染到对应屏幕；
+ * 尚未实现的位置也会出现在列表里，而不是被丢掉。
+ */
+@Serializable
+data class PluginSlotEntry(
+    val placement: String,
+    val slot: String,
+    val id: String? = null,
+    val title: String? = null,
+    val module: String? = null,
+)
+
+/** 原生落点 id 到中文名，用于尚未实现的位置。 */
+val PLACEMENT_LABELS: Map<String, String> = mapOf(
+    "settings.page" to "设置",
+    "plugins.item" to "插件列表",
+    "plugins.row.config" to "插件配置",
+    "drawer" to "侧边栏",
+    "conversation" to "对话",
+    "tool.card" to "工具卡片",
+    "toast" to "提示",
+    "other" to "其他位置",
+)

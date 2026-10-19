@@ -87,6 +87,8 @@ fun SettingsRootScreen(
     initialSection: SettingsSectionTab? = null,
     /** 插件声明的设置页入口；点开只有标题与说明，内容页尚未实现。 */
     pluginSettingsPages: List<com.deepseek.dsh.core.model.PluginSettingsPage> = emptyList(),
+    /** 插件声明的全部入口（带原生落点），用于汇总尚未有专门屏幕的位置。 */
+    pluginSlotEntries: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
     /** 读取一份插件设置表单。 */
     loadPluginSettings: suspend (String) -> com.deepseek.dsh.core.model.PluginSettingsDocument? = { null },
     /** 回写插件设置字段。 */
@@ -219,6 +221,57 @@ fun SettingsRootScreen(
                                 }
                             }
                         }
+                        // 插件声明的其他位置：落点已由 bridge 判定，这里按位置分组列出。
+                        // 已经有专门屏幕的位置（设置、插件列表）不在此重复。
+                        run {
+                            val elsewhere = pluginSlotEntries
+                                .filterNot {
+                                    it.placement == "settings.page" ||
+                                        it.placement == "plugins.item" ||
+                                        it.placement == "plugins.row.config"
+                                }
+                                .groupBy { it.placement }
+                            if (elsewhere.isNotEmpty()) {
+                                item(key = "plugin_entry_head") {
+                                    Text(
+                                        text = "插件入口",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
+                                    )
+                                }
+                                item(key = "plugin_entry_card") {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = cardBg,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Column {
+                                            val rows = elsewhere.entries.flatMap { (placement, entries) ->
+                                                entries.map { placement to it }
+                                            }
+                                            rows.forEachIndexed { index, (placement, entry) ->
+                                                SettingsNavRow(
+                                                    title = entry.title ?: entry.id ?: entry.slot,
+                                                    subtitle = (com.deepseek.dsh.core.model.PLACEMENT_LABELS[placement]
+                                                        ?: placement) + " · " + entry.slot,
+                                                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
+                                                    onClick = { },
+                                                )
+                                                if (index != rows.lastIndex) {
+                                                    HorizontalDivider(
+                                                        thickness = 0.5.dp,
+                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                        modifier = Modifier.padding(start = 52.dp, end = 16.dp),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // 插件声明的设置页：Host 为每个声明了 Config 的插件行生成命名空间，
                         // 这里按同一个顺序列出来；内容页尚未实现。
                         if (pluginSettingsPages.isNotEmpty()) {

@@ -128,6 +128,8 @@ export interface SlotRegistration {
     readonly priority?: number;
     /** Package that owns the contribution, when the evaluating bundle declared one. */
     readonly package?: string;
+    /** Native area this registration belongs in; classified by the bridge. */
+    readonly placement?: string;
     /** Locale namespace the label resolves through, when declared. */
     readonly locale?: string;
     /** Component identity for `render-tree` / `icon-svg`. */

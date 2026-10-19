@@ -332,6 +332,7 @@ fun MainAppHost(
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
     val pluginSettingsPages by dshRepository.pluginSettingsPagesFlow.collectAsState()
     val pluginSlotSurfaces by dshRepository.pluginSlotSurfacesFlow.collectAsState()
+    val pluginSlotEntries by dshRepository.pluginSlotEntriesFlow.collectAsState()
     val pluginRows by dshRepository.pluginRowsFlow.collectAsState()
     // 插件页目录来自 bridge/v1：官方 slot 注册优先，Host 原生清单兜底。
     val bridgePluginCatalog by dshRepository.bridgePluginCatalogFlow.collectAsState()
@@ -1435,6 +1436,7 @@ fun MainAppHost(
                         ActivePage.SETTINGS -> {
                             com.deepseek.dsh.feature.settings.SettingsRootScreen(
                                 pluginSettingsPages = pluginSettingsPages,
+                                pluginSlotEntries = pluginSlotEntries,
                                 loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
                                 savePluginSettings = { ns, patch, revision ->
                                     dshRepository.updatePluginSettings(ns, patch, revision)
