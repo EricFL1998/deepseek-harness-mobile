@@ -265,7 +265,13 @@ export function evaluateBundleSource(entryId, source) {
         }
     }
     catch (error) {
-        throw new BundleEvaluationError(entryId, `apply threw: ${error.message}`);
+        // A bundle's `apply` may do more than register slots; if it throws after
+        // registering, the registrations it already made are facts and are kept. Only a
+        // bundle that failed before registering anything is a failure.
+        if (state.registrations.length === 0) {
+            throw new BundleEvaluationError(entryId, `apply threw: ${error.message}`);
+        }
+        state.warnings.push(`apply threw after registering: ${error.message}`);
     }
     return {
         entryId,

@@ -337,6 +337,14 @@ internal object SvgShapes {
     private val CONTAINERS = setOf("svg", "g", "defs", "clipPath", "mask", "symbol", "title", "desc")
 
     /**
+     * 容器内部的形状属于「定义」，不是可见图形。
+     *
+     * `<mask>` 里通常是一块白色底加一个黑色挖孔：如果照常绘制，白底会盖住整个
+     * 图标、黑孔变成正中的一个黑点——这正是遮罩图标此前退化成圆点的原因。
+     */
+    private val DEFINING = setOf("defs", "clipPath", "mask", "symbol", "title", "desc")
+
+    /**
      * 解析一段 SVG 文本。
      *
      * @param svg 完整的 `<svg>…</svg>` 文档。
@@ -350,6 +358,8 @@ internal object SvgShapes {
         val masks = masksOf(svg, gradients)
         // 每个容器帧记住它生效的遮罩；形状归属当前帧，闭合时弹栈。
         val frames = ArrayDeque<String?>()
+        // 定义型容器内部的形状只用于定义；解析时跳过，避免它们被当成图形绘制。
+        var definingDepth = 0
         for (match in TOKEN.findAll(svg)) {
             val closing = match.groupValues[1] == "/"
             val tag = match.groupValues[2]
@@ -357,8 +367,14 @@ internal object SvgShapes {
             val selfClosing = match.groupValues[4] == "/"
             if (closing) {
                 if (tag in CONTAINERS && frames.isNotEmpty()) frames.removeLast()
+                if (tag in DEFINING && definingDepth > 0) definingDepth -= 1
                 continue
             }
+            if (tag in DEFINING) {
+                if (!selfClosing) definingDepth += 1
+                continue
+            }
+            if (definingDepth > 0) continue
             if (tag !in CONTAINERS) {
                 val shape = shapeOf(tag, attributes, gradients) ?: continue
                 val maskId = frames.lastOrNull()

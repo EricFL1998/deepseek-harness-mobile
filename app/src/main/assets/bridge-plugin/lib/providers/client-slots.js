@@ -13,7 +13,7 @@ import { BridgeFailure, optionalObject, optionalPositiveInt, optionalString, req
 import { projectJson } from "../protocol/json.js";
 import { evaluateBundleFile } from "../slots/evaluate.js";
 import { DEFAULT_RENDER_BUDGET, renderComponent, treeToSvg } from "../slots/render-tree.js";
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { placementOf } from "../slot-placements.js";
 import { OFFICIAL_ARTWORK, OFFICIAL_PLUGIN_ITEMS, readOfficialItemText, } from "../official-items.js";
@@ -22,11 +22,11 @@ const OFFICIAL_ITEM_SLOT = 'plugins.item';
 /**
  * How many client bundles one request may evaluate by default.
  *
- * Each evaluation builds a module graph with React stubs; a phone Host cannot afford
- * hundreds of them at once, so the walk is bounded and a caller that needs more names
- * the packages it wants.
+ * Each evaluation builds a module graph with React stubs, and a phone Host cannot
+ * afford many of them at once: one per request keeps each response cheap, and the walk
+ * continues across requests until the installation has been covered.
  */
-const DEFAULT_MAX_CLIENT_BUNDLES = 8;
+const DEFAULT_MAX_CLIENT_BUNDLES = 1;
 /**
  * Build the `client-slots` provider.
  * @param options - service accessor, entry selection, and budgets.
@@ -34,6 +34,8 @@ const DEFAULT_MAX_CLIENT_BUNDLES = 8;
  */
 export function createClientSlotsProvider(options) {
     const cache = new Map();
+    /** Incremental walk over the installation's client halves, plus what it found. */
+    const scan = { cursor: 0, seen: new Set(), registrations: [], emptySlots: new Set() };
     /**
      * The client bundles this provider may evaluate, in declared order.
      *
@@ -68,22 +70,41 @@ export function createClientSlotsProvider(options) {
         return rows;
     };
     /** Client halves found on disk, one per package that ships `lib/client.js`. */
+    /**
+     * The next batch of client halves to evaluate.
+     *
+     * Evaluating every bundle in one request exhausts a phone Host's heap, so the walk
+     * is incremental: each request evaluates a small batch, the results accumulate, and
+     * a later request continues where this one stopped. Progress is reported as a
+     * warning so a client can tell "nothing registered" from "not scanned yet".
+     */
     const entriesFromInstallation = () => {
         const wanted = options.entryIds.length === 0 ? undefined : new Set(options.entryIds);
-        const limit = options.maxClientBundles ?? DEFAULT_MAX_CLIENT_BUNDLES;
+        const batch = options.maxClientBundles ?? DEFAULT_MAX_CLIENT_BUNDLES;
+        const catalogue = installationCatalogue();
         const rows = [];
-        for (const root of options.clientRoots?.() ?? []) {
-            for (const bundle of listClientBundles(root)) {
-                if (wanted !== undefined && !wanted.has(bundle.id))
-                    continue;
-                // Evaluating every client half on a phone exhausts the Host's heap, so the
-                // scan stops at a bound and reports the rest as not walked.
-                if (rows.length >= limit)
-                    return rows;
-                rows.push(bundle);
-            }
+        while (scan.cursor < catalogue.length && rows.length < batch) {
+            const bundle = catalogue[scan.cursor];
+            scan.cursor += 1;
+            if (wanted !== undefined && !wanted.has(bundle.id))
+                continue;
+            if (scan.seen.has(bundle.id))
+                continue;
+            scan.seen.add(bundle.id);
+            rows.push(bundle);
         }
         return rows;
+    };
+    /** Every client half found under the configured roots, sorted for a stable walk. */
+    const installationCatalogue = () => {
+        if (scan.catalogue !== undefined)
+            return scan.catalogue;
+        const found = [];
+        for (const root of options.clientRoots?.() ?? [])
+            found.push(...listClientBundles(root));
+        found.sort((left, right) => left.id.localeCompare(right.id));
+        scan.catalogue = found;
+        return found;
     };
     /** Evaluate one entry, reusing a cached result for the same revision. */
     const evaluationOf = async (id, path, rev) => {
@@ -176,16 +197,13 @@ export function createClientSlotsProvider(options) {
             list: async (args, warnings) => {
                 const slot = optionalString(args, 'slot');
                 const entries = await evaluateAll(warnings);
-                const registrations = [];
-                const touched = new Set();
+                // Incremental scan: this batch joins what earlier requests collected, and the
+                // next request continues the walk. Bundles already evaluated are not repeated.
                 for (const entry of entries) {
                     for (const injected of entry.bundle.injectedSlots)
-                        touched.add(injected);
+                        scan.emptySlots.add(injected);
                     for (const registration of entry.bundle.registrations) {
-                        touched.add(registration.slot);
-                        if (slot !== undefined && registration.slot !== slot)
-                            continue;
-                        registrations.push({
+                        scan.registrations.push({
                             slot: registration.slot,
                             ...(registration.id === undefined ? {} : { id: registration.id }),
                             ...(registration.key === undefined ? {} : { key: registration.key }),
@@ -193,21 +211,33 @@ export function createClientSlotsProvider(options) {
                             ...(registration.label === undefined ? {} : { label: registration.label }),
                             ...(registration.priority === undefined ? {} : { priority: registration.priority }),
                             package: entry.bundle.entryId,
-                            // 原生落点由 bridge 判定：客户端不再各自维护一张 slot→屏幕的对照表。
+                            // The native placement is decided here so clients do not each keep a
+                            // slot-to-screen table of their own.
                             placement: placementOf(registration.slot).placement,
                             ...(registration.locale === undefined ? {} : { locale: registration.locale }),
                             render: { kind: registration.kind, componentId: registration.componentId },
                         });
                     }
                 }
+                const touched = new Set(scan.registrations.map(registration => registration.slot));
+                for (const empty of scan.emptySlots)
+                    touched.add(empty);
+                const registrations = scan.registrations
+                    .filter(registration => slot === undefined || registration.slot === slot);
                 const occupied = new Set(registrations.map(registration => registration.slot));
-                // 只有官方分组整列为空时才回落：评估到的真实注册永远优先。
+                // The official roster answers only while nothing real has been collected for
+                // that slot; an incremental scan therefore replaces it as it progresses.
                 const asksOfficial = slot === undefined || slot === OFFICIAL_ITEM_SLOT;
                 if (asksOfficial && !occupied.has(OFFICIAL_ITEM_SLOT)) {
                     for (const registration of await officialItems(warnings)) {
                         registrations.push(registration);
                         occupied.add(registration.slot);
                     }
+                }
+                const scanned = scan.catalogue === undefined ? 0 : scan.cursor;
+                const total = scan.catalogue?.length ?? 0;
+                if (total > 0 && scanned < total) {
+                    warnings.warn(`client bundles: scanned ${scanned}/${total}; more registrations appear as the walk continues`);
                 }
                 return {
                     slot: slot ?? null,
@@ -335,6 +365,11 @@ function listClientBundles(root) {
                 const stat = statSync(clientPath);
                 if (!stat.isFile())
                     continue;
+                // Only browser UI packages declare slots. A Host service that also ships a
+                // client half (remote-access, job-controller, …) does real work in `apply`,
+                // which must never run inside the bridge VM.
+                if (!isUiClientPackage(candidate.dir, candidate.id))
+                    continue;
                 rows.push({ id: candidate.id, path: clientPath, rev: `${stat.mtimeMs}:${stat.size}` });
             }
             catch {
@@ -355,4 +390,26 @@ function listClientBundles(root) {
  */
 function isDirectoryEntry(entry) {
     return entry.isDirectory() || entry.isSymbolicLink();
+}
+/**
+ * Whether a package contributes browser UI rather than a Host service.
+ *
+ * The rule mirrors the repository's own naming: UI packages are `dsh-client-*`. A
+ * package outside that namespace can still be a Client/Host package, which it declares
+ * with a `dsh.client` manifest field. Everything else is a Host service whose client
+ * half exists only for transport, and evaluating it would run real work.
+ * @param dir absolute package directory.
+ * @param id package name.
+ * @returns whether the package's client half may be evaluated.
+ */
+function isUiClientPackage(dir, id) {
+    if (id.startsWith('@deepseek-ai/dsh-client-'))
+        return true;
+    try {
+        const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+        return manifest.dsh?.client !== undefined;
+    }
+    catch {
+        return false;
+    }
 }

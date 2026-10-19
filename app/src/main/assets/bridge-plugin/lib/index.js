@@ -35,9 +35,10 @@ export const Config = z.object({
     /**
      * Evaluate the client halves found on disk when the Host composes no boot graph.
      *
-     * Off by default: on a phone Host, evaluating a batch of client bundles exhausts the
-     * heap and takes the Host down with it. Deciding otherwise needs a lazy, incremental
-     * scan; until then the option exists for desktop Hosts, where it is safe.
+     * Off by default: on a phone Host even one evaluated client bundle has taken the
+     * process down, so the walk is only safe where the heap is not shared with the agent
+     * runtime. Extracting registration metadata without executing the bundle is the path
+     * that removes this constraint; until then the official roster answers `plugins.item`.
      */
     clientBundleScan: z.boolean().default(false),
     maxModuleBytes: z.natural().min(1024).max(16 * 1024 * 1024).default(512 * 1024),

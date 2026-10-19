@@ -811,8 +811,16 @@ fun MainAppHost(
     // 插件瞬态消息：Host 排队、客户端轮询取走，用系统 Toast 呈现。
     // 没有事件通道时这段是空转，取不到消息也不会打扰任何东西。
     LaunchedEffect(Unit) {
+        var ticks = 0
         while (true) {
             kotlinx.coroutines.delay(4_000)
+            ticks += 1
+            // 桥对客户端 bundle 是增量扫描的：每轮只求值一个，结果累积。定时刷新让
+            // 后续批次继续推进，扫描完成后不再产生新条目，刷新也就变成一次廉价读。
+            if (ticks % 4 == 0) {
+                runCatching { dshRepository.refreshBridgePluginCatalog() }
+                runCatching { dshRepository.refreshPluginSettingsPages() }
+            }
             runCatching {
                 dshRepository.pendingPluginEvents().forEach { event ->
                     if (event.kind == "toast" && event.text.isNotBlank()) {
