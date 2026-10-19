@@ -36,6 +36,23 @@ class DefaultHostRuntimeManager(
         }.getOrDefault(false)
     }
 
+    override suspend fun installedRootfsVersion(): String? = withContext(Dispatchers.IO) {
+        RootfsInstaller(layout).installedVersion()
+    }
+
+    override suspend fun availableRootfsVersion(): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val raw = context.assets.open("rootfs-manifest.json").bufferedReader().use { it.readText() }
+            RootfsInstaller(layout).parseManifest(raw).runtimeVersion
+        }.getOrNull()
+    }
+
+    override suspend fun isRootfsUpdateAvailable(): Boolean = withContext(Dispatchers.IO) {
+        val installed = installedRootfsVersion()
+        val available = availableRootfsVersion()
+        installed != null && available != null && installed != available
+    }
+
     override suspend fun installRootfs(onProgress: (Float, String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
         layout.ensureDirectories()
         val installer = RootfsInstaller(layout)
@@ -309,6 +326,7 @@ class DefaultHostRuntimeManager(
         result
     }
 }
+
 
 
 

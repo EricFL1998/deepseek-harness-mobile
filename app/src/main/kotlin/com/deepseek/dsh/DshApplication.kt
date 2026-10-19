@@ -109,7 +109,7 @@ class DshApplication : Application() {
         )
         HostRuntimeHolder.manager = runtimeManager
         // App 打开即开始预热点 Host（Activity/Compose 之前）；不常驻后台。
-        if (java.io.File(filesDir, "profileInstalled").exists()) {
+        if (java.io.File(filesDir, "rootfs/etc/os-release").exists()) {
             val workspace = java.io.File(
                 android.os.Environment.getExternalStorageDirectory(),
                 "Documents/DSH-Workspace"
@@ -120,6 +120,7 @@ class DshApplication : Application() {
         }
     }
 }
+
 
 
 

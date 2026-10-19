@@ -63,34 +63,38 @@ class HostProcessRunner(
 
             // 监听 stdout 以解析端口与 token
             stdoutJob = scope.launch(Dispatchers.IO) {
-                val reader = BufferedReader(InputStreamReader(proc.inputStream))
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    val current = line ?: continue
-                    if (logFile != null) {
-                        logFile.appendText("[STDOUT] $current\n")
-                    }
-                    val endpoint = ProcessOutputParser.parseLine(current)
-                    if (endpoint != null) {
-                        _statusFlow.value = RuntimeStatus(
-                            phase = RuntimePhase.STARTING,
-                            port = endpoint.port,
-                            token = endpoint.token,
-                            pid = pid
-                        )
-                        onEndpointFound?.invoke(endpoint)
+                runCatching {
+                    val reader = BufferedReader(InputStreamReader(proc.inputStream))
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        val current = line ?: continue
+                        if (logFile != null) {
+                            logFile.appendText("[STDOUT] $current\n")
+                        }
+                        val endpoint = ProcessOutputParser.parseLine(current)
+                        if (endpoint != null) {
+                            _statusFlow.value = RuntimeStatus(
+                                phase = RuntimePhase.STARTING,
+                                port = endpoint.port,
+                                token = endpoint.token,
+                                pid = pid
+                            )
+                            onEndpointFound?.invoke(endpoint)
+                        }
                     }
                 }
             }
 
             // 监听 stderr 记日志
             stderrJob = scope.launch(Dispatchers.IO) {
-                val reader = BufferedReader(InputStreamReader(proc.errorStream))
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    val current = line ?: continue
-                    if (logFile != null) {
-                        logFile.appendText("[STDERR] $current\n")
+                runCatching {
+                    val reader = BufferedReader(InputStreamReader(proc.errorStream))
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        val current = line ?: continue
+                        if (logFile != null) {
+                            logFile.appendText("[STDERR] $current\n")
+                        }
                     }
                 }
             }
@@ -146,3 +150,4 @@ class HostProcessRunner(
         }
     }
 }
+

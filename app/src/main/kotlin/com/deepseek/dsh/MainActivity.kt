@@ -229,7 +229,7 @@ fun MainAppHost(
     // UI 一开始就预热 Host，和引导/登录并行，避免用户点击登录时才冷启动。
     LaunchedEffect(Unit) {
         // 首次安装等 rootfs 准备完成后再启动；之后每次重新打开 App 立即启动 Host。
-        if (java.io.File(context.filesDir, "profileInstalled").exists()) {
+        if (java.io.File(context.filesDir, "rootfs/etc/os-release").exists()) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
             }
@@ -498,14 +498,59 @@ fun MainAppHost(
 
     // 首次启动先准备 rootfs：未安装/未下载完成之前不进入 onboarding。
     // 已安装过就直接视为就绪，避免重新打开时闪一下安装进度条；首次安装仍走 null→安装。
-    var rootfsReady by remember {
-        mutableStateOf<Boolean?>(
-            if (java.io.File(context.filesDir, "profileInstalled").exists()) true else null
-        )
-    }
+    var rootfsReady by remember { mutableStateOf<Boolean?>(null) }
     var rootfsSetupProgress by remember { mutableStateOf(0f to "检查本地运行时...") }
     var rootfsSetupError by remember { mutableStateOf<String?>(null) }
     var rootfsInstallAttempt by remember { mutableStateOf(0) }
+
+    var rootfsUpdateAvailable by remember { mutableStateOf(false) }
+    var installedRootfsVersion by remember { mutableStateOf<String?>(null) }
+    var availableRootfsVersion by remember { mutableStateOf<String?>(null) }
+    var showRootfsUpdatePrompt by remember { mutableStateOf(false) }
+    LaunchedEffect(rootfsReady) {
+        if (rootfsReady == true) {
+            val installed = runtimeManager.installedRootfsVersion()
+            val available = runtimeManager.availableRootfsVersion()
+            installedRootfsVersion = installed
+            availableRootfsVersion = available
+            if (installed != null && available != null && installed != available) {
+                rootfsUpdateAvailable = true
+                showRootfsUpdatePrompt = true
+            }
+        }
+    }
+
+    if (showRootfsUpdatePrompt) {
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { showRootfsUpdatePrompt = false },
+            title = "运行时更新",
+            closeLabel = "稍后",
+            description = "发现新的 rootfs：$availableRootfsVersion（当前 $installedRootfsVersion）。更新会重新下载运行时，并保留你的账号、会话与工作区。",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "稍后",
+                    primary = false,
+                    enabled = true,
+                    onClick = { showRootfsUpdatePrompt = false },
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "立即更新",
+                    primary = true,
+                    enabled = true,
+                    onClick = {
+                        showRootfsUpdatePrompt = false
+                        rootfsReady = false
+                        scope.launch {
+                            runCatching { runtimeManager.stop() }
+                            rootfsInstallAttempt += 1
+                        }
+                    },
+                )
+            },
+        )
+    }
+
 
     LaunchedEffect(rootfsInstallAttempt) {
         if (runtimeManager.isRootfsInstalled()) {
@@ -536,6 +581,15 @@ fun MainAppHost(
         }
     }
 
+    if (rootfsReady == null) {
+        HostStartupSplash(
+            phase = RuntimePhase.STARTING,
+            title = "正在检查本地运行时…",
+            onRetry = {}
+        )
+        return
+    }
+
     if (rootfsReady != true) {
         RootfsSetupScreen(
             progress = rootfsSetupProgress.first,
@@ -555,14 +609,19 @@ fun MainAppHost(
     // 已安装后的每次重新打开：轮询 Host 的真实运行状态；
     // 一旦 endpoint（port）就绪就进入 UI，不等 markReady/RUNNING。
     val rootfsWasInstalled = remember {
-        java.io.File(context.filesDir, "profileInstalled").exists()
+        java.io.File(context.filesDir, "rootfs/etc/os-release").exists()
     }
     var hostProgressReady by remember { mutableStateOf(!rootfsWasInstalled) }
     var hostStartupError by remember { mutableStateOf(false) }
     var hostRetryKey by remember { mutableStateOf(0) }
     LaunchedEffect(rootfsWasInstalled, hostRetryKey) {
         if (!rootfsWasInstalled) return@LaunchedEffect
+        val startedAt = System.currentTimeMillis()
         while (!hostProgressReady) {
+            if (System.currentTimeMillis() - startedAt > 20_000L) {
+                hostProgressReady = true
+                break
+            }
             val current = runCatching { runtimeManager.getStatus() }.getOrNull()
             if (current == null) {
                 kotlinx.coroutines.delay(300)
@@ -1407,7 +1466,11 @@ fun MainAppHost(
 
 /** 重新打开 App 时的 Host 启动页：等本地运行时就绪后再进入主界面。 */
 @Composable
-private fun HostStartupSplash(phase: RuntimePhase, onRetry: () -> Unit) {
+private fun HostStartupSplash(
+    phase: RuntimePhase,
+    title: String = "",
+    onRetry: () -> Unit,
+) {
     androidx.compose.material3.Surface(
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
@@ -1427,7 +1490,11 @@ private fun HostStartupSplash(phase: RuntimePhase, onRetry: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = if (phase == RuntimePhase.ERROR) "本地 Host 启动失败" else "正在启动本地 Host…",
+                text = when {
+                    phase == RuntimePhase.ERROR -> "本地 Host 启动失败"
+                    title.isNotBlank() -> title
+                    else -> "正在启动本地 Host…"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -1963,6 +2030,10 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
 
 
 

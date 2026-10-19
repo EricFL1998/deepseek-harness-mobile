@@ -59,7 +59,11 @@ data class RootfsManifest(
  */
 class RootfsInstaller(
     private val layout: RuntimeLayout,
-    private val httpClient: OkHttpClient = OkHttpClient(),
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .build(),
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -172,6 +176,15 @@ class RootfsInstaller(
                 }
             }
 
+            // 先备份 DSH_HOME 并删除旧 rootfs，避免解包时磁盘空间不足（升级场景）。
+            val preservedHome = File(layout.runtimeMetaDir, "dsh-home-preserved")
+            if (layout.dshHomeDir.exists()) {
+                preservedHome.deleteRecursively()
+                preservedHome.parentFile?.mkdirs()
+                runCatching { layout.dshHomeDir.copyRecursively(preservedHome, overwrite = true) }
+            }
+            if (layout.rootfsDir.exists()) layout.rootfsDir.deleteRecursively()
+
             onProgress(InstallProgress("解包 Compact rootfs...", 0.55f))
             val staging = RootfsNaming.stagingDir(layout.cacheDir, manifest.runtimeVersion)
             staging.deleteRecursively()
@@ -187,14 +200,6 @@ class RootfsInstaller(
             }
 
             onProgress(InstallProgress("替换 rootfs 目录...", 0.9f))
-            // 保留 DSH_HOME（账号、会话、插件配置），升级 rootfs 时不清空用户数据。
-            val preservedHome = File(layout.runtimeMetaDir, "dsh-home-preserved")
-            if (layout.dshHomeDir.exists()) {
-                preservedHome.deleteRecursively()
-                preservedHome.parentFile?.mkdirs()
-                runCatching { layout.dshHomeDir.copyRecursively(preservedHome, overwrite = true) }
-            }
-            layout.rootfsDir.deleteRecursively()
             if (!source.renameTo(layout.rootfsDir)) {
                 source.copyRecursively(layout.rootfsDir, overwrite = true)
                 staging.deleteRecursively()
@@ -385,6 +390,8 @@ class RootfsInstaller(
         val releaseTag: String = "",
     )
 }
+
+
 
 
 
