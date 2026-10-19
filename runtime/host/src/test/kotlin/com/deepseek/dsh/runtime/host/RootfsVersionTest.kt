@@ -76,23 +76,31 @@ class RootfsVersionTest {
         // 启动横幅只认 MANDATORY；仅插件落后时它必须为 NONE，所以启动不提醒。
         assertEquals(
             RootfsUpdateKind.MANDATORY,
-            kindOf("1.0.0-dsh0.2.1-rc.1-bridge1.1.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0"),
+            decideRootfsUpdateKind("1.0.0-dsh0.2.1-rc.1-bridge1.1.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0"),
         )
         assertEquals(
             RootfsUpdateKind.NONE,
-            kindOf("1.1.0-dsh0.2.1-rc.2-bridge1.0.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0"),
+            decideRootfsUpdateKind("1.1.0-dsh0.2.1-rc.2-bridge1.0.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0"),
         )
     }
 
-    /** 镜像是否必需重装：只有 rootfs 段或 dsh 段变化才算。 */
-    private fun kindOf(installed: String, available: String): RootfsUpdateKind {
-        val local = RootfsVersion.parse(installed)!!
-        val remote = RootfsVersion.parse(available)!!
-        return if (local.rootfs != remote.rootfs || local.dsh != remote.dsh) {
-            RootfsUpdateKind.MANDATORY
-        } else {
-            RootfsUpdateKind.NONE
-        }
+    @Test
+    fun `a rebuilt image with the same engine is not a mandatory update`() {
+        // 模拟器上真实踩到：1.0.0-dsh0.2.1-rc.2（旧镜像，无插件）升到
+        // 1.0.1-dsh0.2.1-rc.2-bridge1.1.0，dsh 段相同，却在启动时弹了
+        // 「重新下载运行时」。rootfs 段自增只是重新打包，不该拦启动。
+        assertEquals(
+            RootfsUpdateKind.NONE,
+            decideRootfsUpdateKind("1.0.0-dsh0.2.1-rc.2", "1.0.1-dsh0.2.1-rc.2-bridge1.1.0"),
+        )
+    }
+
+    @Test
+    fun `an engine change is mandatory even when the rootfs segment matches`() {
+        assertEquals(
+            RootfsUpdateKind.MANDATORY,
+            decideRootfsUpdateKind("1.0.1-dsh0.2.1-rc.1-bridge1.1.0", "1.0.1-dsh0.2.1-rc.2-bridge1.1.0"),
+        )
     }
 
     @Test
@@ -152,7 +160,7 @@ class RootfsVersionTest {
     }
 
     @Test
-    fun `a rebuilt image with a current plugin is only an optional image update`() {
+    fun `an engine bump is an optional image update even when the plugin is current`() {
         val assessment = assessUpdate(
             installed = "1.0.0-dsh0.2.1-rc.1-bridge1.1.0",
             available = "1.1.0-dsh0.2.1-rc.2-bridge1.1.0",
@@ -166,7 +174,7 @@ class RootfsVersionTest {
     }
 
     @Test
-    fun `a new dsh segment alone is an optional image update`() {
+    fun `an engine bump alone is an optional image update`() {
         val assessment = assessUpdate(
             installed = "1.1.0-dsh0.2.1-rc.1-bridge1.1.0",
             available = "1.1.0-dsh0.2.1-rc.2-bridge1.1.0",
@@ -174,6 +182,20 @@ class RootfsVersionTest {
             installedPlugin = "1.1.0",
         )
         assertEquals(UpdateNeed.ROOTFS_OPTIONAL, assessment.need)
+    }
+
+    @Test
+    fun `a repackaged image with the same engine asks for nothing once the plugin is current`() {
+        // rootfs 段自增只是重新打包（例如为了把新插件打进镜像）。插件已经就地
+        // 更新到最新，因此既不需要重下镜像，也不需要再动插件。
+        val assessment = assessUpdate(
+            installed = "1.0.0-dsh0.2.1-rc.2-bridge1.1.0",
+            available = "1.0.1-dsh0.2.1-rc.2-bridge1.1.0",
+            latestPlugin = "1.1.0",
+            installedPlugin = "1.1.0",
+        )
+        assertEquals(UpdateNeed.NONE, assessment.need)
+        assertFalse(assessment.hasUpdate)
     }
 
     @Test
@@ -190,14 +212,15 @@ class RootfsVersionTest {
 
     @Test
     fun `without a latest-plugin answer the plugin is not judged`() {
-        // 查询失败时不能凭镜像段推断插件落后，否则会误报。
+        // 查询失败时不能凭镜像段推断插件落后，否则会误报。dsh 段相同，
+        // 因此连镜像更新也不该提出。
         val assessment = assessUpdate(
             installed = "1.0.0-dsh0.2.1-rc.2-bridge1.0.0",
             available = current,
             latestPlugin = null,
             installedPlugin = "1.0.0",
         )
-        assertEquals(UpdateNeed.ROOTFS_OPTIONAL, assessment.need)
+        assertEquals(UpdateNeed.NONE, assessment.need)
     }
 
     @Test

@@ -46,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -83,6 +84,7 @@ import com.deepseek.dsh.plugin.surface.SurfaceCatalogStore
 import com.deepseek.dsh.plugin.surface.SurfaceSheet
 import com.deepseek.dsh.runtime.host.DefaultHostRuntimeManager
 import com.deepseek.dsh.runtime.host.HostProcessRunner
+import com.deepseek.dsh.runtime.host.HostRuntimeHolder
 import com.deepseek.dsh.runtime.host.HostRuntimeManager
 import com.deepseek.dsh.runtime.host.RuntimeLayout
 import com.deepseek.dsh.runtime.host.RuntimePhase
@@ -367,6 +369,27 @@ fun MainAppHost(
         }
     }
 
+    // bridge 插件更新走 Host 自己的安装 RPC，而不是由 App 另起 proot：
+    // 应用进程的 seccomp 会让 glibc 的 mkdtemp 拿到 ENOSYS，而 Host 进程执行
+    // 同一条命令正常。这也是插件页「添加插件」用的同一条路径。
+    DisposableEffect(activeHostId) {
+        HostRuntimeHolder.pluginInstaller = { spec ->
+            // fold/runCatching 都是 inline，因此可以在 suspend lambda 里安全地
+            // 调用挂起的版本读取。
+            dshRepository.installPlugin(activeHostId, spec).fold(
+                onSuccess = {
+                    runCatching { runtimeManager.installedBridgeVersion() }.getOrNull()
+                        ?.let { version -> Result.success(version) }
+                        ?: Result.failure(
+                            IllegalStateException("安装命令已返回，但读不到插件版本")
+                        )
+                },
+                onFailure = { error -> Result.failure(error) },
+            )
+        }
+        onDispose { HostRuntimeHolder.pluginInstaller = null }
+    }
+
     LaunchedEffect(activeHostId) {
         dshRepository.refreshSessions(activeHostId)
         dshRepository.refreshModelCatalog(activeHostId)
@@ -533,6 +556,9 @@ fun MainAppHost(
             dshRepository.refreshTeamTasks(activeHostId)
             dshRepository.refreshApprovals(activeHostId)
             dshRepository.subscribeRemoteEvents(activeHostId)
+            // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
+            // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
+            dshRepository.refreshBridgePluginCatalog()
             // 从 Host 恢复账号态（官方 account/watch 的初值）。
             val accountView = dshRepository.getAccountState(activeHostId).getOrNull()
             if (accountView?.status == "credential-stored") {

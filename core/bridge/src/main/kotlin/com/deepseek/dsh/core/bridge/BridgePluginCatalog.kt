@@ -41,7 +41,7 @@ object BridgePluginCatalog {
             is BridgeResult.Success -> warnings += negotiated.warnings
             is BridgeResult.Failure -> return BridgePluginCatalogResult(
                 catalog = BridgePluginCatalogData(source = BridgePluginCatalogSource.NONE),
-                warnings = listOf("bridge unavailable: ${negotiated.message}"),
+                warnings = listOf(hintFor(negotiated)),
             )
         }
 
@@ -151,8 +151,7 @@ object BridgePluginCatalog {
     }
 
     /**
-     * 渲染一个 `plugins.item` 组件的元素树。
-     *
+     * 渲染一个 `plugins.item` 组件的元素树。     *
      * 客户端拿到树后自行决定渲染成原生控件；bridge 不理解 UI，只交数据。
      *
      * @param registry 已协商的 provider 门面。
@@ -167,6 +166,28 @@ object BridgePluginCatalog {
 }
 
 /** 目录来源，决定 UI 展示哪种形态。 */
+/**
+ * 把一次失败翻译成用户能照做的提示。
+ *
+ * 插件页不能只报「bridge unavailable」：最常见的情形是 rootfs 里的插件还没装
+ * （旧镜像），那需要去设置页点「更新插件」，而不是检查网络。
+ * @param failure 协商失败的稳定码与诊断文本。
+ * @returns 面向用户的一句话。
+ */
+private fun hintFor(failure: BridgeResult.Failure): String = when (failure.code) {
+    BridgeErrorCode.TRANSPORT_UNREACHABLE ->
+        "Host 未就绪：无法连接本地运行时。请稍候或重启运行环境。"
+    BridgeErrorCode.PROVIDER_UNKNOWN ->
+        "Host 上没有 bridge 路由：兼容层插件未安装。请在「设置 → 更新」中点击「更新插件」。"
+    BridgeErrorCode.TRANSPORT_DECODE_FAILED ->
+        "Host 的 bridge 响应无法解析（${failure.message}）。插件可能需要更新。"
+    BridgeErrorCode.AUTH_REQUIRED ->
+        "Host 拒绝了本次请求：会话未建立。请重新登录或重启运行时。"
+    BridgeErrorCode.PROVIDER_VERSION_MISMATCH ->
+        "插件协议版本与客户端不匹配（${failure.message}）。请在「设置 → 更新」中更新插件。"
+    else -> "bridge 不可用：${failure.message}"
+}
+
 enum class BridgePluginCatalogSource {
     /** 来自官方客户端 slot 注册：分类与图标都是官方资源。 */
     CLIENT_SLOTS,

@@ -105,6 +105,7 @@ class BridgePluginInstaller(
             )
         }
         onProgress(0.05f, "准备在 rootfs 内安装插件…")
+        prepareHostDirectories()
         val argv = listOf(
             "/usr/local/bin/node",
             "/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js",
@@ -132,6 +133,26 @@ class BridgePluginInstaller(
                 Result.failure(IllegalStateException("插件更新失败：${error.message}"))
             },
         )
+    }
+
+    /**
+     * 预建插件管理器要用的目录。
+     *
+     * 在模拟器上实测到：`.plugin-manager/logs` 不存在时，安装器里的
+     * `mkdtemp` 会拿到 `ENOSYS`（proot 在「父目录缺失」的路径上创建临时目录会
+     * 这样失败），于是整次安装以「退出码 1」结束。目录建好后同一命令立刻成功，
+     * 因此这不是权限问题，而是目录不存在。
+     *
+     * 这些目录由 DSH 自己维护，提前建出来是幂等的：已存在就什么都不做。
+     */
+    private fun prepareHostDirectories() {
+        val dshHome = File(layout.rootfsDir, "root/.dsh")
+        listOf(
+            File(dshHome, "tmp"),
+            File(dshHome, "profiles/web/.plugin-manager/logs"),
+        ).forEach { directory ->
+            runCatching { directory.mkdirs() }
+        }
     }
 
     /**

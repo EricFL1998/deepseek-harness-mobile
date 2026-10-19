@@ -86,10 +86,13 @@ class DshRepository(
      * 把 bridge 门面绑到当前 Host。
      *
      * 门面由调用方构造，因为它需要 Host 的会话 CookieJar —— 那是网络层的知识，
-     * 仓库不重复拥有。地址相同时保留已有门面，避免丢掉 manifest 缓存。
+     * 仓库不重复拥有。
+     *
+     * 每次绑定都换成调用方给的新门面，即使地址相同：Host 可能刚重启或刚升级过
+     * 插件，沿用旧门面会保留过期的 manifest 缓存。重新协商一次 manifest 是本地
+     * 回环请求，代价远小于拿旧缓存当事实。
      */
     fun bindBridge(baseUrl: String, registry: BridgeRegistry) {
-        if (baseUrl == bridgeBaseUrl && bridgeRegistry != null) return
         bridgeBaseUrl = baseUrl
         bridgeRegistry = registry
     }
@@ -102,12 +105,15 @@ class DshRepository(
      *
      * 失败不是异常：目录会退化成 `source = NONE`，说明进 [bridgeWarningsFlow]，
      * 由 UI 决定展示空态还是回落 Host 原生清单。
+     *
+     * 未绑定不是错误：Host 还在启动时桥没有地址，此时**不产生**任何提示。
+     * 把「尚未就绪」当问题展示给用户只会制造噪音。
      */
     suspend fun refreshBridgePluginCatalog(iconSize: Int = BridgePluginCatalog.DEFAULT_ICON_SIZE) {
         val registry = bridgeRegistry
         if (registry == null) {
             _bridgePluginCatalogFlow.value = BridgePluginCatalogData(source = BridgePluginCatalogSource.NONE)
-            _bridgeWarningsFlow.value = listOf("bridge is not bound to a Host")
+            _bridgeWarningsFlow.value = emptyList()
             return
         }
         val result = BridgePluginCatalog.load(registry, iconSize)

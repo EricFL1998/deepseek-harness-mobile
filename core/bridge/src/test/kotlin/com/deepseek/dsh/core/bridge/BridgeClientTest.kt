@@ -156,12 +156,14 @@ class BridgeClientTest {
     }
 
     @Test
-    fun `a non-2xx response still decodes the host's error body`() = runBlocking {
-        val body = """{ "ok": false, "error": { "code": "auth/required", "message": "the Host refused this caller" } }"""
-        val client = BridgeClient("http://127.0.0.1:43121", clientWith(401 to body))
-        val result = client.query("rpc", "invoke") { it }
+    fun `a 404 means the bridge plugin is absent, not that the Host is down`() = runBlocking {
+        // 回归：404 曾被报成 transport/unreachable，于是插件页提示去查网络，
+        // 而真正要做的是在设置里安装插件。
+        val client = BridgeClient("http://127.0.0.1:43121", clientWith(404 to "not found"))
+        val result = client.query("client-slots", "list") { it }
         assertTrue(result is BridgeResult.Failure)
-        assertEquals(BridgeErrorCode.AUTH_REQUIRED, (result as BridgeResult.Failure).code)
+        assertEquals(BridgeErrorCode.PROVIDER_UNKNOWN, (result as BridgeResult.Failure).code)
+        assertTrue((result as BridgeResult.Failure).message.contains("not installed"))
     }
 
     @Test

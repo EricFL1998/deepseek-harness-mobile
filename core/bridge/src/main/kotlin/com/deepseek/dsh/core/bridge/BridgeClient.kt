@@ -130,6 +130,14 @@ class BridgeClient(
                     // 非 2xx 也带 JSON 错误体；能解码就用 Host 的稳定码，否则报传输失败。
                     val decoded = runCatching { decode(body) }.getOrNull()
                     if (decoded is BridgeResult.Failure) return@use decoded
+                    // 404 与「连不上」是两件事：Host 在回应，只是没有这条路由，
+                    // 也就是 bridge 插件没装。分开报，UI 才能给出可操作的指引。
+                    if (response.code == 404) {
+                        return@use BridgeResult.Failure(
+                            BridgeErrorCode.PROVIDER_UNKNOWN,
+                            "the Host serves no bridge route (HTTP 404): the bridge plugin is not installed",
+                        )
+                    }
                     return@use BridgeResult.Failure(
                         BridgeErrorCode.TRANSPORT_UNREACHABLE,
                         "bridge answered HTTP ${response.code}",

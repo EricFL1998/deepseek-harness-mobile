@@ -67,15 +67,7 @@ class DefaultHostRuntimeManager(
     }
 
     override suspend fun rootfsUpdateKind(): RootfsUpdateKind = withContext(Dispatchers.IO) {
-        val installed = installedRootfsVersion()
-        val available = availableRootfsVersion()
-        if (installed == null || available == null) return@withContext RootfsUpdateKind.NONE
-        val local = RootfsVersion.parse(installed) ?: return@withContext RootfsUpdateKind.MANDATORY
-        val remote = RootfsVersion.parse(available) ?: return@withContext RootfsUpdateKind.MANDATORY
-        when {
-            local.rootfs != remote.rootfs || local.dsh != remote.dsh -> RootfsUpdateKind.MANDATORY
-            else -> RootfsUpdateKind.NONE
-        }
+        decideRootfsUpdateKind(installedRootfsVersion(), availableRootfsVersion())
     }
 
     override suspend fun installedBridgeVersion(): String? = withContext(Dispatchers.IO) {

@@ -220,8 +220,18 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                                     pluginBusy = false
                                     return@launch
                                 }
-                                val result = manager.updateBridgePlugin { _, step ->
-                                    pluginStatus = step
+                                // 优先走 Host 自己的安装 RPC：App 进程另起 proot 时
+                                // 会被 seccomp 拦掉 mkdtemp（ENOSYS）。
+                                val installer = HostRuntimeHolder.pluginInstaller
+                                val spec = com.deepseek.dsh.runtime.host.BridgePluginManifest
+                                    .load(context)?.installSpec()
+                                val result = if (installer != null && !spec.isNullOrBlank()) {
+                                    pluginStatus = "通过 Host 安装 $spec…"
+                                    installer(spec)
+                                } else {
+                                    manager.updateBridgePlugin { _, step ->
+                                        pluginStatus = step
+                                    }
                                 }
                                 pluginBusy = false
                                 result.fold(
