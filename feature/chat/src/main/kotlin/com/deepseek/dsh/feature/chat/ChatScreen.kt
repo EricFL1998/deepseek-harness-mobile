@@ -99,6 +99,13 @@ import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.feature.chat.R
 
 /** 推理等级档位（对齐 ui-model-selection 的 effort 目录）。 */
+/** 官方客户端模型显示名：DeepSeek-V41-Flash -> DeepSeek-V4.1-Flash。 */
+private fun displayModelName(name: String): String {
+    val match = Regex("""^DeepSeek-V(\d{2,})([- ].*)?$""").find(name) ?: return name
+    val digits = match.groupValues[1]
+    val rest = match.groupValues[2]
+    return "DeepSeek-V${digits.dropLast(1)}.${digits.last()}$rest"
+}
 data class ReasoningOption(val id: String, val label: String)
 
 enum class ReasoningLevel(val labelResId: Int) {
@@ -718,7 +725,7 @@ private fun ModelEffortMenu(
                 } else {
                     MenuNavRow(
                         label = stringResource(R.string.model_menu_model),
-                        value = selectedModel,
+                        value = displayModelName(selectedModel),
                         onClick = { page = 1 },
                     )
                     MenuNavRow(
@@ -1873,7 +1880,7 @@ fun BottomInputBar(
                     // 模型与推理等级：trigger（当前模型 + 推理等级 + 箭头），菜单锚定在此
                     Box(modifier = Modifier.weight(1f).onGloballyPositioned { modelAnchor = it.boundsInWindow() }) {
                         ComposerTrigger(
-                            label = selectedModel,
+                            label = displayModelName(selectedModel),
                             // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
                             trailingValue = if (availableModels.isEmpty()) null else effortLabel,
                             onClick = onOpenModelMenu,
@@ -2054,6 +2061,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 
