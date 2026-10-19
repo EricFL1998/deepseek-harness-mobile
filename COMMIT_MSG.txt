@@ -1,0 +1,31 @@
+feat(updates): split plugin updates (required) from image updates (optional)
+
+A plugin release used to mean re-downloading a 300 MB rootfs. It no longer does.
+
+runtimeVersion now carries three segments, one meaning each:
+
+  1.1.0-dsh0.2.1-rc.2-bridge1.1.0
+
+RootfsVersion splits it and assessUpdate decides what a device faces:
+
+- plugin behind the plugin repo's latest release -> PLUGIN_REQUIRED, applied in
+  place inside the rootfs via `dsh plugin --profile web add <repo>#v<version>`;
+- only the rootfs or dsh segment moved -> ROOTFS_OPTIONAL, a full re-download;
+- otherwise -> NONE.
+
+The plugin is the client's contract peer, so a lagging plugin is a required
+update; the image is only a carrier, so a rebuild is optional. Both appear only
+in Settings -> Updates - opening the app never interrupts, and neither blocks
+startup.
+
+- BridgePluginInstaller runs the install through the same proot bindings and
+  environment as the Host itself, so the plugin sees the runtime's real filesystem.
+- BridgeReleaseChecker reads the plugin repo's release tag, the one declaration
+  of "latest plugin version" both this client and the rootfs build consume.
+- SettingsUpdatePane shows all three versions and two independent actions.
+- The plugin renders as 必需 in the Plugins page: no toggle, no uninstall, on the
+  row and the detail page, because disabling it costs the page its official
+  categories and artwork.
+
+20 new unit tests cover the version segmentation, the required/optional
+decision, and the manifest contract between the APK, the image, and the plugin.

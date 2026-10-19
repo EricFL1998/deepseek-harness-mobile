@@ -259,6 +259,7 @@ fun PluginsScreen(
                                 onOpen = { selectedBundle = bundle },
                                 onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
                                 onUninstall = { },
+                                locked = isLockedBundle(bundle.packageName),
                             )
                         }
                     }
@@ -307,7 +308,8 @@ fun PluginsScreen(
                                                 title = bundle.title
                                             )
                                         )
-                                    }
+                                    },
+                                    locked = isLockedBundle(bundle.packageName),
                                 )
                             }
                         }
@@ -354,9 +356,26 @@ fun PluginsScreen(
     }
 }
 
+/**
+ * 客户端与 Host 之间的兼容层插件包名。
+ *
+ * 与 `runtime:host` 的 `BridgePluginManifest.DEFAULT_PACKAGE` 保持一致：那边负责
+ * 安装与版本判断，这里负责在插件页里禁止停用/卸载。两边都以常量而非字符串
+ * 字面量出现，改名时只需改一处定义。
+ */
+private const val BRIDGE_PLUGIN_PACKAGE = "dsh-mobile-bridge-plugin"
+
+/**
+ * 这个 bundle 是否是客户端必需的基础设施。
+ *
+ * bridge 是 App 与 Host 的契约对端：停用它，插件页会失去官方分类与图标，
+ * 整页退化成原生清单。因此它只能在设置里升级，不能在插件页关掉。
+ * @param packageName bundle 的包名。
+ */
+private fun isLockedBundle(packageName: String): Boolean = packageName == BRIDGE_PLUGIN_PACKAGE
+
 /** 页面与卡片的间距/圆角常量（PluginManagerPage.module.css + ui-primitives）。 */
-private object PluginsDimens {
-    /** 手机页面左右安全边距（clamp(24px, 4vw, 48px) 的下限）。 */
+private object PluginsDimens {    /** 手机页面左右安全边距（clamp(24px, 4vw, 48px) 的下限）。 */
     val PageHorizontal = 24.dp
 
     /** 页面顶部内距（header 的 28px 在手机收窄）。 */
@@ -698,7 +717,24 @@ private fun BundleDetailContent(
                 glyphSize = 22.dp,
             )
             Spacer(Modifier.width(12.dp))
-            DshSwitch(checked = bundle.enabled, onCheckedChange = onToggle)
+            if (isLockedBundle(bundle.packageName)) {
+                // 与列表行一致：必需插件只呈现状态，不提供开关。
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.bgModulePlatform)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = if (bundle.enabled) "必需 · 已启用" else "必需",
+                        color = colors.labelTertiary,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                    )
+                }
+            } else {
+                DshSwitch(checked = bundle.enabled, onCheckedChange = onToggle)
+            }
         }
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -764,7 +800,7 @@ private fun BundleDetailContent(
         Spacer(Modifier.height(8.dp))
         DetailFactRow(label = "代码来源", value = if (bundle.official) "内置" else bundle.packageName, monospace = true)
         DetailFactRow(label = "当前版本", value = bundle.version ?: "—")
-        if (bundle.removable) {
+        if (bundle.removable && !isLockedBundle(bundle.packageName)) {
             Spacer(Modifier.height(16.dp))
             UninstallButton(onClick = onUninstall)
         }
@@ -887,6 +923,8 @@ private fun InstalledHostBundleRow(
     onToggle: (Boolean) -> Unit,
     onUninstall: () -> Unit,
     onOpen: () -> Unit = {},
+    /** 必需的基础设施插件：只能查看，不能停用或卸载。 */
+    locked: Boolean = false,
 ) {
     val colors = LocalDshPanelColors.current
     val rowInteraction = remember { MutableInteractionSource() }
@@ -945,23 +983,41 @@ private fun InstalledHostBundleRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            DshSwitch(
-                checked = bundle.enabled,
-                onCheckedChange = onToggle
-            )
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onUninstall),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
-                    contentDescription = "卸载",
-                    tint = colors.stateErrorPrimary,
-                    modifier = Modifier.size(14.dp),
+            if (locked) {
+                // bridge 是客户端的契约对端：停用它会让 App 失去官方分类与图标，
+                // 卸载它则让整页退化成原生清单。因此只呈现状态，不给开关。
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.bgModulePlatform)
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = "必需",
+                        color = colors.labelTertiary,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                    )
+                }
+            } else {
+                DshSwitch(
+                    checked = bundle.enabled,
+                    onCheckedChange = onToggle
                 )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onUninstall),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
+                        contentDescription = "卸载",
+                        tint = colors.stateErrorPrimary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
             }
         }
         if (showDivider) {

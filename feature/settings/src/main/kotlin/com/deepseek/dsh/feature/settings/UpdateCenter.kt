@@ -23,6 +23,10 @@ data class DshUpdateInfo(
 
 /**
  * 官方更新模型：启动后静默检查 GitHub Release；只有检测到新版本时 UI 才显示“新版本”。
+ *
+ * 这里只管 **APK 自身**的更新。bridge 插件与 rootfs 的更新由
+ * [com.deepseek.dsh.runtime.host.HostRuntimeManager.assessUpdates] 判断：
+ * 插件必需、镜像可选，两者都只在设置页呈现，绝不在启动时打断用户。
  */
 object UpdateCenter {
     private val _update = MutableStateFlow<DshUpdateInfo?>(null)

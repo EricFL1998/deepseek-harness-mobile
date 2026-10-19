@@ -1,6 +1,6 @@
 {
   "rootfsName": "dsh-rootfs",
-  "runtimeVersion": "1.0.0-dsh0.2.1-rc.2",
+  "runtimeVersion": "1.0.0-dsh0.2.1-rc.2-bridge1.1.0",
   "releaseTag": "rootfs-v1.0.0",
   "baseDistro": "debian-12-slim",
   "libc": "glibc",
@@ -11,7 +11,8 @@
     "pnpm",
     "@deepseek-ai/dsh@0.2.1-rc.2",
     "python3",
-    "git"
+    "git",
+    "dsh-mobile-bridge-plugin@1.1.0"
   ],
   "downloadUrls": {
     "x86_64": "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest/download/rootfs-x86_64.bin",
@@ -25,8 +26,6 @@
   "sha256": "",
   "archiveSizeBytes": 309313641,
   "prootLibrary": "libproot.so",
-  "_comment": "首次启动从 GitHub Release 下载 rootfs；正式发布可替换为 CDN/对象存储。"
+  "_comment": "首次启动从 GitHub Release 下载 rootfs；正式发布可替换为 CDN/对象存储。",
+  "bridgeVersion": "1.1.0"
 }
-
-
-

@@ -2,7 +2,7 @@
 
 > **Status: implemented.** The Host plugin lives in its own repository,
 > [`deepseek-harness-mobile-bridge-plugin`](https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin)
-> (`dsh-mobile-bridge`); this document is the design it implements, and
+> (`dsh-mobile-bridge-plugin`); this document is the design it implements, and
 > [`core/bridge`](../core/bridge) is the Android consumer. Where the shipped
 > code settles a question this document left open, the note is marked
 > **As built**.
@@ -196,14 +196,18 @@ the bridge, so the bridge never mints credentials.
 
 ## Installation
 
-The bridge is a DSH bundle. In the Host profile:
+The bridge is a DSH bundle. It is **not published to npm** — the npm name
+`dsh-mobile-bridge` belongs to an unrelated package — so the Host installs it
+from GitHub:
 
 ```sh
-pnpm add dsh-mobile-bridge
+dsh plugin --profile web add \
+  https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin#v1.1.0
 ```
 
-then add `dsh-mobile-bridge` to `dsh.profile.bundles`. It registers on the
-Host's existing `webServer` — no port of its own, no second listener.
+then add `dsh-mobile-bridge-plugin` to the profile's `dsh.profile.bundles`. It
+registers on the Host's existing `webServer` — no port of its own, no second
+listener.
 
 Two settings are worth reading before shipping a client:
 
@@ -213,3 +217,59 @@ Two settings are worth reading before shipping a client:
 
 Every request passes the Host's own connection fence (`requireHostSession`), so
 the bridge never bypasses DSH remote access.
+
+## Update model
+
+Three things version themselves, and the two below the APK are updated **two
+different ways**:
+
+| Component | Update type | How it lands |
+| --- | --- | --- |
+| APK | notice only | GitHub Release download page |
+| **bridge plugin** | **required** | in place inside the rootfs — no image download |
+| **rootfs image** | **optional** | full image re-download |
+
+The plugin is the client's **contract peer**: Host and App must speak the same
+`bridge/v1`. A plugin that lags is missing features, so updating it is
+*required* — but it is cheap (a source-tarball install), so it never forces a
+300 MB image download. The image is only a carrier: an old one still runs, so a
+rebuild is an *optional* update.
+
+That is why `runtimeVersion` carries three segments:
+
+```
+1.1.0-dsh0.2.1-rc.2-bridge1.1.0
+```
+
+`RootfsVersion.parse` splits it and `assessUpdate` decides:
+
+- plugin behind the plugin repo's latest release → `PLUGIN_REQUIRED`;
+- only the rootfs or dsh segment moved → `ROOTFS_OPTIONAL`;
+- otherwise → `NONE`.
+
+**Both kinds surface only in Settings → Updates.** Opening the app never
+interrupts with a prompt, and no update blocks startup.
+
+### Releases are version markers
+
+The plugin repository publishes asset-free releases: the tag `v<version>` *is*
+the artifact. Publishing is explicit — bump `version`, set `"release": true`,
+push; the workflow creates the tag and disarms the flag, so ordinary commits
+never publish.
+
+Two consumers read that tag:
+
+- the Android client, via `BridgeReleaseChecker`, to decide whether Settings
+  should offer the plugin update;
+- the rootfs build, to decide which plugin version to bundle and stamp as
+  `-bridge<version>`.
+
+So a plugin release needs **neither an APK rebuild nor a rootfs rebuild**.
+
+### The plugin is locked in the plugin page
+
+`dsh-mobile-bridge-plugin` renders as `必需` in the Plugins page: no enable
+switch, no uninstall, on both the list row and the detail page. Disabling it
+costs the page its official categories and artwork and falls back to the Host's
+native inventory; removing it breaks the compatibility layer outright. It can
+only be upgraded, from Settings → Updates.

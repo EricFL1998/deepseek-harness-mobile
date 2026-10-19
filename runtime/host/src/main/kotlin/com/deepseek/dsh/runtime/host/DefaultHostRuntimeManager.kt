@@ -55,6 +55,49 @@ class DefaultHostRuntimeManager(
         installed != null && available != null && installed != available
     }
 
+    override suspend fun rootfsUpdateKind(): RootfsUpdateKind = withContext(Dispatchers.IO) {
+        val installed = installedRootfsVersion()
+        val available = availableRootfsVersion()
+        if (installed == null || available == null) return@withContext RootfsUpdateKind.NONE
+        val local = RootfsVersion.parse(installed) ?: return@withContext RootfsUpdateKind.MANDATORY
+        val remote = RootfsVersion.parse(available) ?: return@withContext RootfsUpdateKind.MANDATORY
+        when {
+            local.rootfs != remote.rootfs || local.dsh != remote.dsh -> RootfsUpdateKind.MANDATORY
+            else -> RootfsUpdateKind.NONE
+        }
+    }
+
+    override suspend fun installedBridgeVersion(): String? = withContext(Dispatchers.IO) {
+        BridgePluginInstaller(context, layout).installedVersion()
+    }
+
+    override suspend fun assessUpdates(): UpdateAssessment = withContext(Dispatchers.IO) {
+        val manifest = BridgePluginManifest.load(context)
+        // 查不到最新版本时传 null：评估退化为只看镜像段，不会误报插件落后。
+        val latest = manifest?.repository
+            ?.takeIf { it.isNotBlank() }
+            ?.let { BridgeReleaseChecker().latestVersion(it) }
+        assessUpdate(
+            installed = installedRootfsVersion(),
+            available = availableRootfsVersion(),
+            latestPlugin = latest,
+            installedPlugin = BridgePluginInstaller(context, layout).installedVersion(),
+        )
+    }
+
+    override suspend fun updateBridgePlugin(
+        onProgress: (Float, String) -> Unit,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val manifest = BridgePluginManifest.load(context)
+            ?: return@withContext Result.failure(
+                IllegalStateException("APK 未内置插件清单（assets/${BridgePluginManifest.ASSET}）")
+            )
+        if (manifest.repository.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("插件清单未配置安装源"))
+        }
+        BridgePluginInstaller(context, layout).install(manifest.installSpec(), onProgress)
+    }
+
     override suspend fun installRootfs(onProgress: (Float, String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
         layout.ensureDirectories()
         val installer = RootfsInstaller(layout)
