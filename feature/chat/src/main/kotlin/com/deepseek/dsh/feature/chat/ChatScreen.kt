@@ -99,6 +99,8 @@ import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.feature.chat.R
 
 /** 推理等级档位（对齐 ui-model-selection 的 effort 目录）。 */
+data class ReasoningOption(val id: String, val label: String)
+
 enum class ReasoningLevel(val labelResId: Int) {
     FAST(R.string.reasoning_fast),
     DEEP_THINK(R.string.reasoning_deep_think),
@@ -176,7 +178,11 @@ fun ModernChatScreen(
     selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
     onPermissionSelected: (PermissionPreset) -> Unit = {},
     reasoningLevel: ReasoningLevel = ReasoningLevel.FAST,
+    reasoningOptions: List<ReasoningOption> = emptyList(),
+    selectedReasoningId: String = "",
+    effortLabelOverride: String? = null,
     onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
+    onReasoningSelected: (ReasoningOption) -> Unit = {},
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
@@ -274,7 +280,9 @@ fun ModernChatScreen(
             onPlusClick = { commandSheetOpen = true },
             selectedModel = selectedModel,
             availableModels = availableModels,
-            effortLabel = stringResource(reasoningLevel.labelResId),
+            effortLabel = effortLabelOverride ?: stringResource(reasoningLevel.labelResId),
+            reasoningOptions = reasoningOptions,
+            selectedReasoningId = selectedReasoningId,
             onOpenModelMenu = {
                 permissionMenuOpen = false
                 modelMenuOpen = true
@@ -288,6 +296,10 @@ fun ModernChatScreen(
             onEffortSelected = { level ->
                 modelMenuOpen = false
                 onReasoningLevelChange(level)
+            },
+            onReasoningSelected = { option ->
+                modelMenuOpen = false
+                onReasoningSelected(option)
             },
             currentPermission = currentPermission,
             onOpenPermissionMenu = {
@@ -652,9 +664,12 @@ private fun ModelEffortMenu(
     availableModels: List<String>,
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     effortLabel: String,
+    reasoningOptions: List<ReasoningOption> = emptyList(),
+    selectedReasoningId: String = "",
     onDismiss: () -> Unit,
     onModelSelected: (String) -> Unit,
     onEffortSelected: (ReasoningLevel) -> Unit,
+    onReasoningSelected: (ReasoningOption) -> Unit = {},
 ) {
     var page by remember { mutableStateOf(0) }
     var modelQuery by remember { mutableStateOf("") }
@@ -784,12 +799,24 @@ private fun ModelEffortMenu(
                     }
                 }
             }
-            else -> ReasoningLevel.entries.forEach { level ->
-                val label = stringResource(level.labelResId)
-                val selected = label == effortLabel
-                DshMenuRow(onClick = { onEffortSelected(level) }) {
-                    DshMenuLabel(label, Modifier.weight(1f))
-                    if (selected) DshMenuCheck()
+            else -> {
+                if (reasoningOptions.isNotEmpty()) {
+                    reasoningOptions.forEach { option ->
+                        val selected = option.id == selectedReasoningId
+                        DshMenuRow(onClick = { onReasoningSelected(option) }) {
+                            DshMenuLabel(option.label, Modifier.weight(1f))
+                            if (selected) DshMenuCheck()
+                        }
+                    }
+                } else {
+                    ReasoningLevel.entries.forEach { level ->
+                        val label = stringResource(level.labelResId)
+                        val selected = label == effortLabel
+                        DshMenuRow(onClick = { onEffortSelected(level) }) {
+                            DshMenuLabel(label, Modifier.weight(1f))
+                            if (selected) DshMenuCheck()
+                        }
+                    }
                 }
             }
         }
@@ -1713,11 +1740,14 @@ fun BottomInputBar(
     availableModels: List<String> = MODEL_CATALOG,
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     effortLabel: String,
+    reasoningOptions: List<ReasoningOption> = emptyList(),
+    selectedReasoningId: String = "",
     onOpenModelMenu: () -> Unit,
     modelMenuOpen: Boolean,
     onModelMenuDismiss: () -> Unit,
     onModelSelected: (String) -> Unit,
     onEffortSelected: (ReasoningLevel) -> Unit,
+    onReasoningSelected: (ReasoningOption) -> Unit = {},
     currentPermission: PermissionPreset,
     onOpenPermissionMenu: () -> Unit,
     permissionMenuOpen: Boolean,
@@ -1857,9 +1887,12 @@ fun BottomInputBar(
                             availableModels = availableModels.distinct(),
                             modelGroups = modelGroups,
                             effortLabel = effortLabel,
+                            reasoningOptions = reasoningOptions,
+                            selectedReasoningId = selectedReasoningId,
                             onDismiss = onModelMenuDismiss,
                             onModelSelected = onModelSelected,
                             onEffortSelected = onEffortSelected,
+                            onReasoningSelected = onReasoningSelected,
                         )
                     }
 
@@ -2021,6 +2054,11 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
+
+
+
+
 
 
 

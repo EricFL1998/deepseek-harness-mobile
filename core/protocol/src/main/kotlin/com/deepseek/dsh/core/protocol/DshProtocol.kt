@@ -51,7 +51,7 @@ interface DshClientProtocol {
     suspend fun listSessions(hostId: String): RemoteResult<List<SessionInfo>>
     suspend fun createSession(hostId: String, title: String, workspacePath: String?): RemoteResult<SessionInfo>
     suspend fun deleteSession(hostId: String, sessionId: String): RemoteResult<Boolean>
-    suspend fun selectModel(hostId: String, sessionId: String, modelId: String, provider: String? = null): RemoteResult<Boolean>
+    suspend fun selectModel(hostId: String, sessionId: String, modelId: String, provider: String? = null, reasoningEffort: String? = null): RemoteResult<Boolean>
     suspend fun selectPermissionPreset(hostId: String, sessionId: String, preset: String): RemoteResult<Boolean>
     suspend fun cancelSession(hostId: String, sessionId: String): Boolean
 
@@ -79,6 +79,7 @@ interface DshClientProtocol {
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
 }
+
 
 
 

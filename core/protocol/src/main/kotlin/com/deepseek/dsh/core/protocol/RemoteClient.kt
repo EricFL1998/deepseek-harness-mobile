@@ -12,6 +12,7 @@ import com.deepseek.dsh.core.model.ComposerStats
 import com.deepseek.dsh.core.model.MessageRole
 import com.deepseek.dsh.core.model.ModelCatalogInfo
 import com.deepseek.dsh.core.model.ModelItem
+import com.deepseek.dsh.core.model.ModelReasoningEffort
 import com.deepseek.dsh.core.model.ModelProviderGroup
 import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginConfigItem
@@ -280,7 +281,8 @@ class RemoteClient(
         hostId: String,
         sessionId: String,
         modelId: String,
-        provider: String?
+        provider: String?,
+        reasoningEffort: String?
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
@@ -292,6 +294,9 @@ class RemoteClient(
                         put("sessionId", sessionId)
                         put("provider", provider ?: "deepseek-account")
                         put("model", modelId)
+                        if (!reasoningEffort.isNullOrBlank()) {
+                            put("reasoningEffort", reasoningEffort)
+                        }
                     })
                 })
             })
@@ -420,10 +425,23 @@ class RemoteClient(
                     val models = (obj["models"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { m ->
                         val mo = m as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
                         val id = mo["id"]?.toString()?.trim('"') ?: return@mapNotNull null
+                        val reasoning = mo["reasoning"] as? kotlinx.serialization.json.JsonObject
+                        val efforts = (reasoning?.get("efforts") as? kotlinx.serialization.json.JsonArray)
+                            ?.mapNotNull { e ->
+                                val eo = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                val eid = eo["id"]?.toString()?.trim('"') ?: return@mapNotNull null
+                                ModelReasoningEffort(
+                                    id = eid,
+                                    name = eo["name"]?.toString()?.trim('"') ?: eid,
+                                    description = eo["description"]?.toString()?.trim('"'),
+                                )
+                            } ?: emptyList()
                         ModelItem(
                             id = id,
                             name = mo["name"]?.toString()?.trim('"') ?: id,
                             description = mo["description"]?.toString()?.trim('"'),
+                            reasoningEfforts = efforts,
+                            defaultReasoningEffort = reasoning?.get("defaultEffort")?.toString()?.trim('"'),
                         )
                     } ?: emptyList()
                     ModelProviderGroup(
@@ -1420,6 +1438,10 @@ class RemoteClient(
     }
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
+
+
+
+
 
 
 

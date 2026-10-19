@@ -285,9 +285,15 @@ class DshRepository(
         client.deleteSession(hostId, sessionId)
     }
 
-    suspend fun selectModel(hostId: String, sessionId: String, model: String, provider: String? = null) {
+    suspend fun selectModel(
+        hostId: String,
+        sessionId: String,
+        model: String,
+        provider: String? = null,
+        reasoningEffort: String? = null,
+    ) {
         dao.updateSessionModel(hostId, sessionId, model)
-        client.selectModel(hostId, sessionId, model, provider)
+        client.selectModel(hostId, sessionId, model, provider, reasoningEffort)
     }
 
     suspend fun cancelSession(hostId: String, sessionId: String): Boolean {
@@ -445,6 +451,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 

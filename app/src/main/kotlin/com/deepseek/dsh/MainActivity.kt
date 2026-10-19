@@ -942,6 +942,29 @@ fun MainAppHost(
                                     modelPrefs.edit().putString("last_model_name", currentModel).apply()
                                 }
                             }
+                            val currentProviderGroup = catalogInfo.groups.firstOrNull { group ->
+                                group.models.any { it.name == currentModel }
+                            }
+                            val currentModelMeta = currentProviderGroup?.models?.firstOrNull { it.name == currentModel }
+                            val backendEfforts = currentModelMeta?.reasoningEfforts?.map { effort ->
+                                com.deepseek.dsh.feature.chat.ReasoningOption(effort.id, effort.name)
+                            } ?: emptyList()
+                            var selectedReasoningId by remember(currentModel) {
+                                mutableStateOf(
+                                    currentModelMeta?.defaultReasoningEffort
+                                        ?: backendEfforts.firstOrNull()?.id.orEmpty()
+                                )
+                            }
+                            LaunchedEffect(currentModel, currentModelMeta) {
+                                if (backendEfforts.none { it.id == selectedReasoningId }) {
+                                    selectedReasoningId = currentModelMeta?.defaultReasoningEffort
+                                        ?: backendEfforts.firstOrNull()?.id.orEmpty()
+                                }
+                            }
+
+                            val effortLabelText = backendEfforts
+                                .firstOrNull { it.id == selectedReasoningId }?.label
+                                ?: stringResource(reasoningLevel.labelResId)
                             val currentPermission = remember(activeSession?.permissionPreset) {
                                 when (activeSession?.permissionPreset) {
                                     "read_only" -> com.deepseek.dsh.feature.chat.PermissionPreset.READ_ONLY
@@ -1062,6 +1085,26 @@ fun MainAppHost(
                                     }
                                 },
                                 reasoningLevel = reasoningLevel,
+                                reasoningOptions = backendEfforts,
+                                selectedReasoningId = selectedReasoningId,
+                                effortLabelOverride = effortLabelText,
+                                onReasoningSelected = { option ->
+                                    selectedReasoningId = option.id
+                                    scope.launch {
+                                        settingsRepository.updateSettings { current ->
+                                            current.copy(defaultReasoningLevel = option.id)
+                                        }
+                                        selectedSessionId?.let { sid ->
+                                            dshRepository.selectModel(
+                                                activeHostId,
+                                                sid,
+                                                currentModel,
+                                                currentProviderGroup?.id,
+                                                option.id
+                                            )
+                                        }
+                                    }
+                                },
                                 onReasoningLevelChange = { level ->
                                     reasoningLevel = level
                                     scope.launch {
@@ -1920,6 +1963,10 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
+
+
 
 
 

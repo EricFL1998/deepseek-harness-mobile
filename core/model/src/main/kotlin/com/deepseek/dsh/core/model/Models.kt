@@ -90,10 +90,19 @@ data class SessionInfo(
 )
 
 @Serializable
+data class ModelReasoningEffort(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+)
+
+@Serializable
 data class ModelItem(
     val id: String,
     val name: String,
-    val description: String? = null
+    val description: String? = null,
+    val reasoningEfforts: List<ModelReasoningEffort> = emptyList(),
+    val defaultReasoningEffort: String? = null,
 )
 
 @Serializable
@@ -271,4 +280,5 @@ data class SurfaceCatalog(
     val dshVersion: String,
     val surfaces: List<SurfaceItem> = emptyList()
 )
+
 
