@@ -326,9 +326,15 @@ fun MainAppHost(
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
+    val pluginRows by dshRepository.pluginRowsFlow.collectAsState()
+
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
     var modelCredentialsRaw by remember { mutableStateOf<String?>(null) }
+    val settingsNamespaces = remember(modelSettingsRaw) {
+        Regex("\"ns\"\\s*:\\s*\"([^\"]+)\"").findAll(modelSettingsRaw.orEmpty())
+            .map { it.groupValues[1] }.toSet()
+    }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
@@ -1270,6 +1276,8 @@ fun MainAppHost(
                             PluginsScreen(
                                 surfaces = catalog.surfaces,
                                 pluginManagerSnapshot = pluginManagerSnapshot,
+                                pluginRows = pluginRows,
+                                settingsNamespaces = settingsNamespaces,
                                 onOpenSurface = { item ->
                                     if (item.kind == SurfaceKind.OVERLAY) {
                                         activeOverlaySurface = item
@@ -2232,5 +2240,8 @@ private fun parseWorkspaceId(raw: String?): String? {
     if (raw.isNullOrBlank()) return null
     return Regex("\"workspaceId\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.getOrNull(1)
 }
+
+
+
 
 

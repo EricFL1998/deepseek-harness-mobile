@@ -15,6 +15,8 @@ import com.deepseek.dsh.core.model.ModelItem
 import com.deepseek.dsh.core.model.ModelReasoningEffort
 import com.deepseek.dsh.core.model.ModelProviderGroup
 import com.deepseek.dsh.core.model.PluginBundleItem
+import com.deepseek.dsh.core.model.PluginComponentInfo
+import com.deepseek.dsh.core.model.PluginRowInfo
 import com.deepseek.dsh.core.model.PluginConfigItem
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 import com.deepseek.dsh.core.model.PluginManagerSnapshot
@@ -795,11 +797,27 @@ class RemoteClient(
                                 val isExperimental = name.contains("experimental") ||
                                     (meta?.get("beta")?.toString()?.toBooleanStrictOrNull() ?: false)
 
+                                val componentRows = (bElem["rows"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { row ->
+                                    val rowObj = row as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                                    val module = rowObj["moduleName"]?.toString()?.trim('"') ?: return@mapNotNull null
+                                    val rowMeta = rowObj["meta"] as? kotlinx.serialization.json.JsonObject
+                                    PluginComponentInfo(
+                                        rowId = rowObj["rowId"]?.toString()?.trim('"') ?: module,
+                                        moduleName = module,
+                                        title = localizedJsonText(rowMeta?.get("title"))
+                                            ?: localizedJsonText(rowMeta?.get("name"))
+                                            ?: module.substringAfterLast("/"),
+                                        description = localizedJsonText(rowMeta?.get("description")).orEmpty(),
+                                        enabled = rowObj["entryId"] != null,
+                                        phase = "active",
+                                        entryId = rowObj["entryId"]?.toString()?.trim('"'),
+                                    )
+                                }.orEmpty()
                                 val item = PluginBundleItem(
                                     packageName = name,
                                     title = title,
                                     description = description,
-                                    isExperimental = isExperimental,
+                                    isExperimental = (bElem["official"]?.toString() == "true" && bElem["optional"]?.toString() == "true"),
                                     enabled = enabled,
                                     iconKey = when {
                                         name.contains("team") -> "team"
@@ -807,7 +825,13 @@ class RemoteClient(
                                         name.contains("auto-review") -> "shield"
                                         name.contains("inspector") -> "debug"
                                         else -> "default"
-                                    }
+                                    },
+                                    version = bElem["version"]?.toString()?.trim('"'),
+                                    official = bElem["official"]?.toString() == "true",
+                                    removable = bElem["removable"]?.toString() != "false",
+                                    error = (bElem["error"] as? kotlinx.serialization.json.JsonObject)?.get("code")?.toString()?.trim('"'),
+                                    rows = componentRows,
+                                    iconData = localizedJsonText((bElem["meta"] as? kotlinx.serialization.json.JsonObject)?.get("icon")),
                                 )
                                 if (isExperimental) {
                                     experimentalList.add(item)
@@ -841,6 +865,46 @@ class RemoteClient(
         )
     }
 
+    override suspend fun getPluginRows(hostId: String): RemoteResult<List<PluginRowInfo>> =
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val payload = buildJsonObject {
+                put("type", "client-request")
+                put("rpcId", java.util.UUID.randomUUID().toString())
+                put("method", "pluginManager/listPlugins")
+                put("payload", buildJsonObject { put("args", buildJsonObject {}) })
+            }.toString()
+            val request = Request.Builder()
+                .url("$baseUrl/api/pluginManager/listPlugins")
+                .post(payload.toRequestBody(mediaTypeJson))
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) return@withContext RemoteResult.Failure("dsh/plugin/list", "HTTP ${response.code}")
+                    val root = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject ?: return@withContext RemoteResult.Success(emptyList())
+                    val arr = (root["result"] as? kotlinx.serialization.json.JsonObject)?.get("value") as? kotlinx.serialization.json.JsonArray
+                        ?: root["rows"] as? kotlinx.serialization.json.JsonArray
+                        ?: return@withContext RemoteResult.Success(emptyList())
+                    val rows = arr.mapNotNull { item ->
+                        val obj = item as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                        val module = obj["moduleName"]?.toString()?.trim('"') ?: return@mapNotNull null
+                        val meta = obj["meta"] as? kotlinx.serialization.json.JsonObject
+                        PluginRowInfo(
+                            entryId = obj["entryId"]?.toString()?.trim('"'),
+                            moduleName = module,
+                            title = localizedJsonText(meta?.get("title")) ?: localizedJsonText(meta?.get("name")) ?: module.substringAfterLast("/"),
+                            description = localizedJsonText(meta?.get("description")).orEmpty(),
+                            enabled = obj["enabled"]?.toString() != "false",
+                            phase = obj["phase"]?.toString()?.trim('"') ?: obj["fiberPhase"]?.toString()?.trim('"') ?: "active",
+                            iconData = localizedJsonText(meta?.get("icon")),
+                        )
+                    }
+                    RemoteResult.Success(rows)
+                }
+            } catch (e: Exception) {
+                RemoteResult.Failure("dsh/plugin/list", e.message ?: "list failed")
+            }
+        }
     override suspend fun installPlugin(
         hostId: String,
         packageName: String
@@ -1457,6 +1521,9 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
     }
     else -> null
 }
+
+
+
 
 
 

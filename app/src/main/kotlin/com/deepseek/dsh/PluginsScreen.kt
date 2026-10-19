@@ -5,7 +5,13 @@ import androidx.activity.compose.BackHandler
 import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginConfigItem
 import com.deepseek.dsh.core.model.PluginManagerSnapshot
+import com.deepseek.dsh.core.model.PluginRowInfo
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -96,6 +102,8 @@ fun PluginsScreen(
     onToggleBundle: (String, Boolean) -> Unit = { _, _ -> },
     onUninstall: (SurfaceItem) -> Unit = {},
     onCreatePlugin: () -> Unit = {},
+    pluginRows: List<PluginRowInfo> = emptyList(),
+    settingsNamespaces: Set<String> = emptySet(),
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
@@ -105,11 +113,44 @@ fun PluginsScreen(
     var installStatusMessage by remember { mutableStateOf<String?>(null) }
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
+    var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
+    // 官方源码 ui-settings-{agent-loop,shell,subagent,web-search} 在对应 settings 命名空间被
+    // Host 服务时注册 plugins.item；这里同样以 Host 返回的 namespace 决定是否出现。
+    val officialConfigItems = remember(settingsNamespaces) {
+        buildList {
+            if ("agent-loop" in settingsNamespaces) add(
+                OfficialConfigItem("agent-loop", "Agent 循环", "控制 Agent 派发工具调用的方式。", R.drawable.ic_plugin_art_loop)
+            )
+            if (settingsNamespaces.any { it == "shell" || it == "bash" || it == "pwsh" }) add(
+                OfficialConfigItem("shell", "终端", "限制每条命令最多能跑多久、最多输出多少内容。", R.drawable.ic_plugin_art_terminal)
+            )
+            if ("subagent" in settingsNamespaces) add(
+                OfficialConfigItem("subagent", "子智能体", "设置子智能体的递归层级、数量和模型。", R.drawable.ic_plugin_art_subagent)
+            )
+            if ("web-search" in settingsNamespaces) add(
+                OfficialConfigItem("web-search", "网页搜索", "设置 DeepSeek 的搜索提供方。", R.drawable.ic_plugin_art_search)
+            )
+        }
+    }
     var disabledPlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     fun keyOf(item: SurfaceItem): String = "${item.pluginId}::${item.slot}"
     fun enabledOf(item: SurfaceItem): Boolean = keyOf(item) !in disabledPlugins
 
+    val bundleDetail = selectedBundle
+    if (bundleDetail != null) {
+        CompositionLocalProvider(LocalDshPanelColors provides colors) {
+            Box(modifier = modifier.fillMaxSize().background(colors.bgBase)) {
+                BundleDetailContent(
+                    bundle = bundleDetail,
+                    onBack = { selectedBundle = null },
+                    onToggle = { enabled -> onToggleBundle(bundleDetail.packageName, enabled) },
+                    onUninstall = { onUninstall(SurfaceItem(pluginId = bundleDetail.packageName, slot = "host.bundle", title = bundleDetail.title)) },
+                )
+            }
+        }
+        return
+    }
     CompositionLocalProvider(LocalDshPanelColors provides colors) {
         Box(
             modifier = modifier
@@ -152,6 +193,43 @@ fun PluginsScreen(
                         )
                     }
 
+                    if (officialConfigItems.isNotEmpty()) {
+                        item(key = "builtin_config_head") {
+                            PluginsGroupTitle(
+                                text = "内置插件配置",
+                                modifier = Modifier.padding(
+                                    top = PluginsDimens.SectionGap,
+                                    bottom = PluginsDimens.GroupTitleGap,
+                                ),
+                            )
+                        }
+                        itemsIndexed(officialConfigItems, key = { index, item -> "official_config_${index}_${item.id}" }) { index, item ->
+                            OfficialConfigRow(item = item, showDivider = index != officialConfigItems.lastIndex)
+                        }
+                    }
+
+                    val experimentalBundles = pluginManagerSnapshot?.experimentalBundles ?: emptyList()
+                    if (experimentalBundles.isNotEmpty()) {
+                        item(key = "experimental_group_head") {
+                            PluginsGroupTitle(
+                                text = "实验性插件",
+                                modifier = Modifier.padding(
+                                    top = PluginsDimens.SectionGap,
+                                    bottom = PluginsDimens.GroupTitleGap,
+                                ),
+                            )
+                        }
+                        itemsIndexed(experimentalBundles, key = { index, bundle -> "experimental_${index}_${bundle.packageName}" }) { index, bundle ->
+                            InstalledHostBundleRow(
+                                bundle = bundle,
+                                showDivider = index != experimentalBundles.lastIndex,
+                                onOpen = { selectedBundle = bundle },
+                                onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
+                                onUninstall = { },
+                            )
+                        }
+                    }
+
                     // 1. 已安装插件（首页即官方插件管理页的唯一列表；不预置演示/测试插件）
                     item(key = "installed_group_head") {
                         PluginsGroupTitle(
@@ -184,6 +262,7 @@ fun PluginsScreen(
                                 InstalledHostBundleRow(
                                     bundle = bundle,
                                     showDivider = index != hostBundles.lastIndex || surfaces.isNotEmpty(),
+                                    onOpen = { selectedBundle = bundle },
                                     onToggle = { enabled ->
                                         onToggleBundle(bundle.packageName, enabled)
                                     },
@@ -551,11 +630,216 @@ private fun SduiFeatureCard(
 }
 
 @Composable
+private fun BundleDetailContent(
+    bundle: PluginBundleItem,
+    onBack: () -> Unit,
+    onToggle: (Boolean) -> Unit,
+    onUninstall: () -> Unit,
+) {
+    val colors = LocalDshPanelColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = PluginsDimens.PageHorizontal, vertical = PluginsDimens.PageTop),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onBack),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("‹", color = colors.labelPrimary, fontSize = 26.sp)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("插件", color = colors.labelSecondary, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(20.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PluginsIconFrame(
+                icon = Icons.Default.Build,
+                frameSize = 48.dp,
+                frameRadius = 16.dp,
+                glyphSize = 22.dp,
+            )
+            Spacer(Modifier.width(12.dp))
+            DshSwitch(checked = bundle.enabled, onCheckedChange = onToggle)
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = bundle.title,
+                color = colors.labelPrimary,
+                fontSize = 20.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            if (!bundle.version.isNullOrBlank()) {
+                Spacer(Modifier.width(8.dp))
+                Text("v${bundle.version}", color = colors.labelTertiary, fontSize = 12.sp)
+            }
+            if (bundle.isExperimental) {
+                Spacer(Modifier.width(8.dp))
+                Text("实验性", color = colors.labelSecondary, fontSize = 11.sp)
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(bundle.packageName, color = colors.labelTertiary, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        if (bundle.description.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(bundle.description, color = colors.labelSecondary, fontSize = 13.sp, lineHeight = 20.sp)
+        }
+        if (bundle.error != null) {
+            Spacer(Modifier.height(8.dp))
+            Text("异常：${bundle.error}", color = colors.stateErrorPrimary, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(28.dp))
+        Text(
+            text = "包含的组件 共 ${bundle.rows.size} 个 · ${bundle.rows.count { it.enabled }} 运行中",
+            color = colors.labelPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.height(8.dp))
+        bundle.rows.forEach { component ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                PluginsIconFrame(
+                    icon = Icons.Default.Build,
+                    frameSize = 36.dp,
+                    frameRadius = 10.dp,
+                    glyphSize = 16.dp,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(component.title, color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(component.description.ifBlank { component.moduleName }, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(component.moduleName, color = colors.labelTertiary, fontFamily = FontFamily.Monospace, fontSize = 10.5.sp)
+                }
+                Text("运行中", color = colors.labelSecondary, fontSize = 11.sp)
+                DshSwitch(checked = component.enabled, onCheckedChange = { /* 组件启停暂由 bundle 控制 */ })
+            }
+        }
+        Spacer(Modifier.height(28.dp))
+        Text("来源信息", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(8.dp))
+        DetailFactRow(label = "代码来源", value = if (bundle.official) "内置" else bundle.packageName, monospace = true)
+        DetailFactRow(label = "当前版本", value = bundle.version ?: "—")
+        if (bundle.removable) {
+            Spacer(Modifier.height(16.dp))
+            UninstallButton(onClick = onUninstall)
+        }
+    }
+}
+
+@Composable
+private fun PluginMetaIcon(iconData: String?, size: Dp, radius: Dp, glyphSize: Dp) {
+    val bitmap = remember(iconData) {
+        if (iconData.isNullOrBlank() || !iconData.contains(",")) null else runCatching {
+            val bytes = Base64.decode(iconData.substringAfter(","), Base64.DEFAULT)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }.getOrNull()
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(size)
+                .clip(RoundedCornerShape(radius)),
+        )
+    } else {
+        PluginsIconFrame(
+            icon = Icons.Default.Build,
+            frameSize = size,
+            frameRadius = radius,
+            glyphSize = glyphSize,
+        )
+    }
+}
+
+private data class OfficialConfigItem(
+    val id: String,
+    val title: String,
+    val description: String,
+    val iconRes: Int,
+)
+
+@Composable
+private fun OfficialConfigRow(item: OfficialConfigItem, showDivider: Boolean) {
+    val colors = LocalDshPanelColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(0.5.dp, colors.borderL3, RoundedCornerShape(12.dp))
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = item.iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(item.title, color = colors.labelPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+                Text(item.description, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text("›", color = colors.labelTertiary, fontSize = 18.sp)
+        }
+        if (showDivider) {
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(colors.borderL4))
+        }
+    }
+}
+
+@Composable
+private fun PluginConfigRow(row: PluginRowInfo, showDivider: Boolean) {
+    val colors = LocalDshPanelColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PluginMetaIcon(iconData = row.iconData, size = 40.dp, radius = 12.dp, glyphSize = 18.dp)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(row.title, color = colors.labelPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+                Text(row.description.ifBlank { row.moduleName }, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text("›", color = colors.labelTertiary, fontSize = 18.sp)
+        }
+        if (showDivider) {
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(colors.borderL4))
+        }
+    }
+}
+
+@Composable
 private fun InstalledHostBundleRow(
     bundle: PluginBundleItem,
     showDivider: Boolean,
     onToggle: (Boolean) -> Unit,
     onUninstall: () -> Unit,
+    onOpen: () -> Unit = {},
 ) {
     val colors = LocalDshPanelColors.current
     val rowInteraction = remember { MutableInteractionSource() }
@@ -566,16 +850,12 @@ private fun InstalledHostBundleRow(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .background(if (rowPressed) colors.interactiveHover else Color.Transparent)
+                .clickable(onClick = onOpen)
                 .padding(horizontal = 2.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            PluginsIconFrame(
-                icon = Icons.Default.Build,
-                frameSize = 40.dp,
-                frameRadius = 12.dp,
-                glyphSize = 18.dp,
-            )
+            PluginMetaIcon(iconData = bundle.iconData, size = 40.dp, radius = 12.dp, glyphSize = 18.dp)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -1225,6 +1505,12 @@ private fun PluginsInstallDialog(
         },
     )
 }
+
+
+
+
+
+
 
 
 

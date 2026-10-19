@@ -254,7 +254,35 @@ data class PluginBundleItem(
     val description: String,
     val isExperimental: Boolean = false,
     val enabled: Boolean = false,
-    val iconKey: String = "default"
+    val iconKey: String = "default",
+    val version: String? = null,
+    val official: Boolean = false,
+    val removable: Boolean = true,
+    val error: String? = null,
+    val rows: List<PluginComponentInfo> = emptyList(),
+    val iconData: String? = null,
+)
+
+@Serializable
+data class PluginComponentInfo(
+    val rowId: String,
+    val moduleName: String,
+    val title: String,
+    val description: String,
+    val enabled: Boolean = true,
+    val phase: String = "active",
+    val entryId: String? = null,
+)
+
+@Serializable
+data class PluginRowInfo(
+    val entryId: String? = null,
+    val moduleName: String,
+    val title: String,
+    val description: String,
+    val enabled: Boolean = true,
+    val phase: String = "active",
+    val iconData: String? = null,
 )
 
 @Serializable
@@ -280,6 +308,8 @@ data class SurfaceCatalog(
     val dshVersion: String,
     val surfaces: List<SurfaceItem> = emptyList()
 )
+
+
 
 
 

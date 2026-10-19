@@ -13,6 +13,7 @@ import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginConfigItem
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 import com.deepseek.dsh.core.model.PluginManagerSnapshot
+import com.deepseek.dsh.core.model.PluginRowInfo
 import com.deepseek.dsh.core.model.SessionInfo
 import com.deepseek.dsh.core.model.TeamTaskItem
 import kotlinx.coroutines.flow.Flow
@@ -66,6 +67,7 @@ interface DshClientProtocol {
     suspend fun getPluginInventory(hostId: String): RemoteResult<List<BuiltInPluginInfo>>
     suspend fun getPluginInventorySnapshot(hostId: String): RemoteResult<PluginInventorySnapshotInfo>
     suspend fun getPluginManagerSnapshot(hostId: String): RemoteResult<PluginManagerSnapshot>
+    suspend fun getPluginRows(hostId: String): RemoteResult<List<PluginRowInfo>>
     suspend fun installPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun uninstallPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun setBundleEnabled(hostId: String, packageName: String, enabled: Boolean): RemoteResult<Boolean>
@@ -80,6 +82,7 @@ interface DshClientProtocol {
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
 }
+
 
 
 

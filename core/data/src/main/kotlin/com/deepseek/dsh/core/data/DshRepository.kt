@@ -53,6 +53,8 @@ class DshRepository(
     val pluginSnapshotFlow: StateFlow<PluginInventorySnapshotInfo?> = _pluginSnapshotFlow.asStateFlow()
 
     private val _pluginManagerSnapshotFlow = MutableStateFlow<PluginManagerSnapshot?>(null)
+    private val _pluginRowsFlow = MutableStateFlow<List<com.deepseek.dsh.core.model.PluginRowInfo>>(emptyList())
+    val pluginRowsFlow: StateFlow<List<com.deepseek.dsh.core.model.PluginRowInfo>> = _pluginRowsFlow.asStateFlow()
     val pluginManagerSnapshotFlow: StateFlow<PluginManagerSnapshot?> = _pluginManagerSnapshotFlow.asStateFlow()
 
     private val _automationTasksFlow = MutableStateFlow<List<AutomationTaskItem>>(emptyList())
@@ -125,6 +127,10 @@ class DshRepository(
             is RemoteResult.Success -> {
                 _pluginManagerSnapshotFlow.value = pmRes.data
             }
+            is RemoteResult.Failure -> {}
+        }
+        when (val rowsRes = client.getPluginRows(hostId)) {
+            is RemoteResult.Success -> _pluginRowsFlow.value = rowsRes.data
             is RemoteResult.Failure -> {}
         }
     }
@@ -473,6 +479,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 
