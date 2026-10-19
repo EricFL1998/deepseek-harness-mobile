@@ -128,6 +128,10 @@ fun ModernNavigationDrawerContent(
     onSelectSession: (String) -> Unit,
     onNewChatClick: () -> Unit,
     onNavigatePlugins: () -> Unit,
+    /** 插件声明在侧边栏的入口（落点 drawer），来自 Host 的真实注册。 */
+    pluginDrawerEntries: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    /** 点击插件侧边栏入口；当前没有专门的落地页。 */
+    onSelectPluginDrawerEntry: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
     onNavigateSchedule: () -> Unit = {},
     onNavigateKanban: () -> Unit = {},
     onNavigateRuntime: () -> Unit = {},
@@ -290,6 +294,16 @@ fun ModernNavigationDrawerContent(
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
+            // 插件自己往侧边栏加的入口（slot 落在 drawer 上）：与内置菜单同一行样式。
+            pluginDrawerEntries.forEach { entry ->
+                DrawerItem(
+                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
+                    title = entry.title ?: entry.id ?: entry.slot,
+                    onClick = { onSelectPluginDrawerEntry(entry) },
+                    textColor = textPrimary,
+                    iconTint = textSecondary
+                )
+            }
 
         }
 

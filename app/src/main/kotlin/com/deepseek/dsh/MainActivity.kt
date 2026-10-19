@@ -796,6 +796,9 @@ fun MainAppHost(
     var activeWorkspaceName by remember { mutableStateOf("默认工作区") }
     val activeWorkspaceCwd = "/workspace/$activeWorkspaceName"
     val activeWorkspaceFolderPath = java.io.File(activeWorkspace, activeWorkspaceName).absolutePath
+    var pluginDrawerEntry by remember {
+        mutableStateOf<com.deepseek.dsh.core.model.PluginSlotEntry?>(null)
+    }
     var showAddWorkspaceDialog by remember { mutableStateOf(false) }
     var newWorkspaceName by remember { mutableStateOf("") }
     var renameWorkspaceFolder by remember {
@@ -804,6 +807,38 @@ fun MainAppHost(
     var renameWorkspaceName by remember { mutableStateOf("") }
     var deleteWorkspaceFolder by remember {
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
+    }
+    pluginDrawerEntry?.let { entry ->
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { pluginDrawerEntry = null },
+            title = entry.title ?: entry.id ?: entry.slot,
+            closeLabel = "关闭",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = "知道了",
+                    primary = true,
+                    enabled = true,
+                    onClick = { pluginDrawerEntry = null },
+                )
+            },
+            content = {
+                androidx.compose.foundation.layout.Column {
+                    androidx.compose.material3.Text(
+                        text = "该入口由插件在 ${entry.slot} 声明，具体的界面内容尚未接入。",
+                        fontSize = 13.sp,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    entry.module?.let {
+                        androidx.compose.foundation.layout.Spacer(Modifier.height(6.dp))
+                        androidx.compose.material3.Text(
+                            text = it,
+                            fontSize = 11.sp,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
+            },
+        )
     }
     if (showAddWorkspaceDialog) {
         com.deepseek.dsh.core.designsystem.DshDialog(
@@ -972,6 +1007,8 @@ fun MainAppHost(
                     isSignedIn = accountState.isSignedIn,
                     onSignIn = { showSignInDialog = true },
                     onSignOut = hostSignOut,
+                    pluginDrawerEntries = pluginSlotEntries.filter { it.placement == "drawer" },
+                    onSelectPluginDrawerEntry = { entry -> pluginDrawerEntry = entry },
                     workspaces = workspaceFolders,
                     selectedWorkspaceName = activeWorkspaceName,
                     onSelectWorkspace = { folder -> activeWorkspaceName = folder.name },
