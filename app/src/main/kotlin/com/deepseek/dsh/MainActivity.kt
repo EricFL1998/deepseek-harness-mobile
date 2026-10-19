@@ -809,6 +809,17 @@ fun MainAppHost(
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
     pluginDrawerEntry?.let { entry ->
+        // 提示类落点直接走系统 Toast：这类贡献本来就是一句瞬时文本，套一层对话框
+        // 反而更重。没有运行时事件通道时，由用户点击触发。
+        if (entry.placement == "toast") {
+            android.widget.Toast.makeText(
+                context,
+                entry.title ?: entry.id ?: entry.slot,
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            pluginDrawerEntry = null
+            return@let
+        }
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { pluginDrawerEntry = null },
             title = entry.title ?: entry.id ?: entry.slot,
