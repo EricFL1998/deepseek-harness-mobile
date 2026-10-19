@@ -1371,6 +1371,8 @@ fun MainAppHost(
                                     }
                                 },
                                 dockPluginSurfaces = dockPlugins,
+                                pluginToolActions = pluginSlotEntries.filter { it.placement == "tool.card" },
+                                onPluginAction = { entry -> pluginDrawerEntry = entry },
                                 onDockPluginClick = { pluginItem ->
                                     activeSheetSurface = pluginItem
                                 },

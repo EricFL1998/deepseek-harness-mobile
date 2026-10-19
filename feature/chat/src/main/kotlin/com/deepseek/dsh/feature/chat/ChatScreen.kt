@@ -194,6 +194,10 @@ fun ModernChatScreen(
     onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
     onReasoningSelected: (ReasoningOption) -> Unit = {},
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
+    /** 插件声明在工具卡片上的动作（落点 tool.card）。 */
+    pluginToolActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    /** 点击插件动作；当前没有落地页，由上层说明来源。 */
+    onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
     onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
     isThinking: Boolean = false,
@@ -434,6 +438,8 @@ fun ModernChatScreen(
                             expanded = collapsedTurns[row.key] != true,
                             onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
                             onOpenDetail = { toolDetail = it },
+                            pluginActions = pluginToolActions,
+                            onPluginAction = onPluginAction,
                         )
                     }
                 }
@@ -1116,6 +1122,8 @@ private fun ToolProcessGroup(
     expanded: Boolean,
     onToggle: () -> Unit,
     onOpenDetail: (ToolDetailData) -> Unit,
+    pluginActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
 ) {
     val running = items.firstOrNull { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
     val isRunning = running != null
@@ -1173,6 +1181,8 @@ private fun ToolProcessGroup(
                         ToolMessageItem(
                             content = item.content,
                             onOpenDetail = onOpenDetail,
+                            pluginActions = pluginActions,
+                            onPluginAction = onPluginAction,
                         )
                     }
                 }
@@ -1186,6 +1196,9 @@ private fun ToolMessageItem(
     content: String,
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenDetail: (ToolDetailData) -> Unit = {},
+    /** 插件声明在工具卡片上的动作（落点 tool.card）。 */
+    pluginActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
 ) {
     val parts = content.split(2.toChar())
     if (parts.size < 5) return
@@ -1197,6 +1210,25 @@ private fun ToolMessageItem(
     val summary = remember(name, args, body, status) { toolSummary(name, args, body, status) }
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
+        // 插件声明在工具卡片上的动作：只在展开时出现，避免每条工具行都加噪音。
+        if (expanded && pluginActions.isNotEmpty()) {
+            Row(
+                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                pluginActions.forEach { entry ->
+                    androidx.compose.material3.Text(
+                        text = entry.title ?: entry.id ?: entry.slot,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onPluginAction(entry) }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
