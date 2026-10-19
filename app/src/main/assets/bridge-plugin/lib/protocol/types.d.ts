@@ -248,3 +248,5 @@ export interface SlotSurface {
 export interface SlotSurfaceData {
     readonly surfaces: readonly SlotSurface[];
 }
+/** Route plugins POST a transient message to. */
+export declare const EVENTS_PATH = "/dsh-mobile/bridge/v1/events";

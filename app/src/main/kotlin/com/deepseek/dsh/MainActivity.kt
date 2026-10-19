@@ -808,6 +808,21 @@ fun MainAppHost(
     var deleteWorkspaceFolder by remember {
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
+    // 插件瞬态消息：Host 排队、客户端轮询取走，用系统 Toast 呈现。
+    // 没有事件通道时这段是空转，取不到消息也不会打扰任何东西。
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(4_000)
+            runCatching {
+                dshRepository.pendingPluginEvents().forEach { event ->
+                    if (event.kind == "toast" && event.text.isNotBlank()) {
+                        android.widget.Toast.makeText(context, event.text, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
     pluginDrawerEntry?.let { entry ->
         // 提示类落点直接走系统 Toast：这类贡献本来就是一句瞬时文本，套一层对话框
         // 反而更重。没有运行时事件通道时，由用户点击触发。

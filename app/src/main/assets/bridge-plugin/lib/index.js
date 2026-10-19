@@ -14,8 +14,10 @@ import { dirname, join } from 'node:path';
 import z from '@deepseek-ai/schemastery';
 import { webServerOf } from "./host-services.js";
 import { createBridgeHandler, writeReply } from "./handler.js";
+import { createEventQueue } from "./events.js";
+import { createEventsProvider } from "./providers/events.js";
 import { ProviderRegistry } from "./protocol/provider.js";
-import { BRIDGE_BASE_PATH, BRIDGE_VERSION, MANIFEST_PATH, QUERY_PATH } from "./protocol/types.js";
+import { BRIDGE_BASE_PATH, BRIDGE_VERSION, EVENTS_PATH, MANIFEST_PATH, QUERY_PATH } from "./protocol/types.js";
 import { createClientAssetsProvider, } from "./providers/client-assets.js";
 import { createClientSlotsProvider, } from "./providers/client-slots.js";
 import { createPackageInventoryProvider, } from "./providers/package-inventory.js";
@@ -99,7 +101,7 @@ function installModulesPath() {
  * @param config - resolved config.
  * @returns the registry plus the notes describing what could not bind.
  */
-function assembleProviders(ctx, config) {
+function assembleProviders(ctx, config, events) {
     const registry = new ProviderRegistry();
     const warnings = [];
     const clientModules = () => ctx.get('clientModules');
@@ -155,6 +157,10 @@ function assembleProviders(ctx, config) {
     }
     return { registry, warnings };
 }
+/** Largest accepted event body; a toast is one short line. */
+const MAX_EVENT_BODY_BYTES = 4 * 1024;
+/** Longest accepted toast text. */
+const MAX_EVENT_TEXT_CHARS = 500;
 /**
  * Register the bridge routes.
  * @param ctx - Host plugin context.
@@ -171,7 +177,8 @@ export function apply(ctx, config) {
         ctx.logger.warn('dsh-mobile-bridge: no web server; the bridge is not serving');
         return;
     }
-    const { registry, warnings } = assembleProviders(ctx, config);
+    const events = createEventQueue();
+    const { registry, warnings } = assembleProviders(ctx, config, events);
     const handler = createBridgeHandler({
         registry,
         pluginVersion: packageVersion,
@@ -201,6 +208,55 @@ export function apply(ctx, config) {
         path: QUERY_PATH,
         handler: serve,
     }), `dsh-mobile-bridge: POST ${QUERY_PATH}`);
+    // Transient messages: a plugin POSTs one and the phone shows it with its own toast.
+    // This is the only route that accepts plugin-authored payloads, so it stays
+    // deliberately narrow — one line of text, nothing else.
+    ctx.effect(() => webServer.register({
+        kind: 'exact',
+        path: EVENTS_PATH,
+        handler: (req, res) => {
+            if (req.method !== 'POST') {
+                res.statusCode = 405;
+                res.end();
+                return;
+            }
+            const chunks = [];
+            let size = 0;
+            req.on('data', (chunk) => {
+                size += chunk.length;
+                // A toast is one line; anything larger is not this channel's job.
+                if (size > MAX_EVENT_BODY_BYTES) {
+                    res.statusCode = 413;
+                    res.end();
+                    req.destroy();
+                    return;
+                }
+                chunks.push(chunk);
+            });
+            req.on('end', () => {
+                if (res.writableEnded)
+                    return;
+                try {
+                    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+                    if (body.kind !== 'toast' || typeof body.text !== 'string' || body.text.trim() === '') {
+                        res.statusCode = 400;
+                        res.setHeader('content-type', 'application/json; charset=utf-8');
+                        res.end(JSON.stringify({ ok: false, error: { code: 'args/invalid', message: 'kind must be toast and text must be a non-empty string' } }));
+                        return;
+                    }
+                    events.push('toast', body.text.slice(0, MAX_EVENT_TEXT_CHARS));
+                    res.statusCode = 200;
+                    res.setHeader('content-type', 'application/json; charset=utf-8');
+                    res.end(JSON.stringify({ ok: true }));
+                }
+                catch {
+                    res.statusCode = 400;
+                    res.setHeader('content-type', 'application/json; charset=utf-8');
+                    res.end(JSON.stringify({ ok: false, error: { code: 'request/malformed', message: 'body must be JSON' } }));
+                }
+            });
+        },
+    }), `dsh-mobile-bridge: POST ${EVENTS_PATH}`);
     // A prefix registration keeps the base path discoverable to a client that
     // probes it, and answers the one useful thing a bare base can: where to go.
     ctx.effect(() => webServer.register({

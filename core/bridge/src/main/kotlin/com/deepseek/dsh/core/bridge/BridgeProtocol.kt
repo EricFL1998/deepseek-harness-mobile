@@ -330,3 +330,17 @@ data class BridgeSettingsWriteResult(
     val ns: String,
     val updated: Boolean = false,
 )
+
+/** `events/pending` 里的一条瞬态消息。 */
+@Serializable
+data class BridgeTransientEvent(
+    val kind: String,
+    val text: String,
+    val seq: Long = 0,
+)
+
+/** `events/pending` 的响应体。 */
+@Serializable
+data class BridgeTransientEventList(
+    val events: List<BridgeTransientEvent> = emptyList(),
+)

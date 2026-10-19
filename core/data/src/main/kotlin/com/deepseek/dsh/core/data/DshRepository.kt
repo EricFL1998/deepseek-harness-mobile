@@ -179,6 +179,21 @@ class DshRepository(
 
 
     /**
+     * 取走 Host 排队的瞬态消息。
+     *
+     * 没有桥或调用失败时返回空列表：瞬态消息本来就不该阻塞任何东西。
+     *
+     * @returns 自上次调用以来排队的消息。
+     */
+    suspend fun pendingPluginEvents(): List<com.deepseek.dsh.core.bridge.BridgeTransientEvent> {
+        val registry = bridgeRegistry ?: return emptyList()
+        return when (val result = registry.pendingEvents()) {
+            is BridgeResult.Success -> result.value.events
+            is BridgeResult.Failure -> emptyList()
+        }
+    }
+
+    /**
      * 读取一份插件设置文档。
      *
      * @param ns 设置命名空间，等于 Host 里那一行的 entry id。

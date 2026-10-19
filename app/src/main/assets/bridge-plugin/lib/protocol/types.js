@@ -13,3 +13,5 @@ export const BRIDGE_BASE_PATH = '/dsh-mobile/bridge/v1';
 export const MANIFEST_PATH = `${BRIDGE_BASE_PATH}/manifest`;
 /** Route serving one provider query. */
 export const QUERY_PATH = `${BRIDGE_BASE_PATH}/query`;
+/** Route plugins POST a transient message to. */
+export const EVENTS_PATH = '/dsh-mobile/bridge/v1/events';

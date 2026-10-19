@@ -132,6 +132,12 @@ class BridgeRegistry(
             BridgeArgs.of("ns", ns),
     ) { json.decodeFromString(BridgeSettingsWriteResult.serializer(), it.toString()) }
 
+    /** 取走 Host 排队的瞬态消息；每次调用即清空。 */
+    suspend fun pendingEvents(): BridgeResult<BridgeTransientEventList> = query(
+        provider = BridgeEventsProvider,
+        op = "pending",
+    ) { json.decodeFromString(BridgeTransientEventList.serializer(), it.toString()) }
+
     suspend fun hostSlotSurfaces(): BridgeResult<BridgeSlotSurfaceList> = query(
         provider = BridgeHostSlotsProvider,
         op = "list",
@@ -250,3 +256,4 @@ internal fun JsonElement.asNodeList(): List<BridgeRenderNode> = jsonArray.map {
 
 internal const val BridgeHostSlotsProvider = "host-slots"
 internal const val BridgeSettingsProvider = "settings"
+internal const val BridgeEventsProvider = "events"
