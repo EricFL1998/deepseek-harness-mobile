@@ -68,11 +68,14 @@ import com.deepseek.dsh.core.designsystem.DshMenuAlign
 import com.deepseek.dsh.core.designsystem.DshMenuIcon
 import com.deepseek.dsh.core.designsystem.DshMenuRow
 import com.deepseek.dsh.core.designsystem.DshSwitch
+import com.deepseek.dsh.core.designsystem.DshSvgIcon
 import com.deepseek.dsh.core.designsystem.DshTextInput
 import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
 import com.deepseek.dsh.core.designsystem.dshPanelColors
 import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.core.model.SurfaceKind
+import com.deepseek.dsh.core.bridge.BridgePluginCatalogData
+import com.deepseek.dsh.core.bridge.BridgePluginCatalogSource
 
 /**
  * 插件管理页（手机端）。
@@ -104,6 +107,8 @@ fun PluginsScreen(
     onCreatePlugin: () -> Unit = {},
     pluginRows: List<PluginRowInfo> = emptyList(),
     settingsNamespaces: Set<String> = emptySet(),
+    bridgeCatalog: BridgePluginCatalogData = BridgePluginCatalogData(BridgePluginCatalogSource.NONE),
+    bridgeWarnings: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
@@ -114,22 +119,36 @@ fun PluginsScreen(
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
     var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
-    // 官方源码 ui-settings-{agent-loop,shell,subagent,web-search} 在对应 settings 命名空间被
-    // Host 服务时注册 plugins.item；这里同样以 Host 返回的 namespace 决定是否出现。
-    val officialConfigItems = remember(settingsNamespaces) {
-        buildList {
-            if ("agent-loop" in settingsNamespaces) add(
-                OfficialConfigItem("agent-loop", "Agent 循环", "控制 Agent 派发工具调用的方式。", R.drawable.ic_plugin_art_loop)
-            )
-            if (settingsNamespaces.any { it == "shell" || it == "bash" || it == "pwsh" }) add(
-                OfficialConfigItem("shell", "终端", "限制每条命令最多能跑多久、最多输出多少内容。", R.drawable.ic_plugin_art_terminal)
-            )
-            if ("subagent" in settingsNamespaces) add(
-                OfficialConfigItem("subagent", "子智能体", "设置子智能体的递归层级、数量和模型。", R.drawable.ic_plugin_art_subagent)
-            )
-            if ("web-search" in settingsNamespaces) add(
-                OfficialConfigItem("web-search", "网页搜索", "设置 DeepSeek 的搜索提供方。", R.drawable.ic_plugin_art_search)
-            )
+    // 官方插件分类来自 bridge 的 `client-slots/plugins.item` 注册：文案、顺序与
+    // 图形全部是官方客户端资源。只有 bridge 不可用时，才回落到按 Host 返回的
+    // settings 命名空间推断（旧路径），绝不用写死的分类表冒充官方数据。
+    val officialConfigItems = remember(bridgeCatalog, settingsNamespaces) {
+        when (bridgeCatalog.source) {
+            BridgePluginCatalogSource.CLIENT_SLOTS -> bridgeCatalog.categories.map { category ->
+                OfficialConfigItem(
+                    id = category.id,
+                    title = category.label,
+                    // 官方卡片的 summary 由组件渲染；bridge 不可用时该分组不会出现，
+                    // 因此这里只保留一个中性的空说明。
+                    description = "",
+                    iconRes = 0,
+                    iconSvg = category.iconSvg,
+                )
+            }
+            else -> buildList {
+                if ("agent-loop" in settingsNamespaces) add(
+                    OfficialConfigItem("agent-loop", "Agent 循环", "控制 Agent 派发工具调用的方式。", R.drawable.ic_plugin_art_loop)
+                )
+                if (settingsNamespaces.any { it == "shell" || it == "bash" || it == "pwsh" }) add(
+                    OfficialConfigItem("shell", "终端", "限制每条命令最多能跑多久、最多输出多少内容。", R.drawable.ic_plugin_art_terminal)
+                )
+                if ("subagent" in settingsNamespaces) add(
+                    OfficialConfigItem("subagent", "子智能体", "设置子智能体的递归层级、数量和模型。", R.drawable.ic_plugin_art_subagent)
+                )
+                if ("web-search" in settingsNamespaces) add(
+                    OfficialConfigItem("web-search", "网页搜索", "设置 DeepSeek 的搜索提供方。", R.drawable.ic_plugin_art_search)
+                )
+            }
         }
     }
     var disabledPlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -205,6 +224,20 @@ fun PluginsScreen(
                         }
                         itemsIndexed(officialConfigItems, key = { index, item -> "official_config_${index}_${item.id}" }) { index, item ->
                             OfficialConfigRow(item = item, showDivider = index != officialConfigItems.lastIndex)
+                        }
+                    }
+
+                    // bridge 报告的非致命问题（例如某个 bundle 无法求值、图标缺失）。
+                    // 展示出来而不是隐藏，是因为它解释了「为什么这里少了东西」。
+                    if (bridgeWarnings.isNotEmpty()) {
+                        item(key = "bridge_warnings") {
+                            Text(
+                                text = "Host 兼容层提示：" + bridgeWarnings.joinToString("；"),
+                                color = colors.labelTertiary,
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp,
+                                modifier = Modifier.padding(top = PluginsDimens.SectionGap),
+                            )
                         }
                     }
 
@@ -770,6 +803,8 @@ private data class OfficialConfigItem(
     val title: String,
     val description: String,
     val iconRes: Int,
+    /** bridge 提供的官方 SVG 图形；非空时优先于 [iconRes]。 */
+    val iconSvg: String? = null,
 )
 
 @Composable
@@ -791,15 +826,27 @@ private fun OfficialConfigRow(item: OfficialConfigItem, showDivider: Boolean) {
                     .padding(6.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                androidx.compose.foundation.Image(
-                    painter = painterResource(id = item.iconRes),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                if (item.iconSvg != null) {
+                    // 官方图形由 bridge 渲染成 SVG 后传下来，客户端直接画矢量。
+                    DshSvgIcon(
+                        svg = item.iconSvg,
+                        size = 28.dp,
+                        tint = colors.labelPrimary,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = item.iconRes),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.title, color = colors.labelPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
-                Text(item.description, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (item.description.isNotBlank()) {
+                    Text(item.description, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
             Text("›", color = colors.labelTertiary, fontSize = 18.sp)
         }

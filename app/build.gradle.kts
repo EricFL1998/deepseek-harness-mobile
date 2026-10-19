@@ -55,6 +55,7 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:protocol"))
+    implementation(project(":core:bridge"))
     implementation(project(":core:network"))
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
@@ -96,6 +97,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
+
 
 
 

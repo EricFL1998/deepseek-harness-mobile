@@ -22,6 +22,7 @@
 ├── core/
 │   ├── model/                     # 核心领域模型 (HostDescriptor, DshSlotRegistry, ChatMessage, SessionInfo)
 │   ├── protocol/                  # RPC 协议层 (ConnectionStateMachine, HostAuthenticator, RemoteClient)
+│   ├── bridge/                    # Host 兼容层客户端 (BridgeClient, BridgeRegistry, BridgePluginCatalog)
 │   ├── network/                   # OkHttp 底座与拦截器
 │   ├── data/                      # Room 2.7 本地只读缓存数据库 (6 张持久化表与 DAO)
 │   ├── designsystem/              # Material 3 设计系统调色板 (DshTheme, DeepSeek Blue)
@@ -65,6 +66,7 @@
 ```
 覆盖模块：
 - `:core:protocol`（连接状态机 Generation 丢弃、独立 CookieJar 隔离）
+- `:core:bridge`（bridge/v1 协商、查询解码、provider 缺失降级、插件目录归一）
 - `:runtime:host`（Proot 命令组装、输出流端口解析、SHA-256 镜像校验、脱敏备份导出）
 - `:runtime:bridge`（本地 JSON-RPC 方法分发与未知方法拦截）
 - `:plugin:surface`（26 个 Slot 到原生 Sheet / 浮层的放置决策）
@@ -125,6 +127,12 @@
   13/20 二级引导语、48dp/40dp 细线图标框卡片、14/20 500 卡片标题、13/18 三级说明、
   11.5/16 等宽 slot 说明、sm 按钮；与上游一致，仅呈现「已安装插件」分组，
   不提供不存在的「发现 / 插件市场」页签；
+  - **分类与图标来自 Host 兼容层**（见 [docs/mobile-bridge.md](docs/mobile-bridge.md)）：
+    插件页读 `bridge/v1` 的 `client-slots/plugins.item` 注册，分类文案、顺序与
+    图形全部是官方客户端资源；图形经 `icon-svg` 转成 SVG 后由
+    `DshSvgIcon`（`core:designsystem`）在 Compose Canvas 上绘制，无 WebView；
+    bridge 不可用时降级到 `package-inventory` 的 Host 原生清单，再不行就是空态
+    —— 任何情况下都不使用写死的分类表；
   - 页头为官方刷新按钮 + 拆分式「添加插件」主按钮（右侧 32dp 下拉）：下拉两项为
     「安装第三方插件」（打开官方安装 Modal）与「让 Agent 创建插件」；
   - 点击插件卡片进入官方详情页：面包屑「‹ 插件」、48dp 图标 + 卸载危险描边按钮 + 官方开关、

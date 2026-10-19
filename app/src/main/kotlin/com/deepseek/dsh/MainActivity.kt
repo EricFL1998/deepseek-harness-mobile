@@ -327,6 +327,9 @@ fun MainAppHost(
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
     val pluginRows by dshRepository.pluginRowsFlow.collectAsState()
+    // 插件页目录来自 bridge/v1：官方 slot 注册优先，Host 原生清单兜底。
+    val bridgePluginCatalog by dshRepository.bridgePluginCatalogFlow.collectAsState()
+    val bridgeWarnings by dshRepository.bridgeWarningsFlow.collectAsState()
 
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
@@ -368,6 +371,9 @@ fun MainAppHost(
         dshRepository.refreshSessions(activeHostId)
         dshRepository.refreshModelCatalog(activeHostId)
         dshRepository.refreshPluginInventory(activeHostId)
+        // bridge 目录与 Host 原生清单并行读取：前者带来官方 slot 与图形，
+        // 后者是它不可用时的兜底，两者互不阻塞。
+        dshRepository.refreshBridgePluginCatalog()
         dshRepository.refreshAutomationTasks(activeHostId)
         dshRepository.refreshTeamTasks(activeHostId)
         dshRepository.refreshApprovals(activeHostId)
@@ -1278,6 +1284,8 @@ fun MainAppHost(
                                 pluginManagerSnapshot = pluginManagerSnapshot,
                                 pluginRows = pluginRows,
                                 settingsNamespaces = settingsNamespaces,
+                                bridgeCatalog = bridgePluginCatalog,
+                                bridgeWarnings = bridgeWarnings,
                                 onOpenSurface = { item ->
                                     if (item.kind == SurfaceKind.OVERLAY) {
                                         activeOverlaySurface = item

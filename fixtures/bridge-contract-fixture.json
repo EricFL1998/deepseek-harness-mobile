@@ -1,0 +1,157 @@
+{
+  "bridgeVersion": "1.0.0",
+  "note": "脱敏的 bridge/v1 契约夹具：与 docs/mobile-bridge.md 和 dsh-mobile-bridge 的 docs/protocol.md 对齐。客户端解码器与 Host 插件测试共用这一份形状。",
+  "manifest": {
+    "bridgeVersion": "1.0.0",
+    "dshVersion": "0.2.1-rc.2",
+    "providers": [
+      {
+        "id": "client-assets",
+        "version": 1,
+        "capabilities": ["boot-graph", "module-source", "locale"],
+        "readOnly": true
+      },
+      {
+        "id": "client-slots",
+        "version": 1,
+        "capabilities": ["list", "describe", "render-tree", "icon-svg"],
+        "readOnly": true
+      },
+      {
+        "id": "package-inventory",
+        "version": 1,
+        "capabilities": ["bundles", "rows", "meta-icon"],
+        "readOnly": true
+      },
+      {
+        "id": "rpc",
+        "version": 1,
+        "capabilities": ["invoke"],
+        "authorization": "host-session"
+      }
+    ]
+  },
+  "bootGraph": {
+    "rev": "9f2c1ab4d5e6",
+    "release": { "version": "0.2.1-rc.2", "commit": "deadbeef" },
+    "entries": [
+      {
+        "id": "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "url": "plugins/??@deepseek-ai/dsh-client-ui-plugin-manager/client.js&rev=1a2b3c4d",
+        "rev": "1a2b3c4d",
+        "inject": ["@deepseek-ai/dsh-client-ui-sidebar"],
+        "immediately": true
+      }
+    ],
+    "batches": [
+      {
+        "phase": "bootstrap",
+        "url": "plugins/??@deepseek-ai/dsh-client-ui-plugin-manager/client.js&rev=1a2b3c4d",
+        "rev": "1a2b3c4d",
+        "entries": ["@deepseek-ai/dsh-client-ui-plugin-manager"]
+      }
+    ]
+  },
+  "slotList": {
+    "slot": "plugins.item",
+    "registrations": [
+      {
+        "slot": "plugins.item",
+        "id": "agent-loop",
+        "order": 30,
+        "label": "Agent 循环",
+        "package": "@deepseek-ai/dsh-client-ui-settings-agent-loop",
+        "locale": "settings.agentLoop",
+        "render": { "kind": "component", "componentId": "agent-loop" }
+      },
+      {
+        "slot": "plugins.item",
+        "id": "shell",
+        "order": 40,
+        "label": "终端",
+        "package": "@deepseek-ai/dsh-client-ui-settings-shell",
+        "locale": "settings.shell",
+        "render": { "kind": "component", "componentId": "shell" }
+      }
+    ],
+    "emptySlots": []
+  },
+  "renderTree": {
+    "componentId": "agent-loop",
+    "tree": {
+      "kind": "element",
+      "type": "component:AgentLoopCard",
+      "key": null,
+      "props": { "view": "summary" },
+      "children": [
+        {
+          "kind": "element",
+          "type": "div",
+          "key": null,
+          "props": { "className": "card" },
+          "children": [{ "kind": "text", "value": "控制 Agent 派发工具调用的方式。" }]
+        }
+      ]
+    }
+  },
+  "iconSvg": {
+    "componentId": "agent-loop",
+    "size": 40,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2a10 10 0 100 20 10 10 0 000-20zm0 4a6 6 0 110 12 6 6 0 010-12z\" fill-rule=\"evenodd\" /></svg>"
+  },
+  "inventory": {
+    "managementAvailable": true,
+    "bundles": [
+      {
+        "name": "dsh-purge",
+        "official": false,
+        "optional": false,
+        "removable": true,
+        "enabled": true,
+        "installed": true,
+        "availability": "profile",
+        "version": "1.1.64",
+        "title": "dsh-purge",
+        "description": "Clean-up plugin",
+        "icon": "data:image/png;base64,iVBORw0KGgo=",
+        "rows": [{ "rowId": "purge", "moduleName": "dsh-purge", "title": "purge" }]
+      },
+      {
+        "name": "retired",
+        "official": true,
+        "optional": true,
+        "removable": false,
+        "enabled": false,
+        "installed": false,
+        "availability": "missing",
+        "errorCode": "not-bundle",
+        "rows": []
+      }
+    ]
+  },
+  "failures": [
+    {
+      "code": "provider/unavailable",
+      "message": "this Host composition has no client module registry"
+    },
+    {
+      "code": "op/unknown",
+      "message": "provider client-slots has no operation nope",
+      "details": { "capabilities": ["list", "describe", "render-tree", "icon-svg"] }
+    },
+    {
+      "code": "args/invalid",
+      "message": "no captured component absent",
+      "details": { "known": ["agent-loop", "shell"] }
+    },
+    {
+      "code": "budget/exceeded",
+      "message": "settings.describe returned 2097152 bytes, above the 1048576-byte ceiling",
+      "details": { "dropped": [] }
+    },
+    {
+      "code": "auth/required",
+      "message": "the Host refused this caller"
+    }
+  ]
+}

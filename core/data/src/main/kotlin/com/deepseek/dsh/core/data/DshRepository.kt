@@ -1,5 +1,9 @@
 package com.deepseek.dsh.core.data
 
+import com.deepseek.dsh.core.bridge.BridgePluginCatalog
+import com.deepseek.dsh.core.bridge.BridgePluginCatalogData
+import com.deepseek.dsh.core.bridge.BridgePluginCatalogSource
+import com.deepseek.dsh.core.bridge.BridgeRegistry
 import com.deepseek.dsh.core.model.AccountBalanceInfo
 import com.deepseek.dsh.core.model.AccountProfileInfo
 import com.deepseek.dsh.core.model.AccountViewInfo
@@ -56,6 +60,60 @@ class DshRepository(
     private val _pluginRowsFlow = MutableStateFlow<List<com.deepseek.dsh.core.model.PluginRowInfo>>(emptyList())
     val pluginRowsFlow: StateFlow<List<com.deepseek.dsh.core.model.PluginRowInfo>> = _pluginRowsFlow.asStateFlow()
     val pluginManagerSnapshotFlow: StateFlow<PluginManagerSnapshot?> = _pluginManagerSnapshotFlow.asStateFlow()
+
+    /**
+     * 插件页目录：由 bridge 的 `client-slots` / `package-inventory` 归一而来。
+     *
+     * 与 [pluginManagerSnapshotFlow] 的区别是来源：快照走 Host 的 Remote API，
+     * 本目录走 `bridge/v1`，因此能拿到官方客户端的 slot 注册与图形。两者并存：
+     * bridge 缺失时 UI 回落到快照，绝不显示伪造分类。
+     */
+    private val _bridgePluginCatalogFlow = MutableStateFlow(
+        BridgePluginCatalogData(source = BridgePluginCatalogSource.NONE)
+    )
+    val bridgePluginCatalogFlow: StateFlow<BridgePluginCatalogData> =
+        _bridgePluginCatalogFlow.asStateFlow()
+
+    /** bridge 协商与读取过程中产生的非致命说明，供诊断展示。 */
+    private val _bridgeWarningsFlow = MutableStateFlow<List<String>>(emptyList())
+    val bridgeWarningsFlow: StateFlow<List<String>> = _bridgeWarningsFlow.asStateFlow()
+
+    /** 当前 host 的 bridge 门面；地址随 Host 绑定变化时重建。 */
+    private var bridgeRegistry: BridgeRegistry? = null
+    private var bridgeBaseUrl: String? = null
+
+    /**
+     * 把 bridge 门面绑到当前 Host。
+     *
+     * 门面由调用方构造，因为它需要 Host 的会话 CookieJar —— 那是网络层的知识，
+     * 仓库不重复拥有。地址相同时保留已有门面，避免丢掉 manifest 缓存。
+     */
+    fun bindBridge(baseUrl: String, registry: BridgeRegistry) {
+        if (baseUrl == bridgeBaseUrl && bridgeRegistry != null) return
+        bridgeBaseUrl = baseUrl
+        bridgeRegistry = registry
+    }
+
+    /** 当前 bridge 门面；未绑定时为 null。 */
+    fun bridge(): BridgeRegistry? = bridgeRegistry
+
+    /**
+     * 读取一次插件目录。
+     *
+     * 失败不是异常：目录会退化成 `source = NONE`，说明进 [bridgeWarningsFlow]，
+     * 由 UI 决定展示空态还是回落 Host 原生清单。
+     */
+    suspend fun refreshBridgePluginCatalog(iconSize: Int = BridgePluginCatalog.DEFAULT_ICON_SIZE) {
+        val registry = bridgeRegistry
+        if (registry == null) {
+            _bridgePluginCatalogFlow.value = BridgePluginCatalogData(source = BridgePluginCatalogSource.NONE)
+            _bridgeWarningsFlow.value = listOf("bridge is not bound to a Host")
+            return
+        }
+        val result = BridgePluginCatalog.load(registry, iconSize)
+        _bridgePluginCatalogFlow.value = result.catalog
+        _bridgeWarningsFlow.value = result.warnings
+    }
 
     private val _automationTasksFlow = MutableStateFlow<List<AutomationTaskItem>>(emptyList())
     val automationTasksFlow: StateFlow<List<AutomationTaskItem>> = _automationTasksFlow.asStateFlow()

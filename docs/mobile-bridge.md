@@ -1,5 +1,12 @@
 # DSH Mobile Bridge (generic client-compatibility layer)
 
+> **Status: implemented.** The Host plugin lives in its own repository,
+> [`deepseek-harness-mobile-bridge-plugin`](https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin)
+> (`dsh-mobile-bridge`); this document is the design it implements, and
+> [`core/bridge`](../core/bridge) is the Android consumer. Where the shipped
+> code settles a question this document left open, the note is marked
+> **As built**.
+
 The bridge is a Host-side DSH plugin that exposes the **official web client’s own
 runtime data** to native clients (Android, desktop shells, test harnesses) as a
 stable, versioned, capability-negotiated JSON protocol.
@@ -33,13 +40,18 @@ Base: `http://127.0.0.1:<port>/dsh-mobile/bridge/v1`
   "bridgeVersion": "1.0.0",
   "dshVersion": "0.2.1-rc.2",
   "providers": [
-    { "id": "client-assets", "version": 1, "capabilities": ["boot-graph", "module-source", "locale"] },
-    { "id": "client-slots", "version": 1, "capabilities": ["list", "render-tree"], "readOnly": true },
-    { "id": "package-inventory", "version": 1, "capabilities": ["bundles", "rows", "meta-icon"] },
+    { "id": "client-assets", "version": 1, "capabilities": ["boot-graph", "module-source", "locale"], "readOnly": true },
+    { "id": "client-slots", "version": 1, "capabilities": ["list", "describe", "render-tree", "icon-svg"], "readOnly": true },
+    { "id": "package-inventory", "version": 1, "capabilities": ["bundles", "rows", "meta-icon"], "readOnly": true },
     { "id": "rpc", "version": 1, "capabilities": ["invoke"], "authorization": "host-session" }
   ]
 }
 ```
+
+**As built:** the field is `version`, not `schemaVersion` — one name for one
+thing. `dshVersion` is `null` when the Host publishes no release label, and a
+`warnings` array lists every service the composition could not bind, so a client
+degrades knowingly instead of discovering the hole at call time.
 
 ### `POST /query`
 
@@ -58,6 +70,10 @@ Errors never partially succeed:
 ```json
 { "ok": false, "error": { "code": "provider/unavailable", "message": "..." } }
 ```
+
+**As built:** `op/unknown` carries `details.capabilities` and an unknown
+component id carries `details.known`, so a client corrects itself without a
+second round trip. The full code table is in the plugin's `docs/protocol.md`.
 
 ## Provider: `client-assets`
 
@@ -92,7 +108,9 @@ isolated Node VM with a **React-shaped stub** (no DOM), captures
 
 Ops:
 
-- `list { slot? }` → registrations with id, label, order, package, locale keys.
+- `list { slot? }` → registrations with id, label, order, package, locale keys,
+  plus `emptySlots` (slots the evaluated bundles touched but filled with
+  nothing).
 - `describe { slot, id }` → full contribution metadata.
 - `render-tree { componentId, props? }` → a serialized element tree produced by
   the component function under the React stub. The client converts the tree to
@@ -104,6 +122,15 @@ Ops:
 Execution is deterministic and side-effect free: the stub provides
 `createElement`, `useId`, `useMemo`, `useState` (single render), and rejects
 `window`, `document`, network, timers, and dynamic imports.
+
+**As built:** the stub also carries the rest of the hook surface
+(`cloneElement`, `useRef`, `useCallback`, `Children`, `memo`, `forwardRef`,
+`useSyncExternalStore`, `useTransition`), each resolving once, because a real
+official bundle calls them. The VM additionally rejects `process` and any
+module request other than `react` / `react-dom`; a bundle that needs one is
+reported as a `warnings` entry and its registrations stay readable, so one
+incompatible bundle does not blank the catalog. One evaluation is cached per
+entry revision.
 
 ## Provider: `package-inventory`
 
@@ -137,11 +164,52 @@ mints credentials. A method allowlist and size caps are configured per profile.
 - When a provider is missing, the UI degrades to Host-native inventory
   (`package-inventory`), never to fake data.
 
+**As built** (`core/bridge`):
+
+| Piece | Home | Role |
+| --- | --- | --- |
+| `BridgeProtocol.kt` | `core:bridge` | Wire types mirroring `docs/protocol.md`; unknown fields ignored. |
+| `BridgeClient` | `core:bridge` | Manifest negotiation, one `query`, `BridgeResult` success/failure. Refuses an unknown major version. |
+| `BridgeRegistry` | `core:bridge` | Named methods per provider; a missing provider or unadvertised op fails locally without touching the wire. |
+| `BridgePluginCatalog` | `core:bridge` | Normalizes `client-slots` + `package-inventory` into one catalog with an explicit `source`. |
+| `DshSvgIcon` | `core:designsystem` | Parses the returned `<svg>` and draws it on a Compose Canvas — no WebView. |
+
+The degradation order is the design's, made explicit as an enum:
+`CLIENT_SLOTS` → `PACKAGE_INVENTORY` → `NONE`. `NONE` renders the empty state;
+it never invents a category. An icon that fails to render keeps its category and
+records why in `warnings`, so the page explains its own gaps.
+
+`DshRepository.refreshBridgePluginCatalog()` reads the catalog on Host bind;
+`DshApplication.bindLocalHost` shares one CookieJar between the Remote API and
+the bridge, so the bridge never mints credentials.
+
 ## Roadmap
 
-1. `client-assets` + `client-slots/list` → plugin categories and labels.
-2. `render-tree`/`icon-svg` → official plugin artwork.
-3. `package-inventory` → third-party bundles and their `meta.icon`.
-4. `rpc` → settings forms and any host remote the native shell needs.
+1. `client-assets` + `client-slots/list` → plugin categories and labels. **Done.**
+2. `render-tree`/`icon-svg` → official plugin artwork. **Done.**
+3. `package-inventory` → third-party bundles and their `meta.icon`. **Done.**
+4. `rpc` → settings forms and any host remote the native shell needs. **Provider
+   done; the allowlist ships empty**, so a profile opts methods in explicitly.
 5. Reuse the same providers for settings sections, surfaces, and future plugin
-   compatibility checks.
+   compatibility checks. **Not started** — the mechanism is generic; only the
+   `plugins.item` slot is consumed so far.
+
+## Installation
+
+The bridge is a DSH bundle. In the Host profile:
+
+```sh
+pnpm add dsh-mobile-bridge
+```
+
+then add `dsh-mobile-bridge` to `dsh.profile.bundles`. It registers on the
+Host's existing `webServer` — no port of its own, no second listener.
+
+Two settings are worth reading before shipping a client:
+
+- `slotEntries` — empty evaluates every composed entry. Naming entries bounds
+  the work to the bundles a client actually reads.
+- `rpcAllowlist` — empty means the `rpc` provider refuses everything.
+
+Every request passes the Host's own connection fence (`requireHostSession`), so
+the bridge never bypasses DSH remote access.

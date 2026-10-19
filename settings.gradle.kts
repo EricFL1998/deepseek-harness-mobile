@@ -22,6 +22,7 @@ rootProject.name = "dsh-android"
 // Core
 include(":core:model")
 include(":core:protocol")
+include(":core:bridge")
 include(":core:network")
 include(":core:data")
 include(":core:designsystem")
