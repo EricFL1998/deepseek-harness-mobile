@@ -264,7 +264,14 @@ Two consumers read that tag:
 - the rootfs build, to decide which plugin version to bundle and stamp as
   `-bridge<version>`.
 
-So a plugin release needs **neither an APK rebuild nor a rootfs rebuild**.
+Publishing a plugin release also **dispatches a rootfs rebuild**, so a fresh
+install gets the newest plugin already bundled. The rootfs image is rebuilt for
+exactly two causes — a new DSH release or a new plugin release — and never on a
+timer; the build compares the newest published image's `dsh|bridge` pair and
+stops when nothing moved.
+
+So a plugin release needs no APK rebuild, and existing devices need no image
+download: they take the plugin in place, while new installs get it bundled.
 
 ### The plugin is locked in the plugin page
 
