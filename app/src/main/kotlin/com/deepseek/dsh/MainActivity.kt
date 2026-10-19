@@ -1098,7 +1098,7 @@ fun MainAppHost(
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
-                                                currentModel,
+                                                effectiveModelIdByName[currentModel] ?: currentModel,
                                                 currentProviderGroup?.id,
                                                 option.id
                                             )
@@ -1963,6 +1963,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
