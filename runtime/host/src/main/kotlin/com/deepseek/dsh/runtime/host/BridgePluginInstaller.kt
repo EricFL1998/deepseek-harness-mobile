@@ -5,6 +5,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 
 /**
@@ -35,6 +38,12 @@ data class BridgePluginManifest(
         /** 内置清单在 assets 里的路径。 */
         const val ASSET = "bridge-plugin.json"
 
+        /** APK 内置的插件文件目录；启动时就地铺进 Host 安装目录。 */
+        const val ASSET_DIR = "bridge-plugin"
+
+        /** 插件的 bundle patch 文件名，用于校验安装完整性。 */
+        const val PATCH_FILE = "cordis.patch.yml"
+
         private val json = Json { ignoreUnknownKeys = true }
 
         /**
@@ -64,6 +73,104 @@ class BridgePluginInstaller(
     /** profile 目录；DSH 在 rootfs 内的固定位置。 */
     private val profileDir: File
         get() = File(layout.rootfsDir, "root/.dsh/profiles/web")
+
+    /**
+     * 确保 profile 里有 bridge 插件条目，然后才启动 Host。
+     *
+     * DSH 在启动时会核对 profile：依赖装不上（例如 git 源在设备上取不到）就会被
+     * 清掉，于是插件在 Host 里彻底消失、bridge 路由 404。插件的存在属于客户端的
+     * 契约责任，所以在每次启动前显式补齐，不依赖上一次运行留下的状态。
+     *
+     * 只登记真正可以加载的包：先确认宿主安装目录或 profile 的 `node_modules` 里有
+     * 它，否则写进 bundles 只会让 Host 启动报错。
+     * @return 是否补上了条目。
+     */
+    fun ensureProfileEntry(packageName: String = BridgePluginManifest.DEFAULT_PACKAGE): Boolean {
+        val inHostInstall = File(hostInstallModulesDir(), packageName)
+        val inProfile = File(profileDir, "node_modules/$packageName")
+        if (!File(if (inHostInstall.isDirectory) inHostInstall else inProfile, "package.json").isFile) {
+            return false
+        }
+        val manifestFile = File(profileDir, "package.json")
+        if (!manifestFile.isFile) return false
+        return runCatching {
+            val root = json.parseToJsonElement(manifestFile.readText()) as JsonObject
+            val dsh = root["dsh"] as? JsonObject ?: return@runCatching false
+            val profile = dsh["profile"] as? JsonObject ?: return@runCatching false
+            val bundles = (profile["bundles"] as? JsonArray)
+                ?.mapNotNull { (it as? JsonPrimitive)?.content }
+                ?: emptyList()
+            if (bundles.contains(packageName)) return@runCatching false
+
+            val updatedProfile = JsonObject(
+                profile + mapOf(
+                    "bundles" to JsonArray(bundles.map { JsonPrimitive(it) } + JsonPrimitive(packageName))
+                )
+            )
+            val updatedRoot = JsonObject(root + mapOf("dsh" to JsonObject(dsh + mapOf("profile" to updatedProfile))))
+            manifestFile.writeText(json.encodeToString(JsonObject.serializer(), updatedRoot))
+            true
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 把 APK 内置的插件文件铺进 Host 的安装目录。
+     *
+     * 为什么放在安装目录而不是 profile：DSH 启动时会核对 profile 的外部依赖，装不
+     * 上的会被移除；而设备上没有可用的 pnpm/git 源。安装目录里的包会被当作「随
+     * DSH 一起发布的 bundle」直接解析，不经过那次核对，因此能稳定加载。
+     *
+     * 文件按版本整目录替换：内容变了才重写，避免每次启动都复制十几万字节。
+     * @param packageName 目标包名。
+     * @return 目标目录是否可用。
+     */
+    fun ensureInstalledInHost(packageName: String = BridgePluginManifest.DEFAULT_PACKAGE): Boolean {
+        if (!File(layout.rootfsDir, "etc/os-release").isFile &&
+            !File(layout.rootfsDir, "usr/bin/env").isFile
+        ) {
+            return false
+        }
+        val version = BridgePluginManifest.load(context)?.version.orEmpty()
+        val target = File(hostInstallModulesDir(), packageName)
+        val stamp = File(target, ".bundled-version")
+        if (target.isDirectory && stamp.isFile && stamp.readText().trim() == version) {
+            // 版本一致且文件齐备：不必重拷。
+            if (File(target, "package.json").isFile &&
+                File(target, BridgePluginManifest.PATCH_FILE).isFile
+            ) {
+                return true
+            }
+        }
+        return runCatching {
+            target.deleteRecursively()
+            target.mkdirs()
+            copyAssetTree(BridgePluginManifest.ASSET_DIR, target)
+            stamp.writeText(version)
+            File(target, "package.json").isFile && File(target, BridgePluginManifest.PATCH_FILE).isFile
+        }.getOrDefault(false)
+    }
+
+    /** 把 assets 下的一棵树复制到磁盘目录，保留相对路径。 */
+    private fun copyAssetTree(assetRoot: String, target: File) {
+        val children = context.assets.list(assetRoot).orEmpty()
+        if (children.isEmpty()) {
+            // 叶子：是文件而不是目录。
+            val output = target
+            output.parentFile?.mkdirs()
+            context.assets.open(assetRoot).use { input ->
+                output.outputStream().use { out -> input.copyTo(out) }
+            }
+            return
+        }
+        target.mkdirs()
+        children.forEach { child -> copyAssetTree("$assetRoot/$child", File(target, child)) }
+    }
+
+    /** DSH 安装自带的 bundle 目录；随安装发布，不参与 profile 依赖核对。 */
+    private fun hostInstallModulesDir(): File = File(
+        layout.rootfsDir,
+        "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules",
+    )
 
     /**
      * 读取 rootfs 内已安装的插件版本。

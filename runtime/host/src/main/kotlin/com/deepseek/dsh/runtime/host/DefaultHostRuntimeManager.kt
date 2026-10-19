@@ -249,6 +249,14 @@ class DefaultHostRuntimeManager(
             )
         }
         applyBundledRuntimePatches()
+        // bridge 插件必须由客户端保证存在：先把它铺进 Host 安装目录（随安装发布的
+        // bundle，不参与 profile 依赖核对），再登记到 profile 的 bundles。设备上没有
+        // 可用的 pnpm/git 源，任何依赖 pnpm 的安装方式都无法在启动时稳定成立。
+        runCatching {
+            val installer = BridgePluginInstaller(context, layout)
+            installer.ensureInstalledInHost()
+            installer.ensureProfileEntry()
+        }
         killStaleHostProcesses()
         if (!layout.prootBinary.isFile) {
             return@withContext Result.failure(
