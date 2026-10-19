@@ -1083,6 +1083,13 @@ fun MainAppHost(
             BackHandler(enabled = drawerState.isOpen) {
                 scope.launch { drawerState.close() }
             }
+            val conversationHeaderEntries = remember(pluginSlotEntries) {
+                pluginSlotEntries.filter {
+                    it.placement == "conversation" &&
+                        (it.slot.startsWith("conversation.session.header") ||
+                            it.slot == "conversation.header")
+                }
+            }
             val chatPage = activePage == ActivePage.CHAT
             val pageHasOwnHeader = activePage == ActivePage.SETTINGS
             Scaffold(
@@ -1098,6 +1105,8 @@ fun MainAppHost(
                                 },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
+                                pluginHeaderActions = conversationHeaderEntries,
+                                onPluginHeaderAction = { entry -> pluginDrawerEntry = entry },
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
 
@@ -2208,6 +2217,9 @@ fun ModernTopAppBar(
     title: String,
     showModeCapsule: Boolean = false,
     teamTasks: List<com.deepseek.dsh.core.model.TeamTaskItem> = emptyList(),
+    /** 插件声明在会话头部的入口（conversation.session.header.*）。 */
+    pluginHeaderActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    onPluginHeaderAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
     onMenuClick: () -> Unit
 ) {
     val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
@@ -2251,6 +2263,29 @@ fun ModernTopAppBar(
             }
 
             Spacer(modifier = Modifier.width(12.dp))
+
+            if (pluginHeaderActions.isNotEmpty()) {
+                Spacer(Modifier.weight(1f))
+                pluginHeaderActions.forEach { entry ->
+                    Surface(
+                        shape = CircleShape,
+                        color = barColors.bgModulePlatform,
+                        onClick = { onPluginHeaderAction(entry) },
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .size(32.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Widgets,
+                                contentDescription = entry.title ?: entry.slot,
+                                tint = barColors.labelSecondary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+            }
 
             if (showModeCapsule) {
                 // 中间切换胶囊 (参考截图 2: 快速 / 进阶)
