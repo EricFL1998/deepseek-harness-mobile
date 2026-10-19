@@ -1226,6 +1226,10 @@ fun MainAppHost(
                                 },
                                 isSending = isSending,
                                 workspaceName = activeWorkspaceName,
+                                // 工作区列表来自 Host；选中即切换当前工作区，末行开新建对话框。
+                                workspaceNames = workspaceFolders.map { it.name },
+                                onWorkspaceSelected = { name -> activeWorkspaceName = name },
+                                onAddWorkspace = { newWorkspaceName = ""; showAddWorkspaceDialog = true },
                                 onWorkspaceClick = { scope.launch { drawerState.open() } },
                                 isThinking = selectedSessionId != null && selectedSessionId in runningSessionIds,
                                 onStopClick = {

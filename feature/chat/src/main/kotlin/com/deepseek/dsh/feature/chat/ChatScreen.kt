@@ -81,6 +81,7 @@ import com.deepseek.dsh.core.designsystem.DshMenuBadge
 import com.deepseek.dsh.core.designsystem.DshMenuCaption
 import com.deepseek.dsh.core.designsystem.DshMenuCheck
 import com.deepseek.dsh.core.designsystem.DshMenuDescription
+import com.deepseek.dsh.core.designsystem.DshMenuDivider
 import com.deepseek.dsh.core.designsystem.DshMenuIcon
 import com.deepseek.dsh.core.designsystem.DshMenuLabel
 import com.deepseek.dsh.core.designsystem.DshMenuRow
@@ -172,6 +173,10 @@ fun ModernChatScreen(
     onSendMessage: (String) -> Unit,
     isSending: Boolean = false,
     workspaceName: String = "默认工作区",
+    /** 可切换的工作区名称，来自 Host 的工作区列表。 */
+    workspaceNames: List<String> = emptyList(),
+    onWorkspaceSelected: (String) -> Unit = {},
+    onAddWorkspace: () -> Unit = {},
     onWorkspaceClick: () -> Unit = {},
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenAttachmentMenu: () -> Unit = {},
@@ -200,6 +205,8 @@ fun ModernChatScreen(
     var isPlanMode by remember { mutableStateOf(false) }
     var commandSheetOpen by remember { mutableStateOf(false) }
     var toolDetail by remember { mutableStateOf<ToolDetailData?>(null) }
+    var workspaceMenuOpen by remember { mutableStateOf(false) }
+    var workspaceAnchor by remember { mutableStateOf<Rect?>(null) }
     var permissionMenuOpen by remember { mutableStateOf(false) }
     var modelMenuOpen by remember { mutableStateOf(false) }
     var pendingConfirm by remember { mutableStateOf<PermissionPreset?>(null) }
@@ -222,10 +229,11 @@ fun ModernChatScreen(
                 .padding(start = 14.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(modifier = Modifier.onGloballyPositioned { workspaceAnchor = it.boundsInWindow() }) {
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onWorkspaceClick)
+                    .clickable { workspaceMenuOpen = !workspaceMenuOpen }
                     .padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -248,6 +256,17 @@ fun ModernChatScreen(
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(14.dp)
                 )
+            }
+            // 与官方页面一致：点工作区名展开工作区列表，当前项打勾，末尾是「添加工作区」。
+            WorkspaceMenu(
+                expanded = workspaceMenuOpen,
+                anchorBounds = workspaceAnchor,
+                current = workspaceName,
+                names = workspaceNames,
+                onDismiss = { workspaceMenuOpen = false },
+                onSelect = { name -> workspaceMenuOpen = false; onWorkspaceSelected(name) },
+                onAdd = { workspaceMenuOpen = false; onAddWorkspace() },
+            )
             }
             Spacer(modifier = Modifier.width(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -646,6 +665,56 @@ private fun PermissionMenu(
                 Spacer(Modifier.weight(1f))
                 if (selected) DshMenuCheck()
             }
+        }
+    }
+}
+
+
+/**
+ * 工作区切换菜单：当前工作区打勾，末尾一行是「添加工作区…」。
+ *
+ * 列表内容来自 Host 的工作区列表，客户端不自己记一份；空列表时只显示添加入口。
+ */
+@Composable
+private fun WorkspaceMenu(
+    expanded: Boolean,
+    anchorBounds: Rect?,
+    current: String,
+    names: List<String>,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+    onAdd: () -> Unit,
+) {
+    // 与权限 / 模型菜单同一套 popup：不指定固定宽度，让卡片按内容量到最小宽度，
+    // 分隔线用设计系统的 DshMenuDivider，而不是自己画一条 Material 颜色。
+    AnchoredMenuPopup(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        align = DshMenuAlign.Start,
+    ) {
+        names.forEach { name ->
+            val selected = name == current
+            DshMenuRow(onClick = { onSelect(name) }) {
+                DshMenuIcon(
+                    com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open,
+                    size = 14.dp,
+                )
+                DshMenuLabel(name, Modifier.alignByBaseline())
+                Spacer(Modifier.weight(1f))
+                if (selected) DshMenuCheck()
+            }
+        }
+        if (names.isNotEmpty()) DshMenuDivider()
+        DshMenuRow(onClick = onAdd) {
+            // 没有对应的 plus 图形资源时用文字加号，保持与其它行的左边距一致。
+            Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "＋",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            DshMenuLabel("添加工作区…", Modifier.alignByBaseline())
         }
     }
 }

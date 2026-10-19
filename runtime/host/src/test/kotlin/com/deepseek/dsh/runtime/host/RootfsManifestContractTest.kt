@@ -71,17 +71,31 @@ class RootfsManifestContractTest {
     }
 
     @Test
-    fun `the plugin manifest version matches the version baked into the image`() {
+    fun `the plugin manifest version is never older than the version baked into the image`() {
+        // APK 可以比镜像新：插件是就地升级的，客户端自带的那份通常会先于下一次
+        // 镜像重建。但反过来不行 —— 客户端带着比镜像更旧的插件，等于启动即报
+        // 「插件必须更新」。
         val rootfs = locate("app/src/main/assets/rootfs-manifest.json") ?: return
         val plugin = locate("app/src/main/assets/bridge-plugin.json") ?: return
         val imageBridge = RootfsVersion.parse(
             Regex("\"runtimeVersion\"\\s*:\\s*\"([^\"]+)\"").find(rootfs.readText())?.groupValues?.get(1),
-        )?.bridge
+        )?.bridge ?: return
         val manifestBridge = Regex("\"version\"\\s*:\\s*\"([^\"]+)\"").find(plugin.readText())?.groupValues?.get(1)
-        assertEquals(
-            "the APK's expected plugin version must match what the image bundles",
-            imageBridge,
-            manifestBridge,
+        assertNotNull(manifestBridge)
+        assertTrue(
+            "the APK's plugin version $manifestBridge must not be older than the image's $imageBridge",
+            compareVersions(manifestBridge!!, imageBridge) >= 0,
         )
+    }
+
+    /** 逐段比较 `major.minor.patch`；解析不了的段按 0 处理。 */
+    private fun compareVersions(left: String, right: String): Int {
+        val a = left.split(".").map { it.toIntOrNull() ?: 0 }
+        val b = right.split(".").map { it.toIntOrNull() ?: 0 }
+        for (index in 0 until maxOf(a.size, b.size)) {
+            val delta = (a.getOrNull(index) ?: 0) - (b.getOrNull(index) ?: 0)
+            if (delta != 0) return delta
+        }
+        return 0
     }
 }
