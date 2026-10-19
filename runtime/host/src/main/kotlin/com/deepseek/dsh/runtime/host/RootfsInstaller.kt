@@ -104,10 +104,17 @@ class RootfsInstaller(
             .getOrNull()
     }
 
+    /** 读取安装标记；缺失或损坏时为 null。 */
+    internal fun readMarker(): InstallMarker? {
+        val marker = markerFile()
+        if (!marker.isFile) return null
+        return runCatching { json.decodeFromString<InstallMarker>(marker.readText()) }.getOrNull()
+    }
+
     fun isInstalled(manifest: RootfsManifest): Boolean {
         val version = installedVersion() ?: return false
         if (version != manifest.runtimeVersion) return false
-        val marker = runCatching { json.decodeFromString<InstallMarker>(markerFile().readText()) }.getOrNull()
+        val marker = readMarker()
         val currentAbi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
         if (!marker?.abi.isNullOrBlank() && currentAbi.isNotBlank() && marker.abi != currentAbi) return false
         return File(layout.rootfsDir, "etc/os-release").isFile ||
@@ -412,7 +419,7 @@ class RootfsInstaller(
     }
 
     @Serializable
-    private data class InstallMarker(
+    internal data class InstallMarker(
         val runtimeVersion: String,
         val baseDistro: String,
         val installedAt: Long,

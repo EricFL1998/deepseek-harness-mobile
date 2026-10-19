@@ -61,6 +61,41 @@ class RootfsVersionTest {
     }
 
     @Test
+    fun `an identical install never asks for anything`() {
+        // 回归：启动横幅曾用字符串比较，同版本也会弹「运行时更新可用」。
+        // 判断必须走 assessUpdate，且同版本一律 NONE。
+        for (manifest in listOf("1.0.1-dsh0.2.1-rc.2-bridge1.1.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0")) {
+            val assessment = assessUpdate(manifest, manifest, "1.1.0", "1.1.0")
+            assertEquals("same manifest must be NONE: $manifest", UpdateNeed.NONE, assessment.need)
+            assertFalse("same manifest must not report an update: $manifest", assessment.hasUpdate)
+        }
+    }
+
+    @Test
+    fun `the mandatory image update is the only kind shown at startup`() {
+        // 启动横幅只认 MANDATORY；仅插件落后时它必须为 NONE，所以启动不提醒。
+        assertEquals(
+            RootfsUpdateKind.MANDATORY,
+            kindOf("1.0.0-dsh0.2.1-rc.1-bridge1.1.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0"),
+        )
+        assertEquals(
+            RootfsUpdateKind.NONE,
+            kindOf("1.1.0-dsh0.2.1-rc.2-bridge1.0.0", "1.1.0-dsh0.2.1-rc.2-bridge1.1.0"),
+        )
+    }
+
+    /** 镜像是否必需重装：只有 rootfs 段或 dsh 段变化才算。 */
+    private fun kindOf(installed: String, available: String): RootfsUpdateKind {
+        val local = RootfsVersion.parse(installed)!!
+        val remote = RootfsVersion.parse(available)!!
+        return if (local.rootfs != remote.rootfs || local.dsh != remote.dsh) {
+            RootfsUpdateKind.MANDATORY
+        } else {
+            RootfsUpdateKind.NONE
+        }
+    }
+
+    @Test
     fun `an uninstalled rootfs is not an update`() {
         // 未安装由首启安装流程处理，不该在这里报更新。
         assertEquals(UpdateNeed.NONE, assessUpdate(null, current, "1.1.0", null).need)

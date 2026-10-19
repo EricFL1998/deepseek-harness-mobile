@@ -556,17 +556,25 @@ fun MainAppHost(
     var showRootfsUpdatePrompt by remember { mutableStateOf(false) }
     var rootfsUpdateBannerDismissed by remember { mutableStateOf(false) }
     var forceRootfsInstall by remember { mutableStateOf(false) }
+
+    /**
+     * 只在镜像**必需**重装时才在启动时提示。
+     *
+     * 比较交给 `rootfsUpdateKind`：它按段比版本，只有 rootfs 段或 dsh 段变化才
+     * 返回 MANDATORY。插件落后不在这里处理 —— 那是设置页的职责，且可以就地升级，
+     * 不该在启动时打断用户。
+     */
     LaunchedEffect(rootfsReady) {
-        if (rootfsReady == true) {
-            val installed = runtimeManager.installedRootfsVersion()
-            val available = runtimeManager.availableRootfsVersion()
-            installedRootfsVersion = installed
-            availableRootfsVersion = available
-            if (installed != null && available != null && installed != available) {
-                rootfsUpdateAvailable = true
-                showRootfsUpdatePrompt = true
-            }
-        }
+        if (rootfsReady != true) return@LaunchedEffect
+        val installed = runtimeManager.installedRootfsVersion()
+        val available = runtimeManager.availableRootfsVersion()
+        installedRootfsVersion = installed
+        availableRootfsVersion = available
+        val kind = runCatching { runtimeManager.rootfsUpdateKind() }
+            .getOrDefault(com.deepseek.dsh.runtime.host.RootfsUpdateKind.NONE)
+        val mandatory = kind == com.deepseek.dsh.runtime.host.RootfsUpdateKind.MANDATORY
+        rootfsUpdateAvailable = mandatory
+        showRootfsUpdatePrompt = mandatory
     }
 
     if (showRootfsUpdatePrompt) {
@@ -608,13 +616,16 @@ fun MainAppHost(
             rootfsReady = true
             return@LaunchedEffect
         }
-        // 旧版 rootfs 仍完整可用时不要自动覆盖：先提示更新，由用户确认。
+        // 旧版 rootfs 仍完整可用时不要自动覆盖：只在**必需**重装时提示，
+        // 且由用户确认；插件落后不拦启动（在设置页就地升级）。
         val installedVersion = runtimeManager.installedRootfsVersion()
         val availableVersion = runtimeManager.availableRootfsVersion()
         val rootfsFilesPresent = java.io.File(context.filesDir, "rootfs/etc/os-release").isFile ||
             java.io.File(context.filesDir, "rootfs/usr/bin/env").isFile
+        val kind = runCatching { runtimeManager.rootfsUpdateKind() }
+            .getOrDefault(com.deepseek.dsh.runtime.host.RootfsUpdateKind.NONE)
         if (!forceRootfsInstall && rootfsFilesPresent &&
-            installedVersion != null && availableVersion != null && installedVersion != availableVersion
+            kind == com.deepseek.dsh.runtime.host.RootfsUpdateKind.MANDATORY
         ) {
             installedRootfsVersion = installedVersion
             availableRootfsVersion = availableVersion
@@ -1029,14 +1040,6 @@ fun MainAppHost(
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
                         }
-                        if (rootfsUpdateAvailable && !rootfsUpdateBannerDismissed) {
-                            RootfsUpdateBanner(
-                                installed = installedRootfsVersion.orEmpty(),
-                                available = availableRootfsVersion.orEmpty(),
-                                onUpdate = { showRootfsUpdatePrompt = true },
-                                onDismiss = { rootfsUpdateBannerDismissed = true },
-                            )
-                        }
                     }
                 }
             ) { innerPadding ->
@@ -1046,6 +1049,18 @@ fun MainAppHost(
                         .padding(innerPadding)
                         .then(if (chatPage || pageHasOwnHeader) Modifier else Modifier)
                 ) {
+                    // 更新提示属于页面内容，不属于顶栏：放进内容区顶部，随内容滚动，
+                    // 不再压住页面自己的标题栏。
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (rootfsUpdateAvailable && !rootfsUpdateBannerDismissed) {
+                            RootfsUpdateBanner(
+                                installed = installedRootfsVersion.orEmpty(),
+                                available = availableRootfsVersion.orEmpty(),
+                                onUpdate = { showRootfsUpdatePrompt = true },
+                                onDismiss = { rootfsUpdateBannerDismissed = true },
+                            )
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
                     when (activePage) {
                         ActivePage.CHAT -> {
                             val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK }
@@ -1518,6 +1533,8 @@ fun MainAppHost(
                                 runtimeManager = runtimeManager,
                                 runner = runner
                             )
+                        }
+                    }
                         }
                     }
                 }

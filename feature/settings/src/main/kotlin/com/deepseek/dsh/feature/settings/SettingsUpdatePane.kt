@@ -66,21 +66,34 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
 
     var assessment by remember { mutableStateOf(UpdateAssessment()) }
     var assessmentLoaded by remember { mutableStateOf(false) }
+    var assessmentError by remember { mutableStateOf<String?>(null) }
     var pluginBusy by remember { mutableStateOf(false) }
     var pluginStatus by remember { mutableStateOf<String?>(null) }
     var pluginError by remember { mutableStateOf<String?>(null) }
     var rootfsBusy by remember { mutableStateOf(false) }
     var rootfsStatus by remember { mutableStateOf<String?>(null) }
 
-    /** 重新读一次版本与更新结论。 */
+    /**
+     * 重新读一次版本与更新结论。
+     *
+     * 任何一步失败都必须让界面离开「检查中」：查询涉及网络与 rootfs 文件系统，
+     * 抛异常时把状态留在加载态会让整页永远转圈。
+     */
     suspend fun refreshAssessment() {
-        val manager = HostRuntimeHolder.manager
-        if (manager == null) {
+        try {
+            val manager = HostRuntimeHolder.manager
+            if (manager == null) {
+                // 运行时尚未创建（例如首次启动还没走到初始化）：这不是错误，
+                // 但必须说明，否则用户只看到一片「未知」。
+                assessmentError = "本地运行时尚未初始化，启动完成后可再次检查"
+                return
+            }
+            assessment = manager.assessUpdates()
+        } catch (error: Throwable) {
+            assessmentError = error.message ?: "读取版本信息失败"
+        } finally {
             assessmentLoaded = true
-            return
         }
-        assessment = manager.assessUpdates()
-        assessmentLoaded = true
     }
 
     LaunchedEffect(Unit) {
@@ -126,15 +139,23 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                 )
                 VersionItemRow(
                     "Rootfs 镜像版本",
-                    installed?.rootfs?.let { "v$it" } ?: "未安装",
+                    installed?.rootfs?.let { "v$it" } ?: if (assessment.installed == null) "未知" else "未安装",
                 )
                 VersionItemRow(
                     "官方 DSH 引擎",
-                    installed?.dsh ?: "未就绪",
+                    installed?.dsh ?: "未知",
                 )
                 // 打包版本只在它与已装版本不同时才有信息量，避免噪声。
                 packaged?.bridge?.takeIf { it != assessment.installedPlugin }?.let { packagedBridge ->
                     VersionItemRow("镜像内打包插件", "v$packagedBridge")
+                }
+                assessmentError?.let { message ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }

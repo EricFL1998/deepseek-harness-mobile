@@ -24,15 +24,27 @@ class DefaultHostRuntimeManager(
     private var bridgeServer: BridgeServer? = null
     private val startMutex = Mutex()
 
+    /** 清单来源：实时拉取，失败时退缓存，最后才用 APK 兜底。 */
+    private val manifestSourceCache by lazy { RootfsManifestSource(context, layout) }
+
+    private fun manifestSource(): RootfsManifestSource = manifestSourceCache
+
     override suspend fun getStatus(): RuntimeStatus {
         return runner.statusFlow.value
     }
 
     override suspend fun isRootfsInstalled(): Boolean = withContext(Dispatchers.IO) {
+        // 只看本地文件与安装标记：这里判断的是「装没装」，不该因为离线而改变结论。
         runCatching {
             val installer = RootfsInstaller(layout)
-            val raw = context.assets.open("rootfs-manifest.json").bufferedReader().use { it.readText() }
-            installer.isInstalled(installer.parseManifest(raw))
+            val installed = installer.installedVersion() ?: return@runCatching false
+            val marker = installer.readMarker()
+            val currentAbi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+            if (!marker?.abi.isNullOrBlank() && currentAbi.isNotBlank() && marker.abi != currentAbi) {
+                return@runCatching false
+            }
+            File(layout.rootfsDir, "etc/os-release").isFile ||
+                File(layout.rootfsDir, "usr/bin/env").isFile
         }.getOrDefault(false)
     }
 
@@ -41,11 +53,10 @@ class DefaultHostRuntimeManager(
     }
 
     override suspend fun availableRootfsVersion(): String? = withContext(Dispatchers.IO) {
+        // 实时拉取：这个方法回答的是「最新可用是什么」，缓存值会让它报旧版本。
+        // 离线时 resolve 仍会退回缓存，因此不会因为断网就变成 null。
         runCatching {
-            val installer = RootfsInstaller(layout)
-            val raw = context.assets.open("rootfs-manifest.json").bufferedReader().use { it.readText() }
-            val bundled = installer.parseManifest(raw)
-            installer.resolveLatestManifest(bundled).runtimeVersion
+            manifestSource().resolve(forceRefresh = true)?.manifest?.runtimeVersion
         }.getOrNull()
     }
 
@@ -72,16 +83,24 @@ class DefaultHostRuntimeManager(
     }
 
     override suspend fun assessUpdates(): UpdateAssessment = withContext(Dispatchers.IO) {
-        val manifest = BridgePluginManifest.load(context)
-        // 查不到最新版本时传 null：评估退化为只看镜像段，不会误报插件落后。
+        // 每一步各自容错：查询插件仓库要联网、读 rootfs 要访问文件系统，
+        // 任何一步失败都不该让整页版本信息变成「未知」。
+        val manifest = runCatching { BridgePluginManifest.load(context) }.getOrNull()
         val latest = manifest?.repository
             ?.takeIf { it.isNotBlank() }
-            ?.let { BridgeReleaseChecker().latestVersion(it) }
+            ?.let { repository ->
+                runCatching { BridgeReleaseChecker().latestVersion(repository) }.getOrNull()
+            }
+        val installedRootfs = runCatching { installedRootfsVersion() }.getOrNull()
+        val availableRootfs = runCatching { availableRootfsVersion() }.getOrNull()
+        val installedPlugin = runCatching {
+            BridgePluginInstaller(context, layout).installedVersion()
+        }.getOrNull()
         assessUpdate(
-            installed = installedRootfsVersion(),
-            available = availableRootfsVersion(),
+            installed = installedRootfs,
+            available = availableRootfs,
             latestPlugin = latest,
-            installedPlugin = BridgePluginInstaller(context, layout).installedVersion(),
+            installedPlugin = installedPlugin,
         )
     }
 
@@ -101,13 +120,21 @@ class DefaultHostRuntimeManager(
     override suspend fun installRootfs(onProgress: (Float, String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
         layout.ensureDirectories()
         val installer = RootfsInstaller(layout)
-        val manifest = try {
-            val raw = context.assets.open("rootfs-manifest.json").bufferedReader().use { it.readText() }
-            val bundled = installer.parseManifest(raw)
-            onProgress(0.01f, "检查最新 rootfs 版本...")
-            installer.resolveLatestManifest(bundled)
+        // 清单实时拉取：下载地址与校验值随每次发版变化，内置的那份会过期，
+        // 用它去下载只会得到 404 或校验失败。装不上就直接报错，不猜。
+        onProgress(0.01f, "检查最新 rootfs 版本...")
+        val resolved = try {
+            manifestSource().resolve(forceRefresh = true)
         } catch (e: Exception) {
-            return@withContext Result.failure(IllegalStateException("读取 rootfs-manifest.json 失败: ${e.message}"))
+            return@withContext Result.failure(
+                IllegalStateException("获取 rootfs 清单失败: ${e.message}")
+            )
+        } ?: return@withContext Result.failure(
+            IllegalStateException("无法获取 rootfs 清单：网络不可用，且没有本地缓存")
+        )
+        val manifest = resolved.manifest
+        if (resolved.origin == RootfsManifestSource.Origin.BUNDLED) {
+            onProgress(0.01f, "使用 APK 内置清单（可能已过期）…")
         }
         onProgress(0f, "准备安装 ${manifest.baseDistro.ifBlank { "rootfs" }}...")
 

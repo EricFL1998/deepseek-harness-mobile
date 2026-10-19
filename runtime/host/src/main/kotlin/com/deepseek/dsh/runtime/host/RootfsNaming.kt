@@ -19,6 +19,8 @@ object RootfsNaming {
     const val INSTALL_DIR = "rootfs"
     const val MARKER_FILE = "rootfs-installed.json"
     const val MANIFEST_ASSET = "rootfs-manifest.json"
+    /** 最近一次成功拉取的清单缓存；清单本身不随 APK 打包。 */
+    const val MANIFEST_CACHE_FILE = "rootfs-manifest-cache.json"
     const val ARCHIVE_PREFIX = "dsh-rootfs"
     const val RELEASE_TAG_PREFIX = "rootfs-v"
 
