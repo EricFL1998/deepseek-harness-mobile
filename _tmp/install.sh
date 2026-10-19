@@ -1,5 +1,0 @@
-export PROOT_LOADER=/data/app/~~DM4eubSXJcIPSfRNzd1KZQ==/com.dsh.mobile-o7e8NpNKEP4bhhww6Cq8Ng==/lib/x86_64/libproot-loader.so
-export PROOT_TMP_DIR=$PWD/files/cache
-mkdir -p $PWD/files/rootfs/root/.dsh/profiles/web/.plugin-manager/logs
-mkdir -p $PWD/files/rootfs/root/.dsh/tmp
-/data/app/~~DM4eubSXJcIPSfRNzd1KZQ==/com.dsh.mobile-o7e8NpNKEP4bhhww6Cq8Ng==/lib/x86_64/libproot.so -r $PWD/files/rootfs -b /proc -b /dev -b /sys --link2symlink -w / -b $PWD/files/cache:/cache /usr/bin/env -i HOME=/root DSH_HOME=/root/.dsh PATH=/opt/dsh/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NODE_ENV=production LANG=C.UTF-8 TMPDIR=/root/.dsh/tmp /usr/local/bin/node /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js plugin --profile web add https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin#v1.1.0 2>&1 | tail -12
