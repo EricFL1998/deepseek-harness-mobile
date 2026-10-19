@@ -336,10 +336,6 @@ fun MainAppHost(
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
     var modelCredentialsRaw by remember { mutableStateOf<String?>(null) }
-    val settingsNamespaces = remember(modelSettingsRaw) {
-        Regex("\"ns\"\\s*:\\s*\"([^\"]+)\"").findAll(modelSettingsRaw.orEmpty())
-            .map { it.groupValues[1] }.toSet()
-    }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
@@ -1324,7 +1320,6 @@ fun MainAppHost(
                                 surfaces = catalog.surfaces,
                                 pluginManagerSnapshot = pluginManagerSnapshot,
                                 pluginRows = pluginRows,
-                                settingsNamespaces = settingsNamespaces,
                                 bridgeCatalog = bridgePluginCatalog,
                                 bridgeWarnings = bridgeWarnings,
                                 onOpenSurface = { item ->

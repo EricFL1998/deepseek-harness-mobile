@@ -106,7 +106,6 @@ fun PluginsScreen(
     onUninstall: (SurfaceItem) -> Unit = {},
     onCreatePlugin: () -> Unit = {},
     pluginRows: List<PluginRowInfo> = emptyList(),
-    settingsNamespaces: Set<String> = emptySet(),
     bridgeCatalog: BridgePluginCatalogData = BridgePluginCatalogData(BridgePluginCatalogSource.NONE),
     bridgeWarnings: List<String> = emptyList(),
     modifier: Modifier = Modifier,
@@ -119,36 +118,19 @@ fun PluginsScreen(
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
     var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
-    // 官方插件分类来自 bridge 的 `client-slots/plugins.item` 注册：文案、顺序与
-    // 图形全部是官方客户端资源。只有 bridge 不可用时，才回落到按 Host 返回的
-    // settings 命名空间推断（旧路径），绝不用写死的分类表冒充官方数据。
-    val officialConfigItems = remember(bridgeCatalog, settingsNamespaces) {
-        when (bridgeCatalog.source) {
-            BridgePluginCatalogSource.CLIENT_SLOTS -> bridgeCatalog.categories.map { category ->
-                OfficialConfigItem(
-                    id = category.id,
-                    title = category.label,
-                    // 官方卡片的 summary 由组件渲染；bridge 不可用时该分组不会出现，
-                    // 因此这里只保留一个中性的空说明。
-                    description = "",
-                    iconRes = 0,
-                    iconSvg = category.iconSvg,
-                )
-            }
-            else -> buildList {
-                if ("agent-loop" in settingsNamespaces) add(
-                    OfficialConfigItem("agent-loop", "Agent 循环", "控制 Agent 派发工具调用的方式。", R.drawable.ic_plugin_art_loop)
-                )
-                if (settingsNamespaces.any { it == "shell" || it == "bash" || it == "pwsh" }) add(
-                    OfficialConfigItem("shell", "终端", "限制每条命令最多能跑多久、最多输出多少内容。", R.drawable.ic_plugin_art_terminal)
-                )
-                if ("subagent" in settingsNamespaces) add(
-                    OfficialConfigItem("subagent", "子智能体", "设置子智能体的递归层级、数量和模型。", R.drawable.ic_plugin_art_subagent)
-                )
-                if ("web-search" in settingsNamespaces) add(
-                    OfficialConfigItem("web-search", "网页搜索", "设置 DeepSeek 的搜索提供方。", R.drawable.ic_plugin_art_search)
-                )
-            }
+    // 官方插件分类只有一个来源：bridge 的 `client-slots/plugins.item` 注册。
+    // 文案、顺序与图形都是官方客户端自己的资源。bridge 不可用时这个分组直接
+    // 不出现 —— 宁可少一行，也不拿写死的分类表冒充官方数据。
+    val officialConfigItems = remember(bridgeCatalog) {
+        bridgeCatalog.categories.map { category ->
+            OfficialConfigItem(
+                id = category.id,
+                title = category.label,
+                // 官方卡片的 summary 由组件渲染；这里只保留一个中性的空说明。
+                description = "",
+                iconRes = 0,
+                iconSvg = category.iconSvg,
+            )
         }
     }
     var disabledPlugins by remember { mutableStateOf<Set<String>>(emptySet()) }

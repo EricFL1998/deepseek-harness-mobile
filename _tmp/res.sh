@@ -1,0 +1,3 @@
+export PROOT_LOADER=/data/app/~~DM4eubSXJcIPSfRNzd1KZQ==/com.dsh.mobile-o7e8NpNKEP4bhhww6Cq8Ng==/lib/x86_64/libproot-loader.so
+export PROOT_TMP_DIR=$PWD/files/cache
+/data/app/~~DM4eubSXJcIPSfRNzd1KZQ==/com.dsh.mobile-o7e8NpNKEP4bhhww6Cq8Ng==/lib/x86_64/libproot.so -r $PWD/files/rootfs -b /proc -b /dev -b /sys --link2symlink -w / /usr/bin/env -i HOME=/root PATH=/usr/local/bin:/usr/bin:/bin TMPDIR=/root/.dsh/tmp /usr/local/bin/node --input-type=module -e "import {createRequire} from 'node:module'; const r=createRequire('/root/.dsh/profiles/web/package.json'); try { console.log('resolved:', r.resolve('dsh-mobile-bridge-plugin/package.json')); } catch (e) { console.log('RESOLVE FAILED:', e.code, e.message.split('\n')[0]); }"

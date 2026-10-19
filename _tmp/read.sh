@@ -1,0 +1,3 @@
+export PROOT_LOADER=/data/app/~~DM4eubSXJcIPSfRNzd1KZQ==/com.dsh.mobile-o7e8NpNKEP4bhhww6Cq8Ng==/lib/x86_64/libproot-loader.so
+export PROOT_TMP_DIR=$PWD/files/cache
+/data/app/~~DM4eubSXJcIPSfRNzd1KZQ==/com.dsh.mobile-o7e8NpNKEP4bhhww6Cq8Ng==/lib/x86_64/libproot.so -r $PWD/files/rootfs -b /proc -b /dev -b /sys --link2symlink -w / /usr/bin/env -i HOME=/root PATH=/usr/local/bin:/usr/bin:/bin TMPDIR=/root/.dsh/tmp sh -c "cat /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/profile-boot-C14i-8IN.js | head -120"
