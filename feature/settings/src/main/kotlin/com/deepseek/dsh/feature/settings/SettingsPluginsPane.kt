@@ -62,6 +62,8 @@ internal fun SettingsPluginsPane(
     onInstallPlugin: (String) -> Unit = {},
     onTogglePluginBundle: (String, Boolean) -> Unit = { _, _ -> },
     onUninstallPlugin: (String) -> Unit = {},
+    marketStatusJson: String? = null,
+    onMarketAction: (String, String) -> Unit = { _, _ -> },
     onOpenConfigFile: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -121,10 +123,8 @@ internal fun SettingsPluginsPane(
 
         if (selectedTab == 1) {
             PluginMarketPane(
-                bundles = pluginBundles,
-                onInstallPlugin = onInstallPlugin,
-                onToggleBundle = onTogglePluginBundle,
-                onUninstallPlugin = onUninstallPlugin,
+                marketStatusJson = marketStatusJson,
+                onMarketAction = onMarketAction,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -312,14 +312,19 @@ internal fun SettingsPluginsPane(
 
 @Composable
 private fun PluginMarketPane(
-    bundles: List<PluginBundleItem>,
-    onInstallPlugin: (String) -> Unit,
-    onToggleBundle: (String, Boolean) -> Unit,
-    onUninstallPlugin: (String) -> Unit,
+    marketStatusJson: String?,
+    onMarketAction: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalSettingsPalette.current
-    var packageInput by remember { mutableStateOf("") }
+    val status = remember(marketStatusJson) { MarketStatusUi.parse(marketStatusJson) }
+    var envText by remember(status?.buildEnvText) { mutableStateOf(status?.buildEnvText.orEmpty()) }
+    var proxyEditing by remember { mutableStateOf(false) }
+    var proxyInput by remember { mutableStateOf(status?.githubProxyCustom.orEmpty()) }
+    var showUninstallConfirm by remember { mutableStateOf(false) }
+
+    fun post(path: String, body: String) = onMarketAction(path, body)
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(
@@ -328,90 +333,288 @@ private fun PluginMarketPane(
             top = 8.dp,
             bottom = SettingsPaneDimens.Bottom,
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item(key = "market_head") {
-            Column {
-                SettingsPaneTitle(text = "插件市场", large = true)
-                SettingsIntro(text = "安装、启用和管理 Host 插件；插件由 DSH Host 提供。")
-            }
-        }
-        item(key = "market_install") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingsIntro(text = "安装插件")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = palette.moduleFill,
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL4),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = packageInput,
-                            onValueChange = { packageInput = it },
-                            singleLine = true,
-                            textStyle = TextStyle(fontSize = 13.sp, color = palette.labelPrimary),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(palette.labelPrimary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = {
-                            val spec = packageInput.trim()
-                            if (spec.isNotEmpty()) {
-                                onInstallPlugin(spec)
-                                packageInput = ""
-                            }
-                        }
-                    ) {
-                        Text(
-                            text = "安装",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
-                        )
-                    }
-                }
-            }
-        }
-        item(key = "market_installed_title") {
-            SettingsIntro(text = if (bundles.isEmpty()) "暂无已安装的市场插件。" else "已安装插件")
-        }
-        items(bundles.size, key = { "bundle_${bundles[it].packageName}" }) { index ->
-            val bundle = bundles[index]
+        item(key = "market_card") {
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = palette.moduleFill,
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL4),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(bundle.title, fontSize = 14.sp, color = palette.labelPrimary)
-                            Text(bundle.packageName, fontSize = 11.sp, color = palette.labelTertiary)
+                        Text("插件市场", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = palette.labelPrimary)
+                        status?.version?.takeIf { it.isNotBlank() }?.let {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("v$it", fontSize = 12.sp, color = palette.labelTertiary)
                         }
-                        androidx.compose.material3.Switch(
-                            checked = bundle.enabled,
-                            onCheckedChange = { onToggleBundle(bundle.packageName, it) }
-                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        SettingsChevronDown(expanded = true, size = 12.dp)
                     }
-                    if (bundle.description.isNotBlank()) {
-                        Text(bundle.description, fontSize = 12.sp, color = palette.labelSecondary)
+                    Text("查看插件市场版本与设置。", fontSize = 12.sp, color = palette.labelSecondary)
+                    if (status == null) {
+                        Text("插件市场未安装或不可用。", fontSize = 12.sp, color = palette.labelTertiary)
                     }
-                    Text(
-                        text = "卸载",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.clickable { onUninstallPlugin(bundle.packageName) }
-                    )
                 }
             }
         }
+
+        if (status != null) {
+            item(key = "market_channel") {
+                MarketSettingRow(
+                    title = "更新通道",
+                    hint = when (status.channel) {
+                        "beta" -> "提前获取待验证版本，可能不稳定。仅影响插件市场自身。"
+                        "dev" -> "开发分支构建，未经验证，不建议普通用户使用。"
+                        else -> "仅接收正式发布版本。"
+                    },
+                    action = {
+                        MarketSegmented(
+                            options = status.channels.ifEmpty { listOf("stable", "beta") },
+                            selected = status.channel,
+                            label = { id -> if (id == "stable") "稳定版" else if (id == "beta") "Beta" else "开发版" },
+                            onSelect = { post("channel", """{"channel":"$it"}""") },
+                        )
+                    }
+                )
+            }
+            item(key = "market_region") {
+                MarketSettingRow(
+                    title = "下载区域",
+                    hint = if (status.regionAuto) {
+                        "已根据网络状况自动选择，可随时切换。"
+                    } else if (status.region == "china") {
+                        "中国大陆访问更快。仅改变下载线路，插件来源不变。"
+                    } else {
+                        "从 npm 和 GitHub 官方源下载。"
+                    },
+                    action = {
+                        MarketSegmented(
+                            options = status.regions.ifEmpty { listOf("global", "china") },
+                            selected = status.region,
+                            label = { id -> if (id == "china") "中国大陆" else "全球" },
+                            onSelect = { post("region", """{"region":"$it"}""") },
+                        )
+                    }
+                )
+            }
+            item(key = "market_proxy") {
+                MarketSettingRow(
+                    title = "GitHub 加速",
+                    hint = when {
+                        status.githubProxyManaged -> "由环境变量 DSHM_GITHUB_PROXY 管理，界面中不可修改。"
+                        status.githubProxyCustom != null -> "优先使用自定义线路，失败后仍会尝试直连。"
+                        else -> "自动选择可用线路，失败时才切换。"
+                    },
+                    action = if (status.githubProxyManaged) null else {
+                        {
+                            if (status.githubProxyCustom == null) {
+                                MarketOutlineButton("自定义") { proxyEditing = true; proxyInput = "" }
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    MarketOutlineButton("编辑") { proxyEditing = true; proxyInput = status.githubProxyCustom }
+                                    MarketOutlineButton("恢复自动") { post("github-proxy", """{"proxy":null}""") }
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+            item(key = "market_build_env") {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("构建环境变量", style = SettingsText.RowTitle, color = palette.labelPrimary)
+                    Text(
+                        "作用于市场启动的每个进程（安装、编译、git 等），不只是编译器。每行一个 KEY=value，例如 CC=/usr/bin/gcc-11；PATH 和 CI 由市场管理。留空保存即恢复原有配置。",
+                        fontSize = 12.sp,
+                        color = palette.labelTertiary
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = palette.moduleFill,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL4),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = envText,
+                            onValueChange = { envText = it },
+                            textStyle = TextStyle(fontSize = 12.sp, color = palette.labelPrimary),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(palette.labelPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(110.dp)
+                                .padding(12.dp)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MarketOutlineButton("保存环境变量") {
+                            val obj = buildString {
+                                append("{\"buildEnv\":{")
+                                envText.lines().map { it.trim() }.filter { it.contains("=") }.forEachIndexed { index, line ->
+                                    val key = line.substringBefore("=").trim()
+                                    val value = line.substringAfter("=").trim()
+                                    if (index > 0) append(",")
+                                    append("\"${key.replace("\"", "\\\"")}\":\"${value.replace("\"", "\\\"")}\"")
+                                }
+                                append("}}")
+                            }
+                            post("build-env", obj)
+                        }
+                    }
+                }
+            }
+            item(key = "market_uninstall") {
+                MarketSettingRow(
+                    title = "卸载插件市场",
+                    hint = "从这个 profile 卸载市场。已装的其它插件不受影响。",
+                    action = { MarketDangerButton("卸载插件市场") { showUninstallConfirm = true } }
+                )
+            }
+            if (showUninstallConfirm) {
+                item(key = "market_uninstall_confirm") {
+                    Surface(shape = RoundedCornerShape(10.dp), color = palette.moduleFill, modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("确定要卸载插件市场吗？卸载后需使用命令行重新安装。", fontSize = 12.sp, color = palette.labelSecondary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                MarketOutlineButton("取消") { showUninstallConfirm = false }
+                                MarketDangerButton("卸载") { post("self-uninstall", """{"confirm":true,"purge":false}""") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (proxyEditing) {
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { proxyEditing = false },
+            title = "GitHub 加速",
+            closeLabel = "关闭",
+            description = "输入 HTTPS 加速前缀，留空保存可恢复自动选择。",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(text = "取消", primary = false, enabled = true, onClick = { proxyEditing = false })
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(text = "保存", primary = true, enabled = true, onClick = {
+                    val proxy = proxyInput.trim()
+                    post("github-proxy", if (proxy.isEmpty()) """{"proxy":null}""" else """{"proxy":"${proxy.replace("\"", "\\\"")}"}""")
+                    proxyEditing = false
+                })
+            },
+            content = {
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = proxyInput,
+                    onValueChange = { proxyInput = it },
+                    placeholder = "https://...",
+                )
+            },
+        )
+    }
+}
+
+private data class MarketStatusUi(
+    val version: String?,
+    val channel: String,
+    val channels: List<String>,
+    val region: String,
+    val regions: List<String>,
+    val regionAuto: Boolean,
+    val githubProxyCustom: String?,
+    val githubProxyManaged: Boolean,
+    val selfManaged: Boolean,
+    val buildEnvText: String,
+) {
+    companion object {
+        fun parse(raw: String?): MarketStatusUi? {
+            if (raw.isNullOrBlank()) return null
+            return runCatching {
+                val obj = kotlinx.serialization.json.Json.parseToJsonElement(raw).let {
+                    (it as? kotlinx.serialization.json.JsonObject)?.get("value")
+                        ?.let { v -> v as? kotlinx.serialization.json.JsonObject } ?: (it as? kotlinx.serialization.json.JsonObject)
+                } ?: return null
+                fun text(key: String): String? = (obj[key] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                fun bool(key: String): Boolean = (obj[key] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+                fun arr(key: String): List<String> = (obj[key] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } ?: emptyList()
+                val env = (obj["buildEnv"] as? kotlinx.serialization.json.JsonObject)?.entries
+                    ?.sortedBy { it.key }
+                    ?.joinToString("\\n") { "${it.key}=${(it.value as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()}" }
+                    .orEmpty()
+                MarketStatusUi(
+                    version = text("version"),
+                    channel = text("channel") ?: "stable",
+                    channels = arr("channels"),
+                    region = text("region") ?: "global",
+                    regions = arr("regions"),
+                    regionAuto = bool("regionAuto"),
+                    githubProxyCustom = text("githubProxyCustom"),
+                    githubProxyManaged = bool("githubProxyManaged"),
+                    selfManaged = obj["selfManaged"]?.toString() != "false",
+                    buildEnvText = env,
+                )
+            }.getOrNull()
+        }
+    }
+}
+
+@Composable
+private fun MarketSettingRow(title: String, hint: String, action: (@Composable () -> Unit)?) {
+    val palette = LocalSettingsPalette.current
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = SettingsText.RowTitle, color = palette.labelPrimary)
+            Spacer(modifier = Modifier.weight(1f))
+            action?.invoke()
+        }
+        Text(hint, fontSize = 12.sp, color = palette.labelTertiary)
+        androidx.compose.material3.HorizontalDivider(color = palette.borderL4)
+    }
+}
+
+@Composable
+private fun MarketSegmented(options: List<String>, selected: String, label: (String) -> String, onSelect: (String) -> Unit) {
+    val palette = LocalSettingsPalette.current
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(palette.labelPrimary.copy(alpha = 0.06f))
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        options.forEach { id ->
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (id == selected) palette.moduleFill else Color.Transparent,
+                onClick = { onSelect(id) }
+            ) {
+                Text(
+                    label(id),
+                    fontSize = 12.sp,
+                    color = if (id == selected) palette.labelPrimary else palette.labelTertiary,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarketOutlineButton(text: String, onClick: () -> Unit) {
+    val palette = LocalSettingsPalette.current
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color.Transparent,
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL4),
+        onClick = onClick
+    ) {
+        Text(text, fontSize = 12.sp, color = palette.labelPrimary, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+    }
+}
+
+@Composable
+private fun MarketDangerButton(text: String, onClick: () -> Unit) {
+    Surface(shape = RoundedCornerShape(8.dp), color = Color.Transparent, onClick = onClick) {
+        Text(text, fontSize = 12.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
     }
 }
 
@@ -525,6 +728,9 @@ private fun PluginFactRow(label: String, value: String) {
         )
     }
 }
+
+
+
 
 
 

@@ -66,6 +66,8 @@ interface DshClientProtocol {
     suspend fun getPluginInventory(hostId: String): RemoteResult<List<BuiltInPluginInfo>>
     suspend fun getPluginInventorySnapshot(hostId: String): RemoteResult<PluginInventorySnapshotInfo>
     suspend fun getPluginManagerSnapshot(hostId: String): RemoteResult<PluginManagerSnapshot>
+    suspend fun getMarketStatus(hostId: String): RemoteResult<String>
+    suspend fun marketAction(hostId: String, path: String, body: String): RemoteResult<String>
     suspend fun installPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun uninstallPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun setBundleEnabled(hostId: String, packageName: String, enabled: Boolean): RemoteResult<Boolean>
@@ -79,6 +81,7 @@ interface DshClientProtocol {
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
 }
+
 
 
 

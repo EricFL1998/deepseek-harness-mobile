@@ -93,6 +93,8 @@ fun SettingsRootScreen(
     onInstallPlugin: (String) -> Unit = {},
     onTogglePluginBundle: (String, Boolean) -> Unit = { _, _ -> },
     onUninstallPlugin: (String) -> Unit = {},
+    marketStatusJson: String? = null,
+    onMarketAction: (String, String) -> Unit = { _, _ -> },
     runtimeStatus: com.deepseek.dsh.runtime.host.RuntimeStatus? = null,
     onStartRuntime: () -> Unit = {},
     onStopRuntime: () -> Unit = {},
@@ -235,6 +237,8 @@ fun SettingsRootScreen(
                             onInstallPlugin = onInstallPlugin,
                             onTogglePluginBundle = onTogglePluginBundle,
                             onUninstallPlugin = onUninstallPlugin,
+                            marketStatusJson = marketStatusJson,
+                            onMarketAction = onMarketAction,
                             onOpenConfigFile = onOpenSettingsDocument
                         )
 
@@ -329,6 +333,7 @@ private fun SettingsNavRow(
         )
     }
 }
+
 
 
 

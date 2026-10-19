@@ -179,6 +179,17 @@ class DshRepository(
         }
     }
 
+    suspend fun getMarketStatus(hostId: String): Result<String> =
+        when (val res = client.getMarketStatus(hostId)) {
+            is RemoteResult.Success -> Result.success(res.data)
+            is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
+        }
+
+    suspend fun marketAction(hostId: String, path: String, body: String): Result<String> =
+        when (val res = client.marketAction(hostId, path, body)) {
+            is RemoteResult.Success -> Result.success(res.data)
+            is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
+        }
     suspend fun installPlugin(hostId: String, packageName: String): Result<Boolean> {
         return when (val res = client.installPlugin(hostId, packageName)) {
             is RemoteResult.Success -> {
@@ -451,6 +462,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 

@@ -325,6 +325,7 @@ fun MainAppHost(
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
+    var marketStatusJson by remember { mutableStateOf<String?>(null) }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
@@ -492,6 +493,7 @@ fun MainAppHost(
             dshRepository.refreshSessions(activeHostId)
             dshRepository.refreshModelCatalog(activeHostId)
             dshRepository.refreshPluginInventory(activeHostId)
+            marketStatusJson = dshRepository.getMarketStatus(activeHostId).getOrNull()
             dshRepository.refreshAutomationTasks(activeHostId)
             dshRepository.refreshTeamTasks(activeHostId)
             dshRepository.refreshApprovals(activeHostId)
@@ -1336,6 +1338,13 @@ fun MainAppHost(
                                 builtInPlugins = builtInPluginsList,
                                 pluginSnapshot = pluginSnapshot,
                                 pluginBundles = pluginManagerSnapshot?.installedBundles.orEmpty(),
+                                marketStatusJson = marketStatusJson,
+                                onMarketAction = { path, body ->
+                                    scope.launch {
+                                        dshRepository.marketAction(activeHostId, path, body)
+                                        marketStatusJson = dshRepository.getMarketStatus(activeHostId).getOrNull()
+                                    }
+                                },
                                 onInstallPlugin = { pkgName ->
                                     scope.launch {
                                         val res = dshRepository.installPlugin(activeHostId, pkgName)
@@ -2153,6 +2162,7 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
 
 
 
