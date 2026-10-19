@@ -628,54 +628,6 @@ fun ModernNavigationDrawerContent(
                 }
             }
         }
-        HorizontalDivider(
-            color = lineSep,
-            thickness = 0.5.dp,
-            modifier = Modifier.padding(vertical = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        // 7. 账户区：点击用户卡片在其正上方展开官方账户菜单（内联紧贴账户面板上沿）
-        if (showAccountMenu) {
-            DshMenuCard(
-                scrollable = false,
-                contentWidth = true,
-            ) {
-                AccountMenuRow(
-                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings,
-                    label = stringResource(R.string.drawer_account_settings),
-                    onClick = {
-                        showAccountMenu = false
-                        onNavigateSettings()
-                    },
-                )
-                AccountMenuRow(
-                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_feedback,
-                    label = stringResource(R.string.drawer_account_feedback),
-                    onClick = { showAccountMenu = false },
-                )
-                if (isSignedIn) {
-                    AccountMenuRow(
-                        iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_logout,
-                        label = stringResource(R.string.drawer_account_signout),
-                        onClick = {
-                            showAccountMenu = false
-                            onSignOut()
-                        },
-                    )
-                } else {
-                    AccountMenuRow(
-                        iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user,
-                        label = "登录",
-                        onClick = {
-                            showAccountMenu = false
-                            onSignIn()
-                        },
-                    )
-                }
-            }
-        }
         DrawerScrollbarScrubber(
             state = sessionListState,
             titles = scrubTitles,
@@ -685,6 +637,14 @@ fun ModernNavigationDrawerContent(
                 .width(14.dp)
         )
         }
+
+        HorizontalDivider(
+            color = lineSep,
+            thickness = 0.5.dp,
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+
+        // 7. 账户区：点击用户卡片在其正上方展开官方账户菜单
         Box(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -744,6 +704,47 @@ fun ModernNavigationDrawerContent(
                             )
                         }
                     }
+                }
+            }
+
+            AnchoredMenuPopup(
+                expanded = showAccountMenu,
+                onDismiss = { showAccountMenu = false },
+                contentWidth = true,
+                align = com.deepseek.dsh.core.designsystem.DshMenuAlign.Start,
+                anchorGap = 0.dp
+            ) {
+                AccountMenuRow(
+                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings,
+                    label = stringResource(R.string.drawer_account_settings),
+                    onClick = {
+                        showAccountMenu = false
+                        onNavigateSettings()
+                    },
+                )
+                AccountMenuRow(
+                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_feedback,
+                    label = stringResource(R.string.drawer_account_feedback),
+                    onClick = { showAccountMenu = false },
+                )
+                if (isSignedIn) {
+                    AccountMenuRow(
+                        iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_logout,
+                        label = stringResource(R.string.drawer_account_signout),
+                        onClick = {
+                            showAccountMenu = false
+                            onSignOut()
+                        },
+                    )
+                } else {
+                    AccountMenuRow(
+                        iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user,
+                        label = "登录",
+                        onClick = {
+                            showAccountMenu = false
+                            onSignIn()
+                        },
+                    )
                 }
             }
         }

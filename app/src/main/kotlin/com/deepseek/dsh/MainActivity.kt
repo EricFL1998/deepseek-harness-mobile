@@ -1106,16 +1106,10 @@ fun MainAppHost(
                                         val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
                                         if (hostRes.isSuccess) {
                                             android.widget.Toast.makeText(context, "插件安装成功", android.widget.Toast.LENGTH_SHORT).show()
+                                            dshRepository.refreshPluginInventory(activeHostId)
                                         } else {
-                                            // 本地 Surface 降级
-                                            val newSurface = SurfaceItem(
-                                                pluginId = pkgName,
-                                                slot = "conversation.composer.dock",
-                                                order = 10,
-                                                title = pkgName.substringAfterLast("/"),
-                                                kind = SurfaceKind.DOCK
-                                            )
-                                            surfaceStore.addSurfaceItem(newSurface)
+                                            val errMsg = hostRes.exceptionOrNull()?.message ?: "安装失败"
+                                            android.widget.Toast.makeText(context, "插件安装失败: $errMsg", android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
@@ -1282,6 +1276,7 @@ fun MainAppHost(
             SurfaceSheet(
                 item = item,
                 hostPort = status.port ?: 8080,
+                token = status.token,
                 onDismissRequest = { activeSheetSurface = null }
             )
         }
@@ -1291,6 +1286,7 @@ fun MainAppHost(
             PluginOverlayContainer(
                 item = item,
                 hostPort = status.port ?: 8080,
+                token = status.token,
                 onClose = { activeOverlaySurface = null }
             )
         }

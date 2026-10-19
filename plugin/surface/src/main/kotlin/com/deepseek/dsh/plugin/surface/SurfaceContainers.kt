@@ -61,6 +61,7 @@ import kotlin.math.roundToInt
 fun SurfaceSheet(
     item: SurfaceItem,
     hostPort: Int,
+    token: String? = null,
     onDismissRequest: () -> Unit
 ) {
     val colors = dshPanelColors()
@@ -96,7 +97,7 @@ fun SurfaceSheet(
                         context = ctx,
                         allowedPort = hostPort
                     ).apply {
-                        loadSurface(surfaceSlot = item.slot, pluginId = item.pluginId, isolated = true)
+                        loadSurface(surfaceSlot = item.slot, pluginId = item.pluginId, isolated = true, token = token)
                     }
                 },
                 modifier = Modifier
@@ -118,6 +119,7 @@ fun SurfaceSheet(
 fun PluginOverlayContainer(
     item: SurfaceItem,
     hostPort: Int,
+    token: String? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -215,7 +217,7 @@ fun PluginOverlayContainer(
                             context = ctx,
                             allowedPort = hostPort
                         ).apply {
-                            loadSurface(surfaceSlot = item.slot, pluginId = item.pluginId, isolated = true)
+                            loadSurface(surfaceSlot = item.slot, pluginId = item.pluginId, isolated = true, token = token)
                         }
                     },
                     modifier = Modifier.fillMaxSize()

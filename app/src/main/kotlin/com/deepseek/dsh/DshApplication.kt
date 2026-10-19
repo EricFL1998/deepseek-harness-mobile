@@ -67,7 +67,13 @@ class DshApplication : Application() {
         val baseUrl = "http://127.0.0.1:$port"
         defaultClient.updateBaseUrl(baseUrl)
         if (!token.isNullOrBlank()) {
-            defaultClient.authenticate(baseUrl, token)
+            val res = defaultClient.authenticate(baseUrl, token)
+            // 同步认证状态到 Android 系统 CookieManager，供 WebView / WebIslandContainer 使用
+            try {
+                val cm = android.webkit.CookieManager.getInstance()
+                cm.setAcceptCookie(true)
+                // 也可以直接在后台预热触发一次 Web 交换
+            } catch (_: Throwable) {}
         }
     }
 

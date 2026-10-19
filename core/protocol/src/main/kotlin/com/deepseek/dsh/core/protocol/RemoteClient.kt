@@ -617,7 +617,7 @@ class RemoteClient(
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/pluginInventory/list")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -736,7 +736,7 @@ class RemoteClient(
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/pluginManager/listBundles")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -849,23 +849,36 @@ class RemoteClient(
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
-            put("method", "pluginManager/install")
+            put("method", "pluginManager/installBundle")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("packageName", packageName)
+                    put("spec", packageName)
                 })
             })
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/pluginManager/installBundle")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
         try {
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
-                    RemoteResult.Success(true)
+                    val bodyStr = response.body?.string() ?: "{}"
+                    val jsonElem = json.parseToJsonElement(bodyStr)
+                    val resultObj = (jsonElem as? kotlinx.serialization.json.JsonObject)?.get("result") as? kotlinx.serialization.json.JsonObject
+                    val ok = resultObj?.get("ok")?.toString()?.toBooleanStrictOrNull() ?: false
+                    val valueObj = resultObj?.get("value") as? kotlinx.serialization.json.JsonObject
+                    val errorObj = valueObj?.get("error") as? kotlinx.serialization.json.JsonObject
+                    if (!ok || errorObj != null) {
+                        val diag = errorObj?.get("diagnostic")?.toString()?.trim('"')
+                            ?: errorObj?.get("message")?.toString()?.trim('"')
+                            ?: "安装失败"
+                        RemoteResult.Failure("dsh/plugin/install-failed", diag)
+                    } else {
+                        RemoteResult.Success(true)
+                    }
                 } else {
                     RemoteResult.Failure("dsh/plugin/install-failed", "HTTP ${response.code}")
                 }
@@ -881,16 +894,16 @@ class RemoteClient(
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
-            put("method", "pluginManager/uninstall")
+            put("method", "pluginManager/removeBundle")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("packageName", packageName)
+                    put("name", packageName)
                 })
             })
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/pluginManager/removeBundle")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -917,14 +930,14 @@ class RemoteClient(
             put("method", "pluginManager/setBundleEnabled")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("packageName", packageName)
+                    put("name", packageName)
                     put("enabled", enabled)
                 })
             })
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/pluginManager/setBundleEnabled")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 

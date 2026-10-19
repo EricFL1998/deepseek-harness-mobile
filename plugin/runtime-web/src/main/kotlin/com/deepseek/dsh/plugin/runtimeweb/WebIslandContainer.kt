@@ -90,13 +90,35 @@ class WebIslandContainer(
         }
     }
 
-    fun loadSurface(surfaceSlot: String, pluginId: String, isolated: Boolean = true) {
+    fun loadSurface(surfaceSlot: String, pluginId: String, isolated: Boolean = true, token: String? = null) {
         val base = "http://$allowedHost:$allowedPort"
-        val query = if (isolated) {
-            "?__dsh_surface=${Uri.encode(surfaceSlot)}&__dsh_plugin=${Uri.encode(pluginId)}&__dsh_shell=none"
+        val queryParts = mutableListOf<String>()
+        if (isolated) {
+            queryParts.add("__dsh_surface=${Uri.encode(surfaceSlot)}")
+            queryParts.add("__dsh_plugin=${Uri.encode(pluginId)}")
+            queryParts.add("__dsh_shell=none")
+        }
+        val query = if (queryParts.isNotEmpty()) {
+            "?" + queryParts.joinToString("&")
         } else {
             ""
         }
-        loadUrl("$base/$query")
+        val targetUrl = "$base/$query"
+
+        // 如果提供了 token 且 CookieManager 尚未包含 cookie，先交换或直接设置
+        if (!token.isNullOrBlank()) {
+            val cm = CookieManager.getInstance()
+            val existing = cm.getCookie(base)
+            if (existing.isNullOrBlank() || !existing.contains("dsh-web-session")) {
+                // 加载带 token 的根地址完成换取 cookie，然后再定向到目标表面
+                loadUrl("$base/?token=${Uri.encode(token)}")
+                postDelayed({
+                    loadUrl(targetUrl)
+                }, 500)
+                return
+            }
+        }
+
+        loadUrl(targetUrl)
     }
 }

@@ -39,6 +39,7 @@
         else if (slotName.includes("message") || slotName.includes("assistant-actions")) kind = "message-action";
         else if (slotName.includes("toolview") || slotName.includes("tool.call")) kind = "tool";
         else if (slotName.includes("theme")) kind = "theme";
+        else if (slotName.includes("settings") || slotName.startsWith("plugins.")) kind = "page";
 
         const item = {
           pluginId,
