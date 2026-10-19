@@ -238,6 +238,11 @@ class RootfsInstaller(
                 runCatching { preservedHome.copyRecursively(layout.dshHomeDir, overwrite = true) }
                 preservedHome.deleteRecursively()
             }
+            // 旧 DSH_HOME 里的 profile 依赖可能锁定旧版 DSH，删除后由新版从全局安装解析。
+            runCatching {
+                File(layout.dshHomeDir, "profiles/web/node_modules").deleteRecursively()
+                File(layout.dshHomeDir, "profiles/web/pnpm-lock.yaml").delete()
+            }
 
             onProgress(InstallProgress("自检运行时工具链...", 0.95f))
             val toolchain = verifyToolchainIntegrity()
@@ -418,6 +423,7 @@ class RootfsInstaller(
         val releaseTag: String = "",
     )
 }
+
 
 
 

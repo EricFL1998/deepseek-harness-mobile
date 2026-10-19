@@ -628,6 +628,7 @@ class RemoteClient(
     ): RemoteResult<PluginInventorySnapshotInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "pluginInventory/list")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {})
@@ -659,10 +660,10 @@ class RemoteClient(
                                 val moduleName = item["moduleName"]?.toString()?.trim('"') ?: return@mapNotNull null
                                 val entryId = item["entryId"]?.toString()?.trim('"')
                                 val meta = item["meta"] as? kotlinx.serialization.json.JsonObject
-                                val title = meta?.get("title")?.toString()?.trim('"')
-                                    ?: meta?.get("name")?.toString()?.trim('"')
+                                val title = localizedJsonText(meta?.get("title"))
+                                    ?: localizedJsonText(meta?.get("name"))
                                     ?: moduleName.substringAfterLast("/")
-                                val description = meta?.get("description")?.toString()?.trim('"')
+                                val description = localizedJsonText(meta?.get("description"))
                                     ?: "系统全局插件"
                                 val enabled = item["enabled"]?.toString()?.toBooleanStrictOrNull() ?: true
                                 val phase = item["fiberPhase"]?.toString()?.trim('"') ?: "active"
@@ -690,10 +691,10 @@ class RemoteClient(
                                         val mod = rowItem["moduleName"]?.toString()?.trim('"') ?: return@mapNotNull null
                                         val eid = rowItem["entryId"]?.toString()?.trim('"')
                                         val rMeta = rowItem["meta"] as? kotlinx.serialization.json.JsonObject
-                                        val title = rMeta?.get("title")?.toString()?.trim('"')
-                                            ?: rMeta?.get("name")?.toString()?.trim('"')
+                                        val title = localizedJsonText(rMeta?.get("title"))
+                                            ?: localizedJsonText(rMeta?.get("name"))
                                             ?: mod.substringAfterLast("/")
-                                        val desc = rMeta?.get("description")?.toString()?.trim('"')
+                                        val desc = localizedJsonText(rMeta?.get("description"))
                                             ?: "由 Agent 预设按会话组成"
                                         val enabled = rowItem["enabled"]?.toString()?.toBooleanStrictOrNull() ?: true
                                         val phase = rowItem["fiberPhase"]?.toString()?.trim('"') ?: "active"
@@ -747,6 +748,7 @@ class RemoteClient(
     ): RemoteResult<PluginManagerSnapshot> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "pluginManager/listBundles")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {})
@@ -804,12 +806,12 @@ class RemoteClient(
                             if (bElem is kotlinx.serialization.json.JsonObject) {
                                 val name = bElem["name"]?.toString()?.trim('"') ?: return@forEach
                                 val meta = bElem["meta"] as? kotlinx.serialization.json.JsonObject
-                                val title = meta?.get("title")?.toString()?.trim('"')
-                                    ?: meta?.get("name")?.toString()?.trim('"')
-                                    ?: bElem["title"]?.toString()?.trim('"')
+                                val title = localizedJsonText(meta?.get("title"))
+                                    ?: localizedJsonText(meta?.get("name"))
+                                    ?: localizedJsonText(bElem["title"])
                                     ?: name.substringAfterLast("/")
-                                val description = meta?.get("description")?.toString()?.trim('"')
-                                    ?: bElem["description"]?.toString()?.trim('"')
+                                val description = localizedJsonText(meta?.get("description"))
+                                    ?: localizedJsonText(bElem["description"])
                                     ?: ""
                                 val enabled = bElem["enabled"]?.toString()?.toBooleanStrictOrNull() ?: false
                                 val isExperimental = name.contains("experimental") ||
@@ -867,6 +869,7 @@ class RemoteClient(
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "pluginManager/installBundle")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
@@ -912,6 +915,7 @@ class RemoteClient(
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "pluginManager/removeBundle")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
@@ -945,6 +949,7 @@ class RemoteClient(
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "pluginManager/setBundleEnabled")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
@@ -1439,33 +1444,14 @@ class RemoteClient(
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** 官方 meta.title/description 可能是 {en, zh} 本地化对象；优先中文。 */
+private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?): String? = when (element) {
+    is kotlinx.serialization.json.JsonPrimitive -> element.content
+    is kotlinx.serialization.json.JsonObject -> {
+        listOf("zh", "zh-CN", "en").firstNotNullOfOrNull { key ->
+            (element[key] as? kotlinx.serialization.json.JsonPrimitive)?.content
+        }
+    }
+    else -> null
+}
 

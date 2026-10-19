@@ -1,11 +1,13 @@
 package com.deepseek.dsh.feature.settings
 
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
+import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -86,6 +89,10 @@ fun SettingsRootScreen(
     availableModels: List<String> = listOf("DeepSeek-V3", "DeepSeek-R1"),
     builtInPlugins: List<BuiltInPluginInfo> = emptyList(),
     pluginSnapshot: PluginInventorySnapshotInfo? = null,
+    pluginBundles: List<PluginBundleItem> = emptyList(),
+    onInstallPlugin: (String) -> Unit = {},
+    onTogglePluginBundle: (String, Boolean) -> Unit = { _, _ -> },
+    onUninstallPlugin: (String) -> Unit = {},
     runtimeStatus: com.deepseek.dsh.runtime.host.RuntimeStatus? = null,
     onStartRuntime: () -> Unit = {},
     onStopRuntime: () -> Unit = {},
@@ -103,6 +110,10 @@ fun SettingsRootScreen(
     var currentSettings by remember(settings) { mutableStateOf(settings) }
     var selectedAgentPreset by remember { mutableStateOf(settings.transcriptView) }
 
+    BackHandler(enabled = true) {
+        if (activeSection != null) activeSection = null else onClose()
+    }
+
     val bgTheme = MaterialTheme.colorScheme.background
     val cardBg = MaterialTheme.colorScheme.surface
     val textPrimary = MaterialTheme.colorScheme.onBackground
@@ -112,6 +123,7 @@ fun SettingsRootScreen(
             modifier = modifier
                 .fillMaxSize()
                 .background(bgTheme)
+                .statusBarsPadding()
         ) {
             // 顶部 Header：圆底返回按钮 + 居中标题（与全屏子页面统一的 72dp 高度）
             Box(
@@ -219,6 +231,10 @@ fun SettingsRootScreen(
                         SettingsSectionTab.PLUGINS -> SettingsPluginsPane(
                             plugins = builtInPlugins,
                             snapshot = pluginSnapshot,
+                            pluginBundles = pluginBundles,
+                            onInstallPlugin = onInstallPlugin,
+                            onTogglePluginBundle = onTogglePluginBundle,
+                            onUninstallPlugin = onUninstallPlugin,
                             onOpenConfigFile = onOpenSettingsDocument
                         )
 
@@ -313,6 +329,8 @@ private fun SettingsNavRow(
         )
     }
 }
+
+
 
 
 

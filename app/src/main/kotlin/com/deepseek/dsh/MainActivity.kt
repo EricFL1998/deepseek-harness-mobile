@@ -4,6 +4,7 @@ import com.deepseek.dsh.core.designsystem.DshIcons
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -375,6 +376,13 @@ fun MainAppHost(
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
+    LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
+        if (accountState.isSignedIn || accountState.hasApiKey) {
+            kotlinx.coroutines.delay(600)
+            dshRepository.refreshModelCatalog(activeHostId)
+            dshRepository.refreshPluginInventory(activeHostId)
+        }
+    }
     val dshApplication = context.applicationContext as DshApplication
 
     // Host 目录优先；Host 冷启动期间用上次缓存立即渲染，避免“请选择模型”闪烁。
@@ -458,6 +466,8 @@ fun MainAppHost(
                     val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
                     val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
                     oauthManager.applyHostAccount(profile, balance)
+                    dshRepository.refreshModelCatalog(activeHostId)
+                    dshRepository.refreshPluginInventory(activeHostId)
                     return@launch
                 }
                 if (state.attemptPhase in setOf("failed", "expired", "cancelled")) {
@@ -953,6 +963,12 @@ fun MainAppHost(
         ) {
             // 对话页使用完整顶栏；设置页自带标题栏（不再叠加）；其余全屏页只保留返回条，
             // 避免出现双 header。
+            BackHandler(enabled = activePage != ActivePage.CHAT) {
+                activePage = ActivePage.CHAT
+            }
+            BackHandler(enabled = drawerState.isOpen) {
+                scope.launch { drawerState.close() }
+            }
             val chatPage = activePage == ActivePage.CHAT
             val pageHasOwnHeader = activePage == ActivePage.SETTINGS
             Scaffold(
@@ -1319,6 +1335,31 @@ fun MainAppHost(
                                 availableModels = availableModelNames,
                                 builtInPlugins = builtInPluginsList,
                                 pluginSnapshot = pluginSnapshot,
+                                pluginBundles = pluginManagerSnapshot?.installedBundles.orEmpty(),
+                                onInstallPlugin = { pkgName ->
+                                    scope.launch {
+                                        val res = dshRepository.installPlugin(activeHostId, pkgName)
+                                        if (res.isSuccess) {
+                                            android.widget.Toast.makeText(context, "插件安装成功", android.widget.Toast.LENGTH_SHORT).show()
+                                            dshRepository.refreshPluginInventory(activeHostId)
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "插件安装失败: ${res.exceptionOrNull()?.message ?: "未知错误"}",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                onTogglePluginBundle = { pkgName, enabled ->
+                                    scope.launch { dshRepository.setBundleEnabled(activeHostId, pkgName, enabled) }
+                                },
+                                onUninstallPlugin = { pkgName ->
+                                    scope.launch {
+                                        dshRepository.uninstallPlugin(activeHostId, pkgName)
+                                        dshRepository.refreshPluginInventory(activeHostId)
+                                    }
+                                },
                                 runtimeStatus = status,
                                 onStartRuntime = {
                                     scope.launch {
@@ -2112,6 +2153,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 

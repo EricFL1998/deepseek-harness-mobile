@@ -1,6 +1,7 @@
 package com.deepseek.dsh.feature.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.model.AgentPresetGroupInfo
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
+import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 
 /**
@@ -55,6 +58,10 @@ import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 internal fun SettingsPluginsPane(
     plugins: List<BuiltInPluginInfo> = emptyList(),
     snapshot: PluginInventorySnapshotInfo? = null,
+    pluginBundles: List<PluginBundleItem> = emptyList(),
+    onInstallPlugin: (String) -> Unit = {},
+    onTogglePluginBundle: (String, Boolean) -> Unit = { _, _ -> },
+    onUninstallPlugin: (String) -> Unit = {},
     onOpenConfigFile: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -63,19 +70,19 @@ internal fun SettingsPluginsPane(
     var expandedPackage by remember { mutableStateOf<String?>(null) }
     var isPresetSectionOpen by remember { mutableStateOf(true) }
     var selectedPresetId by remember { mutableStateOf("standard") }
+    var selectedTab by remember { mutableStateOf(0) }
 
     val presetGroups = snapshot?.agentPresets ?: emptyList()
     val currentPresetGroup = presetGroups.find { it.id == selectedPresetId } ?: presetGroups.firstOrNull()
 
     // 过滤插件行
-    val filteredPresetRows = remember(currentPresetGroup, searchQuery) {
-        if (currentPresetGroup == null) {
-            emptyList()
-        } else if (searchQuery.isBlank()) {
-            currentPresetGroup.rows
+    val sourceRows = currentPresetGroup?.rows?.takeIf { it.isNotEmpty() } ?: plugins
+    val filteredPresetRows = remember(sourceRows, searchQuery) {
+        if (searchQuery.isBlank()) {
+            sourceRows
         } else {
             val q = searchQuery.trim().lowercase()
-            currentPresetGroup.rows.filter {
+            sourceRows.filter {
                 it.title.lowercase().contains(q) ||
                     it.packageName.lowercase().contains(q) ||
                     it.description.lowercase().contains(q)
@@ -83,6 +90,44 @@ internal fun SettingsPluginsPane(
         }
     }
 
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SettingsPaneDimens.Horizontal, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            listOf("插件列表" to 0, "插件市场" to 1).forEach { (label, index) ->
+                Column(
+                    modifier = Modifier.clickable { selectedTab = index },
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 14.sp,
+                        fontWeight = if (selectedTab == index) FontWeight.Medium else FontWeight.Normal,
+                        color = if (selectedTab == index) palette.labelPrimary else palette.labelTertiary
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 6.dp)
+                            .height(2.dp)
+                            .width(if (selectedTab == index) 28.dp else 0.dp)
+                            .background(if (selectedTab == index) palette.labelPrimary else Color.Transparent)
+                    )
+                }
+            }
+        }
+
+        if (selectedTab == 1) {
+            PluginMarketPane(
+                bundles = pluginBundles,
+                onInstallPlugin = onInstallPlugin,
+                onToggleBundle = onTogglePluginBundle,
+                onUninstallPlugin = onUninstallPlugin,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -144,33 +189,29 @@ internal fun SettingsPluginsPane(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            if (searchQuery.isEmpty()) {
                                 Text(
                                     text = "搜索插件",
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp,
-                                    color = palette.labelTertiary
+                                    color = palette.labelTertiary,
+                                    modifier = Modifier.align(Alignment.CenterStart)
                                 )
-                            },
-                            textStyle = TextStyle(
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp,
-                                color = palette.labelPrimary
-                            ),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                cursorColor = palette.labelPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                    color = palette.labelPrimary
+                                ),
+                                cursorBrush = androidx.compose.ui.graphics.SolidColor(palette.labelPrimary),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -264,6 +305,113 @@ internal fun SettingsPluginsPane(
                     }
                 }
             }
+        }
+        }
+    }
+}
+
+@Composable
+private fun PluginMarketPane(
+    bundles: List<PluginBundleItem>,
+    onInstallPlugin: (String) -> Unit,
+    onToggleBundle: (String, Boolean) -> Unit,
+    onUninstallPlugin: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = LocalSettingsPalette.current
+    var packageInput by remember { mutableStateOf("") }
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            start = SettingsPaneDimens.Horizontal,
+            end = SettingsPaneDimens.Horizontal,
+            top = 8.dp,
+            bottom = SettingsPaneDimens.Bottom,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item(key = "market_head") {
+            Column {
+                SettingsPaneTitle(text = "插件市场", large = true)
+                SettingsIntro(text = "安装、启用和管理 Host 插件；插件由 DSH Host 提供。")
+            }
+        }
+        item(key = "market_install") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsIntro(text = "安装插件")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = palette.moduleFill,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL4),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = packageInput,
+                            onValueChange = { packageInput = it },
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 13.sp, color = palette.labelPrimary),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(palette.labelPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            val spec = packageInput.trim()
+                            if (spec.isNotEmpty()) {
+                                onInstallPlugin(spec)
+                                packageInput = ""
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = "安装",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+                        )
+                    }
+                }
+            }
+        }
+        item(key = "market_installed_title") {
+            SettingsIntro(text = if (bundles.isEmpty()) "暂无已安装的市场插件。" else "已安装插件")
+        }
+        items(bundles.size, key = { "bundle_${bundles[it].packageName}" }) { index ->
+            val bundle = bundles[index]
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = palette.moduleFill,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(bundle.title, fontSize = 14.sp, color = palette.labelPrimary)
+                            Text(bundle.packageName, fontSize = 11.sp, color = palette.labelTertiary)
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = bundle.enabled,
+                            onCheckedChange = { onToggleBundle(bundle.packageName, it) }
+                        )
+                    }
+                    if (bundle.description.isNotBlank()) {
+                        Text(bundle.description, fontSize = 12.sp, color = palette.labelSecondary)
+                    }
+                    Text(
+                        text = "卸载",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable { onUninstallPlugin(bundle.packageName) }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -377,4 +525,7 @@ private fun PluginFactRow(label: String, value: String) {
         )
     }
 }
+
+
+
 
