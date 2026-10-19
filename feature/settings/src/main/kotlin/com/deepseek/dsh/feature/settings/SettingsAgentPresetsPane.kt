@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.designsystem.DshDialogCloseButton
 import com.deepseek.dsh.core.designsystem.DshHeadlessModal
 import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
+import com.deepseek.dsh.core.model.AgentPresetGroupInfo
 
 /**
  * Agent 预设（右侧面板 AgentPresetSection）。
@@ -54,9 +55,21 @@ import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
 internal fun SettingsAgentPresetsPane(
     selectedPresetId: String,
     onSelectPreset: (String) -> Unit,
+    presetGroups: List<AgentPresetGroupInfo> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     var guide by remember { mutableStateOf<GuideDialog?>(null) }
+    // 预设是否存在/名称由 Host 决定；说明文案是官方内置 i18n，仅按 id 匹配。
+    val presets = presetGroups.map { group ->
+        AgentPresets.firstOrNull { it.id == group.id }
+            ?: AgentPreset(
+                id = group.id,
+                name = group.name,
+                description = "",
+                explanation = "",
+                usage = "",
+            )
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -78,7 +91,12 @@ internal fun SettingsAgentPresetsPane(
         item(key = "agent_presets_group") {
             SettingsGroupHeading("内置")
         }
-        AgentPresets.forEach { preset ->
+        if (presets.isEmpty()) {
+            item(key = "agent_presets_empty") {
+                SettingsIntro(text = "暂无 Agent 预设。")
+            }
+        }
+        presets.forEach { preset ->
             item(key = preset.id) {
                 val selected = preset.id == selectedPresetId
                 AgentPresetCard(
@@ -431,3 +449,4 @@ private val AgentPresets: List<AgentPreset> = listOf(
         usage = plainGuide(PresetGuideRaw.CordisUsage),
     ),
 )
+

@@ -147,9 +147,6 @@ fun PluginsScreen(
                             onToggleAddMenu = { addMenuOpen = !addMenuOpen },
                             onDismissAddMenu = { addMenuOpen = false },
                             onRefresh = { /* 本地目录刷新由 Host 推送；此处保持官方按钮形态 */ },
-                            onCreatePlugin = {
-                                Toast.makeText(context, "创造模式将在后续版本接入", Toast.LENGTH_SHORT).show()
-                            },
                         )
                     }
 
@@ -226,8 +223,7 @@ fun PluginsScreen(
                 packageInput = pluginPackageInput,
                 onPackageInputChange = { pluginPackageInput = it },
                 statusMessage = installStatusMessage,
-                onFillExample = { pluginPackageInput = "dsh-subscription-oauth" },
-                onInstall = {
+                    onInstall = {
                     val spec = pluginPackageInput.trim()
                     if (spec.isNotEmpty()) {
                         onInstallPlugin(spec)
@@ -270,7 +266,6 @@ private fun PluginsPageHead(
     onToggleAddMenu: () -> Unit,
     onDismissAddMenu: () -> Unit,
     onRefresh: () -> Unit,
-    onCreatePlugin: () -> Unit,
 ) {
     val colors = LocalDshPanelColors.current
     Row(
@@ -339,10 +334,6 @@ private fun PluginsPageHead(
                     onInstallExternal = {
                         onDismissAddMenu()
                         onAddPluginClick()
-                    },
-                    onCreatePlugin = {
-                        onDismissAddMenu()
-                        onCreatePlugin()
                     },
                 )
             }
@@ -429,7 +420,6 @@ private fun PluginsAddMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onInstallExternal: () -> Unit,
-    onCreatePlugin: () -> Unit,
 ) {
     AnchoredMenuPopup(
         expanded = expanded,
@@ -442,12 +432,6 @@ private fun PluginsAddMenu(
             title = "安装第三方插件",
             description = "支持 npm 包、Git 仓库和本地目录",
             onClick = onInstallExternal,
-        )
-        AddPluginMenuItem(
-            iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_agent_preset_outline,
-            title = "让 Agent 创建插件",
-            description = "进入创造模式，制作属于你的 DSH 插件",
-            onClick = onCreatePlugin,
         )
     }
 }
@@ -830,7 +814,6 @@ private fun PluginDetailContent(
                     lineHeight = 28.sp,
                     fontWeight = FontWeight.Medium,
                 )
-                VersionTag(version = pluginVersion(item))
             }
             Text(
                 text = item.pluginId,
@@ -840,12 +823,6 @@ private fun PluginDetailContent(
                 lineHeight = 18.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = pluginDescription(item),
-                color = colors.labelSecondary,
-                fontSize = 14.sp,
-                lineHeight = 22.sp,
             )
         }
 
@@ -887,11 +864,11 @@ private fun PluginDetailContent(
         )
         Spacer(Modifier.height(12.dp))
         DetailFactRow(
-            label = "代码来源",
-            value = "${item.pluginId}@${pluginVersion(item)}",
+            label = "插件 ID",
+            value = item.pluginId,
             monospace = true,
         )
-        DetailFactRow(label = "当前版本", value = pluginVersion(item))
+        DetailFactRow(label = "挂载位置", value = item.slot)
     }
 }
 
@@ -927,14 +904,6 @@ private fun PluginComponentRow(
                 lineHeight = 22.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = pluginDescription(item),
-                color = colors.labelTertiary,
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
@@ -1088,23 +1057,6 @@ private fun UninstallButton(onClick: () -> Unit) {
 private fun pluginIcon(item: SurfaceItem): ImageVector =
     if (item.kind == SurfaceKind.OVERLAY) Icons.Default.Widgets else Icons.Default.Build
 
-/** 插件版本（本地示例目录；Host 上报版本后可替换为此数据源）。 */
-private fun pluginVersion(item: SurfaceItem): String = when {
-    item.pluginId.contains("subscription-oauth") -> "0.26.0"
-    item.pluginId.contains("whale-pet") -> "1.0.0"
-    else -> "1.0.0"
-}
-
-/** 插件一句话说明（官方 packageText/description 在本地目录中的等价文案）。 */
-private fun pluginDescription(item: SurfaceItem): String = when {
-    item.pluginId.contains("subscription-oauth") -> "官方订阅服务与额度 OAuth 认证扩展"
-    item.pluginId.contains("whale-pet") -> "桌面鲸鱼桌宠与系统运行状态监控"
-    item.kind == SurfaceKind.OVERLAY -> "系统状态浮层与桌面挂件插件"
-    item.kind == SurfaceKind.PAGE -> "设置页原生插件扩展"
-    item.kind == SurfaceKind.DOCK -> "输入栏 dock 插件扩展"
-    else -> "DSH 原生插件扩展"
-}
-
 /** 图标框：0.5dp border-l3 细线框 + 二级色描边图标（卡片头 48/R16，组件行 40/R12）。 */
 @Composable
 private fun PluginsIconFrame(
@@ -1207,7 +1159,6 @@ private fun PluginsInstallDialog(
     packageInput: String,
     onPackageInputChange: (String) -> Unit,
     statusMessage: String?,
-    onFillExample: () -> Unit,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -1237,20 +1188,6 @@ private fun PluginsInstallDialog(
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
                 )
-                Text(
-                    text = "填入示例",
-                    color = colors.labelPrimary,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onFillExample,
-                        )
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                )
             }
             if (statusMessage != null) {
                 Text(
@@ -1274,3 +1211,4 @@ private fun PluginsInstallDialog(
         },
     )
 }
+

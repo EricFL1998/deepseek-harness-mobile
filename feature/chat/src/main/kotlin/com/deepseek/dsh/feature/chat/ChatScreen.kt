@@ -158,9 +158,6 @@ private data class ComposerCommand(
     val iconResId: Int,
 )
 
-/** 模型目录（DeepSeek 模型）。 */
-private val MODEL_CATALOG = listOf("DeepSeek-V3", "DeepSeek-R1", "DeepSeek-V3.2")
-
 /**
  * 主聊天页：信息结构 + 手机端（ChatGPT Android）尺度的输入区。
  *
@@ -178,8 +175,8 @@ fun ModernChatScreen(
     onWorkspaceClick: () -> Unit = {},
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenAttachmentMenu: () -> Unit = {},
-    selectedModel: String = "DeepSeek-V3",
-    availableModels: List<String> = MODEL_CATALOG,
+    selectedModel: String = "",
+    availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     onModelSelected: (String) -> Unit = {},
     selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
@@ -1744,7 +1741,7 @@ fun BottomInputBar(
     onSend: () -> Unit,
     onPlusClick: () -> Unit,
     selectedModel: String,
-    availableModels: List<String> = MODEL_CATALOG,
+    availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     effortLabel: String,
     reasoningOptions: List<ReasoningOption> = emptyList(),
@@ -2061,6 +2058,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 

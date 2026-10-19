@@ -57,7 +57,7 @@ enum class SettingsSectionTab(
     // 顺序与 settings 导航一致（order: account -10, general 0, models 10, plugins 15, agent-presets 20）
     ACCOUNT("account", "账号与余额", "DeepSeek 官方 OAuth 授权与余额", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user),
     GENERAL("general", "通用设置", "界面、语言与启动行为", com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
-    MODELS("models", "模型", "DeepSeek-V3 / R1 与 API Key 配置", com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model),
+    MODELS("models", "模型", "提供商、模型与 API Key 配置", com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model),
     PLUGINS("plugins", "内置插件", "已安装插件与配置", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_personalization),
     AGENT_PRESETS("agent-presets", "Agent 预设", "工作过程模式：紧凑 / 标准 / 详细", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_agent_preset),
     ARCHIVED("archived-sessions", "归档会话", "已归档的会话记录与快照", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
@@ -242,6 +242,7 @@ fun SettingsRootScreen(
 
                         SettingsSectionTab.AGENT_PRESETS -> SettingsAgentPresetsPane(
                             selectedPresetId = selectedAgentPreset,
+                            presetGroups = pluginSnapshot?.agentPresets.orEmpty(),
                             onSelectPreset = { preset ->
                                 selectedAgentPreset = preset
                                 val updated = currentSettings.copy(transcriptView = preset)
@@ -331,6 +332,8 @@ private fun SettingsNavRow(
         )
     }
 }
+
+
 
 
 

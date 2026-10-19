@@ -193,7 +193,8 @@ class RemoteClient(
     override suspend fun createSession(
         hostId: String,
         title: String,
-        workspacePath: String?
+        workspacePath: String?,
+        agentPreset: String?
     ): RemoteResult<SessionInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
@@ -203,6 +204,7 @@ class RemoteClient(
                 put("args", buildJsonObject {
                     put("request", buildJsonObject {
                         if (workspacePath != null) put("cwd", workspacePath)
+                        if (!agentPreset.isNullOrBlank()) put("agentPreset", agentPreset)
                     })
                 })
             })
@@ -451,7 +453,7 @@ class RemoteClient(
                     )
                 } ?: emptyList()
                 val default = value["default"] as? kotlinx.serialization.json.JsonObject
-                val defaultModel = default?.get("model")?.toString()?.trim('"') ?: "DeepSeek-V3"
+                val defaultModel = default?.get("model")?.toString()?.trim('"') ?: ""
                 val routable = (value["routableProviders"] as? kotlinx.serialization.json.JsonArray)
                     ?.mapNotNull { it.toString().trim('"') } ?: emptyList()
                 RemoteResult.Success(ModelCatalogInfo(routableProviders = routable, groups = groups, defaultModel = defaultModel))
@@ -760,32 +762,8 @@ class RemoteClient(
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
-        val basicConfigs = listOf(
-            PluginConfigItem(
-                id = "subagent",
-                title = "子智能体",
-                description = "设置子智能体的递归层级、数量和模型。",
-                iconKey = "subagent"
-            ),
-            PluginConfigItem(
-                id = "web-search",
-                title = "网页搜索",
-                description = "设置 DeepSeek 的搜索提供方。",
-                iconKey = "web-search"
-            ),
-            PluginConfigItem(
-                id = "agent-loop",
-                title = "Agent 循环",
-                description = "控制 Agent 派发工具调用的方式。",
-                iconKey = "agent-loop"
-            ),
-            PluginConfigItem(
-                id = "shell",
-                title = "终端",
-                description = "限制每条命令最多能跑多久、最多输出多少内容。",
-                iconKey = "shell"
-            )
-        )
+        // Host 未提供基础配置时保持为空，不伪造配置项。
+        val basicConfigs = emptyList<PluginConfigItem>()
 
         try {
             client.newCall(request).execute().use { response ->
@@ -1479,6 +1457,11 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
     }
     else -> null
 }
+
+
+
+
+
 
 
 

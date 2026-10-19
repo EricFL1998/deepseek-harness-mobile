@@ -255,8 +255,8 @@ class DshRepository(
         }
     }
 
-    suspend fun createSession(hostId: String, title: String, workspacePath: String?): Result<SessionInfo> {
-        val res = client.createSession(hostId, title, workspacePath)
+    suspend fun createSession(hostId: String, title: String, workspacePath: String?, agentPreset: String? = null): Result<SessionInfo> {
+        val res = client.createSession(hostId, title, workspacePath, agentPreset)
         return when (res) {
             is RemoteResult.Success -> {
                 val session = res.data
@@ -457,6 +457,7 @@ class DshRepository(
         }
     }
 }
+
 
 
 

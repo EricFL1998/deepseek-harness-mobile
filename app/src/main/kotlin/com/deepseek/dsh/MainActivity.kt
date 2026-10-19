@@ -1133,7 +1133,8 @@ fun MainAppHost(
                                             suspend fun createOnce(): String? = dshRepository.createSession(
                                                 activeHostId,
                                                 text.take(24),
-                                                activeWorkspaceCwd
+                                                activeWorkspaceCwd,
+                                                currentAppSettings.transcriptView.takeIf { it.isNotBlank() }
                                             ).getOrNull()?.sessionId
                                             sid = createOnce()
                                             if (sid == null) {
@@ -2175,6 +2176,7 @@ private fun formatAmount(raw: String): String {
     val num = clean.toDoubleOrNull() ?: return "¥$raw"
     return String.format(java.util.Locale.US, "¥%.2f", num)
 }
+
 
 
 

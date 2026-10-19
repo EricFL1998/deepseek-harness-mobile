@@ -116,7 +116,7 @@ data class ModelProviderGroup(
 data class ModelCatalogInfo(
     val routableProviders: List<String> = emptyList(),
     val groups: List<ModelProviderGroup> = emptyList(),
-    val defaultModel: String = "DeepSeek-V3"
+    val defaultModel: String = ""
 )
 
 /**
@@ -125,8 +125,8 @@ data class ModelCatalogInfo(
  */
 @Serializable
 data class AppSettings(
-    val defaultModel: String = "DeepSeek-V3",
-    val defaultReasoningLevel: String = "FAST",
+    val defaultModel: String = "",
+    val defaultReasoningLevel: String = "",
     val idleStopMinutes: Int = 5,           // 空闲 5 分钟后停止容器 (0 = 常驻)
     val keepAliveOnTask: Boolean = true,    // 后台有任务时保持运行
     val autoBootRecovery: Boolean = false,  // 开机恢复
@@ -280,5 +280,6 @@ data class SurfaceCatalog(
     val dshVersion: String,
     val surfaces: List<SurfaceItem> = emptyList()
 )
+
 
 
