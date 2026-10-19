@@ -330,6 +330,8 @@ fun MainAppHost(
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
+    val pluginSettingsPages by dshRepository.pluginSettingsPagesFlow.collectAsState()
+    val pluginSlotSurfaces by dshRepository.pluginSlotSurfacesFlow.collectAsState()
     val pluginRows by dshRepository.pluginRowsFlow.collectAsState()
     // 插件页目录来自 bridge/v1：官方 slot 注册优先，Host 原生清单兜底。
     val bridgePluginCatalog by dshRepository.bridgePluginCatalogFlow.collectAsState()
@@ -395,6 +397,7 @@ fun MainAppHost(
         // bridge 目录与 Host 原生清单并行读取：前者带来官方 slot 与图形，
         // 后者是它不可用时的兜底，两者互不阻塞。
         dshRepository.refreshBridgePluginCatalog()
+        dshRepository.refreshPluginSettingsPages()
         dshRepository.refreshAutomationTasks(activeHostId)
         dshRepository.refreshTeamTasks(activeHostId)
         dshRepository.refreshApprovals(activeHostId)
@@ -557,6 +560,7 @@ fun MainAppHost(
             // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
             // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
             dshRepository.refreshBridgePluginCatalog()
+            dshRepository.refreshPluginSettingsPages()
             // 从 Host 恢复账号态（官方 account/watch 的初值）。
             val accountView = dshRepository.getAccountState(activeHostId).getOrNull()
             if (accountView?.status == "credential-stored") {
@@ -1328,6 +1332,8 @@ fun MainAppHost(
                                 pluginRows = pluginRows,
                                 bridgeCatalog = bridgePluginCatalog,
                                 bridgeWarnings = bridgeWarnings,
+                                hostSettingsPages = pluginSettingsPages,
+                                rowConfigSurfaces = pluginSlotSurfaces.filter { it.slot == "plugins.row.config" },
                                 onOpenSurface = { item ->
                                     if (item.kind == SurfaceKind.OVERLAY) {
                                         activeOverlaySurface = item
@@ -1357,6 +1363,7 @@ fun MainAppHost(
                                         // 这只是确认；失败时它会把开关拨回真实状态，而不是
                                         // 让界面停在用户按下的那个位置。
                                         dshRepository.refreshBridgePluginCatalog()
+            dshRepository.refreshPluginSettingsPages()
                                         dshRepository.refreshPluginInventory(activeHostId)
                                     }
                                 },
@@ -1427,6 +1434,7 @@ fun MainAppHost(
 
                         ActivePage.SETTINGS -> {
                             com.deepseek.dsh.feature.settings.SettingsRootScreen(
+                                pluginSettingsPages = pluginSettingsPages,
                                 settings = currentAppSettings,
                                 initialSection = settingsInitialSection,
                                 onUpdateSettings = { updated ->

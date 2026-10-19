@@ -36,6 +36,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
@@ -110,6 +111,10 @@ fun PluginsScreen(
     pluginRows: List<PluginRowInfo> = emptyList(),
     bridgeCatalog: BridgePluginCatalogData = BridgePluginCatalogData(BridgePluginCatalogSource.NONE),
     bridgeWarnings: List<String> = emptyList(),
+    /** Host 声明的设置页位置（`settings.page`）：官方配置条目的唯一来源。 */
+    hostSettingsPages: List<com.deepseek.dsh.core.model.PluginSettingsPage> = emptyList(),
+    /** 插件声明在行级的原生配置入口（plugins.row.config），来自 Host 的服务端数据。 */
+    rowConfigSurfaces: List<com.deepseek.dsh.core.bridge.BridgeSlotSurface> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
@@ -123,16 +128,30 @@ fun PluginsScreen(
     // 官方插件分类只有一个来源：bridge 的 `client-slots/plugins.item` 注册。
     // 文案、顺序与图形都是官方客户端自己的资源。bridge 不可用时这个分组直接
     // 不出现 —— 宁可少一行，也不拿写死的分类表冒充官方数据。
-    val officialConfigItems = remember(bridgeCatalog) {
-        bridgeCatalog.categories.map { category ->
-            OfficialConfigItem(
-                id = category.id,
-                title = category.label,
-                // 官方卡片的 summary 由组件渲染；这里只保留一个中性的空说明。
-                description = "",
-                iconRes = 0,
-                iconSvg = category.iconSvg,
-            )
+    // 官方设置条目的**来源**是 Host：凡是声明了设置页的插件，Host 都会为它生成命名空间，
+    // bridge 的 `host-slots` 把这些位置报上来。只有 Host 没报任何条目时，才回落到
+    // 客户端 bundle 的 `plugins.item` 注册（那条路在预构建 web 客户端上通常为空）。
+    val officialConfigItems = remember(bridgeCatalog, hostSettingsPages) {
+        if (hostSettingsPages.isNotEmpty()) {
+            hostSettingsPages.map { page ->
+                OfficialConfigItem(
+                    id = page.id,
+                    title = page.title,
+                    description = page.description.orEmpty(),
+                    iconRes = 0,
+                    iconSvg = null,
+                )
+            }
+        } else {
+            bridgeCatalog.categories.map { category ->
+                OfficialConfigItem(
+                    id = category.id,
+                    title = category.label,
+                    description = "",
+                    iconRes = 0,
+                    iconSvg = category.iconSvg,
+                )
+            }
         }
     }
     var disabledPlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -305,6 +324,37 @@ fun PluginsScreen(
                                 onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
                                 onUninstall = { },
                                 locked = isLockedBundle(bundle.packageName),
+                            )
+                        }
+                    }
+
+                    // 插件声明的行级配置入口：与设置页同一套机制，按 slot 分派到插件页。
+                    if (rowConfigSurfaces.isNotEmpty()) {
+                        item(key = "row_config_head") {
+                            PluginsGroupTitle(
+                                text = "插件配置",
+                                modifier = Modifier.padding(
+                                    top = PluginsDimens.SectionGap,
+                                    bottom = PluginsDimens.GroupTitleGap,
+                                ),
+                            )
+                        }
+                        itemsIndexed(
+                            items = rowConfigSurfaces,
+                            key = { index, surface -> "row_config_${index}_${surface.id}" },
+                        ) { index, surface ->
+                            RowConfigRow(
+                                surface = surface,
+                                showDivider = index != rowConfigSurfaces.lastIndex,
+                                onClick = {
+                                    // id 形如 <bundle>#<rowId>：打开所属 bundle 的详情页。
+                                    val bundleName = surface.id.substringBefore("#")
+                                    val target = (derivedExperimentalBundles + derivedMoreBundles +
+                                        derivedInstalledBundles).firstOrNull {
+                                        it.packageName == bundleName
+                                    }
+                                    if (target != null) selectedBundle = target
+                                },
                             )
                         }
                     }
@@ -501,6 +551,78 @@ private fun optionalBundleRank(name: String): Int {
  */
 private fun pinnedToMainList(bundle: PluginBundleItem): Boolean =
     !MORE_BUNDLES.contains(bundle.packageName) || bundle.enabled
+
+
+/**
+ * 一条行级配置入口：标题 + 说明，点开所属 bundle 的详情页。
+ *
+ * 与设置页的插件条目同一套数据，只是落在插件页：位置由 slot 决定，客户端不自己判断。
+ */
+@Composable
+private fun RowConfigRow(
+    surface: com.deepseek.dsh.core.bridge.BridgeSlotSurface,
+    showDivider: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = LocalDshPanelColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 2.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.bgModulePlatform),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin),
+                    contentDescription = null,
+                    tint = colors.labelSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = surface.title,
+                    color = colors.labelPrimary,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = surface.description ?: surface.id.substringAfter("#"),
+                    color = colors.labelTertiary,
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.labelTertiary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (showDivider) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(colors.borderL2),
+            )
+        }
+    }
+}
 
 /**
  * 这个包是否随 DSH 安装一起提供。

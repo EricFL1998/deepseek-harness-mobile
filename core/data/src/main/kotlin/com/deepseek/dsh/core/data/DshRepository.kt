@@ -1,6 +1,8 @@
 package com.deepseek.dsh.core.data
 
 import com.deepseek.dsh.core.bridge.BridgePluginCatalog
+import com.deepseek.dsh.core.bridge.BridgeResult
+import com.deepseek.dsh.core.bridge.BridgeSlotSurface
 import com.deepseek.dsh.core.bridge.BridgePluginCatalogData
 import com.deepseek.dsh.core.bridge.BridgePluginCatalogSource
 import com.deepseek.dsh.core.bridge.BridgeRegistry
@@ -14,6 +16,7 @@ import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.ComposerStats
 import com.deepseek.dsh.core.model.MessageRole
+import com.deepseek.dsh.core.model.PluginSettingsPage
 import com.deepseek.dsh.core.model.ModelCatalogInfo
 import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginConfigItem
@@ -99,6 +102,53 @@ class DshRepository(
 
     /** 当前 bridge 门面；未绑定时为 null。 */
     fun bridge(): BridgeRegistry? = bridgeRegistry
+
+    private val _pluginSettingsPagesFlow =
+        MutableStateFlow<List<PluginSettingsPage>>(emptyList())
+
+    private val _pluginSlotSurfacesFlow =
+        MutableStateFlow<List<BridgeSlotSurface>>(emptyList())
+
+    /** 插件声明的全部原生界面入口，按 `slot` 分派；UI 只认自己实现的位置。 */
+    val pluginSlotSurfacesFlow: StateFlow<List<BridgeSlotSurface>>
+        get() = _pluginSlotSurfacesFlow.asStateFlow()
+
+    /** 插件声明、映射到原生设置页的入口；内容页尚未实现。 */
+    val pluginSettingsPagesFlow: StateFlow<List<PluginSettingsPage>> =
+        _pluginSettingsPagesFlow.asStateFlow()
+
+    /**
+     * 读取插件声明的设置页入口。
+     *
+     * 与插件目录不同，这条来自 Host 的服务端数据（设置命名空间），因此在没有可评估
+     * 客户端 bundle 的 Host 上也成立。失败不抛异常：条目消失比整页报错好。
+     */
+    suspend fun refreshPluginSettingsPages() {
+        val registry = bridgeRegistry ?: run {
+            _pluginSlotSurfacesFlow.value = emptyList()
+            _pluginSettingsPagesFlow.value = emptyList()
+            return
+        }
+        val surfaces = when (val result = registry.hostSlotSurfaces()) {
+            is BridgeResult.Success -> result.value.surfaces
+            is BridgeResult.Failure -> {
+                _pluginSlotSurfacesFlow.value = emptyList()
+                _pluginSettingsPagesFlow.value = emptyList()
+                return
+            }
+        }
+        _pluginSlotSurfacesFlow.value = surfaces
+        _pluginSettingsPagesFlow.value = surfaces
+            .filter { it.slot == SETTINGS_PAGE_SLOT }
+            .map { surface ->
+                PluginSettingsPage(
+                    id = surface.id,
+                    title = surface.title,
+                    description = surface.description,
+                    module = surface.module,
+                )
+            }
+    }
 
     /**
      * 读取一次插件目录。
@@ -544,21 +594,5 @@ class DshRepository(
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** 原生设置页位置；bridge 用这个名字说明条目该落在设置里。 */
+private const val SETTINGS_PAGE_SLOT = "settings.page"

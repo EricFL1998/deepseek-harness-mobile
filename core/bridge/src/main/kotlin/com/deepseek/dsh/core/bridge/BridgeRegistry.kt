@@ -106,6 +106,17 @@ class BridgeRegistry(
     // ── package-inventory ────────────────────────────────────────────────────
 
     /** 读取 Host 的 bundle 清单，可按名字收窄。 */
+    /**
+     * 读取 Host 能枚举的、映射到原生界面的插件贡献。
+     *
+     * 与 `slotRegistrations` 的区别：那条路要评估客户端 bundle，预构建的 web 客户端
+     * 没有可评估的 entry；这条路读的是 Host 自己的服务端数据，因此在这些 Host 上仍然可用。
+     */
+    suspend fun hostSlotSurfaces(): BridgeResult<BridgeSlotSurfaceList> = query(
+        provider = BridgeHostSlotsProvider,
+        op = "list",
+    ) { json.decodeFromString(BridgeSlotSurfaceList.serializer(), it.toString()) }
+
     suspend fun bundles(name: String? = null): BridgeResult<BridgeInventory> = query(
         provider = BridgeProtocol.PROVIDER_PACKAGE_INVENTORY,
         op = "bundles",
@@ -216,3 +227,5 @@ private val VIEW_BOX = Regex("""viewBox="([^"]+)"""")
 internal fun JsonElement.asNodeList(): List<BridgeRenderNode> = jsonArray.map {
     BridgeJson.instance.decodeFromString(BridgeRenderNode.serializer(), it.toString())
 }
+
+internal const val BridgeHostSlotsProvider = "host-slots"

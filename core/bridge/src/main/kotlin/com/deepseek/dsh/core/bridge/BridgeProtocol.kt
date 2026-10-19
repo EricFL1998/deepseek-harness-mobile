@@ -289,3 +289,24 @@ data class BridgeMetaIcon(
     val name: String = "",
     val icon: String? = null,
 )
+
+/**
+ * `host-slots/list` 的一条条目。
+ *
+ * `slot` 是**原生**位置（例如 `settings.page`），不是浏览器 slot 名：bridge 已经把
+ * 服务端能枚举的贡献归好类，客户端直接照位置渲染，不再自己推导。
+ */
+@Serializable
+data class BridgeSlotSurface(
+    val slot: String,
+    val id: String,
+    val title: String,
+    val description: String? = null,
+    val module: String? = null,
+)
+
+/** `host-slots/list` 的响应体。 */
+@Serializable
+data class BridgeSlotSurfaceList(
+    val surfaces: List<BridgeSlotSurface> = emptyList(),
+)

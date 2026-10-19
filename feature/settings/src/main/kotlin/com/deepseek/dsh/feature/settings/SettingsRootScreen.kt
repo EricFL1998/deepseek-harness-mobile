@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -84,6 +85,8 @@ fun SettingsRootScreen(
     onSignIn: () -> Unit = {},
     onSignOut: () -> Unit = {},
     initialSection: SettingsSectionTab? = null,
+    /** 插件声明的设置页入口；点开只有标题与说明，内容页尚未实现。 */
+    pluginSettingsPages: List<com.deepseek.dsh.core.model.PluginSettingsPage> = emptyList(),
     availableModels: List<String> = emptyList(),
     modelProvidersRaw: String? = null,
     modelSettingsRaw: String? = null,
@@ -105,6 +108,9 @@ fun SettingsRootScreen(
     modifier: Modifier = Modifier
 ) {
     var activeSection by remember { mutableStateOf<SettingsSectionTab?>(initialSection) }
+    var activePluginPage by remember {
+        mutableStateOf<com.deepseek.dsh.core.model.PluginSettingsPage?>(null)
+    }
     var currentSettings by remember(settings) { mutableStateOf(settings) }
     var selectedAgentPreset by remember { mutableStateOf(settings.transcriptView) }
 
@@ -167,7 +173,12 @@ fun SettingsRootScreen(
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "settings_nav"
             ) { section ->
-                if (section == null) {
+                if (activePluginPage != null) {
+                    PluginSettingsStub(
+                        page = activePluginPage!!,
+                        onBack = { activePluginPage = null },
+                    )
+                } else if (section == null) {
                     // 移动端设置主页：分组卡片内的分区行（图标 + 标签 + 箭头）。
                     LazyColumn(
                         modifier = Modifier
@@ -193,6 +204,43 @@ fun SettingsRootScreen(
                                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                                                 modifier = Modifier.padding(start = 52.dp, end = 16.dp),
                                             )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // 插件声明的设置页：Host 为每个声明了 Config 的插件行生成命名空间，
+                        // 这里按同一个顺序列出来；内容页尚未实现。
+                        if (pluginSettingsPages.isNotEmpty()) {
+                            item(key = "plugin_settings_card_head") {
+                                Text(
+                                    text = "插件设置",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
+                                )
+                            }
+                            item(key = "plugin_settings_card") {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = cardBg,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column {
+                                        pluginSettingsPages.forEachIndexed { index, page ->
+                                            SettingsNavRow(
+                                                title = page.title,
+                                                subtitle = page.description ?: page.id,
+                                                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
+                                                onClick = { activePluginPage = page },
+                                            )
+                                            if (index != pluginSettingsPages.lastIndex) {
+                                                HorizontalDivider(
+                                                    thickness = 0.5.dp,
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                    modifier = Modifier.padding(start = 52.dp, end = 16.dp),
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -288,6 +336,115 @@ fun SettingsRootScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+
+/** 设置列表行：插件声明的条目用这个重载（只有标题、说明与图标）。 */
+@Composable
+private fun SettingsNavRow(
+    title: String,
+    subtitle: String?,
+    iconResId: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(id = iconResId),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/**
+ * 插件设置页的占位内容。
+ *
+ * 这一版只打通「入口出现」：真正渲染插件自己的表单需要 Host 的 schema 投影与保存
+ * 通道，留到下一步。这里明确写出来，避免看起来像加载失败。
+ */
+@Composable
+private fun PluginSettingsStub(
+    page: com.deepseek.dsh.core.model.PluginSettingsPage,
+    onBack: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clickable(onClick = onBack)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回设置",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = page.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            page.description?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+            Text(
+                text = "该插件的设置界面尚未接入，条目已按 Host 声明生成。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = page.module ?: page.id,
+                color = MaterialTheme.colorScheme.outline,
+                fontSize = 11.sp,
+            )
         }
     }
 }

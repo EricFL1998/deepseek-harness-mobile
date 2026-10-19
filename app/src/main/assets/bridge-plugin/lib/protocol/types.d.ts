@@ -224,3 +224,25 @@ export interface RpcInvokeData {
     readonly method: string;
     readonly result: unknown;
 }
+/**
+ * One contribution the Host can enumerate server-side, named with the native
+ * surface it belongs in.
+ *
+ * `slot` is the native placement, not a browser slot name: a phone app maps
+ * `settings.page` to its own Settings list. Keeping the browser vocabulary here
+ * would force every client to re-derive the placement.
+ */
+export interface SlotSurface {
+    /** Native placement, such as `settings.page`. */
+    readonly slot: string;
+    /** Stable identity within that placement. */
+    readonly id: string;
+    readonly title: string;
+    readonly description?: string;
+    /** Module that contributes the surface, when the Host reports one. */
+    readonly module?: string;
+}
+/** `host-slots` / `list` data. */
+export interface SlotSurfaceData {
+    readonly surfaces: readonly SlotSurface[];
+}

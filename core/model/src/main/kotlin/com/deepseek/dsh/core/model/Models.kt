@@ -317,3 +317,17 @@ data class SurfaceCatalog(
 
 
 
+
+/**
+ * 一个插件声明的、映射到原生界面的入口。
+ *
+ * 目前只有设置页一种：插件只要声明了 `Config` schema，Host 就会为它生成一个设置
+ * 命名空间，原生设置里也就应当出现对应条目。内容页尚未实现，条目先只负责导航。
+ */
+@Serializable
+data class PluginSettingsPage(
+    val id: String,
+    val title: String,
+    val description: String? = null,
+    val module: String? = null,
+)

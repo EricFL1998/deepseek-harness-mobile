@@ -19,6 +19,7 @@ import { BRIDGE_BASE_PATH, BRIDGE_VERSION, MANIFEST_PATH, QUERY_PATH } from "./p
 import { createClientAssetsProvider, } from "./providers/client-assets.js";
 import { createClientSlotsProvider, } from "./providers/client-slots.js";
 import { createPackageInventoryProvider, } from "./providers/package-inventory.js";
+import { createHostSlotsProvider } from "./providers/host-slots.js";
 import { createRpcProvider } from "./providers/rpc.js";
 import { DEFAULT_RENDER_BUDGET } from "./slots/render-tree.js";
 /** Cordis function-plugin name. */
@@ -118,6 +119,11 @@ function assembleProviders(ctx, config) {
         maxIconSize: config.maxIconSize,
         iconViewBox: config.iconViewBox,
         installModules: () => installModulesPath(),
+        localeTags: config.localeTags,
+    }));
+    registry.add(createHostSlotsProvider({
+        settings: () => ctx.get('settings'),
+        pluginInventory: () => ctx.get('pluginInventory'),
         localeTags: config.localeTags,
     }));
     registry.add(createPackageInventoryProvider({
