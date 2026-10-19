@@ -95,6 +95,7 @@ fun PluginsScreen(
     onInstallPlugin: (String) -> Unit,
     onToggleBundle: (String, Boolean) -> Unit = { _, _ -> },
     onUninstall: (SurfaceItem) -> Unit = {},
+    onCreatePlugin: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
@@ -147,6 +148,7 @@ fun PluginsScreen(
                             onToggleAddMenu = { addMenuOpen = !addMenuOpen },
                             onDismissAddMenu = { addMenuOpen = false },
                             onRefresh = { /* 本地目录刷新由 Host 推送；此处保持官方按钮形态 */ },
+                            onCreatePlugin = onCreatePlugin,
                         )
                     }
 
@@ -266,6 +268,7 @@ private fun PluginsPageHead(
     onToggleAddMenu: () -> Unit,
     onDismissAddMenu: () -> Unit,
     onRefresh: () -> Unit,
+    onCreatePlugin: () -> Unit,
 ) {
     val colors = LocalDshPanelColors.current
     Row(
@@ -334,6 +337,10 @@ private fun PluginsPageHead(
                     onInstallExternal = {
                         onDismissAddMenu()
                         onAddPluginClick()
+                    },
+                    onCreatePlugin = {
+                        onDismissAddMenu()
+                        onCreatePlugin()
                     },
                 )
             }
@@ -420,6 +427,7 @@ private fun PluginsAddMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onInstallExternal: () -> Unit,
+    onCreatePlugin: () -> Unit,
 ) {
     AnchoredMenuPopup(
         expanded = expanded,
@@ -432,6 +440,12 @@ private fun PluginsAddMenu(
             title = "安装第三方插件",
             description = "支持 npm 包、Git 仓库和本地目录",
             onClick = onInstallExternal,
+        )
+        AddPluginMenuItem(
+            iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_agent_preset_outline,
+            title = "让 Agent 创建插件",
+            description = "用创造模式描述能力，由 Agent 编写并安装插件",
+            onClick = onCreatePlugin,
         )
     }
 }
@@ -1211,5 +1225,7 @@ private fun PluginsInstallDialog(
         },
     )
 }
+
+
 
 

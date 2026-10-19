@@ -180,6 +180,7 @@ fun ModernChatScreen(
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     onModelSelected: (String) -> Unit = {},
     selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
+    agentPresetLabel: String = "标准模式",
     onPermissionSelected: (PermissionPreset) -> Unit = {},
     reasoningLevel: ReasoningLevel = ReasoningLevel.FAST,
     reasoningOptions: List<ReasoningOption> = emptyList(),
@@ -258,7 +259,7 @@ fun ModernChatScreen(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "标准模式",
+                    text = agentPresetLabel,
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2058,6 +2059,7 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
+
 
 
 

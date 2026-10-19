@@ -247,6 +247,7 @@ fun MainAppHost(
     val sessions = repoSessions
 
     var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    var pendingAgentPreset by remember { mutableStateOf<String?>(null) }
     var isSending by remember { mutableStateOf(false) }
     val pendingMessages = remember { androidx.compose.runtime.mutableStateListOf<ChatMessage>() }
     val liveSessionIds by dshRepository.liveSessionIdsFlow.collectAsState()
@@ -1134,7 +1135,7 @@ fun MainAppHost(
                                                 activeHostId,
                                                 text.take(24),
                                                 activeWorkspaceCwd,
-                                                currentAppSettings.transcriptView.takeIf { it.isNotBlank() }
+                                                (pendingAgentPreset ?: currentAppSettings.transcriptView).takeIf { it.isNotBlank() }
                                             ).getOrNull()?.sessionId
                                             sid = createOnce()
                                             if (sid == null) {
@@ -1184,7 +1185,15 @@ fun MainAppHost(
                                 },
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
-                                modelGroups = catalogInfo.groups,
+                                agentPresetLabel = pluginSnapshot?.agentPresets
+                                    ?.firstOrNull { it.id == (pendingAgentPreset ?: currentAppSettings.transcriptView) }
+                                    ?.let { group -> group.name.takeIf { it.isNotBlank() && it != group.id } }
+                                    ?: when (pendingAgentPreset ?: currentAppSettings.transcriptView) {
+                                        "cordis" -> "创造模式"
+                                        "minimal" -> "极简模式"
+                                        "ptc" -> "PTC 模式"
+                                        else -> "标准模式"
+                                    },                                modelGroups = catalogInfo.groups,
                                 onModelSelected = { model ->
                                     selectedSessionId?.let { sid ->
                                         scope.launch {
@@ -1293,6 +1302,12 @@ fun MainAppHost(
                                         dshRepository.uninstallPlugin(activeHostId, item.pluginId)
                                         surfaceStore.removeSurfaceItem(item.pluginId, item.slot)
                                     }
+                                }
+                            ,
+                                onCreatePlugin = {
+                                    pendingAgentPreset = "cordis"
+                                    selectedSessionId = null
+                                    activePage = ActivePage.CHAT
                                 }
                             )
                         }
@@ -2211,6 +2226,9 @@ private fun formatAmount(raw: String): String {
     val num = clean.toDoubleOrNull() ?: return "¥$raw"
     return String.format(java.util.Locale.US, "¥%.2f", num)
 }
+
+
+
 
 
 
