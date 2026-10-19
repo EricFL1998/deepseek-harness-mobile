@@ -27,15 +27,14 @@ function barePackageName(specifier) {
 	const [first = "", second = ""] = specifier.split("/");
 	return first.startsWith("@") ? `${first}/${second}` : first;
 }
-/** Read one manifest identity, optionally treating an absent name as a loose-module marker. */
-function identityFromManifest(path, allowAnonymous) {
+/** Read a named identity, including its version only when it is a non-blank string. */
+function identityFromManifest(path) {
 	const manifest = JSON.parse(readFileSync(path, "utf8"));
-	if (allowAnonymous && manifest.name === void 0) return void 0;
-	if (typeof manifest.name !== "string" || manifest.name.length === 0 || typeof manifest.version !== "string" || manifest.version.length === 0) throw new Error(`plugin-package-inventory-deepseek: ${path} must declare non-empty name and version`);
-	return {
+	if (typeof manifest.name !== "string" || manifest.name.trim().length === 0) return void 0;
+	return typeof manifest.version === "string" && manifest.version.trim().length > 0 ? {
 		name: manifest.name,
 		version: manifest.version
-	};
+	} : { name: manifest.name };
 }
 /** Resolve a bare package without requiring it to export `./package.json`. */
 function barePackageManifest(packageName, anchors, packages) {
@@ -70,61 +69,69 @@ var PackageIdentityResolver = class {
 		this.packages = packages;
 	}
 	/** Resolve one Loader entry's owning package, or absence for a non-package loose module. */
-	resolve({ entry, bareBaseUrl }) {
+	resolve({ moduleName, baseUrl, bareBaseUrl }) {
 		/* v8 ignore next -- Loader entry trees inherit a base URL; the fallback supports direct embedders. */
-		const treeBase = entry.parent.tree.ctx.baseUrl ?? this.hostBaseUrl;
+		const treeBase = baseUrl ?? this.hostBaseUrl;
 		const anchors = [...new Set([
 			bareBaseUrl ?? treeBase,
 			treeBase,
 			this.hostBaseUrl,
 			import.meta.url
 		])];
-		const key = `${anchors.join("\0")}\u0000${entry.options.name}`;
+		const key = `${anchors.join("\0")}\u0000${moduleName}`;
 		if (this.cache.has(key)) return this.cache.get(key);
-		const packageName = barePackageName(entry.options.name);
+		const packageName = barePackageName(moduleName);
 		let manifest;
 		if (packageName !== void 0) {
 			manifest = barePackageManifest(packageName, anchors, this.packages);
 			if (manifest === void 0) throw new Error(`plugin-package-inventory-deepseek: cannot resolve active package ${JSON.stringify(packageName)}`);
-		} else if (!entry.options.name.startsWith("cordis:")) {
-			const moduleUrl = isAbsolute(entry.options.name) ? pathToFileURL(entry.options.name) : new URL(entry.options.name, treeBase);
+		} else if (!moduleName.startsWith("cordis:")) {
+			const moduleUrl = isAbsolute(moduleName) ? pathToFileURL(moduleName) : new URL(moduleName, treeBase);
 			if (moduleUrl.protocol === "file:") manifest = nearestManifest(fileURLToPath(moduleUrl));
 		}
-		const identity = manifest === void 0 ? void 0 : identityFromManifest(manifest, packageName === void 0);
+		const identity = manifest === void 0 ? void 0 : identityFromManifest(manifest);
 		this.cache.set(key, identity);
 		return identity;
 	}
 };
 /** Yield active, non-structural entries from one Loader tree. */
-function activeEntries(tree, rootBareBaseUrl) {
+function activeEntries(tree) {
 	return [...tree.entries()].filter((entry) => !entry.options.group && !entry.disabled && entry.fiber?.state === 2).map((entry) => ({
-		entry,
-		...entry.parent.tree === tree && rootBareBaseUrl !== void 0 ? { bareBaseUrl: rootBareBaseUrl } : {}
+		moduleName: entry.options.name,
+		...entry.parent.tree.ctx.baseUrl === void 0 ? {} : { baseUrl: entry.parent.tree.ctx.baseUrl }
 	}));
 }
 /** Deterministic text order independent of the host's ICU data and locale. */
 function compareWireText(left, right) {
 	return left < right ? -1 : left > right ? 1 : 0;
 }
-/** Collect the full active package set for one request. */
-async function collectActivePluginPackages(ctx, resolver, hostBaseUrl, sessionId) {
+/** Collect available identities from active packages for one request. */
+function collectActivePluginPackages(ctx, resolver, hostBaseUrl, unreadable, sessionId) {
 	const entries = activeEntries(ctx.loader);
-	if (sessionId !== void 0 && ctx.get("agentPresets") !== void 0) {
+	const presets = ctx.get("agentPresets");
+	if (sessionId !== void 0 && presets !== void 0) {
 		const agent = ctx.agents.get(brandString(sessionId));
-		if (agent !== void 0) {
-			const { standingMountFor } = await import("@deepseek-ai/dsh-agent-preset-registry");
-			const presetTree = standingMountFor(agent.ctx)?.tree;
-			if (presetTree !== void 0) entries.push(...activeEntries(presetTree, hostBaseUrl));
-		}
+		if (agent !== void 0) for (const composition of presets.inspectCompositions(agent.ctx)) entries.push(...composition.modules.map(({ useHostBase, ...entry }) => ({
+			...entry,
+			...useHostBase ? { bareBaseUrl: hostBaseUrl } : {}
+		})));
 	}
 	const unique = /* @__PURE__ */ new Map();
 	for (const activeEntry of entries) {
 		let identity;
-		try { identity = resolver.resolve(activeEntry); } catch { continue; }
+		try {
+			identity = resolver.resolve(activeEntry);
+		} catch (error) {
+			if (!unreadable.has(activeEntry.moduleName)) {
+				unreadable.add(activeEntry.moduleName);
+				ctx.logger.warn("plugin-package-inventory-deepseek: omitting unreadable package identity for %s: %o", activeEntry.moduleName, error);
+			}
+			continue;
+		}
 		if (identity === void 0) continue;
-		unique.set(`${identity.name}\u0000${identity.version}`, identity);
+		unique.set(`${identity.name}\u0000${identity.version ?? ""}`, identity);
 	}
-	return [...unique.values()].sort((left, right) => compareWireText(left.name, right.name) || compareWireText(left.version, right.version));
+	return [...unique.values()].sort((left, right) => compareWireText(left.name, right.name) || compareWireText(left.version ?? "", right.version ?? ""));
 }
 /**
 * Register the complete `dsh_plugin_packages` request contribution when enabled.
@@ -135,10 +142,11 @@ function apply(ctx, config) {
 	if (config.enabled === false) return;
 	const hostBaseUrl = ctx.baseUrl ?? import.meta.url;
 	const resolver = new PackageIdentityResolver(hostBaseUrl, ctx.get("pluginPackages"));
-	ctx.deepseekLlmApiExtensions.register("dsh_plugin_packages", { prepare: async (request) => {
+	const unreadable = /* @__PURE__ */ new Set();
+	ctx.deepseekLlmApiExtensions.register("dsh_plugin_packages", { prepare: (request) => {
 		return { value: {
 			version: 1,
-			packages: await collectActivePluginPackages(ctx, resolver, hostBaseUrl, request.sessionId)
+			packages: collectActivePluginPackages(ctx, resolver, hostBaseUrl, unreadable, request.sessionId)
 		} };
 	} });
 }

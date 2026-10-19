@@ -1,6 +1,6 @@
 import { C as bindManagedProcess, D as createProcessInspector, E as validateSubprocessSpec, O as controlPipe, S as loadLinuxExecve, T as spawnSubprocess, _ as parseWindowsRunnerResult, c as runnerStdio, d as cleanupLinuxLaunchFiles, l as spawnRunnerInvocation, m as deserializeRunnerError, n as WINDOWS_RUNNER_SELECTION, o as runnerEnvironment, p as createLinuxLaunchFiles, s as runnerInvocationAvailable, u as targetEnvironment, w as childEnv, y as readLinuxStartupError } from "./runner-launch-B2zsQ1Dz.js";
 import { logSpillFailure, prepareManagedProcessBinding } from "./output.js";
-import { closeSync, constants, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync , mkdirSync } from "node:fs";
+import { closeSync, constants, existsSync, mkdtempSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { constants as constants$1, devNull, tmpdir, userInfo } from "node:os";
 import { basename, delimiter, extname, isAbsolute, join, resolve } from "node:path";
@@ -17,6 +17,11 @@ import { PassThrough } from "node:stream";
 const SYSTEMCTL_TIMEOUT_MS = 5e3;
 const SCOPE_INITIAL_POLL_INTERVAL_MS = 50;
 const MISSING_UNIT = /\bunit\b[^\r\n]*(?:could not be found|not found|not loaded)/iu;
+const LITERAL_ARGV_OPTION = "--expand-environment=no";
+const LITERAL_ARGV_OPTION_REJECTED = /unrecognized option\b.*expand-environment/u;
+const KILL_ALL_MEMBERS = "--kill-who=all";
+/** Flags bit that /proc/net/unix sets on a listening socket (__SO_ACCEPTCON). */
+const UNIX_SOCKET_ACCEPTING = 65536;
 function managerEnvironment() {
 	const environment = childEnv({ LC_ALL: "C" });
 	delete environment.SYSTEMD_LOG_TARGET;
@@ -68,35 +73,57 @@ function probeLinuxBootstrap(internals = {}) {
 /**
 * Confirm current literal-argv transient-scope support before selecting native launch.
 * @param internals - optional systemd command seams used by tests.
-* @returns whether the current user manager supports the required scope invocation.
+* @returns the options that keep target argv literal, or undefined when the user manager cannot create the scope.
 */
 function probeLinuxScope(internals = {}) {
-	const unitBase = unitStem("dsh-subprocess-probe");
-	const result = (internals.spawnSync ?? spawnSync)(internals.systemdRun ?? "systemd-run", [
-		"--user",
-		"--scope",
-		"--quiet",
-		"--collect",
-		"--expand-environment=no",
-		`--unit=${unitBase}`,
-		"--",
-		internals.systemctl ?? "systemctl",
-		"--user",
-		"show",
-		`${unitBase}.scope`,
-		"--property=ActiveState",
-		"--value"
-	], {
-		env: quietSystemdEnvironment(),
-		stdio: "ignore",
-		timeout: SYSTEMCTL_TIMEOUT_MS
-	});
-	return result.error === void 0 && result.status === 0;
+	const attempt = (literalArgv) => {
+		const unitBase = unitStem("dsh-subprocess-probe");
+		const result = (internals.spawnSync ?? spawnSync)(internals.systemdRun ?? "systemd-run", [
+			"--user",
+			"--scope",
+			"--quiet",
+			"--collect",
+			...literalArgv,
+			`--unit=${unitBase}`,
+			"--",
+			internals.systemctl ?? "systemctl",
+			"--user",
+			"show",
+			`${unitBase}.scope`,
+			"--property=ActiveState",
+			"--value"
+		], {
+			encoding: "utf8",
+			env: quietSystemdEnvironment(),
+			stdio: [
+				"ignore",
+				"ignore",
+				"pipe"
+			],
+			timeout: SYSTEMCTL_TIMEOUT_MS
+		});
+		return {
+			created: result.error === void 0 && result.status === 0,
+			stderr: result.stderr
+		};
+	};
+	const current = attempt([LITERAL_ARGV_OPTION]);
+	if (current.created) return [LITERAL_ARGV_OPTION];
+	if (!LITERAL_ARGV_OPTION_REJECTED.test(current.stderr)) return void 0;
+	return attempt([]).created ? [] : void 0;
 }
 /**
-* Confirm that the current user manager remains reachable after a positive deep probe.
+* Check every Linux native prerequisite on each call.
+* @param internals - optional native capability seams used by tests.
+* @returns the literal-argv scope options when Linux native containment is available, otherwise undefined.
+*/
+function probeLinuxNative(internals = {}) {
+	return probeLinuxBootstrap(internals) ? probeLinuxScope(internals) : void 0;
+}
+/**
+* Query the user manager once through systemctl.
 * @param internals - optional systemctl seam used by tests.
-* @returns whether one lightweight manager query succeeds.
+* @returns whether the query succeeds.
 */
 function probeLinuxManager(internals = {}) {
 	const result = (internals.spawnSync ?? spawnSync)(internals.systemctl ?? "systemctl", [
@@ -112,13 +139,69 @@ function probeLinuxManager(internals = {}) {
 	return result.error === void 0 && result.status === 0;
 }
 /**
-* Re-check every Linux native prerequisite for one eligible spawn.
-* @param internals - optional native capability seams used by tests.
-* @returns whether the Linux native containment path is currently available.
+* Find the socket a process in this network namespace listens on at path. The kernel lists a
+* bound socket only while a process holds it open, so a socket file that a stopped or crashed
+* listener left behind does not count.
 */
-function probeLinuxNative(internals = {}) {
-	return probeLinuxBootstrap(internals) && probeLinuxScope(internals);
+function unixSocketListener(path, table) {
+	let text;
+	try {
+		text = readFileSync(table, "utf8");
+	} catch (_unreadableSocketTable) {
+		return;
+	}
+	const suffix = ` ${path}`;
+	for (const line of text.split("\n")) {
+		if (!line.endsWith(suffix)) continue;
+		const fields = line.trim().split(/\s+/u);
+		if (fields.slice(7).join(" ") === path && (Number.parseInt(String(fields[3]), 16) & UNIX_SOCKET_ACCEPTING) !== 0) return String(fields[6]);
+	}
 }
+/**
+* Identify the user manager's listener on `$XDG_RUNTIME_DIR/systemd/private`, the socket
+* `systemd-run --user` connects through.
+* @param internals - optional socket-table seam used by tests.
+* @returns the listening socket's inode from the kernel socket table, or undefined when
+*   XDG_RUNTIME_DIR is unset or nothing in this network namespace listens there.
+*/
+function linuxManagerListener(internals = {}) {
+	const runtimeDirectory = childEnv().XDG_RUNTIME_DIR;
+	if (runtimeDirectory === void 0 || runtimeDirectory === "") return void 0;
+	return unixSocketListener(join(runtimeDirectory, "systemd", "private"), internals.unixSocketTable ?? "/proc/net/unix");
+}
+/**
+* Identify the systemd-run binary that scope launches resolve through PATH, so a package upgrade
+* that replaces it triggers another probe of its literal-argv options.
+* @param internals - optional systemd-run seam used by tests.
+* @returns the device, inode, size, and modification time of the first match, or undefined when none resolves.
+*/
+function systemdRunIdentity(internals = {}) {
+	const command = internals.systemdRun ?? "systemd-run";
+	const candidates = command.includes("/") ? [command] : (childEnv().PATH ?? "").split(":").filter((directory) => directory !== "").map((directory) => join(directory, command));
+	for (const candidate of candidates) {
+		let stats;
+		try {
+			stats = statSync(candidate, { throwIfNoEntry: false });
+		} catch (_unreadableCandidate) {
+			continue;
+		}
+		if (stats?.isFile() === true) return `${String(stats.dev)}:${String(stats.ino)}:${String(stats.size)}:${String(stats.mtimeMs)}`;
+	}
+}
+/**
+* Confirm the user manager before a scope launch. A listener on its private socket confirms it
+* without a child process; otherwise one systemctl query decides. A hung manager that still
+* listens passes, and its scope launch fails with LinuxScopeNotStartedError.
+* @param internals - optional socket-table and systemctl seams used by tests.
+* @returns whether a scope launch can reach the user manager.
+*/
+function confirmLinuxManager(internals = {}) {
+	return linuxManagerListener(internals) !== void 0 || probeLinuxManager(internals);
+}
+/** A scope launch whose bootstrap never consumed its launch request, so its target never ran. */
+var LinuxScopeNotStartedError = class extends Error {
+	name = "LinuxScopeNotStartedError";
+};
 var LinuxScopeStartup = class {
 	files;
 	kind;
@@ -130,7 +213,7 @@ var LinuxScopeStartup = class {
 	resolveOutcome(outcome) {
 		const startup = readLinuxStartupError(this.files.startupErrorPath);
 		if (startup !== void 0) throw deserializeRunnerError(startup.error);
-		if (existsSync(this.files.requestPath) && !(outcome.signal !== null && this.terminationSignals.has(outcome.signal))) throw new Error(`${this.kind} scope exited before its bootstrap consumed the launch request`);
+		if (existsSync(this.files.requestPath) && !(outcome.signal !== null && this.terminationSignals.has(outcome.signal))) throw new LinuxScopeNotStartedError(`${this.kind} scope exited before its bootstrap consumed the launch request; the provider probes native containment again before its next command`);
 		return outcome;
 	}
 };
@@ -187,7 +270,7 @@ var SystemdScopeOwner = class {
 		const result = this.runSync(this.systemctl, [
 			"--user",
 			"kill",
-			"--kill-whom=all",
+			KILL_ALL_MEMBERS,
 			`--signal=${signal}`,
 			this.unit
 		], {
@@ -221,7 +304,7 @@ var SystemdScopeOwner = class {
 			this.runSync(this.systemctl, [
 				"--user",
 				"kill",
-				"--kill-whom=all",
+				KILL_ALL_MEMBERS,
 				"--signal=SIGKILL",
 				this.unit
 			], {
@@ -380,13 +463,13 @@ var SystemdScopeOwner = class {
 		cleanupLinuxLaunchFiles(this.startup.files);
 	}
 };
-function scopeArgs(unitBase, invocation, argv) {
+function scopeArgs(unitBase, literalArgv, invocation, argv) {
 	return [
 		"--user",
 		"--scope",
 		"--quiet",
 		"--collect",
-		"--expand-environment=no",
+		...literalArgv,
 		`--unit=${unitBase}`,
 		"--",
 		...invocation,
@@ -445,10 +528,11 @@ function signalChildGroup(child, signal) {
 * Prepare one Linux PTY scope using the same launch request and bootstrap core.
 * @param spec - terminal target request.
 * @param targetEnv - validated complete target environment.
+* @param literalArgv - options from the provider's positive scope probe.
 * @param internals - optional runner and systemd seams used by tests.
 * @returns invocation and ownership callbacks; requested termination preserves the observed signal even before bootstrap consumption.
 */
-function prepareLinuxTerminalScope(spec, targetEnv, internals = {}) {
+function prepareLinuxTerminalScope(spec, targetEnv, literalArgv, internals = {}) {
 	const invocation = internals.runnerInvocation ?? spawnRunnerInvocation();
 	const files = createLinuxLaunchFiles({
 		cwd: spec.cwd,
@@ -458,7 +542,7 @@ function prepareLinuxTerminalScope(spec, targetEnv, internals = {}) {
 	const unitBase = unitStem("dsh-terminal");
 	return {
 		command: internals.systemdRun ?? "systemd-run",
-		args: scopeArgs(unitBase, invocation, spec.argv),
+		args: scopeArgs(unitBase, literalArgv, invocation, spec.argv),
 		cwd: process.cwd(),
 		env: runnerEnvironment(files.requestPath, invocation),
 		bindOwner: (direct) => new SystemdScopeOwner(`${unitBase}.scope`, startup, direct, internals.systemctl ?? "systemctl", internals.spawnSync ?? spawnSync, internals.systemctlQuery ?? querySystemctl, internals.sleep ?? sleepWithAbort),
@@ -472,10 +556,11 @@ function prepareLinuxTerminalScope(spec, targetEnv, internals = {}) {
 * Launch one ordinary target inside a transient user scope.
 * @param spec - ordinary target request.
 * @param targetEnv - validated complete target environment.
+* @param literalArgv - options from the provider's positive scope probe.
 * @param internals - optional runner and systemd seams used by tests.
 * @returns streams, result, and scope owner; requested termination preserves the observed signal even before bootstrap consumption.
 */
-function launchLinuxScope(spec, targetEnv, internals = {}) {
+function launchLinuxScope(spec, targetEnv, literalArgv, internals = {}) {
 	const invocation = internals.runnerInvocation ?? spawnRunnerInvocation();
 	const files = createLinuxLaunchFiles({
 		cwd: spec.cwd,
@@ -486,7 +571,7 @@ function launchLinuxScope(spec, targetEnv, internals = {}) {
 	const unitBase = unitStem("dsh-subprocess");
 	let child;
 	try {
-		child = (internals.spawn ?? spawn)(internals.systemdRun ?? "systemd-run", scopeArgs(unitBase, invocation, spec.argv), {
+		child = (internals.spawn ?? spawn)(internals.systemdRun ?? "systemd-run", scopeArgs(unitBase, literalArgv, invocation, spec.argv), {
 			cwd: process.cwd(),
 			env: runnerEnvironment(files.requestPath, invocation),
 			stdio: runnerStdio(spec, false),
@@ -511,6 +596,102 @@ function launchLinuxScope(spec, targetEnv, internals = {}) {
 		owner
 	};
 }
+//#endregion
+//#region lib/types/linux-scope-selector.js
+/** Linux native containment decisions over injected host observations. */
+/**
+* Provider-lifetime Linux scope selection. A probe runs on the first selection and again only after
+* a scope launch never started its target, a different user-manager listener appears under a
+* negative verdict, or the systemd-run binary changes under a positive one. A positive verdict
+* confirms the user manager on every selection. Selection is synchronous, so a decision stays
+* valid for the launch that follows it.
+*/
+var LinuxScopeSelector = class {
+	observe;
+	state = {
+		kind: "unprobed",
+		trigger: "first"
+	};
+	generation = 0;
+	/** @param observe - host checks consulted by each selection. */
+	constructor(observe) {
+		this.observe = observe;
+	}
+	/**
+	* Choose containment for one eligible launch.
+	* @returns the decision and the branch that produced it.
+	*/
+	select() {
+		const state = this.state;
+		if (state.kind === "unprobed") return this.probe(state.trigger);
+		if (state.kind === "available") {
+			if (this.observe.launcherIdentity() !== state.launcher) return this.probe("launcher-changed");
+			return this.observe.confirmManager() ? {
+				kind: "scope",
+				reason: "manager-confirmed",
+				literalArgv: state.literalArgv,
+				generation: this.generation,
+				probe: void 0
+			} : {
+				kind: "fallback",
+				reason: "manager-unconfirmed",
+				probe: void 0
+			};
+		}
+		const listener = this.observe.managerListener();
+		if (listener === void 0) return {
+			kind: "fallback",
+			reason: "no-listener",
+			probe: void 0
+		};
+		if (listener === state.listener) return {
+			kind: "fallback",
+			reason: "same-listener",
+			probe: void 0
+		};
+		return this.probe("new-listener");
+	}
+	/**
+	* Record that a scope launched under generation exited before its bootstrap started the target,
+	* so the next selection probes again. Launches from a superseded probe are ignored.
+	* @param generation - generation of the scope decision that launched it.
+	*/
+	scopeNotStarted(generation) {
+		if (generation === this.generation) this.state = {
+			kind: "unprobed",
+			trigger: "scope-not-started"
+		};
+	}
+	probe(trigger) {
+		this.generation += 1;
+		const listener = this.observe.managerListener();
+		const launcher = this.observe.launcherIdentity();
+		const literalArgv = this.observe.probe();
+		if (literalArgv === void 0) {
+			this.state = {
+				kind: "unavailable",
+				listener
+			};
+			return {
+				kind: "fallback",
+				reason: "probe-unavailable",
+				probe: trigger
+			};
+		}
+		this.state = {
+			kind: "available",
+			literalArgv,
+			launcher
+		};
+		return {
+			kind: "scope",
+			reason: "probe-available",
+			literalArgv,
+			generation: this.generation,
+			probe: trigger
+		};
+	}
+};
 //#endregion
 //#region lib/types/windows-job.js
 /** Windows parent-side launch and ownership for the private Job runner. */
@@ -1277,8 +1458,18 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 	internals = {};
 	/** Provider-lifetime latch suppressing repeated weaker-containment warnings. */
 	fallbackWarningIssued = false;
-	/** Positive-only cache for the expensive Linux bootstrap and scope probe. */
-	linuxDeepProbePassed = false;
+	/**
+	* Linux native containment decisions. Each probe is a spawnSync that blocks the event loop and forks the
+	* host, so the selector reruns it only after an event invalidates the previous verdict.
+	*/
+	linuxScope = new LinuxScopeSelector({
+		probe: () => probeLinuxNative(),
+		managerListener: () => linuxManagerListener(),
+		confirmManager: () => confirmLinuxManager(),
+		launcherIdentity: () => systemdRunIdentity()
+	});
+	/** Scope decision of the launch in progress; selectContainmentMode sets it immediately before the launch reads it. */
+	linuxScopeDecision;
 	/** Test hook for platform process inspection; production resolves lazily on terminal spawn. */
 	terminalInspector;
 	constructor(ctx) {
@@ -1365,7 +1556,9 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 		if (containmentMode === "fallback") handle = spawnSubprocess(spec, internals);
 		else {
 			const binding = prepareManagedProcessBinding(internals);
-			handle = bindManagedProcess(spec, containmentMode === "linux-scope" ? launchLinuxScope(spec, env) : launchWindowsJob(spec, env), binding);
+			const linuxScope = containmentMode === "linux-scope" ? this.linuxScopeDecision : void 0;
+			handle = bindManagedProcess(spec, linuxScope === void 0 ? launchWindowsJob(spec, env) : launchLinuxScope(spec, env, linuxScope.literalArgv), binding);
+			if (linuxScope !== void 0) this.watchLinuxScopeStart(handle.done, linuxScope.generation);
 		}
 		this.live.add(handle);
 		const control = handle.control;
@@ -1381,13 +1574,23 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 		handle.done.then(release, release).catch(() => {});
 		return handle;
 	}
+	/** Probe again before the next launch when a scope launched under generation never started its target. */
+	watchLinuxScopeStart(done, generation) {
+		done.catch((error) => {
+			if (error instanceof LinuxScopeNotStartedError) this.linuxScope.scopeNotStarted(generation);
+		});
+	}
 	selectContainmentMode(kind) {
 		const platform = this.internals.platform ?? process.platform;
 		let fallbackReason;
 		if (platform === "linux") {
-			const available = this.linuxDeepProbePassed ? probeLinuxManager() : probeLinuxNative();
-			if (available) this.linuxDeepProbePassed = true;
-			if (available) return "linux-scope";
+			const decision = this.linuxScope.select();
+			const probe = decision.probe === void 0 ? "" : `, probed after ${decision.probe}`;
+			this.ctx.logger.debug(`linux native containment: ${decision.kind} (${decision.reason}${probe})`);
+			if (decision.kind === "scope") {
+				this.linuxScopeDecision = decision;
+				return "linux-scope";
+			}
 			fallbackReason = "the current user-systemd scope or private bootstrap is unavailable";
 		}
 		if (kind === "ordinary" && platform === "win32") {
@@ -1419,7 +1622,8 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 		const inspector = this.terminalInspector ?? createProcessInspector();
 		const containmentMode = this.selectContainmentMode("terminal");
 		const env = targetEnvironment(spec);
-		const activity = prepareShellActivity(spec, env, this.internals.platform ?? process.platform);
+		const platform = this.internals.platform ?? process.platform;
+		const activity = prepareShellActivity(spec, env, platform);
 		const launch = activity === void 0 ? spec : {
 			...spec,
 			argv: activity.argv,
@@ -1433,16 +1637,18 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 			env: {
 				...activity?.env ?? env,
 				TERM: spec.terminalType
-			}
+			},
+			...platform === "win32" ? { useConptyDll: true } : {}
 		};
+		const linuxScope = containmentMode === "linux-scope" ? this.linuxScopeDecision : void 0;
 		let scope;
 		let terminal;
 		try {
-			scope = containmentMode === "linux-scope" ? prepareLinuxTerminalScope(launch, {
+			scope = linuxScope === void 0 ? void 0 : prepareLinuxTerminalScope(launch, {
 				...activity?.env ?? env,
 				PWD: spec.cwd,
 				TERM: spec.terminalType
-			}) : void 0;
+			}, linuxScope.literalArgv);
 			if (scope !== void 0) {
 				options.cwd = scope.cwd;
 				options.env = scope.env;
@@ -1460,10 +1666,11 @@ var LocalSubprocessRuntime = class extends SubprocessRuntime {
 			settled: directSettlement.promise,
 			signal: (signal) => signalLinuxDirectProcess(terminal.pid, () => process.kill(terminal.pid, signal))
 		});
-		handle = new LocalTerminalHandle(terminal, inspector, spec.graceMs, this.internals.platform ?? process.platform, owner, scope?.resolveOutcome, activity, () => {
+		handle = new LocalTerminalHandle(terminal, inspector, spec.graceMs, platform, owner, scope?.resolveOutcome, activity, () => {
 			this.terminals.delete(handle);
 		}, spec.shellActivity === true);
 		this.terminals.add(handle);
+		if (linuxScope !== void 0) this.watchLinuxScopeStart(handle.done, linuxScope.generation);
 		const release = async () => {
 			directSettlement.resolve();
 			if (spec.shellActivity === true) return;

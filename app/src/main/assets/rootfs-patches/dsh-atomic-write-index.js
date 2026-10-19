@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { setTimeout as setTimeout$1 } from "node:timers/promises";
 //#region lib/types/index.js
 /**
 * Zero-dependency atomic file replacement and writer coordination.
@@ -65,10 +66,13 @@ async function writeFileAtomic(filename, content, options) {
 	});
 	const temp = `${filename}.${randomBytes(6).toString("hex")}.tmp`;
 	try {
-		await writeFile(temp, content, { mode: options.mode, flag: "wx" });
+		await writeFile(temp, content, {
+			mode: options.mode,
+			flag: "wx"
+		});
 		await renameAtomicTemp(temp, filename);
 	} catch {
-		// proot 下 rename/unlink 可能 ENOSYS：退化为直接写目标文件。
+		// proot 下 rename/unlink 可能返回 ENOSYS，退化为直接写目标文件。
 		await writeFile(filename, content, { mode: options.mode });
 		try { await rm(temp, { force: true }); } catch {}
 	}
@@ -189,5 +193,3 @@ async function withFileLock(filename, operation, options) {
 }
 //#endregion
 export { withFileLock, writeFileAtomic };
-
-

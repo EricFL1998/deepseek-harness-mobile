@@ -224,7 +224,8 @@ const inject = [
 	"tools",
 	"shell",
 	"systemPrompt",
-	"shellEnv"
+	"shellEnv",
+	"workingDirectory"
 ];
 /** Runtime configuration schema for the bash tool plugin. */
 const Config = z.object({
@@ -240,7 +241,7 @@ function validateBashArgs(args, effectiveMode) {
 	validateEscalationArgs(args.sandbox_permissions, justification);
 }
 function bashDescription() {
-	return `Execute a bash command (\`bash -c\`) and return its stdout/stderr. Each call runs in a fresh shell; pass \`workdir\` instead of using \`cd\`. Managed \`$${DSH_ENV_PREFIX}*\` variables expose current harness environment facts. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Before any delete or move, verify that the resolved absolute target path is the intended one; never run it against a computed path you have not checked. An unset variable expands to an empty string, so guard variables in such paths with \`\${VAR:?}\`. Commands may run under a file sandbox; a blocked file operation is reported as \`[sandbox: file access denied under <mode> mode]\`, a policy denial: do not retry another way.`;
+	return `Execute a bash command (\`bash -c\`) and return its stdout/stderr. Each call runs in a fresh shell; pass \`workdir\` instead of using \`cd\`. Managed \`$${DSH_ENV_PREFIX}*\` variables expose current harness environment facts. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Provide \`description\` before \`command\` in the arguments. Before any delete or move, verify that the resolved absolute target path is the intended one; never run it against a computed path you have not checked. An unset variable expands to an empty string, so guard variables in such paths with \`\${VAR:?}\`. Commands may run under a file sandbox; a blocked file operation is reported as \`[sandbox: file access denied under <mode> mode]\`, a policy denial: do not retry another way.`;
 }
 function presentBashCall(args) {
 	if (args.run_in_background === true) return {
@@ -284,27 +285,21 @@ function presentBashResult(args, result) {
 		...exit
 	};
 }
-/**
-* Resolve an explicit workdir first, making a relative one session-workspace-relative;
-* otherwise use the filesystem identity of the session cwd and leave executor
-* defaulting as the fallback. A resolved sandbox-policy root wins so workdir
-* and confinement use the exact same per-call identity.
-*/
-function resolveWorkdir(modelWorkdir, exec, policyWorkspaceRoot) {
-	const headerCwd = exec.agent?.session.header.cwd;
-	const sessionCwd = policyWorkspaceRoot ?? headerCwd;
+/** Resolve a relative per-call override against the Session's current directory. */
+function resolveWorkdir(modelWorkdir, sessionCwd) {
 	if (modelWorkdir === void 0) return sessionCwd;
 	if (sessionCwd !== void 0 && !isAbsolute(modelWorkdir)) return `${sessionCwd}${sep}${modelWorkdir}`;
 	return modelWorkdir;
 }
 /** Detach the executor DTO from readonly Service Definition types into plain JSON data. */
-function canonicalBashResult(result) {
+function canonicalBashResult(result, cwd) {
 	const output = (stream) => ({
 		text: stream.text,
 		truncated: stream.truncated,
 		...stream.spillPath !== void 0 ? { spillPath: stream.spillPath } : {}
 	});
 	return {
+		cwd,
 		exitCode: result.exitCode,
 		signal: result.signal,
 		timedOut: result.timedOut,
@@ -334,6 +329,10 @@ const BACKGROUND_OUTPUT_PROPERTIES = {
 		const: "background"
 	},
 	jobId: {
+		type: "string",
+		required: true
+	},
+	cwd: {
 		type: "string",
 		required: true
 	}
@@ -421,6 +420,10 @@ async function bridgeExec(command, cwd, timeoutMs) {
 				id: registry.start({
 					kind: "bash",
 					label: args.command,
+					toolCall: {
+						callId: exec.callId,
+						rootCallId: exec.rootCallId
+					},
 					...exec.agent ? { owner: exec.agent.id } : {},
 					output: processSources(() => proc),
 					run: () => {
@@ -471,6 +474,7 @@ async function bridgeExec(command, cwd, timeoutMs) {
 				await stop("timed out during preparation");
 				return {
 					kind: "foreground",
+					cwd: spec.workdir,
 					exitCode: null,
 					signal: null,
 					timedOut: true,
@@ -494,6 +498,7 @@ async function bridgeExec(command, cwd, timeoutMs) {
 				const read = registry.read(attached.id, owner);
 				return {
 					kind: "promoted",
+					cwd: spec.workdir,
 					jobId: attached.id,
 					timeoutMs,
 					output: renderJobRead(ringDelta(read.chunks), read.lossy, read.job.output.spillPaths ?? [], attached.process()?.sandbox, escalationModes)
@@ -506,7 +511,7 @@ async function bridgeExec(command, cwd, timeoutMs) {
 			const stopped = attached.stopped();
 			return {
 				kind: "foreground",
-				...canonicalBashResult(result),
+				...canonicalBashResult(result, spec.workdir),
 				...stopped !== void 0 ? { stopped } : {}
 			};
 		};
@@ -514,15 +519,15 @@ async function bridgeExec(command, cwd, timeoutMs) {
 			name: "bash",
 			description: bashDescription(),
 			parameters: {
-				command: {
-					type: "string",
-					required: true,
-					description: "The bash command to execute."
-				},
 				description: {
 					type: "string",
 					required: true,
 					description: "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
+				},
+				command: {
+					type: "string",
+					required: true,
+					description: "The bash command to execute."
 				},
 				timeoutMs: {
 					type: "number",
@@ -564,6 +569,10 @@ async function bridgeExec(command, cwd, timeoutMs) {
 								required: true,
 								const: "promoted"
 							},
+							cwd: {
+								type: "string",
+								required: true
+							},
 							jobId: {
 								type: "string",
 								required: true
@@ -586,6 +595,10 @@ async function bridgeExec(command, cwd, timeoutMs) {
 								type: "string",
 								required: true,
 								const: "foreground"
+							},
+							cwd: {
+								type: "string",
+								required: true
 							},
 							exitCode: {
 								required: true,
@@ -662,7 +675,8 @@ async function bridgeExec(command, cwd, timeoutMs) {
 				render: (_args, value) => [{
 					type: "text",
 					text: value.kind === "background" ? `started background job ${value.jobId}` : value.kind === "promoted" ? renderPromoted(value) : renderResult(value, escalationModes)
-				}]
+				}],
+				presentationMeta: (_args, value) => ({ cwd: value.cwd })
 			},
 			async execute(args, exec) {
 				const standingPolicy = resolveSandboxPolicy(exec);
@@ -672,9 +686,10 @@ async function bridgeExec(command, cwd, timeoutMs) {
 					...standingPolicy,
 					mode: approvedMode
 				};
-				const workdir = resolveWorkdir(args.workdir, exec, standingPolicy?.workspaceRoot);
+				const cwd = exec.agent === void 0 ? void 0 : await ctx.workingDirectory.ensure(exec.agent, exec.signal);
+				const workdir = resolveWorkdir(args.workdir, cwd);
 				if (process.env.DSH_ANDROID_BRIDGE_PORT) {
-					const bridged = await bridgeExec(args.command, workdir ?? process.cwd(), args.timeoutMs ?? 120000);
+					const bridged = await bridgeExec(args.command, workdir ?? cwd ?? process.cwd(), args.timeoutMs ?? 120000);
 					return {
 						kind: "foreground",
 						exitCode: bridged.exitCode,
@@ -686,7 +701,6 @@ async function bridgeExec(command, cwd, timeoutMs) {
 						stderr: { text: String(bridged.stderr ?? ""), truncated: false }
 					};
 				}
-
 				const dshEnv = ctx.shellEnv.collect(exec);
 				const request = {
 					command: args.command,
@@ -699,12 +713,14 @@ async function bridgeExec(command, cwd, timeoutMs) {
 					if (!backgroundEnabled) throw new Error("run_in_background is disabled for this deployment (enableRunInBackground: false)");
 					if (jobs === void 0) throw new Error("background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs");
 					if (exec.signal.aborted) throw toolAborted();
+					const spec = ctx.shell.resolve({
+						...request,
+						onExpiry: "none"
+					});
 					return {
 						kind: "background",
-						jobId: startJob(jobs, args, exec, ctx.shell.resolve({
-							...request,
-							onExpiry: "none"
-						})).id
+						jobId: startJob(jobs, args, exec, spec).id,
+						cwd: spec.workdir
 					};
 				}
 				if (jobs !== void 0 && promote) {
@@ -720,14 +736,15 @@ async function bridgeExec(command, cwd, timeoutMs) {
 					}
 					if (attached !== void 0) return waitOnJob(jobs, attached, exec, spec);
 				}
-				const result = await (await ctx.shell.execute(ctx.shell.resolve({
+				const spec = ctx.shell.resolve({
 					...request,
 					signal: exec.signal
-				}))).result();
+				});
+				const result = await (await ctx.shell.execute(spec)).result();
 				if (result.aborted) throw toolAborted();
 				return {
 					kind: "foreground",
-					...canonicalBashResult(result)
+					...canonicalBashResult(result, spec.workdir)
 				};
 			},
 			presentCall: presentBashCall,
