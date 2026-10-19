@@ -325,7 +325,6 @@ fun MainAppHost(
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
-    var marketStatusJson by remember { mutableStateOf<String?>(null) }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
@@ -493,7 +492,6 @@ fun MainAppHost(
             dshRepository.refreshSessions(activeHostId)
             dshRepository.refreshModelCatalog(activeHostId)
             dshRepository.refreshPluginInventory(activeHostId)
-            marketStatusJson = dshRepository.getMarketStatus(activeHostId).getOrNull()
             dshRepository.refreshAutomationTasks(activeHostId)
             dshRepository.refreshTeamTasks(activeHostId)
             dshRepository.refreshApprovals(activeHostId)
@@ -1337,38 +1335,6 @@ fun MainAppHost(
                                 availableModels = availableModelNames,
                                 builtInPlugins = builtInPluginsList,
                                 pluginSnapshot = pluginSnapshot,
-                                pluginBundles = pluginManagerSnapshot?.installedBundles.orEmpty(),
-                                marketStatusJson = marketStatusJson,
-                                onMarketAction = { path, body ->
-                                    scope.launch {
-                                        dshRepository.marketAction(activeHostId, path, body)
-                                        marketStatusJson = dshRepository.getMarketStatus(activeHostId).getOrNull()
-                                    }
-                                },
-                                onInstallPlugin = { pkgName ->
-                                    scope.launch {
-                                        val res = dshRepository.installPlugin(activeHostId, pkgName)
-                                        if (res.isSuccess) {
-                                            android.widget.Toast.makeText(context, "插件安装成功", android.widget.Toast.LENGTH_SHORT).show()
-                                            dshRepository.refreshPluginInventory(activeHostId)
-                                        } else {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "插件安装失败: ${res.exceptionOrNull()?.message ?: "未知错误"}",
-                                                android.widget.Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
-                                },
-                                onTogglePluginBundle = { pkgName, enabled ->
-                                    scope.launch { dshRepository.setBundleEnabled(activeHostId, pkgName, enabled) }
-                                },
-                                onUninstallPlugin = { pkgName ->
-                                    scope.launch {
-                                        dshRepository.uninstallPlugin(activeHostId, pkgName)
-                                        dshRepository.refreshPluginInventory(activeHostId)
-                                    }
-                                },
                                 runtimeStatus = status,
                                 onStartRuntime = {
                                     scope.launch {
@@ -2162,6 +2128,8 @@ private fun RootfsSetupScreen(
         }
     }
 }
+
+
 
 
 

@@ -1,7 +1,6 @@
 package com.deepseek.dsh.feature.settings
 
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
-import com.deepseek.dsh.core.model.PluginBundleItem
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -89,12 +88,6 @@ fun SettingsRootScreen(
     availableModels: List<String> = listOf("DeepSeek-V3", "DeepSeek-R1"),
     builtInPlugins: List<BuiltInPluginInfo> = emptyList(),
     pluginSnapshot: PluginInventorySnapshotInfo? = null,
-    pluginBundles: List<PluginBundleItem> = emptyList(),
-    onInstallPlugin: (String) -> Unit = {},
-    onTogglePluginBundle: (String, Boolean) -> Unit = { _, _ -> },
-    onUninstallPlugin: (String) -> Unit = {},
-    marketStatusJson: String? = null,
-    onMarketAction: (String, String) -> Unit = { _, _ -> },
     runtimeStatus: com.deepseek.dsh.runtime.host.RuntimeStatus? = null,
     onStartRuntime: () -> Unit = {},
     onStopRuntime: () -> Unit = {},
@@ -233,12 +226,6 @@ fun SettingsRootScreen(
                         SettingsSectionTab.PLUGINS -> SettingsPluginsPane(
                             plugins = builtInPlugins,
                             snapshot = pluginSnapshot,
-                            pluginBundles = pluginBundles,
-                            onInstallPlugin = onInstallPlugin,
-                            onTogglePluginBundle = onTogglePluginBundle,
-                            onUninstallPlugin = onUninstallPlugin,
-                            marketStatusJson = marketStatusJson,
-                            onMarketAction = onMarketAction,
                             onOpenConfigFile = onOpenSettingsDocument
                         )
 
@@ -333,6 +320,7 @@ private fun SettingsNavRow(
         )
     }
 }
+
 
 
 

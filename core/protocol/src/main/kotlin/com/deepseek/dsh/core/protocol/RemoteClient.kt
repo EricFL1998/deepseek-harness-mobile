@@ -863,33 +863,6 @@ class RemoteClient(
         )
     }
 
-    override suspend fun getMarketStatus(hostId: String): RemoteResult<String> =
-        marketRequest(hostId, "status", null)
-
-    override suspend fun marketAction(hostId: String, path: String, body: String): RemoteResult<String> =
-        marketRequest(hostId, path, body)
-
-    private suspend fun marketRequest(hostId: String, path: String, body: String?): RemoteResult<String> =
-        withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val url = "$baseUrl/dsh-market/$path"
-            val request = if (body == null) {
-                okhttp3.Request.Builder().url(url).get().build()
-            } else {
-                okhttp3.Request.Builder()
-                    .url(url)
-                    .post(body.toRequestBody(mediaTypeJson))
-                    .build()
-            }
-            try {
-                client.newCall(request).execute().use { response ->
-                    val text = response.body?.string().orEmpty()
-                    if (response.isSuccessful) RemoteResult.Success(text)
-                    else RemoteResult.Failure("dsh/market/${'$'}path", "HTTP ${response.code}: ${text.take(200)}")
-                }
-            } catch (e: Exception) {
-                RemoteResult.Failure("dsh/market/network", e.message ?: "market request failed")
-            }
-        }
     override suspend fun installPlugin(
         hostId: String,
         packageName: String
@@ -1481,5 +1454,6 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
     }
     else -> null
 }
+
 
 
