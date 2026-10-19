@@ -21,7 +21,14 @@ export declare const OFFICIAL_PLUGIN_ITEMS: readonly OfficialPluginItem[];
  * theirs. Gradient ids are fixed rather than per-instance because a standalone
  * document is rendered once per card, never duplicated in one DOM.
  */
-export declare const OFFICIAL_ARTWORK: Readonly<Record<string, string>>;
+/**
+ * Official plugin artwork, generated from `ui-primitives`' source.
+ *
+ * Re-exported rather than declared here: the drawings are produced by
+ * `scripts/generate-artwork.mjs` from the component the web shell actually renders,
+ * so this file carries no hand-copied path data.
+ */
+export { OFFICIAL_ARTWORK } from './official-artwork.generated.ts';
 /** Text the page shows for one official plugin. */
 export interface OfficialItemText {
     readonly title: string;

@@ -32,6 +32,14 @@ export const inject = ['webServer'];
 export const Config = z.object({
     enabled: z.boolean().default(true),
     slotEntries: z.array(z.string()).default([]),
+    /**
+     * Evaluate the client halves found on disk when the Host composes no boot graph.
+     *
+     * Off by default: on a phone Host, evaluating a batch of client bundles exhausts the
+     * heap and takes the Host down with it. Deciding otherwise needs a lazy, incremental
+     * scan; until then the option exists for desktop Hosts, where it is safe.
+     */
+    clientBundleScan: z.boolean().default(false),
     maxModuleBytes: z.natural().min(1024).max(16 * 1024 * 1024).default(512 * 1024),
     maxIconSize: z.natural().min(8).max(1024).default(256),
     iconViewBox: z.string().default('0 0 24 24'),
@@ -87,13 +95,35 @@ function admissionOf(ctx, request) {
  * @returns the directory, or undefined when the installation cannot be located.
  */
 function installModulesPath() {
+    return installModulesPaths()[0];
+}
+/**
+ * Candidate `node_modules` directories of the running Host installation.
+ *
+ * The bridge itself lives in the profile, so resolving `@deepseek-ai/dsh` from here
+ * fails on a Host that installed DSH globally — which is exactly how the shipped
+ * rootfs is laid out. The running entry point still names the installation, so that
+ * is tried as well; both answers are returned so a caller can scan whichever exist.
+ * @returns absolute directories, most authoritative first.
+ */
+function installModulesPaths() {
+    const roots = [];
     try {
         const require = createRequire(import.meta.url);
-        return join(dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'node_modules');
+        roots.push(join(dirname(require.resolve('@deepseek-ai/dsh/package.json')), 'node_modules'));
     }
     catch {
-        return undefined;
+        // The profile does not depend on the Host; the entry point below answers instead.
     }
+    // `<prefix>/lib/node_modules/@deepseek-ai/dsh/lib/bin.js` -> `<prefix>/lib/node_modules/@deepseek-ai/dsh/node_modules`
+    const entry = process.argv[1];
+    const marker = '/@deepseek-ai/dsh/';
+    if (entry !== undefined) {
+        const at = entry.lastIndexOf(marker);
+        if (at >= 0)
+            roots.push(join(entry.slice(0, at), '@deepseek-ai', 'dsh', 'node_modules'));
+    }
+    return roots;
 }
 /**
  * Assemble the provider table from whatever the composition provides.
@@ -110,6 +140,12 @@ function assembleProviders(ctx, config, events) {
         localeTags: config.localeTags,
         clientModules,
     }));
+    // A Host that serves a prebuilt web client only exposes slot declarations through
+    // the client halves on disk; saying so is better than silently serving nothing.
+    const roots = installModulesPaths();
+    if (roots.length === 0) {
+        warnings.push('client bundles: the Host installation could not be located on disk');
+    }
     registry.add(createClientSlotsProvider({
         clientModules,
         entryIds: config.slotEntries,
@@ -121,11 +157,15 @@ function assembleProviders(ctx, config, events) {
         maxIconSize: config.maxIconSize,
         iconViewBox: config.iconViewBox,
         installModules: () => installModulesPath(),
+        // A prebuilt web client composes no boot graph, so the client halves on disk are
+        // the only place its real slot declarations can be read from.
+        clientRoots: () => (config.clientBundleScan ? roots : []),
         localeTags: config.localeTags,
     }));
     registry.add(createHostSlotsProvider({
         settings: () => ctx.get('settings'),
         pluginInventory: () => ctx.get('pluginInventory'),
+        pluginManager: () => ctx.get('pluginManager'),
         localeTags: config.localeTags,
     }));
     registry.add(createPackageInventoryProvider({

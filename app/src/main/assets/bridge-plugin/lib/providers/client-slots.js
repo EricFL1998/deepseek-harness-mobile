@@ -13,10 +13,20 @@ import { BridgeFailure, optionalObject, optionalPositiveInt, optionalString, req
 import { projectJson } from "../protocol/json.js";
 import { evaluateBundleFile } from "../slots/evaluate.js";
 import { DEFAULT_RENDER_BUDGET, renderComponent, treeToSvg } from "../slots/render-tree.js";
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { placementOf } from "../slot-placements.js";
 import { OFFICIAL_ARTWORK, OFFICIAL_PLUGIN_ITEMS, readOfficialItemText, } from "../official-items.js";
 /** The slot the Host's own Plugins page lists its official plugins in. */
 const OFFICIAL_ITEM_SLOT = 'plugins.item';
+/**
+ * How many client bundles one request may evaluate by default.
+ *
+ * Each evaluation builds a module graph with React stubs; a phone Host cannot afford
+ * hundreds of them at once, so the walk is bounded and a caller that needs more names
+ * the packages it wants.
+ */
+const DEFAULT_MAX_CLIENT_BUNDLES = 8;
 /**
  * Build the `client-slots` provider.
  * @param options - service accessor, entry selection, and budgets.
@@ -24,16 +34,25 @@ const OFFICIAL_ITEM_SLOT = 'plugins.item';
  */
 export function createClientSlotsProvider(options) {
     const cache = new Map();
-    /** The bundle paths this provider may evaluate, in declared order. */
+    /**
+     * The client bundles this provider may evaluate, in declared order.
+     *
+     * Two sources, because they answer different Hosts: a Host that composes rows
+     * server-side names its entries in the boot graph, while a Host serving a prebuilt
+     * web client composes none — yet every package still ships its client half as
+     * `lib/client.js`. Reading those files is what makes the *real* slot declarations
+     * reachable there, with no table of expected entries.
+     */
     const selectedEntries = () => {
+        const fromGraph = entriesFromGraph();
+        return fromGraph.length > 0 ? fromGraph : entriesFromInstallation();
+    };
+    /** Entries named by the Host's composed boot graph. */
+    const entriesFromGraph = () => {
         const face = options.clientModules();
-        if (face === undefined) {
-            throw new BridgeFailure('provider/unavailable', 'this Host composition has no client module registry');
-        }
-        const graph = face.graph();
-        if (graph === undefined) {
-            throw new BridgeFailure('provider/unavailable', 'the Host composes no web boot graph');
-        }
+        const graph = face?.graph();
+        if (face === undefined || graph === undefined)
+            return [];
         const wanted = options.entryIds.length === 0
             ? graph.entries
             : graph.entries.filter(entry => options.entryIds.includes(entry.id));
@@ -41,11 +60,28 @@ export function createClientSlotsProvider(options) {
         for (const entry of wanted) {
             const path = face.clientPath(entry.id);
             // An entry the Host composes but cannot locate on disk is skipped rather
-            // than reported as a broken registration source: the client sees only
-            // what could actually be evaluated.
+            // than reported as a broken registration source.
             if (path === undefined)
                 continue;
             rows.push({ id: entry.id, path, rev: entry.rev });
+        }
+        return rows;
+    };
+    /** Client halves found on disk, one per package that ships `lib/client.js`. */
+    const entriesFromInstallation = () => {
+        const wanted = options.entryIds.length === 0 ? undefined : new Set(options.entryIds);
+        const limit = options.maxClientBundles ?? DEFAULT_MAX_CLIENT_BUNDLES;
+        const rows = [];
+        for (const root of options.clientRoots?.() ?? []) {
+            for (const bundle of listClientBundles(root)) {
+                if (wanted !== undefined && !wanted.has(bundle.id))
+                    continue;
+                // Evaluating every client half on a phone exhausts the Host's heap, so the
+                // scan stops at a bound and reports the rest as not walked.
+                if (rows.length >= limit)
+                    return rows;
+                rows.push(bundle);
+            }
         }
         return rows;
     };
@@ -267,3 +303,56 @@ function compareRegistrations(left, right) {
 }
 /** Re-exported so the plugin assembly can share one budget default. */
 export { DEFAULT_RENDER_BUDGET };
+/**
+ * Every `lib/client.js` under one `node_modules` root.
+ *
+ * The client half's own file is the declaration source: it is the exact code the
+ * browser would run, so a registration read here is the plugin's real declaration.
+ * @param root absolute `node_modules` directory.
+ * @returns entry ids and paths, in directory order.
+ */
+function listClientBundles(root) {
+    const rows = [];
+    let entries;
+    try {
+        entries = readdirSync(root, { withFileTypes: true });
+    }
+    catch {
+        return rows;
+    }
+    for (const entry of entries) {
+        if (!isDirectoryEntry(entry))
+            continue;
+        const scoped = entry.name.startsWith('@');
+        const packages = scoped
+            ? readdirSync(join(root, entry.name), { withFileTypes: true })
+                .filter(child => isDirectoryEntry(child))
+                .map(child => ({ id: `${entry.name}/${child.name}`, dir: join(root, entry.name, child.name) }))
+            : [{ id: entry.name, dir: join(root, entry.name) }];
+        for (const candidate of packages) {
+            const clientPath = join(candidate.dir, 'lib', 'client.js');
+            try {
+                const stat = statSync(clientPath);
+                if (!stat.isFile())
+                    continue;
+                rows.push({ id: candidate.id, path: clientPath, rev: `${stat.mtimeMs}:${stat.size}` });
+            }
+            catch {
+                // No client half: most packages are Host-only.
+            }
+        }
+    }
+    return rows;
+}
+/**
+ * Whether a directory entry leads to a directory.
+ *
+ * A pnpm `node_modules` links each package into place, and a link's own dirent is
+ * neither a file nor a directory — treating links as non-directories would skip
+ * every installed package, which is precisely the layout this Host ships.
+ * @param entry dirent to classify.
+ * @returns whether the entry can be read as a directory.
+ */
+function isDirectoryEntry(entry) {
+    return entry.isDirectory() || entry.isSymbolicLink();
+}

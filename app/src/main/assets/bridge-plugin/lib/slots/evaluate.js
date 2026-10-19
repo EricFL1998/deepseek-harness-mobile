@@ -229,11 +229,13 @@ export function evaluateBundleSource(entryId, source) {
             case 'react-dom/client':
                 return reactDom;
             default:
-                // A client bundle may request a shared module-table row the bridge VM
-                // does not carry. Recording the specifier keeps the bundle's slot
-                // registrations readable while marking its components unrenderable.
+                // A client bundle may request a shared module-table row the bridge VM does
+                // not carry. Throwing here would discard the bundle's slot declarations along
+                // with the import, so the request is answered with a permissive stub and
+                // recorded: the registrations stay readable, and the component is known to be
+                // unrenderable because something it reads was never real.
                 state.missingExternals.add(specifier);
-                throw new Error(`the bridge VM does not provide ${specifier}`);
+                return permissiveModule();
         }
     };
     let exported;
@@ -299,3 +301,29 @@ export function bundleDigest(source) {
 }
 /** Re-export so callers can type-check a rendered value without importing the stub module. */
 export { isStubElement };
+/**
+ * A stand-in for a module the VM does not carry.
+ *
+ * Client bundles import shared modules at factory time and only use them when a
+ * component renders. Answering with something callable and infinitely nested lets the
+ * factory finish and register its slots; anything it draws is marked unrenderable
+ * through `missingExternals`, so no stub value ever reaches a client as if it were
+ * real data.
+ * @returns a callable, indexable stand-in.
+ */
+function permissiveModule() {
+    const stub = new Proxy(function stubCall() { return stub; }, {
+        get: (_target, property) => {
+            // Module interop and promise detection must stay truthful, or a caller would
+            // treat the stub as a real namespace or await it forever.
+            if (property === '__esModule')
+                return true;
+            if (property === 'then')
+                return undefined;
+            return stub;
+        },
+        apply: () => stub,
+        construct: () => stub,
+    });
+    return stub;
+}

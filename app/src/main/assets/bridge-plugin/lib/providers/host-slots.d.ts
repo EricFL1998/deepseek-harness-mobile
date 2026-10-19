@@ -41,12 +41,29 @@ export interface SlotInventoryFace {
         readonly entries: readonly SlotInventoryEntry[];
     }>;
 }
+/** One bundle row, as `pluginManager.listBundles()` reports it. */
+export interface SlotBundleRow {
+    readonly rowId: string;
+    readonly moduleName: string;
+    readonly meta?: unknown;
+}
+/** One bundle, reduced to the rows its patch declares. */
+export interface SlotBundleInfo {
+    readonly name: string;
+    readonly rows?: readonly SlotBundleRow[];
+}
+/** The slice of `pluginManager` this provider reads. */
+export interface SlotBundleFace {
+    listBundles(): Promise<readonly SlotBundleInfo[]>;
+}
 /** `host-slots` configuration. */
 export interface HostSlotsOptions {
     /** Resolve the settings service, or undefined when this composition has none. */
     readonly settings: () => SettingsFace | undefined;
     /** Resolve the plugin inventory, or undefined when absent. */
     readonly pluginInventory: () => SlotInventoryFace | undefined;
+    /** Resolve the bundle manager, or undefined when this composition has none. */
+    readonly pluginManager?: () => SlotBundleFace | undefined;
     /** Locale tags used to resolve locale-mapped titles. */
     readonly localeTags?: readonly string[];
 }

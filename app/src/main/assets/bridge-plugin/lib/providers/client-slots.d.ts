@@ -26,6 +26,10 @@ export interface ClientSlotsOptions {
     readonly iconViewBox: string;
     /** Absolute path of the Host installation's `node_modules`, or undefined when unknown. */
     readonly installModules?: () => string | undefined;
+    /** Directories whose packages may ship a `lib/client.js` client half. */
+    readonly clientRoots?: () => readonly string[];
+    /** How many client bundles one request may evaluate; discovery beyond it is skipped. */
+    readonly maxClientBundles?: number;
     /** Locale tags to read the official roster's text with, preferred first. */
     readonly localeTags?: readonly string[];
 }

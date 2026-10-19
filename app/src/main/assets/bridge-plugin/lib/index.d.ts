@@ -32,6 +32,8 @@ export interface Config {
      * wants and the bridge reports what the installed bundles register.
      */
     readonly slotEntries: string[];
+    /** Whether to evaluate the client halves on disk when the Host composes no graph. */
+    readonly clientBundleScan: boolean;
     /** Bytes one `client-assets/module-source` call may return. */
     readonly maxModuleBytes: number;
     /** Largest `size` an `client-slots/icon-svg` call may request. */
