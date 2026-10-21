@@ -2510,18 +2510,17 @@ fun MainAppHost(
                 )
             }
         }
-        // 放到安全区内的右上角，避免渲染到状态栏外；插件内容自身仍可画任意大小。
+        // shell.overlay：companion 的原生浮层。宿主只提供安全区全屏画布，
+        // 鲸鱼这类挂件由 companion 自己决定位置、拖动、吸附与动画。
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .padding(16.dp),
-            contentAlignment = androidx.compose.ui.Alignment.TopEnd,
+                .statusBarsPadding(),
         ) {
             com.deepseek.dsh.plugin.nativehost.NativeSlot(
                 slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.PLUGIN_OVERLAY,
                 spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-                modifier = Modifier.widthIn(max = 360.dp),
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
