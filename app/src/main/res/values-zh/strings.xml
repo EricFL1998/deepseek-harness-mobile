@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DSH</string>
+    <string name="workspace_default">默认工作区</string>
     <string name="channel_runtime_name">DSH Host 运行时</string>
     <string name="channel_runtime_desc">保持本地 Linux 用户空间容器与 DSH Agent 后台执行</string>
     <string name="channel_notify_name">DSH 设备通知</string>

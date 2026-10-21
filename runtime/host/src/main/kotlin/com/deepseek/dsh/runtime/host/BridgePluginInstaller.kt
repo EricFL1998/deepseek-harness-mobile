@@ -252,13 +252,48 @@ class BridgePluginInstaller(
 internal fun ensureProfilePresetLink(profileDir: File) {
     val nodeModules = File(profileDir, "node_modules").apply { mkdirs() }
     val presetLink = File(nodeModules, "@deepseek-ai")
+    // profiles/web -> profiles -> .dsh -> root -> rootfs 根
+    val installed = File(
+        profileDir,
+        "../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai",
+    ).canonicalFile
+    if (!installed.isDirectory) return
+
+    // 新 rootfs 自带一个真实的 @deepseek-ai 目录（只有 cosmokit/schemastery
+    // 这类 hoisted 包）。它不是链接，Host 按名字解析官方 bundle 会失败。
+    // 复制整个目录会打乱 profile 的依赖布局，改用符号链接：先备份真实目录，
+    // 链接失败时再恢复并用复制兜底。
+    // 链接位于 `node_modules/@deepseek-ai`，比 profileDir 多一层。
+    val installedLinkTarget = "../../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai"
+    if (presetLink.exists() && !java.nio.file.Files.isSymbolicLink(presetLink.toPath())) {
+        val backup = File(nodeModules, "@deepseek-ai.local")
+        if (backup.exists()) backup.deleteRecursively()
+        if (!presetLink.renameTo(backup)) return
+        val linked = runCatching {
+            java.nio.file.Files.createSymbolicLink(
+                presetLink.toPath(),
+                java.nio.file.Paths.get(installedLinkTarget),
+            )
+        }.isSuccess
+        if (linked) return
+        // 链接不可用（文件系统限制）时恢复原目录，并合并缺失的包。
+        backup.renameTo(presetLink)
+        installed.listFiles()?.forEach { source ->
+            val target = File(presetLink, source.name)
+            if (!target.exists()) {
+                runCatching {
+                    if (source.isDirectory) source.copyRecursively(target, overwrite = false)
+                    else source.copyTo(target, overwrite = false)
+                }
+            }
+        }
+        return
+    }
     if (presetLink.exists()) return
     runCatching {
         java.nio.file.Files.createSymbolicLink(
             presetLink.toPath(),
-            java.nio.file.Paths.get(
-                "../../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai"
-            ),
+            java.nio.file.Paths.get(installedLinkTarget),
         )
     }
 }

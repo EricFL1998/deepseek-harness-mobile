@@ -26,6 +26,15 @@
     <string name="chip_run_cli">Run CLI Commands</string>
     <string name="chat_input_placeholder">Message or run a task, / commands, @ files or sessions</string>
     <string name="chat_input_placeholder_plan">describe your task to generate plan</string>
+    <string name="chat_select_model">Select model</string>
+    <string name="chat_preview_badge">Preview</string>
+    <string name="chat_mic_start">Start recording</string>
+    <string name="preset_standard_title">Standard mode</string>
+    <string name="preset_standard_desc">Handle code, files and research. The agent uses search, editing and terminal tools as needed.</string>
+    <string name="preset_creative_title">Create mode</string>
+    <string name="preset_creative_desc">Customize DSH through conversation: have the agent write plugins, add features or UI, and combine tools and prompts into your own mode.</string>
+    <string name="preset_minimal_title">Minimal mode</string>
+    <string name="preset_ptc_title">PTC mode</string>
     <string name="chat_thinking">Think</string>
     <string name="chat_thinking_for">Thinking for %1$s ···</string>
     <string name="tool_executed_summary">Executed tools in local environment</string>
@@ -200,10 +209,17 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
+
+    <!-- Chat status & recording -->
+    <string name="chat_creating_session">Creating session…</string>
+    <string name="chat_translating">Translating reasoning…</string>
+    <string name="chat_view_original">View original</string>
+    <string name="chat_view_translation">View translation</string>
+    <string name="chat_translation_unavailable">Translation unavailable, showing original</string>
+    <string name="chat_completed">Completed</string>
+    <string name="chat_completed_with_duration">Completed in %1$s</string>
+    <string name="chat_duration_minutes">%1$d min %2$d s</string>
+    <string name="chat_duration_seconds">%1$d s</string>
+    <string name="chat_thinking_active">Thinking…</string>
+    <string name="chat_recording">Recording… %1$d s</string>
 </resources>
-
-
-
-
-
-

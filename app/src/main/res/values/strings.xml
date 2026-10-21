@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">DSH</string>
+    <string name="workspace_default">Default Workspace</string>
     <string name="channel_runtime_name">DSH Host Runtime</string>
     <string name="channel_runtime_desc">Keep local Linux user-space container and DSH Agent running in background</string>
     <string name="channel_notify_name">DSH Device Notifications</string>

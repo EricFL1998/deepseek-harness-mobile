@@ -274,7 +274,7 @@ fun MainAppHost(
     // 首次启动已强制授予所有文件访问权限，工作区固定为公有 Documents，无需再迁移/回退。
     val activeWorkspace = remember {
         externalWorkspaceDir.mkdirs()
-        java.io.File(externalWorkspaceDir, "默认工作区").mkdirs()
+        java.io.File(externalWorkspaceDir, DEFAULT_WORKSPACE_DIR_NAME).mkdirs()
         externalWorkspaceDir
     }
 
@@ -427,6 +427,14 @@ fun MainAppHost(
             if (catalog == null || provider == null) {
                 voiceBusy = false
                 voiceError = "语音识别失败：语音服务暂不可用"
+                return@launch
+            }
+            // 本地识别器未就绪时先准备；准备失败要如实告诉用户，
+            // 而不是在转写阶段抛出一个笼统的 transcription-failed。
+            val phase = provider.preparation?.phase
+            if (phase != "ready" && phase != "standby") {
+                voiceError = "语音识别暂不可用：请先在语音设置中完成模型准备"
+                voiceBusy = false
                 return@launch
             }
             val encoded = android.util.Base64.encodeToString(wav, android.util.Base64.NO_WRAP)
@@ -1259,7 +1267,9 @@ fun MainAppHost(
     }
 
     var workspaceRevision by remember { mutableStateOf(0) }
-    var activeWorkspaceName by remember { mutableStateOf("默认工作区") }
+    var activeWorkspaceName by remember { mutableStateOf(DEFAULT_WORKSPACE_DIR_NAME) }
+    // 文件夹名保持固定（用于磁盘路径），界面上按当前语言显示。
+    val defaultWorkspaceLabel = stringResource(R.string.workspace_default)
     val activeWorkspaceCwd = "/workspace/$activeWorkspaceName"
     val activeWorkspaceFolderPath = java.io.File(activeWorkspace, activeWorkspaceName).absolutePath
     var showAddWorkspaceDialog by remember { mutableStateOf(false) }
@@ -1444,7 +1454,7 @@ fun MainAppHost(
                             folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
                         )
                         runCatching { target.deleteRecursively() }
-                        if (folder.name == activeWorkspaceName) activeWorkspaceName = "默认工作区"
+                        if (folder.name == activeWorkspaceName) activeWorkspaceName = DEFAULT_WORKSPACE_DIR_NAME
                         workspaceRevision += 1
                         deleteWorkspaceFolder = null
                     },
@@ -1801,9 +1811,15 @@ fun MainAppHost(
                                     }
                                 },
                                 isSending = isSending,
-                                workspaceName = activeWorkspaceName,
+                                workspaceName = if (activeWorkspaceName == DEFAULT_WORKSPACE_DIR_NAME) {
+                                    defaultWorkspaceLabel
+                                } else {
+                                    activeWorkspaceName
+                                },
                                 // 工作区列表来自 Host；选中即切换当前工作区，末行开新建对话框。
-                                workspaceNames = workspaceFolders.map { it.name },
+                                workspaceNames = workspaceFolders.map { folder ->
+                                    if (folder.name == DEFAULT_WORKSPACE_DIR_NAME) defaultWorkspaceLabel else folder.name
+                                },
                                 onWorkspaceSelected = { name -> activeWorkspaceName = name },
                                 onAddWorkspace = { newWorkspaceName = ""; showAddWorkspaceDialog = true },
                                 onWorkspaceClick = { scope.launch { drawerState.open() } },
@@ -1816,12 +1832,9 @@ fun MainAppHost(
                                 },
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
-                                agentPresetLabel = when (pendingAgentPreset ?: currentAppSettings.transcriptView) {
-                                    "cordis" -> "创造模式"
-                                    "minimal" -> "极简模式"
-                                    "ptc" -> "PTC 模式"
-                                    else -> "标准模式"
-                                },
+                                agentPresetLabel = com.deepseek.dsh.feature.chat.agentPresetLabel(
+                                    pendingAgentPreset ?: currentAppSettings.transcriptView
+                                ),
                                 agentPresetSelectedId = pendingAgentPreset ?: currentAppSettings.transcriptView,
                                 onAgentPresetSelected = { preset ->
                                     // 立即生效：新会话用新预设；当前会话保持原样。
@@ -3208,4 +3221,7 @@ private fun parseWorkspaceId(raw: String?): String? {
 /** App 侧记住的实验性 bundle 选择（profile 清单会被 Host 启动重置）。 */
 private const val PLUGIN_SELECTION_PREFS = "dsh_plugin_selection"
 private const val PLUGIN_SELECTION_KEY = "enabled_bundles"
+
+/** 磁盘上的默认工作区目录名；界面显示走 R.string.workspace_default。 */
+private const val DEFAULT_WORKSPACE_DIR_NAME = "默认工作区"
 

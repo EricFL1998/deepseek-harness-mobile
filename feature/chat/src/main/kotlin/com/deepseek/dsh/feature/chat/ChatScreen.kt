@@ -469,7 +469,7 @@ fun ModernChatScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "正在创建会话…",
+                        text = stringResource(R.string.chat_creating_session),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -810,6 +810,20 @@ private fun WorkspaceMenu(
 }
 
 /**
+ * 预设 id → 本地化显示名；会话顶栏和输入栏共用。
+ * @param presetId Host 预设标识（standard/cordis/minimal/ptc）。
+ */
+@Composable
+fun agentPresetLabel(presetId: String): String = stringResource(
+    when (presetId) {
+        "cordis" -> R.string.preset_creative_title
+        "minimal" -> R.string.preset_minimal_title
+        "ptc" -> R.string.preset_ptc_title
+        else -> R.string.preset_standard_title
+    },
+)
+
+/**
  * Agent 预设菜单：与官方新会话页一致，只列「标准模式 / 创造模式」两项，
  * 名称 + 描述两行，当前项打勾。PTC / 极简模式只在「开发者工具」开启后才
  * 出现在官方菜单里，这里不开放。
@@ -823,8 +837,8 @@ private fun AgentPresetMenu(
 ) {
     // 与官方 AgentPresetSeat 的候选项一致：标准 + 创造；名称与描述来自官方 i18n。
     val entries = listOf(
-        Triple("standard", "标准模式", "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。"),
-        Triple("cordis", "创造模式", "用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。"),
+        Triple("standard", R.string.preset_standard_title, R.string.preset_standard_desc),
+        Triple("cordis", R.string.preset_creative_title, R.string.preset_creative_desc),
     )
     AnchoredMenuPopup(
         expanded = expanded,
@@ -832,8 +846,10 @@ private fun AgentPresetMenu(
         align = DshMenuAlign.Start,
         contentWidth = true,
     ) {
-        entries.forEach { (id, name, description) ->
+        entries.forEach { (id, titleRes, descRes) ->
             val selected = id == currentId
+            val name = stringResource(titleRes)
+            val description = stringResource(descRes)
             DshMenuRow(onClick = { onSelect(id) }) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -1097,7 +1113,7 @@ fun EmptyWelcomeView(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
             ) {
                 Text(
-                    text = "预览版",
+                    text = stringResource(R.string.chat_preview_badge),
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     color = MaterialTheme.colorScheme.primary,
@@ -1252,13 +1268,17 @@ fun ReasoningCard(
                                 color = MaterialTheme.colorScheme.primary,
                             )
                             Text(
-                                text = "正在翻译思考内容",
+                                text = stringResource(R.string.chat_translating),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline,
                             )
                         } else {
                             Text(
-                                text = if (showTranslation) "查看原文" else "查看译文",
+                                text = if (showTranslation) {
+                                    stringResource(R.string.chat_view_original)
+                                } else {
+                                    stringResource(R.string.chat_view_translation)
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
@@ -1269,12 +1289,12 @@ fun ReasoningCard(
                         }
                         if (translateFailed) {
                             Text(
-                                text = "翻译暂不可用，已显示原文",
+                                text = stringResource(R.string.chat_translation_unavailable),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline,
                             )
                             Text(
-                                text = "重试",
+                                text = stringResource(R.string.action_retry),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
@@ -1300,10 +1320,10 @@ fun ReasoningCard(
 @Composable
 private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick: () -> Unit = {}) {
     val seconds = (durationMs / 1000).coerceAtLeast(0)
-    val label = when {
-        durationMs < 0 -> ""
-        seconds >= 60 -> "，用时 ${seconds / 60}分${seconds % 60}秒"
-        else -> "，用时 ${seconds}秒"
+    val duration = when {
+        durationMs < 0 -> null
+        seconds >= 60 -> stringResource(R.string.chat_duration_minutes, seconds / 60, seconds % 60)
+        else -> stringResource(R.string.chat_duration_seconds, seconds)
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1311,7 +1331,11 @@ private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "已完成$label",
+                text = if (duration == null) {
+                    stringResource(R.string.chat_completed)
+                } else {
+                    stringResource(R.string.chat_completed_with_duration, duration)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -1646,7 +1670,7 @@ private fun LiveToolStatus(messages: List<ChatMessage>) {
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "思考中…",
+                text = stringResource(R.string.chat_thinking_active),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
             )
@@ -2178,13 +2202,13 @@ fun BottomInputBar(
                     }
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "正在录音… ${voiceSeconds}s",
+                        text = stringResource(R.string.chat_recording, voiceSeconds),
                         color = panelColors.labelSecondary,
                         fontSize = 12.sp,
                     )
                 }
                 Text(
-                    text = "取消",
+                    text = stringResource(R.string.action_cancel),
                     color = panelColors.labelSecondary,
                     fontSize = 12.sp,
                     modifier = Modifier
@@ -2312,15 +2336,19 @@ fun BottomInputBar(
                         )
                     }
 
-                    // 模型与推理等级：trigger（当前模型 + 推理等级 + 箭头），菜单锚定在此
-                    Box(modifier = Modifier.weight(1f).onGloballyPositioned { modelAnchor = it.boundsInWindow() }) {
+                    // 模型与推理等级：贴近右侧发送按钮，菜单锚定在此。
+                    Spacer(modifier = Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .widthIn(max = 200.dp)
+                            .onGloballyPositioned { modelAnchor = it.boundsInWindow() },
+                    ) {
                         ComposerTrigger(
-                            label = selectedModel.ifBlank { "请选择模型" },
+                            label = selectedModel.ifBlank { stringResource(R.string.chat_select_model) },
                             // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
                             trailingValue = if (availableModels.isEmpty()) null else effortLabel,
                             onClick = onOpenModelMenu,
                             compact = tightComposer,
-                            modifier = Modifier.fillMaxWidth(),
                         )
                         ModelEffortMenu(
                             expanded = modelMenuOpen,
@@ -2357,7 +2385,7 @@ fun BottomInputBar(
                         ) {
                             androidx.compose.material3.Icon(
                                 imageVector = androidx.compose.material.icons.Icons.Filled.Mic,
-                                contentDescription = "开始录音",
+                                contentDescription = stringResource(R.string.chat_mic_start),
                                 tint = panelColors.labelPrimary,
                                 modifier = Modifier.size(15.dp),
                             )

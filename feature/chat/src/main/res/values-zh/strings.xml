@@ -26,6 +26,15 @@
     <string name="chip_run_cli">运行终端命令</string>
     <string name="chat_input_placeholder">发消息或创建任务, / 调用指令, @ 文件或对话</string>
     <string name="chat_input_placeholder_plan">描述你的任务以生成计划</string>
+    <string name="chat_select_model">请选择模型</string>
+    <string name="chat_preview_badge">预览版</string>
+    <string name="chat_mic_start">开始录音</string>
+    <string name="preset_standard_title">标准模式</string>
+    <string name="preset_standard_desc">处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。</string>
+    <string name="preset_creative_title">创造模式</string>
+    <string name="preset_creative_desc">用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。</string>
+    <string name="preset_minimal_title">极简模式</string>
+    <string name="preset_ptc_title">PTC 模式</string>
     <string name="chat_thinking">思考</string>
     <string name="chat_thinking_for">思考中，用时 %1$s ···</string>
     <string name="tool_executed_summary">已在本地执行系统工具与环境准备</string>
@@ -200,10 +209,16 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
+    <!-- 会话状态与录音 -->
+    <string name="chat_creating_session">正在创建会话…</string>
+    <string name="chat_translating">正在翻译思考内容</string>
+    <string name="chat_view_original">查看原文</string>
+    <string name="chat_view_translation">查看译文</string>
+    <string name="chat_translation_unavailable">翻译暂不可用，已显示原文</string>
+    <string name="chat_completed">已完成</string>
+    <string name="chat_completed_with_duration">已完成，用时 %1$s</string>
+    <string name="chat_duration_minutes">%1$d分%2$d秒</string>
+    <string name="chat_duration_seconds">%1$d秒</string>
+    <string name="chat_thinking_active">思考中…</string>
+    <string name="chat_recording">正在录音… %1$d秒</string>
 </resources>
-
-
-
-
-
-

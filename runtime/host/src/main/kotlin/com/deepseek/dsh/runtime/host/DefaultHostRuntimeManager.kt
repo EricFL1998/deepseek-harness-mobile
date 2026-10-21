@@ -210,7 +210,7 @@ class DefaultHostRuntimeManager(
     private fun applyBundledRuntimePatches() {
         // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
-        val patchRevision = "22"
+        val patchRevision = "24"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
@@ -240,6 +240,11 @@ class DefaultHostRuntimeManager(
             // node_modules 直接读清单。
             "rootfs-patches/dsh-client-modules-index.js" to
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-modules/lib/index.js",
+            // SenseVoice 的模型检查用 fs.access；proot 返回 ENOSYS，改用 stat
+            // 验证存在性，后续大小和 SHA-256 校验保持不变。
+            "rootfs-patches/dsh-speech-sensevoice-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/" +
+                "@deepseek-ai/dsh-experimental-speech-to-text-sensevoice/lib/index.js",
         )
         patches.forEach { (asset, relative) ->
             val target = File(layout.rootfsDir, relative)
