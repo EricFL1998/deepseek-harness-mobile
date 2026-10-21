@@ -53,6 +53,12 @@ data class NativePluginItem(
     val statusLabel: String? = null,
     val signatureFingerprint: String? = null,
     /**
+     * 伴侣 APK 的 Android 包名。
+     *
+     * 卸载要用它（`package:<包名>`），`pluginId` 是作者声明的插件身份，两者不同。
+     */
+    val packageName: String? = null,
+    /**
      * APK manifest 声明的配对 JS 插件（`dsh.plugin.jsPackage`）。
      *
      * 插件页据此把伴侣 APK 挂到对应 JS 插件的详情里，作为那个插件的子组件；

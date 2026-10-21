@@ -115,6 +115,8 @@ fun PluginsScreen(
     onTogglePluginRow: (String, Boolean) -> Unit = { _, _ -> },
     /** 启停 bundle 里的一个子组件（bundle patch 插进来的一行 Loader entry）。 */
     onToggleComponent: (String, Boolean) -> Unit = { _, _ -> },
+    /** 卸载一个伴侣 APK（系统卸载确认框由外层发起）。 */
+    onUninstallCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Unit = {},
     onUninstall: (SurfaceItem) -> Unit = {},
     onCreatePlugin: () -> Unit = {},
     pluginRows: List<PluginRowInfo> = emptyList(),
@@ -402,6 +404,7 @@ fun PluginsScreen(
                         }
                     },
                     onOpenCompanion = { companion -> selectedNativePlugin = companion },
+                    onUninstallCompanion = onUninstallCompanion,
                     onToggle = { enabled -> onToggleBundle(bundleDetail.packageName, enabled) },
                     onToggleComponent = onToggleComponent,
                     onUninstall = { onUninstall(SurfaceItem(pluginId = bundleDetail.packageName, slot = "host.bundle", title = bundleDetail.title)) },
@@ -446,7 +449,10 @@ fun PluginsScreen(
                 NativePluginDetailPage(
                     item = nativeDetail,
                     onBack = { selectedNativePlugin = null },
-                    onUninstall = { selectedNativePlugin = null },
+                    onUninstall = { item ->
+                        onUninstallCompanion(item)
+                        selectedNativePlugin = null
+                    },
                 )
             } else if (rowDetail != null) {
                 // 已安装的第三方行插件：伴侣 APK 在这里作为子组件出现。
@@ -462,6 +468,7 @@ fun PluginsScreen(
                         }
                     },
                     onOpenCompanion = { companion -> selectedNativePlugin = companion },
+                    onUninstallCompanion = onUninstallCompanion,
                     onToggle = { enabled ->
                         rowDetail.entryId?.let { entryId -> onTogglePluginRow(entryId, enabled) }
                     },
@@ -1325,6 +1332,7 @@ private fun BundleDetailContent(
     companionEnabled: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Boolean,
     onToggleCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem, Boolean) -> Unit,
     onOpenCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Unit,
+    onUninstallCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Unit,
     onToggle: (Boolean) -> Unit,
     onToggleComponent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
@@ -1480,6 +1488,20 @@ private fun BundleDetailContent(
                     checked = companionEnabled(companion),
                     onCheckedChange = { enabled -> onToggleCompanion(companion, enabled) },
                 )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onUninstallCompanion(companion) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
+                        contentDescription = "卸载原生伴侣",
+                        tint = colors.stateErrorPrimary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
             }
         }
         Spacer(Modifier.height(28.dp))

@@ -56,6 +56,8 @@ internal fun InstalledPluginDetailPage(
     companionEnabled: (NativePluginItem) -> Boolean,
     onToggleCompanion: (NativePluginItem, Boolean) -> Unit,
     onOpenCompanion: (NativePluginItem) -> Unit,
+    /** 卸载一个伴侣 APK（系统确认框由外层发起）。 */
+    onUninstallCompanion: (NativePluginItem) -> Unit,
     onToggle: (Boolean) -> Unit,
     onUninstall: () -> Unit,
 ) {
@@ -214,6 +216,20 @@ internal fun InstalledPluginDetailPage(
                         checked = companionEnabled(companion),
                         onCheckedChange = { enabled -> onToggleCompanion(companion, enabled) },
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onUninstallCompanion(companion) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
+                            contentDescription = "卸载原生伴侣",
+                            tint = colors.stateErrorPrimary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier

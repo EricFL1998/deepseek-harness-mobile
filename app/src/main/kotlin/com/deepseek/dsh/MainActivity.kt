@@ -436,6 +436,52 @@ fun MainAppHost(
             .getOrDefault(emptySet())
     }
 
+    // 待卸载的伴侣 APK。
+    //
+    // 主 JS 插件卸载时要连带卸载配对的 APK，但 Android 的卸载确认框一次只能显示
+    // 一个：这里排队，每次回到前台（onResume 递增重扫信号）再发起下一个。
+    val pendingApkUninstalls = remember { mutableStateListOf<String>() }
+    val apkUninstallTick by nativePluginRescanFlow.collectAsState()
+    LaunchedEffect(apkUninstallTick, pendingApkUninstalls.size) {
+        if (pendingApkUninstalls.isEmpty()) return@LaunchedEffect
+        val next = pendingApkUninstalls.removeAt(0)
+        runCatching {
+            context.startActivity(
+                android.content.Intent(
+                    android.content.Intent.ACTION_DELETE,
+                    android.net.Uri.parse("package:$next"),
+                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
+    /**
+     * 把一个伴侣 APK 排进卸载队列。
+     * @param packageName Android 包名。
+     */
+    fun requestApkUninstall(packageName: String?) {
+        val target = packageName?.takeIf { it.isNotBlank() } ?: return
+        if (target !in pendingApkUninstalls) pendingApkUninstalls.add(target)
+    }
+
+    /**
+     * 把某个 JS 插件配对的伴侣 APK 全部排进卸载队列。
+     *
+     * 配对依据是 APK manifest 的 `dsh.plugin.jsPackage`，不按包名猜。
+     * @param jsPackageName JS 插件在 Host 里的模块名。
+     */
+    fun queueCompanionApkUninstalls(jsPackageName: String) {
+        val normalized = jsPackageName.substringAfterLast('/').substringBefore('@')
+        nativePluginItems
+            .filter { it.installed && it.packageName != null && it.jsPackage != null }
+            .filter { item ->
+                val declared = item.jsPackage!!
+                declared == jsPackageName ||
+                    declared.substringAfterLast('/').substringBefore('@') == normalized
+            }
+            .forEach { item -> requestApkUninstall(item.packageName) }
+    }
+
     // 扫描系统里已装的原生伴侣 APK，填充「原生插件」tab，并把 READY 的插件
     // 装载进 App 进程（触发它们的落点/工具/页面注册）。卸载/安装后回前台时
     // 重扫（onResume 递增信号），保证「卸载即从列表摘除」。装 APK 时连带装
@@ -497,6 +543,7 @@ fun MainAppHost(
                     },
                     signatureFingerprint = installed.signatureFingerprint,
                     jsPackage = installed.jsPackage,
+                    packageName = installed.packageName,
                 )
             }
         }
@@ -1598,6 +1645,9 @@ fun MainAppHost(
                                 },
                                 onUninstall = { item ->
                                     scope.launch {
+                                        // 主插件卸载时连带卸载它的伴侣 APK（APK 自己装不了也
+                                        // 卸不了，必须用户确认；队列保证一次弹一个）。
+                                        queueCompanionApkUninstalls(item.pluginId)
                                         if (item.slot == "plugin.row") {
                                             // 行插件没有 bundle 记录：直接走 App 侧卸载。
                                             // Host 的 removeBundle 对非 bundle 目标不适用，
@@ -1627,7 +1677,10 @@ fun MainAppHost(
                                     selectedSessionId = null
                                     activePage = ActivePage.CHAT
                                 },
-                                nativePluginItems = nativePluginItems
+                                nativePluginItems = nativePluginItems,
+                                onUninstallCompanion = { companion ->
+                                    requestApkUninstall(companion.packageName)
+                                },
                             )
                         }
 
