@@ -76,6 +76,7 @@ object ProotCommandBuilder {
             environment = mapOf(
                 "PROOT_LOADER" to "${layout.nativeLibraryDir.absolutePath}/libproot-loader.so",
                 "PROOT_TMP_DIR" to layout.cacheDir.absolutePath,
+                "LD_LIBRARY_PATH" to layout.nativeLibraryDir.absolutePath,
             ),
         )
     }

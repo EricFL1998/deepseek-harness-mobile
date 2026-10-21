@@ -216,7 +216,7 @@ Android 窗口无法对弹层背后的内容做 backdrop blur，因此菜单/面
 - APK 不再内置 rootfs（体积保持约 20MB）；`rootfs-manifest.json` 的 `downloadUrls` / `downloadSha256` 按 ABI 配置下载地址与校验值，直接拉取 `deepseek-harness-mobile-rootfs` 自动化发布的 Release 资产；
 - 启动顺序：**rootfs 准备页 → onboarding → 主界面**，未下载/解压完成前不会进入 onboarding；失败可在准备页重试；
 - `RootfsInstaller` 支持下载进度、SHA-256 校验、tar.gz 安全解包（含硬链接可执行位恢复）；
-- proot 已替换为 `build-proot-android` 的 Android NDK 构建（含独立 loader），放在 `jniLibs/{x86_64,arm64-v8a}/libproot.so` + `libproot-loader.so`，通过 `PROOT_LOADER` 启动；已能拉起 Node；
+- proot 使用 16 KB page-size 对齐的 Android NDK 构建（Termux proot 5.1.107 + 独立 loader），放在 `jniLibs/{x86_64,arm64-v8a}/libproot.so`、`libproot-loader.so`，并附带 `libtalloc.so` / `libandroid-shmem.so`；启动时通过 `PROOT_LOADER` + `LD_LIBRARY_PATH=nativeLibraryDir` 加载；已能拉起 Node；
 - 当前剩余问题：DSH 启动时 profile bundle（`@deepseek-ai/dsh-base` / `dsh-web-app`）在 proot 内解析失败，容器内同一 rootfs 正常，需继续修该解析路径。
 
 
