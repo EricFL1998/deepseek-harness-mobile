@@ -1709,7 +1709,8 @@ fun MainAppHost(
                                 slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.SESSION_HEADER_CORNER,
                                 modifier = Modifier
                                     .align(androidx.compose.ui.Alignment.TopEnd)
-                                    .padding(top = 8.dp, end = 56.dp),
+                                    .statusBarsPadding()
+                                    .padding(top = 8.dp, end = 12.dp),
                             ) {}
                         }
                     }
