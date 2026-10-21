@@ -151,6 +151,8 @@ fun PluginsScreen(
         mutableStateOf<com.deepseek.dsh.plugin.nativehost.NativePluginItem?>(null)
     }
     var disabledNativePlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 插件页分段页签：0 = 插件（现有列表），1 = 原生插件商店。
+    var pluginsTabIndex by remember { mutableStateOf(0) }
     val installedNativePlugins = nativePluginItems.filter { it.installed }
     // 官方插件分类只有一个来源：bridge 的 `client-slots/plugins.item` 注册。
     // 文案、顺序与图形都是官方客户端自己的资源。bridge 不可用时这个分组直接
@@ -264,12 +266,31 @@ fun PluginsScreen(
                     },
                 )
             } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 分段页签永远在最顶（添加插件按钮之上），两个 tab 都有它。
+                    PluginsNativeTabs(
+                        selectedIndex = pluginsTabIndex,
+                        onSelect = { pluginsTabIndex = it },
+                        modifier = Modifier.padding(
+                            start = PluginsDimens.PageHorizontal,
+                            end = PluginsDimens.PageHorizontal,
+                            top = PluginsDimens.PageTop,
+                            bottom = 16.dp,
+                        ),
+                    )
+                    if (pluginsTabIndex == 1) {
+                        // 「原生插件」tab = 商店：浏览/发现/安装可装的伴侣 APK。
+                        NativeStoreTab(
+                            items = nativePluginItems,
+                            onOpenDetail = { selectedNativePlugin = it },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
                         start = PluginsDimens.PageHorizontal,
                         end = PluginsDimens.PageHorizontal,
-                        top = PluginsDimens.PageTop,
                         bottom = PluginsDimens.PageBottom,
                     ),
                 ) {
@@ -477,6 +498,8 @@ fun PluginsScreen(
                                 )
                             }
                         }
+                    }
+                }
                     }
                 }
             }
