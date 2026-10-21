@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.deepseek.dsh.core.model.ComposerStats
 import com.deepseek.dsh.feature.chat.R
+import kotlinx.serialization.json.put
 
 /**
  * `conversation.composer.dock` 底栏。
@@ -51,46 +52,71 @@ fun ComposerDockBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // 1. 推理速率（IconGaugeOutline + "<speed> tok/s"）
-        StatReading(
-            label = stringResource(R.string.stat_tok_per_sec, stats.outputSpeedTokensPerSec),
+        // 1. 推理速率（activity 条目）
+        com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK_ACTIVITY,
+            spec = kotlinx.serialization.json.buildJsonObject {
+                put("tokensPerSecond", stats.outputSpeedTokensPerSec)
+            },
+            arrangement = com.deepseek.dsh.plugin.nativehost.SlotArrangement.INLINE,
         ) {
-            Icon(
-                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_stat_gauge),
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.outline,
-            )
+            StatReading(
+                label = stringResource(R.string.stat_tok_per_sec, stats.outputSpeedTokensPerSec),
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_stat_gauge),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
 
-        // 2. 缓存命中率（IconDatabaseOutline + "缓存命中 <percent>%"）
-        StatReading(
-            label = stringResource(R.string.stat_cache_hit, stats.cacheHitPercent),
+        // 2. 缓存命中率（usage 条目）
+        com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK_USAGE,
+            spec = kotlinx.serialization.json.buildJsonObject {
+                put("cacheHitPercent", stats.cacheHitPercent)
+            },
+            arrangement = com.deepseek.dsh.plugin.nativehost.SlotArrangement.INLINE,
         ) {
-            Icon(
-                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_stat_database),
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.outline,
-            )
+            StatReading(
+                label = stringResource(R.string.stat_cache_hit, stats.cacheHitPercent),
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_stat_database),
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
 
-        // 3. 上下文占用（14dp 环形计量 + 百分比）
+        // 3. 上下文占用（context 计量）
         val contextAria = stringResource(R.string.stat_context_aria, stats.contextPercent)
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .semantics { contentDescription = contextAria }
-                .padding(horizontal = 8.dp, vertical = 1.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK_CONTEXT,
+            spec = kotlinx.serialization.json.buildJsonObject {
+                put("percent", stats.contextPercent)
+                put("contentDescription", contextAria)
+            },
+            arrangement = com.deepseek.dsh.plugin.nativehost.SlotArrangement.INLINE,
         ) {
-            ContextRing(percent = stats.contextPercent)
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "${stats.contextPercent}%",
-                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.outline,
-            )
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .semantics { contentDescription = contextAria }
+                    .padding(horizontal = 8.dp, vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ContextRing(percent = stats.contextPercent)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "${stats.contextPercent}%",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
 
         // 官方 composer.dock 的插件扩展：紧跟在上下文计量之后，同一条状态行内。

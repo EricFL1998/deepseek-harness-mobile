@@ -56,6 +56,18 @@ object NativeSlotMapping {
     )
 
     /**
+     * `conversation.composer.dock` 的内部条目。官方同一个 slot 下按 id 注册
+     * activity / usage 两个条目（上下文计量是 dock 的兄弟节点），因此这里也把
+     * 它们拆成独立落点，让插件能只替换其中一个读数。
+     */
+    val composerDockEntries: List<NativeSlot> = listOf(
+        NativeSlot.COMPOSER_DOCK_ACTIVITY,
+        NativeSlot.COMPOSER_DOCK_USAGE,
+        NativeSlot.COMPOSER_DOCK_CONTEXT,
+        NativeSlot.COMPOSER_DOCK,
+    )
+
+    /**
      * 官方存在、但 App 还没有原生宿主容器的 slot。
      *
      * 目前为空：所有官方 slot 都已有原生落点与宿主容器。保留这个集合是为了未来

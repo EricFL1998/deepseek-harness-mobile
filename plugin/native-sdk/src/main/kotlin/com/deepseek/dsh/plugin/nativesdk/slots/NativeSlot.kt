@@ -31,6 +31,22 @@ enum class NativeSlot {
     /** 输入框顶栏 / 底部药丸栏。承载 conversation.composer.dock、conversation.input.dock。 */
     COMPOSER_DOCK,
 
+    /**
+     * Dock 里的 activity 读数（tok/s）：官方把 dock 拆成按 id 注册的条目
+     * （activity / usage），这里同样给每一项一个可插拔落点，插件可 ENHANCE/OVERRIDE
+     * 单个读数而不影响其它项。对应官方 `conversation.composer.dock` 的 `activity` 条目。
+     */
+    COMPOSER_DOCK_ACTIVITY,
+
+    /**
+     * Dock 里的 usage 读数（缓存命中率）：对应官方 `conversation.composer.dock`
+     * 的 `usage` 条目。
+     */
+    COMPOSER_DOCK_USAGE,
+
+    /** Dock 里的上下文占用计量（环形 + 百分比）。 */
+    COMPOSER_DOCK_CONTEXT,
+
     /** 输入栏左侧扩展位（conversation.input.left）。 */
     COMPOSER_LEFT,
 
