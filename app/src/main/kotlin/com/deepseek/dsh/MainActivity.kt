@@ -2497,7 +2497,19 @@ fun MainAppHost(
             }
         }
 
-        // shell.overlay：原生插件的顶层浮层落点。
+        // web-island.full：插件整岛 Web UI 的原生容器。只有插件显式注册时才占屏。
+        if (com.deepseek.dsh.plugin.nativesdk.slots.SlotRegistry
+                .resolve(com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.WEB_ISLAND_FULL)
+                .isNotEmpty()
+        ) {
+            androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+                com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                    slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.WEB_ISLAND_FULL,
+                    spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
         // 放到安全区内的右上角，避免渲染到状态栏外；插件内容自身仍可画任意大小。
         androidx.compose.foundation.layout.Box(
             modifier = Modifier

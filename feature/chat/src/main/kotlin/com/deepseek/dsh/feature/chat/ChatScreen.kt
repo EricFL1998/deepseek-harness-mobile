@@ -78,6 +78,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.deepseek.dsh.core.designsystem.AnchoredMenuOverlay
 import com.deepseek.dsh.core.designsystem.AnchoredMenuPopup
 import com.deepseek.dsh.core.designsystem.DshDialogButton
@@ -2233,6 +2234,7 @@ fun BottomInputBar(
     val cardShape = RoundedCornerShape(28.dp)
     var permissionAnchor by remember { mutableStateOf<Rect?>(null) }
     var modelAnchor by remember { mutableStateOf<Rect?>(null) }
+    var composerOverlayAnchor by remember { mutableStateOf<Rect?>(null) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2333,6 +2335,7 @@ fun BottomInputBar(
                 .clip(cardShape)
                 .background(panelColors.bgLayer2)
                 .border(0.5.dp, panelColors.borderL2, cardShape)
+                .onGloballyPositioned { composerOverlayAnchor = it.boundsInWindow() }
         ) {
             Column(modifier = Modifier.padding(start = 0.dp, end = 4.dp, top = 8.dp)) {
                 BasicTextField(
@@ -2483,11 +2486,6 @@ fun BottomInputBar(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_PLAN,
                     ) {}
 
-                    // conversation.input.overlay：锚在输入栏一行的插件落点。
-                    com.deepseek.dsh.plugin.nativehost.NativeSlotInline(
-                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_OVERLAY,
-                        spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-                    )
                     } // 控件区横向滚动结束；麦克风/发送固定在右侧
 
                     // 录音输入：麦克风动作（官方 conversation.input.activity）。
@@ -2547,6 +2545,7 @@ fun BottomInputBar(
                     }
                 }
             }
+            // conversation.input.overlay：锚定 Popup，不占输入卡布局。
         }
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -2574,6 +2573,11 @@ fun BottomInputBar(
             showStats = showDockStats,
             selectedModelId = selectedModelId,
             modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        com.deepseek.dsh.plugin.nativehost.AnchoredSlotPopup(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_OVERLAY,
+            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+            anchorBounds = composerOverlayAnchor,
         )
     }
     }

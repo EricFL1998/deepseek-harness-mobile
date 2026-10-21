@@ -86,7 +86,7 @@ object DemoSlots {
         DemoSlotEntry(NativeSlot.COMPOSER_BAR, "整个 composer", "conversation.composer.bar"),
         DemoSlotEntry(NativeSlot.CONVERSATION_VIEW, "会话视图", "conversation.view"),
         DemoSlotEntry(NativeSlot.SESSION_HEADER_CORNER, "会话标题角", "session.header.corner"),
-        DemoSlotEntry(NativeSlot.COMPOSER_OVERLAY, "输入框浮层", "conversation.input.overlay", hostReady = false),
+        DemoSlotEntry(NativeSlot.COMPOSER_OVERLAY, "输入框浮层", "conversation.input.overlay"),
         DemoSlotEntry(NativeSlot.PLUGIN_OVERLAY, "插件浮层", "shell.overlay"),
         DemoSlotEntry(NativeSlot.MESSAGE_ACTION, "消息动作", "assistant-actions"),
         DemoSlotEntry(NativeSlot.TOOL_VIEW_SHEET, "工具详情", "tool.call.toolview"),
