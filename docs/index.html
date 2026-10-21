@@ -290,6 +290,7 @@
     <a href="#slots">官方控件也走 slot</a>
     <a href="#case">案例：订阅插件 4 个落点</a>
     <a href="#validation">校验与 CI</a>
+    <a href="#pitfalls">踩坑清单</a>
     <a href="#troubleshooting">常见问题</a>
     <a href="#files">SDK 文件结构</a>
     <a href="#glossary">术语与版本</a>
@@ -667,9 +668,40 @@ settings.section               SubscriptionsSection impl=True</pre>
       </div>
     </section>
 
+    <section id="pitfalls">
+      <div class="section-head">
+        <h2><span class="num">11</span>踩坑清单<a class="anchor" href="#pitfalls">#</a></h2>
+        <p>这次接入真实踩过的坑，按“现象 → 根因 → 修复”记录在 SDK 文档里。</p>
+      </div>
+      <div class="grid cols-2">
+        <div class="card"><div class="kicker">Slot</div><h3>有映射，界面空白</h3>
+        <p>slot 贡献拿到基础 Host，没有 <code>PluginRpcHost</code>，第一行 <code>as?</code> 就 return；
+        用 <code>SlotBridgeHost</code> 补齐 RPC/模型能力。</p></div>
+        <div class="card"><div class="kicker">异步加载</div><h3>旧会话不重组</h3>
+        <p>插件 APK 在聊天页组合之后才装载；<code>SlotRegistry</code> 要有可观察 revision，
+        否则旧页面永远空白。</p></div>
+        <div class="card"><div class="kicker">装载</div><h3>classes.dex 找不到</h3>
+        <p>多 dex 下自建 <code>DexClassLoader</code> 不可靠；优先
+        <code>packageContext.classLoader</code>，失败要打日志。</p></div>
+        <div class="card"><div class="kicker">数据</div><h3>首屏 401 / 不刷新</h3>
+        <p>Host 启动时序导致首调失败；贡献内退避重试，并按 Web 行为 60s 刷新。</p></div>
+        <div class="card"><div class="kicker">定位</div><h3>popup 居中 / 过宽</h3>
+        <p>Web 是 anchored popover；用 <code>PluginPopover</code>，宽度
+        <code>IntrinsicSize.Max</code> + max 320dp。</p></div>
+        <div class="card"><div class="kicker">样式</div><h3>插件自造 Card</h3>
+        <p>浮层材质必须从 <code>PluginTheme</code> 的 popup 字段来，
+        映射自 App <code>DshMenuCard</code>，保证和模型/权限菜单一致。</p></div>
+      </div>
+      <div class="callout warn">
+        <strong>完整踩坑文档</strong>
+        <p>现象、根因、修复、预防和验收清单见
+        <a href="https://github.com/EricFL1998/dsh-mobile-plugin-sdk/blob/main/docs/pitfalls.md" target="_blank" rel="noopener">docs/pitfalls.md</a>。</p>
+      </div>
+    </section>
+
     <section id="troubleshooting">
       <div class="section-head">
-        <h2><span class="num">11</span>常见问题<a class="anchor" href="#troubleshooting">#</a></h2>
+        <h2><span class="num">12</span>常见问题<a class="anchor" href="#troubleshooting">#</a></h2>
         <p>扫描器给出缺口后，按这些检查点排查。</p>
       </div>
       <details open>
@@ -707,7 +739,7 @@ settings.section               SubscriptionsSection impl=True</pre>
 
     <section id="files">
       <div class="section-head">
-        <h2><span class="num">12</span>SDK 文件结构<a class="anchor" href="#files">#</a></h2>
+        <h2><span class="num">13</span>SDK 文件结构<a class="anchor" href="#files">#</a></h2>
         <p>交付包与仓库中的关键文件。</p>
       </div>
       <div class="tree"><b>dsh-mobile-plugin-native-ui-sdk/</b>
@@ -736,7 +768,7 @@ settings.section               SubscriptionsSection impl=True</pre>
 
     <section id="glossary">
       <div class="section-head">
-        <h2><span class="num">13</span>术语与版本<a class="anchor" href="#glossary">#</a></h2>
+        <h2><span class="num">14</span>术语与版本<a class="anchor" href="#glossary">#</a></h2>
         <p>快速查表。</p>
       </div>
       <div class="table-wrap">
