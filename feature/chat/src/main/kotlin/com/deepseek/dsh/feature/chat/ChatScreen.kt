@@ -268,7 +268,9 @@ fun ModernChatScreen(
         }
     }
 
-    val composerBlock: @Composable () -> Unit = {
+    // showContext=false 时只渲染输入框：工作区/模式只属于新会话界面。
+    val composerBlock: @Composable (Boolean) -> Unit = { showContext ->
+        if (showContext) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -355,6 +357,7 @@ fun ModernChatScreen(
                 },
             )
             }
+        }
         }
         BottomInputBar(
             inputText = inputText,
@@ -464,7 +467,7 @@ fun ModernChatScreen(
                             .offset(y = (-96).dp)
                     )
                     Spacer(modifier = Modifier.height(18.dp))
-                    composerBlock()
+                    composerBlock(true)
                 }
             }
         } else if (messages.isEmpty()) {
@@ -565,7 +568,7 @@ fun ModernChatScreen(
         }
 
         if (!(messages.isEmpty() && !isSending)) {
-            composerBlock()
+            composerBlock(false)
         }
     }
 

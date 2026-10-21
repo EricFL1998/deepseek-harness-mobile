@@ -299,7 +299,8 @@ function canonicalBashResult(result, cwd) {
 		...stream.spillPath !== void 0 ? { spillPath: stream.spillPath } : {}
 	});
 	return {
-		cwd,
+		// proot/remote 调用下 spec.workdir 可能为空；schema 要求 cwd 必填。
+		cwd: cwd ?? result.cwd ?? process.cwd(),
 		exitCode: result.exitCode,
 		signal: result.signal,
 		timedOut: result.timedOut,
@@ -333,9 +334,8 @@ const BACKGROUND_OUTPUT_PROPERTIES = {
 		required: true
 	},
 	cwd: {
-		type: "string",
-		required: true
-	}
+	type: "string"
+}
 };
 function apply(ctx, config = {}) {
 	const backgroundEnabled = config.enableRunInBackground ?? true;
@@ -570,9 +570,8 @@ async function bridgeExec(command, cwd, timeoutMs) {
 								const: "promoted"
 							},
 							cwd: {
-								type: "string",
-								required: true
-							},
+	type: "string"
+},
 							jobId: {
 								type: "string",
 								required: true
@@ -597,9 +596,8 @@ async function bridgeExec(command, cwd, timeoutMs) {
 								const: "foreground"
 							},
 							cwd: {
-								type: "string",
-								required: true
-							},
+	type: "string"
+},
 							exitCode: {
 								required: true,
 								oneOf: [{ type: "integer" }, { type: "null" }]
@@ -676,7 +674,7 @@ async function bridgeExec(command, cwd, timeoutMs) {
 					type: "text",
 					text: value.kind === "background" ? `started background job ${value.jobId}` : value.kind === "promoted" ? renderPromoted(value) : renderResult(value, escalationModes)
 				}],
-				presentationMeta: (_args, value) => ({ cwd: value.cwd })
+				presentationMeta: (_args, value) => value.cwd === void 0 ? {} : { cwd: value.cwd }
 			},
 			async execute(args, exec) {
 				const standingPolicy = resolveSandboxPolicy(exec);
