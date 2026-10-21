@@ -545,9 +545,9 @@ fun PluginsScreen(
                         selectedIndex = pluginsTabIndex,
                         onSelect = { pluginsTabIndex = it },
                         labels = if (marketEnabled) {
-                            listOf("插件", "原生插件", "发现")
+                            listOf("插件", "插件商店", "发现")
                         } else {
-                            listOf("插件", "原生插件")
+                            listOf("插件", "插件商店")
                         },
                         modifier = Modifier.padding(
                             start = PluginsDimens.PageHorizontal,
@@ -1117,14 +1117,14 @@ private fun PluginsPageHead(
                 .padding(end = 16.dp)
         ) {
             Text(
-                text = if (isNativeTab) "原生插件" else "插件",
+                text = if (isNativeTab) "插件商店" else "插件",
                 color = colors.labelPrimary,
                 fontSize = 20.sp,
                 lineHeight = 28.sp,
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = if (isNativeTab) "发现和安装原生界面插件" else "安装、启用和配置插件",
+                text = if (isNativeTab) "浏览和安装带原生界面的插件" else "安装、启用和配置插件",
                 color = colors.labelSecondary,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,

@@ -2481,7 +2481,7 @@ fun MainAppHost(
                             style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                         )
                         androidx.compose.material3.Text(
-                            text = "到「插件 → 原生插件」查看并安装",
+                            text = "到「插件 → 插件商店」查看并安装",
                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                         )
