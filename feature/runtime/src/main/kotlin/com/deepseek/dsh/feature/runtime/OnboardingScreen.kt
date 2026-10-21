@@ -8,14 +8,21 @@ import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
@@ -23,6 +30,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -169,7 +178,19 @@ fun OnboardingScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
-                    transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(80)) },
+                    transitionSpec = {
+                        // 前进/后退用不同方向：新页面从对应方向滑入，旧页面反向轻微滑出。
+                        val forward = targetState.ordinal >= initialState.ordinal
+                        val enter = slideInHorizontally(
+                            animationSpec = tween(300, easing = FastOutSlowInEasing),
+                        ) { width -> if (forward) width / 5 else -width / 5 } +
+                            fadeIn(tween(240, delayMillis = 30))
+                        val exit = slideOutHorizontally(
+                            animationSpec = tween(240, easing = FastOutSlowInEasing),
+                        ) { width -> if (forward) -width / 8 else width / 8 } +
+                            fadeOut(tween(160))
+                        enter togetherWith exit
+                    },
                     label = "onboarding-page",
                 ) { current ->
                     when (current) {
@@ -221,7 +242,13 @@ fun OnboardingScreen(
                     }
                 }
 
-                if (step != OnboardingStep.WELCOME) {
+                // 页脚只在离开欢迎页后出现：淡入并从下方轻推上来。
+                AnimatedVisibility(
+                    visible = step != OnboardingStep.WELCOME,
+                    enter = fadeIn(tween(220, delayMillis = 60)) +
+                        slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it / 3 },
+                    exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
+                ) {
                     OnboardingFooter(
                         onBack = { goBack() },
                         onSkip = {
@@ -558,9 +585,19 @@ private fun OnboardingPage(content: @Composable ColumnScope.() -> Unit) {
         } else {
             0.dp
         }
+        // 页面本体的入场：淡入并向上浮一小段（与页面滑动叠加，避免生硬切换）。
+        val enter = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            enter.animateTo(1f, animationSpec = tween(360, easing = FastOutSlowInEasing))
+        }
+        val riseOffset = with(density) { 14.dp.toPx() }
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    alpha = enter.value
+                    translationY = (1f - enter.value) * riseOffset
+                }
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(Modifier.height(verticalPadding))
@@ -592,11 +629,27 @@ private fun OnboardingArtwork(welcome: Boolean, maxHeight: Dp) {
         dark -> R.drawable.onb_credit_dark_en
         else -> R.drawable.onb_credit_light_en
     }
+    // 主视觉轻微漂浮：幅度很小（±3dp / 4.2s），只让首屏看起来“活着”。
+    val floatTransition = rememberInfiniteTransition(label = "onboarding-artwork-float")
+    val floatProgress by floatTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 4200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "onboarding-artwork-offset",
+    )
+    val density = LocalDensity.current
+    val floatOffset = with(density) { 3.dp.toPx() }
     Image(
         painter = painterResource(artwork),
         contentDescription = null,
         contentScale = ContentScale.Fit,
-        modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight)
+            .graphicsLayer { translationY = (floatProgress - 0.5f) * 2f * floatOffset },
     )
 }
 
@@ -685,16 +738,34 @@ private fun OnboardingButton(
     } else {
         Modifier.heightIn(min = 44.dp)
     }
+    // 按压反馈：轻微缩小 + 变淡，松手回弹（与桌面客户端的按钮手感一致）。
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.97f else 1f,
+        animationSpec = tween(90),
+        label = "onboarding-button-scale",
+    )
+    val pressAlpha by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.88f else 1f,
+        animationSpec = tween(90),
+        label = "onboarding-button-alpha",
+    )
     Surface(
         onClick = onClick,
         enabled = enabled,
         shape = shape,
+        interactionSource = interaction,
         color = if (primary) palette.brandPrimary else palette.secondaryFill,
         contentColor = if (primary) palette.labelPrimaryForeground else palette.labelPrimary,
         border = if (primary) null else BorderStroke(0.5.dp, palette.borderL3),
         modifier = modifier
             .then(sizeModifier)
-            .then(if (enabled) Modifier else Modifier.alpha(0.4f)),
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+                alpha = pressAlpha * (if (enabled) 1f else 0.4f)
+            },
     ) {
         Box(
             modifier = if (fillWidth) Modifier.fillMaxSize() else Modifier.padding(horizontal = 18.dp, vertical = 11.dp),
