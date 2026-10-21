@@ -528,12 +528,12 @@ fun MainAppHost(
     /** Host `restartReason` → 官方「请重启 DSH 使更改生效」的具体说明。 */
     fun restartReasonText(reason: String?): String = when (reason) {
         "package-moved" ->
-            "已安装的插件包解析到了另一个目录，或者更改替换了 DSH 安装自带的包。从其他位置安装前请先卸载。"
-        "no-hmr" -> "这项更改无法热更新，需要重启 DSH 才能生效。"
-        "host-module" -> "这项更改涉及 Host 模块加载，需要重启 DSH 才能生效。"
-        "unmanaged-plugin" -> "这项更改涉及未托管的插件，需要重启 DSH 才能生效。"
-        "module-comparison" -> "插件模块需要重新比较加载，需要重启 DSH 才能生效。"
-        else -> "需要重启 DSH 才能生效。"
+            context.getString(R.string.restart_reason_package_moved)
+        "no-hmr" -> context.getString(R.string.restart_reason_no_hmr)
+        "host-module" -> context.getString(R.string.restart_reason_host_module)
+        "unmanaged-plugin" -> context.getString(R.string.restart_reason_unmanaged_plugin)
+        "module-comparison" -> context.getString(R.string.restart_reason_module_comparison)
+        else -> context.getString(R.string.restart_reason_generic)
     }
     // 启停插件后 Host 若要求重启或带提示，按官方做法明确告诉用户。
     var pluginChangeNotice by remember { mutableStateOf<List<String>?>(null) }
@@ -547,11 +547,11 @@ fun MainAppHost(
                     pluginRestartError = null
                 }
             },
-            title = { Text("需要重启 Host") },
+            title = { Text(stringResource(R.string.restart_needed_title)) },
             text = {
                 Column {
                     Text(
-                        text = "这项插件更改已保存，但要重启 Host 后才会生效。",
+                        text = stringResource(R.string.restart_needed_desc),
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         modifier = Modifier.padding(bottom = 6.dp),
@@ -582,17 +582,17 @@ fun MainAppHost(
                             pluginRestartRunning = true
                             pluginRestartError = null
                             val restart = HostRuntimeHolder.restartHost?.invoke()
-                                ?: Result.failure(IllegalStateException("Host 尚未就绪"))
+                                ?: Result.failure(IllegalStateException(context.getString(R.string.host_not_ready)))
                             pluginRestartRunning = false
                             if (restart.isSuccess) {
                                 pluginChangeNotice = null
                             } else {
-                                pluginRestartError = restart.exceptionOrNull()?.message ?: "重启失败，请重试"
+                                pluginRestartError = restart.exceptionOrNull()?.message ?: context.getString(R.string.restart_failed)
                             }
                         }
                     },
                 ) {
-                    Text(if (pluginRestartRunning) "正在重启…" else "立即重启 Host")
+                    Text(if (pluginRestartRunning) stringResource(R.string.restarting) else stringResource(R.string.restart_now))
                 }
             },
             dismissButton = {
@@ -602,7 +602,7 @@ fun MainAppHost(
                         pluginChangeNotice = null
                         pluginRestartError = null
                     },
-                ) { Text("稍后处理") }
+                ) { Text(stringResource(R.string.restart_later)) }
             },
         )
     }
@@ -720,7 +720,8 @@ fun MainAppHost(
     LaunchedEffect(activeHostId, sessionRunningNow) {
         while (true) {
             quotaUsage = parseQuotaWindows(
-                dshRepository.pluginRpc(activeHostId, "subscription-oauth.status", "{}").getOrNull()
+                dshRepository.pluginRpc(activeHostId, "subscription-oauth.status", "{}").getOrNull(),
+                quotaLabel = context.getString(R.string.quota_label),
             )
             kotlinx.coroutines.delay(if (sessionRunningNow) 15_000L else 60_000L)
         }
@@ -1005,7 +1006,7 @@ fun MainAppHost(
             if (view == null) {
                 android.widget.Toast.makeText(
                     context,
-                    "登录失败：Host 未就绪",
+                    context.getString(R.string.login_failed_host),
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
                 return@launch
@@ -1021,7 +1022,7 @@ fun MainAppHost(
             if (authorizeUrl.isNullOrBlank()) {
                 android.widget.Toast.makeText(
                     context,
-                    "登录失败：未获取授权链接",
+                    context.getString(R.string.login_failed_link),
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
                 return@launch
@@ -1048,7 +1049,7 @@ fun MainAppHost(
                 if (state.attemptPhase in setOf("failed", "expired", "cancelled")) {
                     android.widget.Toast.makeText(
                         context,
-                        "登录未完成，请重试",
+                        context.getString(R.string.login_incomplete),
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                     return@launch
@@ -1189,7 +1190,7 @@ fun MainAppHost(
             rootfsSetupProgress = progress to message
         }
         result.exceptionOrNull()?.let { error ->
-            rootfsSetupError = error.message ?: "rootfs 安装失败"
+            rootfsSetupError = error.message ?: context.getString(R.string.rootfs_install_failed)
         }
         if (result.isSuccess) rootfsReady = true
     }
@@ -1409,18 +1410,18 @@ fun MainAppHost(
     if (showAddWorkspaceDialog) {
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { showAddWorkspaceDialog = false },
-            title = "新建工作区",
+            title = stringResource(R.string.workspace_new_title),
             closeLabel = stringResource(R.string.action_close),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "取消",
+                    text = stringResource(R.string.action_cancel),
                     primary = false,
                     enabled = true,
                     onClick = { showAddWorkspaceDialog = false },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "创建",
+                    text = stringResource(R.string.action_create),
                     primary = true,
                     enabled = newWorkspaceName.isNotBlank(),
                     onClick = {
@@ -1438,7 +1439,7 @@ fun MainAppHost(
                 com.deepseek.dsh.core.designsystem.DshTextInput(
                     value = newWorkspaceName,
                     onValueChange = { newWorkspaceName = it },
-                    placeholder = "工作区名称",
+                    placeholder = stringResource(R.string.workspace_name_placeholder),
                 )
             },
         )
@@ -1446,16 +1447,16 @@ fun MainAppHost(
     renameWorkspaceFolder?.let { folder ->
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { renameWorkspaceFolder = null },
-            title = "重命名工作区",
+            title = stringResource(R.string.workspace_rename_title),
             closeLabel = stringResource(R.string.action_close),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "取消", primary = false, enabled = true,
+                    text = stringResource(R.string.action_cancel), primary = false, enabled = true,
                     onClick = { renameWorkspaceFolder = null },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "保存", primary = true,
+                    text = stringResource(R.string.action_save), primary = true,
                     enabled = renameWorkspaceName.isNotBlank(),
                     onClick = {
                         val target = java.io.File(
@@ -1475,7 +1476,7 @@ fun MainAppHost(
                 com.deepseek.dsh.core.designsystem.DshTextInput(
                     value = renameWorkspaceName,
                     onValueChange = { renameWorkspaceName = it },
-                    placeholder = "工作区名称",
+                    placeholder = stringResource(R.string.workspace_name_placeholder),
                 )
             },
         )
@@ -1484,17 +1485,17 @@ fun MainAppHost(
     deleteWorkspaceFolder?.let { folder ->
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { deleteWorkspaceFolder = null },
-            title = "删除工作区",
+            title = stringResource(R.string.workspace_delete_title),
             closeLabel = stringResource(R.string.action_close),
-            description = "将删除「${folder.name}」及其中的所有文件，此操作不可撤销。",
+            description = stringResource(R.string.workspace_delete_desc, folder.name),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "取消", primary = false, enabled = true,
+                    text = stringResource(R.string.action_cancel), primary = false, enabled = true,
                     onClick = { deleteWorkspaceFolder = null },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "删除", primary = true, enabled = true,
+                    text = stringResource(R.string.action_delete), primary = true, enabled = true,
                     onClick = {
                         val target = java.io.File(
                             folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
@@ -1526,7 +1527,7 @@ fun MainAppHost(
             }
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
                 id = "ws_${dir.name.hashCode()}",
-                name = dir.name.ifEmpty { "主工作区" },
+                name = dir.name.ifEmpty { context.getString(R.string.workspace_main) },
                 path = dir.absolutePath,
                 sessions = dirSessions.mapIndexed { sIdx, s ->
                     com.deepseek.dsh.feature.sessions.SessionDisplayItem(
@@ -1539,10 +1540,10 @@ fun MainAppHost(
                         timeAgo = run {
                             val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
                             when {
-                                elapsed < 60_000L -> "刚刚"
-                                elapsed < 60L * 60 * 1000 -> "${elapsed / 60_000L}分钟"
-                                elapsed < 24L * 60 * 60 * 1000 -> "${elapsed / (60 * 60 * 1000)}小时"
-                                else -> "${elapsed / (24 * 60 * 60 * 1000)}天"
+                                elapsed < 60_000L -> context.getString(R.string.time_just_now)
+                                elapsed < 60L * 60 * 1000 -> context.getString(R.string.time_minutes, (elapsed / 60_000L).toInt())
+                                elapsed < 24L * 60 * 60 * 1000 -> context.getString(R.string.time_hours, (elapsed / (60 * 60 * 1000)).toInt())
+                                else -> context.getString(R.string.time_days, (elapsed / (24 * 60 * 60 * 1000)).toInt())
                             }
                         },
                         isActiveDot = (s.sessionId == selectedSessionId)
@@ -1868,7 +1869,7 @@ fun MainAppHost(
                                             dshRepository.sendMessage(activeHostId, sid, text)
                                         } else {
                                             android.widget.Toast.makeText(
-                                                context, "创建会话失败，请检查 Host 运行状态", android.widget.Toast.LENGTH_LONG
+                                                context, context.getString(R.string.session_create_failed), android.widget.Toast.LENGTH_LONG
                                             ).show()
                                         }
                                         } finally {
@@ -1902,7 +1903,7 @@ fun MainAppHost(
                                 onNativeModelSelect = { provider, model, effort ->
                                     runCatching {
                                         val sid = selectedSessionId
-                                            ?: error("没有活跃会话，无法切换 fast 模式")
+                                            ?: error(context.getString(R.string.no_active_session_fast))
                                         dshRepository.selectModel(
                                             activeHostId,
                                             sid,
@@ -2093,7 +2094,7 @@ fun MainAppHost(
                                         },
                                         onFailure = { error ->
                                             Result.failure(
-                                                IllegalStateException(error.message ?: "安装失败")
+                                                IllegalStateException(error.message ?: context.getString(R.string.plugin_install_failed))
                                             )
                                         },
                                     )
@@ -2108,7 +2109,7 @@ fun MainAppHost(
                                                 rememberBundleSelection(packageName, enabled)
                                                 if (outcome.restartRequired) {
                                                     pluginChangeNotice = listOf(
-                                                        "请重启 DSH 使更改生效。",
+                                                        context.getString(R.string.restart_dsh_hint),
                                                         restartReasonText(outcome.restartReason),
                                                     )
                                                 } else if (outcome.warnings.isNotEmpty()) {
@@ -2123,7 +2124,7 @@ fun MainAppHost(
                                             onFailure = {
                                                 android.widget.Toast.makeText(
                                                     context,
-                                                    if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
+                                                    context.getString(R.string.plugin_toggle_failed, context.getString(if (enabled) R.string.plugin_enable else R.string.plugin_disable)),
                                                     android.widget.Toast.LENGTH_SHORT,
                                                 ).show()
                                             },
@@ -2142,7 +2143,7 @@ fun MainAppHost(
                                             rememberBundleSelection(packageName, enabled)
                                             if (outcome.restartRequired) {
                                                 pluginChangeNotice = listOf(
-                                                    "请重启 DSH 使更改生效。",
+                                                    context.getString(R.string.restart_dsh_hint),
                                                     restartReasonText(outcome.restartReason),
                                                 )
                                             } else if (outcome.warnings.isNotEmpty()) {
@@ -2156,7 +2157,7 @@ fun MainAppHost(
                                         onFailure = {
                                             android.widget.Toast.makeText(
                                                 context,
-                                                if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
+                                                context.getString(R.string.plugin_toggle_failed, context.getString(if (enabled) R.string.plugin_enable else R.string.plugin_disable)),
                                                 android.widget.Toast.LENGTH_SHORT,
                                             ).show()
                                         },
@@ -2274,7 +2275,7 @@ fun MainAppHost(
                                 onScanPairClick = {
                                     val newRemote = com.deepseek.dsh.core.model.HostDescriptor.Remote(
                                         id = "remote_${System.currentTimeMillis()}",
-                                        name = "新配对远程主机",
+                                        name = context.getString(R.string.new_paired_remote_host),
                                         baseUrl = "https://192.168.1.120:8443",
                                         deviceToken = "sec_pair_tok"
                                     )
@@ -2483,11 +2484,11 @@ fun MainAppHost(
                 ) {
                     androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
                         androidx.compose.material3.Text(
-                            text = "「${companion.name ?: companion.pluginId}」有原生界面可装",
+                            text = stringResource(R.string.companion_available_title, companion.name ?: companion.pluginId),
                             style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                         )
                         androidx.compose.material3.Text(
-                            text = "到「插件 → 插件商店」查看并安装",
+                            text = stringResource(R.string.companion_available_desc),
                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -2497,9 +2498,9 @@ fun MainAppHost(
                         pluginInitialTab = 1
                         nativeCompanionAvailable = null
                         activePage = ActivePage.PLUGINS
-                    }) { androidx.compose.material3.Text("去安装") }
+                    }) { androidx.compose.material3.Text(stringResource(R.string.companion_go_install)) }
                     androidx.compose.material3.TextButton(onClick = { nativeCompanionAvailable = null }) {
-                        androidx.compose.material3.Text("忽略")
+                        androidx.compose.material3.Text(stringResource(R.string.companion_ignore))
                     }
                 }
             }
@@ -2571,7 +2572,7 @@ fun MainAppHost(
                 description = stringResource(R.string.onboarding_key_desc),
                 footer = {
                     com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = "取消",
+                        text = stringResource(R.string.action_cancel),
                         primary = false,
                         enabled = true,
                         onClick = { showApiKeyDialog = false },
@@ -2775,7 +2776,7 @@ fun RuntimeControlScreen(
                 status.lastError?.let {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "错误: $it",
+                        text = stringResource(R.string.error_prefix, it),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -2808,7 +2809,7 @@ fun RuntimeControlScreen(
                                     }
                                     isInstalling = false
                                     result.exceptionOrNull()?.let { error ->
-                                        installProgress = 0f to "安装失败：${error.message}"
+                                        installProgress = 0f to context.getString(R.string.plugin_install_failed) + ": " + (error.message ?: "")
                                     }
                                 }
                             },
@@ -2824,7 +2825,7 @@ fun RuntimeControlScreen(
                                 scope.launch {
                                     val result = runtimeManager.start(workspaceDir.absolutePath)
                                     result.exceptionOrNull()?.let { error ->
-                                        installProgress = 0f to "启动失败：${error.message}"
+                                        installProgress = 0f to context.getString(R.string.startup_failed, error.message ?: "")
                                     }
                                 }
                             },
@@ -2883,7 +2884,7 @@ fun PageBackBar(
             IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
+                    contentDescription = stringResource(R.string.action_back),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(22.dp),
                 )
@@ -2964,27 +2965,27 @@ private fun HeaderTeamPanel(
     members: List<Pair<String, Boolean>>,
     tasks: List<com.deepseek.dsh.core.model.TeamTaskItem>,
 ) {
-    com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("成员 ${members.size}")
+    com.deepseek.dsh.core.designsystem.DshMenuSectionLabel(stringResource(R.string.agent_team_members) + " " + members.size)
     members.take(8).forEach { (name, running) ->
         com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
             com.deepseek.dsh.core.designsystem.DshMenuLabel(name, Modifier.weight(1f))
             Text(
-                text = if (running) "运行中" else "未运行",
+                text = if (running) stringResource(R.string.agent_team_phase_active) else stringResource(R.string.agent_team_phase_idle),
                 fontSize = 11.sp,
                 color = if (running) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
             )
         }
     }
-    com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("共享任务 ${tasks.size}")
+    com.deepseek.dsh.core.designsystem.DshMenuSectionLabel(stringResource(R.string.agent_team_tasks) + " " + tasks.size)
     tasks.take(8).forEach { task ->
         com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(task.subject, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1)
                 Text(
-                    text = "${task.ownerName ?: "未分配"} · ${when (task.status) {
-                        "in_progress" -> "进行中"
-                        "completed" -> "已完成"
-                        else -> "待处理"
+                    text = "${task.ownerName ?: stringResource(R.string.agent_team_owner_unassigned)} · ${when (task.status) {
+                        "in_progress" -> stringResource(R.string.agent_team_task_in_progress)
+                        "completed" -> stringResource(R.string.agent_team_task_completed)
+                        else -> stringResource(R.string.agent_team_task_pending)
                     }}",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.outline
@@ -2999,7 +3000,7 @@ private fun HeaderJobsPanel(tasks: List<com.deepseek.dsh.core.model.TeamTaskItem
     val running = tasks.filter { it.status == "in_progress" }
     val settled = tasks.filter { it.status != "in_progress" }
     if (running.isNotEmpty()) {
-        com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("进行中")
+        com.deepseek.dsh.core.designsystem.DshMenuSectionLabel(stringResource(R.string.agent_team_task_in_progress))
         running.forEach { task ->
             com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -3010,7 +3011,7 @@ private fun HeaderJobsPanel(tasks: List<com.deepseek.dsh.core.model.TeamTaskItem
         }
     }
     if (settled.isNotEmpty()) {
-        com.deepseek.dsh.core.designsystem.DshMenuSectionLabel("已结束 ${settled.size}")
+        com.deepseek.dsh.core.designsystem.DshMenuSectionLabel(stringResource(R.string.finished_section, settled.size))
         settled.take(8).forEach { task ->
             com.deepseek.dsh.core.designsystem.DshMenuRow(onClick = {}) {
                 Text(task.subject, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1)
@@ -3045,7 +3046,7 @@ private fun RootfsUpdateBanner(
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "运行时更新可用",
+                text = stringResource(R.string.runtime_update_available),
                 fontSize = 13.sp,
                 color = colors.labelPrimary
             )
@@ -3056,7 +3057,7 @@ private fun RootfsUpdateBanner(
             )
         }
         Text(
-            text = "更新",
+            text = stringResource(R.string.action_update),
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 8.dp)
@@ -3065,7 +3066,7 @@ private fun RootfsUpdateBanner(
             painter = androidx.compose.ui.res.painterResource(
                 id = com.deepseek.dsh.core.designsystem.R.drawable.ic_close
             ),
-            contentDescription = "关闭提醒",
+            contentDescription = stringResource(R.string.dismiss_reminder),
             tint = colors.labelTertiary,
             modifier = Modifier
                 .size(18.dp)
@@ -3153,14 +3154,14 @@ fun ModernTopAppBar(
                             modifier = Modifier.height(28.dp)
                         ) {
                             Text(
-                                text = "快速",
+                                text = stringResource(R.string.mode_fast),
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                             )
                         }
                         Text(
-                            text = "深度思考",
+                            text = stringResource(R.string.mode_deep_thinking),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(horizontal = 10.dp)
@@ -3194,7 +3195,7 @@ fun ModernTopAppBar(
                 ) {
                     androidx.compose.material3.Icon(
                         imageVector = androidx.compose.material.icons.Icons.Filled.BugReport,
-                        contentDescription = "会话数据诊断",
+                        contentDescription = stringResource(R.string.session_diagnostics),
                         tint = barColors.labelPrimary,
                         modifier = Modifier.size(16.dp),
                     )
@@ -3347,7 +3348,7 @@ private fun workspaceSessionDirName(workspaceName: String): String {
  * 解析 `subscription-oauth.status` 返回的额度窗口，供 composer dock 上方展示。
  * 只做展示，不参与鉴权或计费判断；没有登录/没有额度时返回空列表。
  */
-private fun parseQuotaWindows(body: String?): List<com.deepseek.dsh.feature.chat.ComposerQuota> {
+private fun parseQuotaWindows(body: String?, quotaLabel: String = "Quota"): List<com.deepseek.dsh.feature.chat.ComposerQuota> {
     if (body.isNullOrBlank()) return emptyList()
     val root = runCatching {
         kotlinx.serialization.json.Json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
@@ -3365,7 +3366,7 @@ private fun parseQuotaWindows(body: String?): List<com.deepseek.dsh.feature.chat
             val usage = usageElement as? kotlinx.serialization.json.JsonObject ?: return@forEach
             (usage["windows"] as? kotlinx.serialization.json.JsonArray)?.forEach { windowElement ->
                 val window = windowElement as? kotlinx.serialization.json.JsonObject ?: return@forEach
-                val label = (window["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "额度"
+                val label = (window["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: quotaLabel
                 val percent = ((window["usedPercent"] as? kotlinx.serialization.json.JsonPrimitive)?.content)?.toDoubleOrNull()
                 if (percent != null) {
                     windows += com.deepseek.dsh.feature.chat.ComposerQuota(
