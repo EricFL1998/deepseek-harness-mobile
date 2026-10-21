@@ -2377,6 +2377,15 @@ fun BottomInputBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(if (tightComposer) 6.dp else 10.dp)
                 ) {
+                    // 控件区可横向滑动：插件注入多个按钮后，plus/附件/Workspace/模型
+                    // 不会被挤出屏幕；发送按钮固定在右侧。
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(if (tightComposer) 6.dp else 10.dp),
+                    ) {
                     // 加号：28dp 圆形 selector 按钮（无 Material 涟漪）
                     com.deepseek.dsh.plugin.nativehost.OfficialSlot(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_LEFT,
@@ -2436,11 +2445,9 @@ fun BottomInputBar(
                             put("modelId", selectedModelId)
                             put("reasoningEffort", selectedReasoningId)
                         },
-                        scrollable = true,
                     )
 
                     // 模型与推理等级：贴近右侧发送按钮，菜单锚定在此。
-                    Spacer(modifier = Modifier.weight(1f))
                     com.deepseek.dsh.plugin.nativehost.OfficialSlot(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_MODEL,
                     ) {
@@ -2481,6 +2488,7 @@ fun BottomInputBar(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_OVERLAY,
                         spec = kotlinx.serialization.json.JsonObject(emptyMap()),
                     )
+                    } // 控件区横向滚动结束；麦克风/发送固定在右侧
 
                     // 录音输入：麦克风动作（官方 conversation.input.activity）。
                     // 录音中由上方录音条承担停止/取消，这里只保留状态指示。
