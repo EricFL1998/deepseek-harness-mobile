@@ -328,6 +328,7 @@ private fun SubscriptionProviderCard(
         shape = theme.shapeCard,
         colors = CardDefaults.cardColors(containerColor = theme.colorSurfaceVariant),
     ) {
+        val context = LocalContext.current
         Column(modifier = Modifier.padding(theme.spacingUnit * 2)) {
             Row(
                 modifier = Modifier
@@ -464,6 +465,23 @@ private fun SubscriptionProviderCard(
                         }
                         provider.userCode?.let { code ->
                             Text("授权码：$code", style = theme.textTitle, color = theme.colorPrimary)
+                            provider.pendingExpiresAt?.takeIf { it.isNotBlank() }?.let { expires ->
+                                Text(
+                                    "有效期：$expires",
+                                    style = theme.textCaption,
+                                    color = theme.colorOnSurfaceVariant,
+                                )
+                            }
+                            TextButton(
+                                onClick = {
+                                    val clipboard = context.getSystemService(
+                                        android.content.ClipboardManager::class.java
+                                    )
+                                    clipboard?.setPrimaryClip(
+                                        android.content.ClipData.newPlainText("授权码", code)
+                                    )
+                                },
+                            ) { Text("复制授权码") }
                         }
                     }
 
@@ -577,12 +595,24 @@ private fun ModelSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(theme.spacingUnit / 2)) {
         HorizontalDivider()
+        val hiddenCount = provider.models.count { !it.visible }
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onToggle) {
                 Text("${if (open) "▾" else "▸"} 模型")
             }
+            if (provider.id == "auto") {
+                Text(
+                    "自动链",
+                    style = theme.textCaption,
+                    color = theme.colorPrimary,
+                )
+            }
             Text(
-                "${provider.models.size} 个 · ${if (provider.liveCatalog) "实时目录" else "内置目录"}",
+                buildString {
+                    append("${provider.models.size} 个 · ")
+                    append(if (provider.liveCatalog) "实时目录" else "内置目录")
+                    if (hiddenCount > 0) append(" · 隐藏 $hiddenCount")
+                },
                 style = theme.textCaption,
                 color = theme.colorOnSurfaceVariant,
                 modifier = Modifier.weight(1f),
@@ -654,7 +684,11 @@ private fun ModelSection(
                 }
             }
             if (provider.models.isEmpty()) {
-                Text("暂无可用模型。", style = theme.textBody, color = theme.colorOnSurfaceVariant)
+                Text(
+                    if (provider.id == "auto") "自动链暂无可用模型。" else "暂无可用模型。",
+                    style = theme.textBody,
+                    color = theme.colorOnSurfaceVariant,
+                )
             }
         }
     }
@@ -707,6 +741,8 @@ private data class SubscriptionProvider(
     val busy: Boolean,
     val pendingUrl: String?,
     val userCode: String?,
+    /** 设备码/授权码过期时间（Host 原样返回的文本）。 */
+    val pendingExpiresAt: String?,
     val accounts: List<SubscriptionAccount>,
     val models: List<SubscriptionModel>,
     val liveCatalog: Boolean,
@@ -754,6 +790,7 @@ private object SubscriptionParser {
                 busy = item.bool("busy") == true,
                 pendingUrl = pending?.str("url"),
                 userCode = pending?.str("userCode"),
+                pendingExpiresAt = pending?.str("expiresAt"),
                 accounts = item["accounts"].array().mapNotNull { accountElement ->
                     val account = accountElement.obj() ?: return@mapNotNull null
                     SubscriptionAccount(
