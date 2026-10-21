@@ -94,6 +94,11 @@ interface DshClientProtocol {
     suspend fun updateRemoteSettings(hostId: String, ns: String, patchJson: String): RemoteResult<Boolean>
     suspend fun getAutomationTasks(hostId: String): RemoteResult<List<AutomationTaskItem>>
     suspend fun getTeamTasks(hostId: String): RemoteResult<List<TeamTaskItem>>
+    /** 读取当前会话的 `agentTeam` 投影（团队成员）；没有团队时返回 null。 */
+    suspend fun getAgentTeam(
+        hostId: String,
+        sessionId: String,
+    ): RemoteResult<com.deepseek.dsh.core.model.AgentTeamSummary?>
     suspend fun getPendingApprovals(hostId: String): RemoteResult<List<ApprovalItemModel>>
     suspend fun respondApproval(hostId: String, approvalId: String, approved: Boolean): RemoteResult<Boolean>
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>

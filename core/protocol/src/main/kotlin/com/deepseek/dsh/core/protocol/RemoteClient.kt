@@ -1,6 +1,9 @@
 package com.deepseek.dsh.core.protocol
 
 import com.deepseek.dsh.core.model.AgentPresetGroupInfo
+import com.deepseek.dsh.core.model.AgentTeamMember
+import com.deepseek.dsh.core.model.AgentTeamSummary
+import com.deepseek.dsh.core.model.AgentTeamTask
 import com.deepseek.dsh.core.model.AccountBalanceInfo
 import com.deepseek.dsh.core.model.AccountProfileInfo
 import com.deepseek.dsh.core.model.AccountViewInfo
@@ -28,6 +31,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.decodeFromJsonElement
 import okhttp3.MediaType.Companion.toMediaType
@@ -537,6 +541,103 @@ class RemoteClient(
             "dsh/session/stats-unavailable",
             "Session stats are unavailable from DSH Host"
         )
+    }
+
+    /**
+     * 读会话投影 `agentTeam`：官方团队面板的成员名单来源。
+     *
+     * @param hostId Host 标识。
+     * @param sessionId 会话 id。
+     * @returns 团队摘要；会话没有团队（或插件没启用）时返回 null。
+     */
+    override suspend fun getAgentTeam(
+        hostId: String,
+        sessionId: String,
+    ): RemoteResult<AgentTeamSummary?> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("method", "session/projections")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject { put("sessionId", sessionId) })
+            })
+        }.toString()
+        val request = Request.Builder()
+            .url("$baseUrl/api")
+            .post(payload.toRequestBody(mediaTypeJson))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext RemoteResult.Failure(
+                        "dsh/team/unavailable",
+                        "session projections failed: ${response.code}",
+                    )
+                }
+                val bodyStr = response.body?.string() ?: "{}"
+                val jsonElem = json.parseToJsonElement(bodyStr)
+                val values = if (jsonElem is kotlinx.serialization.json.JsonObject) {
+                    jsonElem["result"]?.let { res ->
+                        if (res is kotlinx.serialization.json.JsonObject) {
+                            res["value"]?.let { v ->
+                                if (v is kotlinx.serialization.json.JsonObject) v["values"] else null
+                            }
+                        } else null
+                    } ?: jsonElem["values"]
+                } else null
+                val team = (values as? kotlinx.serialization.json.JsonObject)
+                    ?.get("agentTeam") as? kotlinx.serialization.json.JsonObject
+                    ?: return@withContext RemoteResult.Success(null)
+                val members = (team["members"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+                    .mapNotNull { element ->
+                        val obj = element as? kotlinx.serialization.json.JsonObject
+                            ?: return@mapNotNull null
+                        val id = (obj["id"] as? kotlinx.serialization.json.JsonPrimitive)
+                            ?.contentOrNull ?: return@mapNotNull null
+                        AgentTeamMember(
+                            id = id,
+                            name = (obj["name"] as? kotlinx.serialization.json.JsonPrimitive)
+                                ?.contentOrNull ?: "成员",
+                            role = (obj["role"] as? kotlinx.serialization.json.JsonPrimitive)
+                                ?.contentOrNull ?: "teammate",
+                            phase = (obj["phase"] as? kotlinx.serialization.json.JsonPrimitive)
+                                ?.contentOrNull ?: "active",
+                            error = (obj["error"] as? kotlinx.serialization.json.JsonPrimitive)
+                                ?.contentOrNull,
+                        )
+                    }
+                val tasks = (team["tasks"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+                    .mapNotNull { element ->
+                        val obj = element as? kotlinx.serialization.json.JsonObject
+                            ?: return@mapNotNull null
+                        val id = (obj["id"] as? kotlinx.serialization.json.JsonPrimitive)
+                            ?.contentOrNull ?: return@mapNotNull null
+                        fun text(key: String): String? =
+                            (obj[key] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                        fun strings(key: String): List<String> =
+                            (obj[key] as? kotlinx.serialization.json.JsonArray).orEmpty()
+                                .mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
+                        AgentTeamTask(
+                            id = id,
+                            subject = text("subject") ?: "任务",
+                            description = text("description").orEmpty(),
+                            status = text("status") ?: "pending",
+                            ownerName = text("ownerName"),
+                            blockedBy = strings("blockedBy"),
+                            writeScopes = strings("writeScopes"),
+                            ready = (obj["ready"] as? kotlinx.serialization.json.JsonPrimitive)
+                                ?.contentOrNull != "false",
+                            writeScopeWarnings = strings("writeScopeWarnings"),
+                        )
+                    }
+                val failure = (team["failure"] as? kotlinx.serialization.json.JsonPrimitive)
+                    ?.contentOrNull
+                RemoteResult.Success(
+                    AgentTeamSummary(members = members, tasks = tasks, failure = failure),
+                )
+            }
+        } catch (e: Exception) {
+            RemoteResult.Failure("dsh/team/unavailable", e.message ?: "session projections failed")
+        }
     }
 
     override suspend fun getAccountState(hostId: String): RemoteResult<AccountViewInfo> {

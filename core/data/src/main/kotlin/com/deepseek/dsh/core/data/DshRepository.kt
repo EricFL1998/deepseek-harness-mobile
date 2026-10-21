@@ -33,6 +33,7 @@ import com.deepseek.dsh.core.model.PluginConfigItem
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
 import com.deepseek.dsh.core.model.PluginManagerSnapshot
 import com.deepseek.dsh.core.model.SessionInfo
+import com.deepseek.dsh.core.model.AgentTeamSummary
 import com.deepseek.dsh.core.model.TeamTaskItem
 import com.deepseek.dsh.core.protocol.DshClientProtocol
 import com.deepseek.dsh.core.protocol.RemoteEvent
@@ -376,6 +377,22 @@ class DshRepository(
 
     private val _teamTasksFlow = MutableStateFlow<List<TeamTaskItem>>(emptyList())
     val teamTasksFlow: StateFlow<List<TeamTaskItem>> = _teamTasksFlow.asStateFlow()
+
+    /** 当前会话的团队投影（`agentTeam`）；没有团队时为 null。 */
+    private val _agentTeamFlow = MutableStateFlow<AgentTeamSummary?>(null)
+    val agentTeamFlow: StateFlow<AgentTeamSummary?> = _agentTeamFlow.asStateFlow()
+
+    /** 读取当前会话的团队成员；传 null 表示没有会话，直接清空。 */
+    suspend fun refreshAgentTeam(hostId: String, sessionId: String?) {
+        if (sessionId.isNullOrBlank()) {
+            _agentTeamFlow.value = null
+            return
+        }
+        when (val res = client.getAgentTeam(hostId, sessionId)) {
+            is RemoteResult.Success -> _agentTeamFlow.value = res.data
+            is RemoteResult.Failure -> _agentTeamFlow.value = null
+        }
+    }
 
     private val _pendingApprovalsFlow = MutableStateFlow<List<ApprovalItemModel>>(emptyList())
     val pendingApprovalsFlow: StateFlow<List<ApprovalItemModel>> = _pendingApprovalsFlow.asStateFlow()

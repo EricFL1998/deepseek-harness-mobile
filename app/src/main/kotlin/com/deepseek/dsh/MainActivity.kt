@@ -393,6 +393,21 @@ fun MainAppHost(
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
+    val agentTeam by dshRepository.agentTeamFlow.collectAsState()
+    var agentTeamLoading by remember { mutableStateOf(false) }
+    // 团队动作只在「智能体团队」profile 启用时出现（官方由插件注册 header action）。
+    val agentTeamEnabled = remember(bridgePluginCatalog) {
+        dshRepository.bridgePluginCatalogFlow.value.bundles.any {
+            it.name == AgentTeamPluginUi.BUNDLE && it.enabled
+        }
+    }
+    LaunchedEffect(selectedSessionId, activeHostId, agentTeamEnabled) {
+        if (agentTeamEnabled) {
+            agentTeamLoading = true
+            dshRepository.refreshAgentTeam(activeHostId, selectedSessionId)
+            agentTeamLoading = false
+        }
+    }
     val pendingApprovalsModels by dshRepository.pendingApprovalsFlow.collectAsState()
 
     val pendingApprovals = remember(pendingApprovalsModels) {
@@ -1039,6 +1054,8 @@ fun MainAppHost(
     // profile 清单每次 Host 启动会被重置，这个集合保证每个 App 会话里每个
     // bundle 只补一次，避免反复触发 Host 重载。
     val restoredBundles = remember { mutableSetOf<String>() }
+    // 轮询协程只启动一次，用 latest-value 快照读当前会话，避免拿到旧值。
+    val currentSessionForTeam by androidx.compose.runtime.rememberUpdatedState(selectedSessionId)
     LaunchedEffect(Unit) {
         var ticks = 0
         while (true) {
@@ -1069,6 +1086,15 @@ fun MainAppHost(
             val settingsRefreshEvery = if (entriesEmpty) 2 else 8
             if (ticks % settingsRefreshEvery == 0) {
                 runCatching { dshRepository.refreshPluginSettingsPages() }
+            }
+            // 团队面板的成员状态随工具调用变化，定时刷新投影（只读一次轻量读）。
+            if (ticks % 4 == 0) {
+                val teamOn = dshRepository.bridgePluginCatalogFlow.value.bundles.any {
+                    it.name == AgentTeamPluginUi.BUNDLE && it.enabled
+                }
+                if (teamOn) {
+                    runCatching { dshRepository.refreshAgentTeam(activeHostId, currentSessionForTeam) }
+                }
             }
             runCatching {
                 val events = dshRepository.pendingPluginEvents()
@@ -1345,6 +1371,17 @@ fun MainAppHost(
                                 },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
+                                agentTeam = agentTeam,
+                                agentTeamLoading = agentTeamLoading,
+                                teamEnabled = agentTeamEnabled,
+                                currentSessionId = selectedSessionId,
+                                onOpenMember = { memberSessionId ->
+                                    selectedSessionId = memberSessionId
+                                    activePage = ActivePage.CHAT
+                                    scope.launch {
+                                        dshRepository.refreshAgentTeam(activeHostId, memberSessionId)
+                                    }
+                                },
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
 
@@ -2580,6 +2617,14 @@ fun ModernTopAppBar(
     title: String,
     showModeCapsule: Boolean = false,
     teamTasks: List<com.deepseek.dsh.core.model.TeamTaskItem> = emptyList(),
+    /** 当前会话的团队成员投影（官方 header 的团队动作数据）。 */
+    agentTeam: com.deepseek.dsh.core.model.AgentTeamSummary? = null,
+    /** 团队投影第一次读取中（浮层显示「正在加载团队…」）。 */
+    agentTeamLoading: Boolean = false,
+    /** 「智能体团队」插件是否启用；启用才显示团队动作。 */
+    teamEnabled: Boolean = false,
+    currentSessionId: String? = null,
+    onOpenMember: (String) -> Unit = {},
     onMenuClick: () -> Unit
 ) {
     val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
@@ -2597,6 +2642,9 @@ fun ModernTopAppBar(
     val runningTasks = teamTasks.count { it.status == "in_progress" }
     var teamPanelOpen by remember { mutableStateOf(false) }
     var jobsPanelOpen by remember { mutableStateOf(false) }
+    val teamMemberCount = agentTeam?.members?.size ?: 0
+    val teamRunning = agentTeam?.members?.any { it.phase == "active" || it.phase == "provisioning" } == true
+    Box(modifier = Modifier.fillMaxWidth()) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -2669,7 +2717,15 @@ fun ModernTopAppBar(
                 )
             }
 
-            // 右侧不再放置播报与编辑按钮，保持官方标题栏的单菜单入口。
+            // 团队动作：官方由「智能体团队」插件注册到
+            // conversation.session.header.actions；启用时在标题右侧。
+            if (teamEnabled) {
+                AgentTeamPluginUi.HeaderAction(
+                    memberCount = teamMemberCount,
+                    running = teamRunning,
+                    onClick = { teamPanelOpen = !teamPanelOpen },
+                )
+            }
         }
         // header 的 0.5dp border-l3 分隔线
         Box(
@@ -2678,6 +2734,35 @@ fun ModernTopAppBar(
                 .height(0.5.dp)
                 .background(barColors.borderL3)
         )
+    }
+        // 团队面板：官方是锚定在标题动作下方的浮层；用 Popup 实现「点外部关闭」。
+        if (teamPanelOpen) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopEnd,
+                offset = androidx.compose.ui.unit.IntOffset(
+                    x = 0,
+                    y = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.roundToPx() },
+                ),
+                onDismissRequest = { teamPanelOpen = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+            ) {
+                Box(modifier = Modifier.padding(end = 12.dp)) {
+                    com.deepseek.dsh.core.designsystem.DshMenuCard {
+                        AgentTeamMenuPanel(
+                            summary = agentTeam,
+                            fallbackTasks = teamTasks,
+                            loading = agentTeamLoading,
+                            error = null,
+                            currentSessionId = currentSessionId,
+                            onOpenMember = { memberId ->
+                                teamPanelOpen = false
+                                onOpenMember(memberId)
+                            },
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

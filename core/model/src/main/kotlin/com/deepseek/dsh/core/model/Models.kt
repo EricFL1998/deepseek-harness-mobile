@@ -231,6 +231,43 @@ data class TeamTaskItem(
     val ownerName: String? = null
 )
 
+/**
+ * 智能体团队的一名成员。
+ *
+ * 来自会话投影 `agentTeam`（官方 `TeamProjection.members`）。`id` 就是成员的
+ * 会话 id，点开成员会话时直接用它。
+ */
+@Serializable
+data class AgentTeamMember(
+    val id: String,
+    val name: String,
+    val role: String = "teammate", // lead / teammate
+    val phase: String = "active", // provisioning / active / failed
+    val error: String? = null,
+)
+
+/** 共享任务板里的一项（官方 `TeamTaskView`）。 */
+@Serializable
+data class AgentTeamTask(
+    val id: String,
+    val subject: String,
+    val description: String = "",
+    val status: String = "pending", // pending / in_progress / completed
+    val ownerName: String? = null,
+    val blockedBy: List<String> = emptyList(),
+    val writeScopes: List<String> = emptyList(),
+    val ready: Boolean = true,
+    val writeScopeWarnings: List<String> = emptyList(),
+)
+
+/** 会话投影 `agentTeam` 里原生团队面板要用的部分。 */
+@Serializable
+data class AgentTeamSummary(
+    val members: List<AgentTeamMember> = emptyList(),
+    val tasks: List<AgentTeamTask> = emptyList(),
+    val failure: String? = null,
+)
+
 @Serializable
 data class ApprovalItemModel(
     val id: String,
