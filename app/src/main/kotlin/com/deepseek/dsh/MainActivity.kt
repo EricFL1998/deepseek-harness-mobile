@@ -293,6 +293,21 @@ fun MainAppHost(
         )
     }
     var activeHostId by remember { mutableStateOf("local-host") }
+    // slot 贡献（composer dock 等）与整页原生页面共用同一个 pluginRpc；在这里
+    // 注入给 NativeHost，NativeSlotHost 会把基础 host 升级成 PluginRpcHost。
+    val slotPluginRpc: suspend (String, kotlinx.serialization.json.JsonObject) -> Result<String> =
+        remember(activeHostId) {
+            { method, payload ->
+                val first = dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                val firstText = first.getOrNull() ?: first.exceptionOrNull()?.message
+                if (ensureMissingPluginDir(context, firstText)) {
+                    dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                } else {
+                    first
+                }
+            }
+        }
+    com.deepseek.dsh.plugin.nativehost.NativeHost.rpcHandler = slotPluginRpc
 
     val repoSessions by dshRepository.getSessions(activeHostId).collectAsState(initial = emptyList())
     val sessions = repoSessions

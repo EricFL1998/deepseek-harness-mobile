@@ -51,10 +51,11 @@ fun OfficialSlot(
         return
     }
     val contributions = SlotRegistry.resolve(slot)
+    val slotHost = androidx.compose.runtime.remember(host) { SlotBridgeHost(host) }
     val override = contributions.firstOrNull { it.mode == RenderMode.OVERRIDE && !it.isOfficial }
     if (override != null) {
         NativeSlotGuard(pluginLabel = override.javaClass.simpleName, theme = theme) {
-            override.Render(spec, theme, host)
+            override.Render(spec, theme, slotHost)
         }
         return
     }
@@ -71,7 +72,7 @@ fun OfficialSlot(
             content()
             for (contribution in contributions) {
                 NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
-                    contribution.Render(spec, theme, host)
+                    contribution.Render(spec, theme, slotHost)
                 }
             }
         }
@@ -80,7 +81,7 @@ fun OfficialSlot(
             content()
             for (contribution in contributions) {
                 NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
-                    contribution.Render(spec, theme, host)
+                    contribution.Render(spec, theme, slotHost)
                 }
             }
         }
@@ -111,10 +112,13 @@ fun NativeSlotHost(
 ) {
     val contributions = SlotRegistry.resolve(slot)
     if (contributions.isEmpty()) return
+    // slot 贡献与整页原生页面共用同一套 Host RPC：把基础能力桥升级成
+    // PluginRpcHost，插件才能读取自己既有的状态（额度/账号等）。
+    val slotHost = androidx.compose.runtime.remember(host) { SlotBridgeHost(host) }
     Column(modifier = modifier.fillMaxWidth()) {
         for (contribution in contributions) {
             NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
-                contribution.Render(spec, theme, host)
+                contribution.Render(spec, theme, slotHost)
             }
         }
     }

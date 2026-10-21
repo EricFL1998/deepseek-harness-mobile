@@ -3,6 +3,9 @@ package com.deepseek.dsh.plugin.nativesdk.slots
 import com.deepseek.dsh.plugin.nativesdk.host.PluginHostApi
 import com.deepseek.dsh.plugin.nativesdk.theme.PluginTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -121,6 +124,9 @@ abstract class SlotContribution {
 object SlotRegistry {
     private val contributions = mutableListOf<SlotContribution>()
 
+    /** 注册表版本：插件 APK 异步装载完成后，已组合的落点容器需要重组一次。 */
+    private var revision by mutableStateOf(0)
+
     /** 注册一个落点贡献。官方 UI 与插件都在初始化时调用。 */
     fun register(contribution: SlotContribution) {
         contributions.removeAll {
@@ -129,6 +135,7 @@ object SlotRegistry {
         }
         contributions.add(contribution)
         contributions.sortBy { it.order }
+        revision++
     }
 
     /**
@@ -138,6 +145,8 @@ object SlotRegistry {
      *   全部 ENHANCE 贡献（按 order 排序）。
      */
     fun resolve(slot: NativeSlot): List<SlotContribution> {
+        @Suppress("UNUSED_VARIABLE")
+        val observed = revision
         val all = contributions.filter { it.slot == slot }
         if (all.isEmpty()) return emptyList()
         val override = all.firstOrNull { it.mode == RenderMode.OVERRIDE && !it.isOfficial }
@@ -152,5 +161,6 @@ object SlotRegistry {
     /** 卸载一个插件的全部贡献（插件 APK 卸载时调用）；官方默认回退可见。 */
     fun unregisterAll(predicate: (SlotContribution) -> Boolean) {
         contributions.removeAll(predicate)
+        revision++
     }
 }

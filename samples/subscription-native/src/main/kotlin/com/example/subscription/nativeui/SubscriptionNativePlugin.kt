@@ -44,6 +44,8 @@ class SubscriptionNativePlugin : DshUiPlugin {
     init {
         // 设置页顶部落点：订阅用量概览。
         SlotRegistry.register(SubscriptionSettingsContribution())
+        // 输入框 dock：订阅额度胶囊。
+        SlotRegistry.register(SubscriptionDockContribution())
         PageRegistry.register(SubscriptionSettingsPage())
     }
 }

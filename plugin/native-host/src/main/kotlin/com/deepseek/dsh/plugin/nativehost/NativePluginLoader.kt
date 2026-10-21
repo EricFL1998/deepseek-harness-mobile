@@ -25,7 +25,7 @@ class NativePluginLoader(private val context: Context) {
      */
     fun load(plugin: InstalledNativePlugin): DshUiPlugin? {
         if (plugin.status != InstalledNativePlugin.Status.READY) return null
-        return runCatching {
+        return try {
             // The companion packages the SDK for compilation, but at runtime the host
             // must own the single copy of DshUiPlugin, PageRegistry and Compose. A
             // package context has a separate SDK class identity, so `instanceof` would
@@ -35,6 +35,14 @@ class NativePluginLoader(private val context: Context) {
                 plugin.packageName,
                 Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY,
             )
+            // `createPackageContext` already builds a ClassLoader over the installed
+            // APK. Prefer it: a separate DexClassLoader over sourceDir can fail with
+            // "Failed to find entry 'classes.dex'" for multi-dex / v4-signed APKs,
+            // which silently drops every slot contribution of the companion.
+            val viaPackage = runCatching {
+                loadViaService(pluginContext.classLoader, plugin)
+            }.getOrNull()
+            if (viaPackage != null) return viaPackage
             val appInfo = pluginContext.applicationInfo
             val dexPath = (listOf(appInfo.sourceDir) + appInfo.splitSourceDirs.orEmpty())
                 .joinToString(java.io.File.pathSeparator)
@@ -49,8 +57,12 @@ class NativePluginLoader(private val context: Context) {
             // 插件在 service 类里暴露一个静态 `plugin()` 工厂，或 service 名推 plugin 类名。
             // 这里采用「service 类名 + Plugin 后缀约定」之外的稳妥做法：反射 service 类，
             // 调它的伴生/静态方法。最稳妥：插件按契约提供一个入口类名 meta-data。
-            loadViaService(classLoader, plugin)
-        }.getOrNull()
+            val viaDex = loadViaService(classLoader, plugin)
+            viaDex
+        } catch (error: Throwable) {
+            android.util.Log.w("NativePluginLoader", "failed to load ${plugin.packageName}", error)
+            null
+        }
     }
 
     /**

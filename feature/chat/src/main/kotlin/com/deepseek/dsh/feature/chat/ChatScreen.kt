@@ -526,10 +526,8 @@ fun ModernChatScreen(
                             onClick = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
                         )
                         is ChatRow.Process -> {
-                            val running = row.items.any {
-                                it.role == MessageRole.TOOL && toolStatus(it) == "running"
-                            }
-                            if (running || collapsedTurns[row.key] == true) {
+                            // 思考链默认折叠：只有用户点开本轮完成头才渲染过程内容。
+                            if (collapsedTurns[row.key] == true) {
                                 ToolProcessGroup(
                                     items = row.items,
                                     expanded = true,
@@ -543,10 +541,10 @@ fun ModernChatScreen(
                     }
                 }
 
-                val hasRunningProcess = chatRows.any { row ->
-                    row is ChatRow.Process && row.items.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
+                val hasOpenProcess = chatRows.any { row ->
+                    row is ChatRow.Process && collapsedTurns[row.key] == true
                 }
-                if (isThinking && !hasRunningProcess) {
+                if (isThinking && !hasOpenProcess) {
                     item {
                         LiveToolStatus(messages = messages)
                     }
