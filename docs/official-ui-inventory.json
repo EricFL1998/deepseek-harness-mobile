@@ -1,0 +1,1792 @@
+{
+  "officialSlots": [
+    "conversation.chat.assistant-actions",
+    "conversation.chat.flow",
+    "conversation.chat.node",
+    "conversation.chat.reasoning.body",
+    "conversation.chat.turnTail",
+    "conversation.composer.bar",
+    "conversation.composer.dock",
+    "conversation.input.attachments",
+    "conversation.input.dock",
+    "conversation.input.left",
+    "conversation.input.model",
+    "conversation.input.overlay",
+    "conversation.input.permission",
+    "conversation.input.plan",
+    "conversation.input.right",
+    "conversation.session.header.corner",
+    "conversation.user.text.node",
+    "conversation.view",
+    "plugins.tab",
+    "settings.general.item",
+    "settings.section",
+    "shell.overlay",
+    "sidebar.panellist",
+    "sidebar.right.pane.tab",
+    "sidebar.right.pane.tab.title",
+    "sidebar.workspaces",
+    "sidebar.workspaces.session.menu.item",
+    "sidebar.workspaces.session.row.action",
+    "tool.call.images",
+    "tool.call.toolview"
+  ],
+  "registrations": [
+    {
+      "slot": "settings.general.item",
+      "entry": "language",
+      "order": 0,
+      "component": "LanguageRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\locale\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.section",
+      "entry": "agent-presets",
+      "order": 20,
+      "component": "AgentPresetSection",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-agent-preset\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.attachments",
+      "entry": "",
+      "order": null,
+      "component": "ComposerAttachments",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-attachment\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.images",
+      "entry": "",
+      "order": null,
+      "component": "MessageImages",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-attachment\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "link-opening",
+      "order": 17,
+      "component": "LinkOpeningRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "performance-usage",
+      "order": 30,
+      "component": "PerformanceUsageRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [
+        "usePerformanceUsage"
+      ],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "transcript-view",
+      "order": 12,
+      "component": "TranscriptViewRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.flow",
+      "entry": "",
+      "order": null,
+      "component": "ChatFlow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [
+        "useChat",
+        "useSession"
+      ],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.view",
+      "entry": "chat",
+      "order": 0,
+      "component": "ChatView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [
+        "useChat",
+        "useProjection",
+        "useSession"
+      ],
+      "projections": [
+        "inbox",
+        "turnOutline"
+      ],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "chat.quota-notice",
+      "order": null,
+      "component": "QuotaNoticeHost",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.composer.dock",
+      "entry": "activity",
+      "order": 0,
+      "component": "ActivityPill",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.composer.dock",
+      "entry": "usage",
+      "order": 1,
+      "component": "UsagePill",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.reasoning.body",
+      "entry": "",
+      "order": null,
+      "component": "DefaultReasoningBody",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "UserMessageNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "UserMessageNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "ContextMessageNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "TurnTriggerNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "SystemPromptNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "AssistantNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "CommandNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "ManualCompactionNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "CompactionNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "RetryNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "TurnErrorNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "TurnMaxTokensNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "TurnProcessNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "TurnTailNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [
+        "useChat",
+        "usePerformanceUsage"
+      ],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "UnknownNodeView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.overlay",
+      "entry": "command-popup",
+      "order": 1,
+      "component": "PopupSelectView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-commands\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "PlainUserText",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "SessionReference",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "composer-enter",
+      "order": 20,
+      "component": "EnterBehaviorRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.composer.bar",
+      "entry": "",
+      "order": null,
+      "component": "false",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.dock",
+      "entry": "queue",
+      "order": 20,
+      "component": "QueueDock",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\queue\\QueueDock.tsx",
+      "hooks": [
+        "useProjection",
+        "useSession"
+      ],
+      "projections": [
+        "inbox"
+      ],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.dock",
+      "entry": "todo",
+      "order": 0,
+      "component": "TodoDock",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\skeleton\\TodoPanel.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.turnTail",
+      "entry": "@deepseek-ai/dsh-client-ui-deliverables",
+      "order": null,
+      "component": "DeliverablesTail",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-deliverables\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "GoalCommandReference",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-goal\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "GoalCommandInputView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-goal\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.dock",
+      "entry": "goal",
+      "order": 10,
+      "component": "GoalDock",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-goal\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.overlay",
+      "entry": "slash-menu",
+      "order": 0,
+      "component": "MenuView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-input-trigger\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.assistant-actions",
+      "entry": "feedback",
+      "order": 10,
+      "component": "MessageFeedbackActions",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-message-feedback\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.overlay",
+      "entry": "feedback-dialog",
+      "order": 2,
+      "component": "FeedbackDialog",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-message-feedback\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.model",
+      "entry": "",
+      "order": null,
+      "component": "ModelSelect",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-model-selection\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "permission",
+      "order": -20,
+      "component": "PermissionRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-permission-presets\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.permission",
+      "entry": "",
+      "order": null,
+      "component": "PermissionSelect",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-permission-presets\\src\\client\\index.ts",
+      "hooks": [
+        "useProjection"
+      ],
+      "projections": [
+        "permissions"
+      ],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.turnTail",
+      "entry": "",
+      "order": null,
+      "component": "PlanCards",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plan\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab",
+      "entry": "",
+      "order": null,
+      "component": "PlanPreview",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plan\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab.title",
+      "entry": "",
+      "order": null,
+      "component": "PlanTitle",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plan\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.input.plan",
+      "entry": "",
+      "order": null,
+      "component": "PlanChip",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plan\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "plugin-manager.refresh-toast",
+      "order": null,
+      "component": "PluginRefreshToast",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plugin-manager\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.panellist",
+      "entry": "",
+      "order": 0,
+      "component": "PluginsPanelIcon",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plugin-manager\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "plugins.tab",
+      "entry": "discover",
+      "order": null,
+      "component": "DiscoverSection",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-plugin-market\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "FileReference",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-reference\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "FolderReference",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-reference\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "schedule.delete-toast",
+      "order": null,
+      "component": "ScheduleDeleteToast",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-schedule\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": [
+        "dismiss: deleteToast.dismiss",
+        "hooks: deleteToast.hooks"
+      ]
+    },
+    {
+      "slot": "sidebar.right.pane.tab",
+      "entry": "",
+      "order": null,
+      "component": "ScheduleTaskTab",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-schedule\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab.title",
+      "entry": "",
+      "order": null,
+      "component": "ScheduleTaskTabTitle",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-schedule\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.panellist",
+      "entry": "",
+      "order": 10,
+      "component": "TaskManagerIcon",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-schedule\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.turnTail",
+      "entry": "schedule-created",
+      "order": 20,
+      "component": "ScheduleTurnCard",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-schedule\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "SecretText",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-secret-mask\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "desktop-onboarding",
+      "order": null,
+      "component": "DesktopOnboardingEntry",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-account\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "account.platform-page",
+      "order": null,
+      "component": "AccountPlatformHost",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-account\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.section",
+      "entry": "account",
+      "order": -10,
+      "component": "AccountSection",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-account\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "developer-tools",
+      "order": 15,
+      "component": "DeveloperToolsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "current-version",
+      "order": 100,
+      "component": "CurrentVersionRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.section",
+      "entry": "general",
+      "order": 0,
+      "component": "GeneralSection",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "host-release-change",
+      "order": null,
+      "component": "HostReleasePrompt",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.section",
+      "entry": "models",
+      "order": 10,
+      "component": "ModelsSection",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-models\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.section",
+      "entry": "plugins",
+      "order": 15,
+      "component": "PluginsSettingsSection",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-plugins\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "",
+      "order": 90,
+      "component": "UploadRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-session-log\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "session-log-upload-toast",
+      "order": null,
+      "component": "UploadToast",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-settings-session-log\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "shortcuts",
+      "order": 16,
+      "component": "ShortcutsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-shortcuts\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "shortcuts",
+      "order": null,
+      "component": "ShortcutReference",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-shortcuts\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab",
+      "entry": "",
+      "order": null,
+      "component": "BrowserBody",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-sidebar-browser\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab.title",
+      "entry": "",
+      "order": null,
+      "component": "BrowserTitle",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-sidebar-browser\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.session.header.corner",
+      "entry": "",
+      "order": null,
+      "component": "ExpandButton",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-sidebar-right\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab",
+      "entry": "",
+      "order": null,
+      "component": "GuideBody",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-sidebar-right\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab",
+      "entry": "",
+      "order": null,
+      "component": "TerminalRecovery",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-sidebar-terminal\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "",
+      "order": null,
+      "component": "TerminalCleanup",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-sidebar-terminal\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "abort.signal",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-skill\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.user.text.node",
+      "entry": "",
+      "order": null,
+      "component": "SkillReference",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-skill\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.right.pane.tab",
+      "entry": "",
+      "order": null,
+      "component": "SidebarChatTab",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-subagent\\src\\client\\sidebar-chat\\index.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "appearance",
+      "order": 10,
+      "component": "AppearanceRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-theme\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "settings.general.item",
+      "entry": "font-size",
+      "order": 11,
+      "component": "FontSettingsGroup",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-theme\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "ToolCallTree",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\apply.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "AskQuestionRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\ask-question-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "BashRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\bash-sample.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "DetailsRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\details-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "FileMutationRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\file-mutation-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "FileMutationRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\file-mutation-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "ReadImageRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\read-image-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "ReadRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\read-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "SearchRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\search-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "SearchRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\search-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "TodoRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\todo-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "WebRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\web-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "tool.call.toolview",
+      "entry": "",
+      "order": null,
+      "component": "WebRow",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\web-row.tsx",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.view",
+      "entry": "trajectory",
+      "order": 10,
+      "component": "TrajectoryView",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-trajectory\\src\\client\\index.ts",
+      "hooks": [
+        "useSession"
+      ],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "conversation.chat.node",
+      "entry": "",
+      "order": null,
+      "component": "WorkflowRunPanel",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workflow-run\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces",
+      "entry": "pin",
+      "order": 100,
+      "component": "PinSessionMenuItem",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces.session.menu.item",
+      "entry": "rename",
+      "order": 200,
+      "component": "RenameSessionMenuItem",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces.session.menu.item",
+      "entry": "fork",
+      "order": 300,
+      "component": "ForkSessionMenuItem",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces.session.menu.item",
+      "entry": "archive",
+      "order": 400,
+      "component": "ArchiveSessionMenuItem",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces.session.menu.item",
+      "entry": "session-id",
+      "order": 450,
+      "component": "SessionIdMenuItem",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces.session.row.action",
+      "entry": "archive",
+      "order": 100,
+      "component": "ArchiveSessionRowButton",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "sidebar.workspaces.session.row.action",
+      "entry": "pin",
+      "order": 200,
+      "component": "PinSessionRowButton",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "workspace.session-rename",
+      "order": null,
+      "component": "SessionRenameDialog",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "workspace.session-archive",
+      "order": null,
+      "component": "SessionArchiveConfirmDialog",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    },
+    {
+      "slot": "shell.overlay",
+      "entry": "workspace.row-toast",
+      "order": null,
+      "component": "RowActionToast",
+      "package": "packages/client",
+      "file": "dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+      "hooks": [],
+      "projections": [],
+      "injected": []
+    }
+  ],
+  "mapping": {
+    "conversation.composer.dock": "COMPOSER_DOCK",
+    "conversation.input.dock": "COMPOSER_DOCK",
+    "conversation.input.overlay": "COMPOSER_OVERLAY",
+    "conversation.input.left": "COMPOSER_LEFT",
+    "conversation.input.right": "COMPOSER_RIGHT",
+    "conversation.input.model": "COMPOSER_MODEL",
+    "conversation.input.permission": "COMPOSER_PERMISSION",
+    "conversation.input.plan": "COMPOSER_PLAN",
+    "conversation.input.attachments": "COMPOSER_ATTACHMENTS",
+    "conversation.composer.bar": "COMPOSER_BAR",
+    "conversation.view": "CONVERSATION_VIEW",
+    "conversation.session.header.corner": "SESSION_HEADER_CORNER",
+    "conversation.chat.flow": "CHAT_STREAM",
+    "conversation.chat.node": "CHAT_STREAM",
+    "conversation.user.text.node": "CHAT_STREAM",
+    "conversation.chat.reasoning.body": "CHAT_STREAM",
+    "conversation.chat.turnTail": "CHAT_STREAM",
+    "conversation.chat.assistant-actions": "MESSAGE_ACTION",
+    "tool.call.toolview": "TOOL_VIEW_SHEET",
+    "tool.call.images": "TOOL_VIEW_SHEET",
+    "sidebar.workspaces": "SIDEBAR_PANEL",
+    "sidebar.workspaces.session.menu.item": "SIDEBAR_PANEL",
+    "sidebar.workspaces.session.row.action": "SIDEBAR_PANEL",
+    "sidebar.panellist": "SIDEBAR_PANEL",
+    "sidebar.right.pane.tab": "SIDEBAR_PANEL",
+    "sidebar.right.pane.tab.title": "SIDEBAR_PANEL",
+    "shell.overlay": "PLUGIN_OVERLAY",
+    "settings.section": "SETTINGS_SHEET",
+    "settings.general.item": "SETTINGS_SHEET",
+    "plugins.tab": "SETTINGS_SHEET"
+  },
+  "hosts": {
+    "SIDEBAR_PANEL": [
+      "app\\src\\main\\kotlin\\com\\deepseek\\dsh\\MainActivity.kt"
+    ],
+    "SESSION_HEADER_CORNER": [
+      "app\\src\\main\\kotlin\\com\\deepseek\\dsh\\MainActivity.kt"
+    ],
+    "PLUGIN_OVERLAY": [
+      "app\\src\\main\\kotlin\\com\\deepseek\\dsh\\MainActivity.kt"
+    ],
+    "CONVERSATION_VIEW": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "CHAT_STREAM": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "TOOL_VIEW_SHEET": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "MESSAGE_ACTION": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_BAR": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_LEFT": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_ATTACHMENTS": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_PERMISSION": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_MODEL": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_PLAN": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_OVERLAY": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_RIGHT": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
+    "COMPOSER_DOCK_ACTIVITY": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ComposerDockBar.kt"
+    ],
+    "COMPOSER_DOCK_USAGE": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ComposerDockBar.kt"
+    ],
+    "COMPOSER_DOCK_CONTEXT": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ComposerDockBar.kt"
+    ],
+    "COMPOSER_DOCK": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ComposerDockBar.kt",
+      "plugin\\native-host\\src\\main\\kotlin\\com\\deepseek\\dsh\\plugin\\nativehost\\NativeHost.kt"
+    ],
+    "SETTINGS_SHEET": [
+      "feature\\settings\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\settings\\SettingsRootScreen.kt"
+    ]
+  },
+  "uncoveredSlots": [],
+  "unhostedDestinations": [],
+  "unsplitDockEntries": [],
+  "children": [
+    "conversation.chat.assistant-actions <- dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+    "conversation.chat.flow <- dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+    "conversation.chat.node <- dsh-upstream\\packages\\client\\ui-chat\\src\\client\\apply.ts",
+    "conversation.chat.reasoning.body <- dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+    "conversation.chat.turnTail <- dsh-upstream\\packages\\client\\ui-chat\\src\\client\\chat\\register-node-renderers.ts",
+    "conversation.composer.bar <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.composer.bar <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\contract\\slots.ts",
+    "conversation.composer.dock <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.attachments <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.dock <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.dock <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\contract\\slots.ts",
+    "conversation.input.left <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.model <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.overlay <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.permission <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.plan <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.input.right <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.session.header.corner <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.user.text.node <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "conversation.user.text.node <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\contract\\slots.ts",
+    "conversation.view <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
+    "plugins.tab <- dsh-upstream\\packages\\client\\ui-plugin-manager\\src\\client\\index.ts",
+    "settings.general.item <- dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+    "settings.section <- dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+    "shell.overlay <- dsh-upstream\\packages\\client\\ui-layout\\src\\client\\index.ts",
+    "sidebar.panellist <- dsh-upstream\\packages\\client\\ui-sidebar\\src\\client\\index.ts",
+    "sidebar.right.pane.tab <- dsh-upstream\\packages\\client\\ui-sidebar-right\\src\\client\\index.ts",
+    "sidebar.right.pane.tab.title <- dsh-upstream\\packages\\client\\ui-sidebar-right\\src\\client\\index.ts",
+    "sidebar.workspaces <- dsh-upstream\\packages\\client\\ui-sidebar\\src\\client\\index.ts",
+    "sidebar.workspaces.session.menu.item <- dsh-upstream\\packages\\client\\ui-workspace\\src\\client\\index.ts",
+    "tool.call.images <- dsh-upstream\\packages\\client\\ui-tool\\src\\client\\tool\\toolviews\\read-image-row.tsx",
+    "tool.call.toolview <- dsh-upstream\\packages\\client\\ui-tool\\src\\client\\apply.ts"
+  ]
+}

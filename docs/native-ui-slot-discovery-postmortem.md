@@ -128,10 +128,41 @@ python tools/slot_inventory.py --write docs/slot-inventory.md
 
 先让这两步通过，再开始写 UI；UI 可以迭代，slot 覆盖不允许回退。
 
+### 4.3.1 通用解法：从官方源码识别 UI，而不是等截图
+
+`slot_inventory.py` 只覆盖“官方 slot 名称 → 原生宿主”这一层；官方 UI 里每个 slot
+下的 **entry（如 composer.dock 的 activity / usage）**、组件、数据依赖（useProjection /
+inject face）仍然可能漏。为此新增源码扫描器：
+
+```bash
+python tools/official_ui_inventory.py \
+  --write docs/official-ui-inventory.md \
+  --json docs/official-ui-inventory.json \
+  --check
+```
+
+它扫描 `dsh-upstream/packages/client` 里所有 `ctx.slots.register({...}, Component)`
+与 children 声明，产出：
+
+- 官方 slot → entry id → order → 组件 → 源码文件 → hooks/projections/inject；
+- 原生映射与宿主状态（未映射、映射无宿主会失败）；
+- dock 这类“一个官方 slot 下多条 entry”是否已拆成独立原生落点。
+
+当前结果：30 个官方 slot、145 个注册条目、0 未映射、0 无宿主、0 未拆 dock
+（activity/usage 已拆成 `COMPOSER_DOCK_ACTIVITY` / `COMPOSER_DOCK_USAGE`）。
+
+日常流程改为：
+
+1. 同步 `dsh-upstream` 后先跑扫描器，按报告新增的 slot/entry 补宿主或显式标记；
+2. 官方控件用 `OfficialSlot` 挂载，保证插件能 ENHANCE/OVERRIDE 单项；
+3. 信息型/卡片型 UI 优先用 `SpecSlotContribution`（dsh-ui spec → 通用原生渲染），
+   不再为每个插件手写一份 Compose；
+4. 截图只用于视觉验收，不再作为发现 UI 的来源。
+
 ### 4.4 流程
 
-- 新做任何 native UI 功能，第一步先产出 slot inventory（官方槽位 × 落点 × 容器 × 验收方式），
-  评审后再写 UI。
+- 新做任何 native UI 功能，第一步先跑 `official_ui_inventory.py` 和 `slot_inventory.py`，
+  从官方源码得到 slot × entry × 组件 × 数据依赖，再评评审实现方式（官方控件 / dsh-ui spec / Web 回退）。
 - 每个新增落点必须同时提交：容器、映射表条目、示例或冒烟测试。
 - SDK 文档与示例包含完整落点表；新插件不应需要用户指出“这里还有内容”。
 
