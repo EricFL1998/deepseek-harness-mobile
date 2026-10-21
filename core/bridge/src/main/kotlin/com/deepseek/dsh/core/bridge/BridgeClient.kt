@@ -1,6 +1,9 @@
 package com.deepseek.dsh.core.bridge
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -38,26 +41,33 @@ class BridgeClient(
     @Volatile
     private var cachedManifest: BridgeManifest? = null
 
+    /** 并发协商单飞：多个页面同时启动时只打一次 manifest。 */
+    private val manifestLock = Mutex()
+
     /** 读取（或复用）provider 目录。 */
     suspend fun manifest(forceRefresh: Boolean = false): BridgeResult<BridgeManifest> {
         val cached = cachedManifest
         if (!forceRefresh && cached != null) return BridgeResult.Success(cached)
-        val url = urlFor(BridgeProtocol.MANIFEST_PATH)
-            ?: return BridgeResult.Failure(
-                BridgeErrorCode.TRANSPORT_UNREACHABLE,
-                "invalid bridge base URL: $baseUrl",
-            )
-        val request = Request.Builder().url(url).get().build()
-        return execute(request) { body ->
-            val manifest = json.decodeFromString(BridgeManifest.serializer(), body)
-            if (!manifest.isCompatible()) {
-                return@execute BridgeResult.Failure(
-                    BridgeErrorCode.PROVIDER_VERSION_MISMATCH,
-                    "Host speaks bridge ${manifest.bridgeVersion}, client speaks ${BridgeProtocol.BRIDGE_VERSION}",
+        return manifestLock.withLock {
+            // 等锁期间可能已有别的协程完成协商，再检查一次。
+            cachedManifest?.takeIf { !forceRefresh }?.let { return@withLock BridgeResult.Success(it) }
+            val url = urlFor(BridgeProtocol.MANIFEST_PATH)
+                ?: return@withLock BridgeResult.Failure(
+                    BridgeErrorCode.TRANSPORT_UNREACHABLE,
+                    "invalid bridge base URL: $baseUrl",
                 )
+            val request = Request.Builder().url(url).get().build()
+            execute(request) { body ->
+                val manifest = json.decodeFromString(BridgeManifest.serializer(), body)
+                if (!manifest.isCompatible()) {
+                    return@execute BridgeResult.Failure(
+                        BridgeErrorCode.PROVIDER_VERSION_MISMATCH,
+                        "Host speaks bridge ${manifest.bridgeVersion}, client speaks ${BridgeProtocol.BRIDGE_VERSION}",
+                    )
+                }
+                cachedManifest = manifest
+                BridgeResult.Success(manifest)
             }
-            cachedManifest = manifest
-            BridgeResult.Success(manifest)
         }
     }
 
@@ -123,6 +133,27 @@ class BridgeClient(
         request: Request,
         decode: (String) -> BridgeResult<T>,
     ): BridgeResult<T> = withContext(Dispatchers.IO) {
+        var last: BridgeResult<T>? = null
+        // bridge 在回环上，Host 刚重启/端口切换时会有一次瞬时失败；只对
+        // TRANSPORT_UNREACHABLE 重试一次。解码错误、404、协议错误不重试。
+        for (attempt in 0..1) {
+            val result = executeOnce(request, decode)
+            last = result
+            val retryable = result is BridgeResult.Failure &&
+                result.code == BridgeErrorCode.TRANSPORT_UNREACHABLE
+            if (!retryable || attempt == 1) return@withContext result
+            delay(90)
+        }
+        last ?: BridgeResult.Failure(
+            BridgeErrorCode.INTERNAL_ERROR,
+            "bridge request produced no result",
+        )
+    }
+
+    private suspend fun <T> executeOnce(
+        request: Request,
+        decode: (String) -> BridgeResult<T>,
+    ): BridgeResult<T> = withContext(Dispatchers.IO) {
         try {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
@@ -167,6 +198,8 @@ class BridgeClient(
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            // 整体上限，避免 Host 卡住时占着页面协程。
+            .callTimeout(35, TimeUnit.SECONDS)
             .build()
     }
 }
