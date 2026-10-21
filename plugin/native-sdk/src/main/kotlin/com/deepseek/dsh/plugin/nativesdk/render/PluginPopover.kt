@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -60,7 +62,10 @@ fun PluginPopover(
     ) {
         Column(
             modifier = modifier
-                .widthIn(min = 220.dp, max = 320.dp)
+                // 宽度跟随内容：标题/行文字多长就多宽，只有超过上限才夹住；
+                // 不再强制 220dp 最小宽度，避免短内容出现一条很长的空白卡片。
+                .width(IntrinsicSize.Max)
+                .widthIn(max = 320.dp)
                 .shadow(
                     elevation = 10.dp,
                     shape = shape,

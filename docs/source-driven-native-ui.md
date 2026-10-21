@@ -114,7 +114,7 @@ Box {
 
 - [ ] 插件源码里出现 `useAnchoredPosition` / `createPortal` / `side: top`；
 - [ ] 伴侣使用 `PluginPopover`，不是 `Dialog`；
-- [ ] 浮层宽度 `220–320dp`，内容过长时换行/滚动；
+- [ ] 浮层宽度随内容（`IntrinsicSize.Max`），最大 `320dp`，内容过长时换行/滚动；
 - [ ] 使用 `theme` 的 popup 字段，无硬编码颜色/圆角/阴影；
 - [ ] `--check` 没有“插件使用锚定浮层，而伴侣没有 Popup”警告；
 - [ ] 真机点按后，浮层紧贴 pill，不遮挡输入框的发送按钮。
