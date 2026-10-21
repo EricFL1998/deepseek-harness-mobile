@@ -515,6 +515,9 @@ class DefaultHostRuntimeManager(
         // activates it. Create their parent directories on Android first so the loader
         // never depends on proot's recursive-mkdir behavior for a fresh storage root.
         File(layout.rootfsDir, "root/.dsh/genui/.designs").mkdirs()
+        // 订阅插件把 OAuth 凭据写到 ~/.dsh/plugins/<provider>/。proot 的
+        // 递归 mkdir 在缺父目录时会报 ENOENT，这里先建好 Kimi 的数据目录。
+        File(layout.rootfsDir, "root/.dsh/plugins/kimi-oauth").mkdirs()
         File(workspacePath).mkdirs()
         // proot 需要能 chdir 进 bind 目标；rootfs 内 /workspace 必须是可进入目录。
         File(layout.rootfsDir, "workspace").apply {
@@ -552,6 +555,10 @@ class DefaultHostRuntimeManager(
                 // 依赖包：官方 npm 与国内镜像
                 "registry.npmjs.org",
                 "registry.npmmirror.com",
+                // 订阅 OAuth 插件：Kimi Code 登录与模型接口
+                "auth.kimi.com",
+                "api.kimi.com",
+                "www.kimi.com",
             )
             val entries = hostNames.mapNotNull { host ->
                 runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
