@@ -47,6 +47,7 @@ include(":plugin:native-host")
 include(":samples:genui-native")
 include(":samples:kimi-native")
 include(":samples:subscription-native")
+include(":samples:demo-native")
 
 // Runtime & Bridge
 include(":runtime:host")

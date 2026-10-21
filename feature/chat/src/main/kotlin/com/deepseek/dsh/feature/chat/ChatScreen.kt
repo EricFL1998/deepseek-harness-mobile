@@ -2436,6 +2436,7 @@ fun BottomInputBar(
                             put("modelId", selectedModelId)
                             put("reasoningEffort", selectedReasoningId)
                         },
+                        scrollable = true,
                     )
 
                     // 模型与推理等级：贴近右侧发送按钮，菜单锚定在此。
@@ -2475,8 +2476,8 @@ fun BottomInputBar(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_PLAN,
                     ) {}
 
-                    // conversation.input.right：原生插件在发送/停止按钮旁的落点。
-                    com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                    // conversation.input.overlay：锚在输入栏一行的插件落点。
+                    com.deepseek.dsh.plugin.nativehost.NativeSlotInline(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_OVERLAY,
                         spec = kotlinx.serialization.json.JsonObject(emptyMap()),
                     )

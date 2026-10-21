@@ -66,6 +66,7 @@ fun NativeSlotInline(
     slot: com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot,
     spec: kotlinx.serialization.json.JsonObject,
     modifier: Modifier = Modifier,
+    scrollable: Boolean = false,
 ) {
     val host = NativeHost.LocalHost.current ?: return
     val theme = NativeHost.LocalTheme.current ?: return
@@ -76,5 +77,6 @@ fun NativeSlotInline(
         host = host,
         modifier = modifier,
         inline = true,
+        scrollable = scrollable,
     )
 }

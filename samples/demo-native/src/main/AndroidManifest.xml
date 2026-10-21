@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.dsh.mobile.dsh_plugin_demo">
+
+    <application>
+        <service
+            android:name=".DemoPluginService"
+            android:exported="true"
+            android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
+            <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
+            <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+            <meta-data android:name="dsh.plugin.id" android:value="demo.native-ui" />
+            <meta-data android:name="dsh.plugin.name" android:value="Demo 插件" />
+            <!-- 虚构的 JS 插件包名：仅用于演示，不对应任何真实插件。 -->
+            <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-demo" />
+
+            <intent-filter>
+                <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

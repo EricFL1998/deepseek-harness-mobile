@@ -1,10 +1,14 @@
 package com.deepseek.dsh.plugin.nativehost
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -77,7 +81,11 @@ fun OfficialSlot(
             }
         }
 
-        SlotArrangement.BLOCK -> Column(modifier = modifier) {
+        SlotArrangement.BLOCK -> Column(
+            modifier = modifier
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
             content()
             for (contribution in contributions) {
                 NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
@@ -111,6 +119,8 @@ fun NativeSlotHost(
     modifier: Modifier = Modifier,
     /** true 时作为一行内的紧凑项渲染（composer 底部状态行），而不是整块纵向卡片。 */
     inline: Boolean = false,
+    /** inline 落点内容超出可用宽度时是否允许横向滑动（外层已是滚动容器时保持 false）。 */
+    scrollable: Boolean = false,
 ) {
     val contributions = SlotRegistry.resolve(slot)
     if (contributions.isEmpty()) return
@@ -119,7 +129,11 @@ fun NativeSlotHost(
     val slotHost = androidx.compose.runtime.remember(host) { SlotBridgeHost(host) }
     if (inline) {
         Row(
-            modifier = modifier,
+            modifier = if (scrollable) {
+                modifier.horizontalScroll(rememberScrollState())
+            } else {
+                modifier
+            },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -131,7 +145,12 @@ fun NativeSlotHost(
         }
         return
     }
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(max = 480.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
         for (contribution in contributions) {
             NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
                 contribution.Render(spec, theme, slotHost)

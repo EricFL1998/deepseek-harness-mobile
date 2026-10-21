@@ -16,8 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.width
@@ -1658,7 +1661,8 @@ fun MainAppHost(
             val pageHasOwnHeader = activePage == ActivePage.SETTINGS
             Scaffold(
                 topBar = {
-                    Column {
+                    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxWidth()) {
+                        Column {
                         when {
                             chatPage -> ModernTopAppBar(
                                 title = if (messages.isEmpty()) {
@@ -1697,10 +1701,15 @@ fun MainAppHost(
                                 },
                             )
                         }
-                        // conversation.session.header.corner：会话标题栏角落的插件落点。
+                        }
+                        // conversation.session.header.corner：真正叠在标题栏右上角，
+                        // 不再作为一行掉到标题栏下面。
                         if (chatPage) {
                             com.deepseek.dsh.plugin.nativehost.OfficialSlot(
                                 slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.SESSION_HEADER_CORNER,
+                                modifier = Modifier
+                                    .align(androidx.compose.ui.Alignment.TopEnd)
+                                    .padding(top = 8.dp, end = 56.dp),
                             ) {}
                         }
                     }
@@ -2488,10 +2497,20 @@ fun MainAppHost(
         }
 
         // shell.overlay：原生插件的顶层浮层落点。
-        com.deepseek.dsh.plugin.nativehost.NativeSlot(
-            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.PLUGIN_OVERLAY,
-            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-        )
+        // 放到安全区内的右上角，避免渲染到状态栏外；插件内容自身仍可画任意大小。
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(16.dp),
+            contentAlignment = androidx.compose.ui.Alignment.TopEnd,
+        ) {
+            com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.PLUGIN_OVERLAY,
+                spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                modifier = Modifier.widthIn(max = 360.dp),
+            )
+        }
 
         // 官方登录对话框：浏览器 OAuth 为主，API Key 为备选。
         if (showSignInDialog) {
