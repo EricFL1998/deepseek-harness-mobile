@@ -1,6 +1,6 @@
 # 官方 UI / 落点清单（自动生成）
 
-> 由 `tools/official_ui_inventory.py` 扫描 `dsh-upstream/packages/client` 生成。
+> 由 `tools/official_ui_inventory.py` 扫描 dsh-upstream/packages/client 生成。
 > 不再靠截图找 UI：每个官方 slot 的注册条目、组件、数据依赖与原生覆盖状态都在这里。
 
 ## 概览

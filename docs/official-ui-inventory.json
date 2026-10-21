@@ -1,4 +1,5 @@
 {
+  "source": "dsh-upstream/packages/client",
   "officialSlots": [
     "conversation.chat.assistant-actions",
     "conversation.chat.flow",

@@ -192,13 +192,155 @@ def scan_hosts(root: Path) -> dict[str, list[str]]:
     return hosts
 
 
-def build_report(root: Path, upstream: Path) -> tuple[str, dict, list[str], list[str]]:
+def _match_brace(text: str, start: int) -> int:
+    """Return the index of the `}` matching the `{` at start, string/comment aware."""
+    depth = 0
+    i = start
+    quote: str | None = None
+    while i < len(text):
+        ch = text[i]
+        if quote is not None:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in {"'", '"', "`"}:
+            quote = ch
+            i += 1
+            continue
+        if ch == "/" and i + 1 < len(text) and text[i + 1] == "/":
+            newline = text.find("\n", i)
+            i = len(text) if newline < 0 else newline + 1
+            continue
+        if ch == "/" and i + 1 < len(text) and text[i + 1] == "*":
+            end = text.find("*/", i + 2)
+            i = len(text) if end < 0 else end + 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
+def iter_register_calls(text: str):
+    """Yield (registration body, component identifier) for balanced `slots.register({...}, C)` calls.
+
+    Works for both upstream TS sources and the compiled `lib/client.js` shipped in an
+    installed DSH app, so third-party developers do not need the upstream checkout.
+    """
+    needle = "slots.register("
+    pos = 0
+    while True:
+        index = text.find(needle, pos)
+        if index < 0:
+            return
+        cursor = index + len(needle)
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        if cursor >= len(text) or text[cursor] != "{":
+            pos = cursor
+            continue
+        end = _match_brace(text, cursor)
+        if end < 0:
+            pos = cursor + 1
+            continue
+        body = text[cursor : end + 1]
+        after = end + 1
+        while after < len(text) and text[after].isspace():
+            after += 1
+        if after < len(text) and text[after] == ",":
+            after += 1
+            while after < len(text) and text[after].isspace():
+                after += 1
+        component_match = re.match(r"[A-Za-z_$][\w$]*", text[after:])
+        yield body, component_match.group(0) if component_match else ""
+        pos = end + 1
+
+
+def scan_installed_clients(
+    client_dirs: list[Path], official_slots: set[str]
+) -> tuple[list[Registration], list[str]]:
+    """Scan installed `@deepseek-ai/dsh-client-*` packages (compiled lib/*.js).
+
+    This is the mode for SDK users / third-party plugin developers: the App ships the
+    official client packages, but they do not have the upstream repository.
+    """
+    registrations: list[Registration] = []
+    child_declarations: list[str] = []
+    packages: list[Path] = []
+    for base in client_dirs:
+        if not base.exists():
+            continue
+        if base.name.startswith("dsh-client-"):
+            packages.append(base)
+        else:
+            packages.extend(sorted(path for path in base.glob("dsh-client-*") if path.is_dir()))
+    for package in packages:
+        lib = package / "lib"
+        if not lib.exists():
+            continue
+        for file in sorted(lib.glob("*.js")):
+            try:
+                text = file.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            for body, component in iter_register_calls(text):
+                name = NAME_RE.search(body)
+                if name is None or name.group(1) not in official_slots:
+                    continue
+                entry = ID_RE.search(body)
+                order = ORDER_RE.search(body)
+                inject = INJECT_RE.search(body)
+                injected = (
+                    sorted(part.strip() for part in inject.group(1).split(",") if part.strip())
+                    if inject
+                    else []
+                )
+                registrations.append(
+                    Registration(
+                        slot=name.group(1),
+                        entry=entry.group(1) if entry else "",
+                        order=int(order.group(1)) if order else None,
+                        component=component,
+                        package=package.name,
+                        file=str(file.relative_to(package.parent)),
+                        hooks=[],
+                        projections=[],
+                        injected=injected,
+                    )
+                )
+            for children in CHILDREN_RE.finditer(text):
+                for child in CHILD_KEY_RE.finditer(children.group(1)):
+                    if child.group(1) in official_slots:
+                        child_declarations.append(
+                            f"{child.group(1)} <- {package.name}/{file.name}"
+                        )
+    return registrations, child_declarations
+
+
+def build_report(
+    root: Path,
+    upstream: Path | None,
+    client_dirs: list[Path] | None = None,
+) -> tuple[str, dict, list[str], list[str]]:
     registry = parse_registry(root)
     official_slots = set(registry.values())
     mapped = parse_mapping(root)
     hosts = scan_hosts(root)
     dock_entries = parse_dock_entries(root)
-    registrations, child_declarations = scan_upstream(upstream, root, official_slots)
+    if client_dirs:
+        registrations, child_declarations = scan_installed_clients(client_dirs, official_slots)
+    elif upstream is not None:
+        registrations, child_declarations = scan_upstream(upstream, root, official_slots)
+    else:
+        registrations, child_declarations = [], []
 
     by_slot: dict[str, list[Registration]] = {}
     for registration in registrations:
@@ -216,9 +358,13 @@ def build_report(root: Path, upstream: Path) -> tuple[str, dict, list[str], list
     ]
 
     lines: list[str] = []
+    if client_dirs:
+        source_desc = "已安装官方客户端包（dsh-client-*/lib/*.js，无需 upstream）"
+    else:
+        source_desc = "dsh-upstream/packages/client"
     lines.append("# 官方 UI / 落点清单（自动生成）")
     lines.append("")
-    lines.append("> 由 `tools/official_ui_inventory.py` 扫描 `dsh-upstream/packages/client` 生成。")
+    lines.append(f"> 由 `tools/official_ui_inventory.py` 扫描 {source_desc} 生成。")
     lines.append("> 不再靠截图找 UI：每个官方 slot 的注册条目、组件、数据依赖与原生覆盖状态都在这里。")
     lines.append("")
     lines.append("## 概览")
@@ -290,6 +436,7 @@ def build_report(root: Path, upstream: Path) -> tuple[str, dict, list[str], list
 
     report = "\n".join(lines).rstrip() + "\n"
     payload = {
+        "source": source_desc,
         "officialSlots": sorted(official_slots),
         "registrations": [asdict(item) for item in registrations],
         "mapping": mapped,
@@ -308,24 +455,66 @@ def build_report(root: Path, upstream: Path) -> tuple[str, dict, list[str], list
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".")
-    parser.add_argument("--upstream", default="dsh-upstream")
+    parser.add_argument("--upstream", default="")
+    parser.add_argument(
+        "--rootfs",
+        default="",
+        help="Installed DSH rootfs; scanner reads node_modules/@deepseek-ai/dsh-client-* from it.",
+    )
+    parser.add_argument(
+        "--client-dir",
+        action="append",
+        default=[],
+        help="Directory containing dsh-client-* packages (repeatable).",
+    )
     parser.add_argument("--write", default="")
     parser.add_argument("--json", default="")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     root = Path(args.root).resolve()
-    # --upstream may be relative to root or an absolute checkout.
-    upstream = Path(args.upstream)
-    if not upstream.is_absolute():
-        upstream = root / upstream
-    if not (upstream / UPSTREAM_CLIENTS).exists():
+
+    client_dirs: list[Path] = []
+    if args.rootfs:
+        rootfs = Path(args.rootfs).resolve()
+        client_dirs.append(
+            rootfs
+            / "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai"
+        )
+    for value in args.client_dir:
+        client_dirs.append(Path(value).resolve())
+
+    upstream: Path | None = None
+    if args.upstream:
+        candidate = Path(args.upstream)
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        if (candidate / UPSTREAM_CLIENTS).exists():
+            upstream = candidate
+        else:
+            print(
+                f"official UI inventory: upstream source not found at {candidate}/{UPSTREAM_CLIENTS}",
+                file=sys.stderr,
+            )
+    if upstream is None and not client_dirs:
+        candidate = root / "dsh-upstream"
+        if (candidate / UPSTREAM_CLIENTS).exists():
+            upstream = candidate
+    if upstream is None and not client_dirs:
         print(
-            f"official UI inventory: upstream client source not found at {upstream}/{UPSTREAM_CLIENTS}",
+            "official UI inventory: no source. Pass --rootfs <installed DSH rootfs> or "
+            "--client-dir <node_modules/@deepseek-ai> (third-party environments have no "
+            "dsh-upstream checkout).",
+            file=sys.stderr,
+        )
+        return 2
+    if client_dirs and not any(path.exists() for path in client_dirs):
+        print(
+            "official UI inventory: no dsh-client-* packages found under " + ", ".join(str(p) for p in client_dirs),
             file=sys.stderr,
         )
         return 2
 
-    report, payload, uncovered, unhosted = build_report(root, upstream)
+    report, payload, uncovered, unhosted = build_report(root, upstream, client_dirs)
     if args.write:
         (root / args.write).write_text(report, encoding="utf-8")
     if args.json:

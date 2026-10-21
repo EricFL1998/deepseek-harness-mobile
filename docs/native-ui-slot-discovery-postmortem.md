@@ -128,41 +128,58 @@ python tools/slot_inventory.py --write docs/slot-inventory.md
 
 先让这两步通过，再开始写 UI；UI 可以迭代，slot 覆盖不允许回退。
 
-### 4.3.1 通用解法：从官方源码识别 UI，而不是等截图
+### 4.3.1 通用解法：扫描插件自己的源码，而不是等截图
 
-`slot_inventory.py` 只覆盖“官方 slot 名称 → 原生宿主”这一层；官方 UI 里每个 slot
-下的 **entry（如 composer.dock 的 activity / usage）**、组件、数据依赖（useProjection /
-inject face）仍然可能漏。为此新增源码扫描器：
+第三方插件开发者没有 `dsh-upstream`，所以真正要扫的是**插件源码**。新增：
 
 ```bash
-python tools/official_ui_inventory.py \
-  --write docs/official-ui-inventory.md \
-  --json docs/official-ui-inventory.json \
+python tools/plugin_ui_scanner.py --plugin /path/to/dsh-plugin-x \
+  --write docs/plugin-x-ui.md \
+  --json docs/plugin-x-ui.json \
   --check
 ```
 
-它扫描 `dsh-upstream/packages/client` 里所有 `ctx.slots.register({...}, Component)`
-与 children 声明，产出：
+扫描器直接读插件包（优先 `.js.map` 里的内嵌 TSX，其次 `src/*.tsx`，最后编译后的
+`lib/client.js`），识别：
 
-- 官方 slot → entry id → order → 组件 → 源码文件 → hooks/projections/inject；
-- 原生映射与宿主状态（未映射、映射无宿主会失败）；
-- dock 这类“一个官方 slot 下多条 entry”是否已拆成独立原生落点。
+- 插件注册了哪些 slot / entry / order / component；
+- 每个 slot 对应的 NativeSlot、是否已有原生宿主；
+- 组件用到的 RPC 端点、useProjection / useChat 数据；
+- 组件 JSX 树、可见文案、按钮动作、locale 文案；
+- 未映射或没有宿主的位置（`--check` 失败）。
 
-当前结果：30 个官方 slot、145 个注册条目、0 未映射、0 无宿主、0 未拆 dock
-（activity/usage 已拆成 `COMPOSER_DOCK_ACTIVITY` / `COMPOSER_DOCK_USAGE`）。
+对订阅插件的实际扫描结果：4 个注册落点（composer.dock、input.right、
+settings.section、settings.models.provider-card）、24 个 RPC 端点，其中
+`settings.models.provider-card` 被明确标成“未映射”，不再靠用户截图发现。
 
-日常流程改为：
+原生接入按报告逐项落：
 
-1. 同步 `dsh-upstream` 后先跑扫描器，按报告新增的 slot/entry 补宿主或显式标记；
-2. 官方控件用 `OfficialSlot` 挂载，保证插件能 ENHANCE/OVERRIDE 单项；
-3. 信息型/卡片型 UI 优先用 `SpecSlotContribution`（dsh-ui spec → 通用原生渲染），
-   不再为每个插件手写一份 Compose；
-4. 截图只用于视觉验收，不再作为发现 UI 的来源。
+1. 页面/设置项 → `PageContent`；
+2. 嵌入落点 → `SlotContribution`（官方控件用 `OfficialSlot` 包装）；
+3. 信息型/卡片型 UI → `SpecSlotContribution` + dsh-ui spec；
+4. 数据 → `PluginRpcHost.callRpc`，只在原生端调用插件既有 RPC，不新增协议；
+5. 截图只做视觉验收。
+
+### 4.3.2 辅助：官方 UI 覆盖清单
+
+开发仓库/CI 还可用 `official_ui_inventory.py` 扫官方客户端，锁住“官方 slot 30 个、
+注册条目 145 条、0 未映射、0 无宿主、dock 条目已拆”。第三方环境没有 upstream 时，
+可指向已安装 rootfs 的 `dsh-client-*`：
+
+```bash
+# 开发仓库（有 dsh-upstream）
+python tools/official_ui_inventory.py \
+  --write docs/official-ui-inventory.md \
+  --json docs/official-ui-inventory.json --check
+
+# 第三方 / 已安装 App（没有 upstream 目录）
+python tools/official_ui_inventory.py --rootfs /path/to/rootfs --check
+```
 
 ### 4.4 流程
 
-- 新做任何 native UI 功能，第一步先跑 `official_ui_inventory.py` 和 `slot_inventory.py`，
-  从官方源码得到 slot × entry × 组件 × 数据依赖，再评评审实现方式（官方控件 / dsh-ui spec / Web 回退）。
+- 新做任何 native UI 功能，第一步先跑 `plugin_ui_scanner.py`（目标插件源码）和
+  `slot_inventory.py`，得到 slot × entry × 组件 × 数据依赖，再评审实现方式（官方控件 / dsh-ui spec / Web 回退）。
 - 每个新增落点必须同时提交：容器、映射表条目、示例或冒烟测试。
 - SDK 文档与示例包含完整落点表；新插件不应需要用户指出“这里还有内容”。
 
