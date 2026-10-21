@@ -1496,6 +1496,12 @@ private fun BundleDetailContent(
                 )
             }
         }
+        // 插件自己的原生 UI：官方把 `plugins.bundle.config` 画在「描述」和「包含的
+        // 组件」之间（slot 契约明确要求），所以设置面板放在这里，而不是详情底部。
+        PluginUis.forBundle(bundle.packageName)?.let { pluginUi ->
+            Spacer(Modifier.height(24.dp))
+            pluginUi.Section(pluginHooks)
+        }
         Spacer(Modifier.height(28.dp))
         // 主 bundle 关掉时，它包含的行全部不运行：组件状态与开关都要跟着总开关
         // 立刻刷新（否则会出现「总开关关着、子组件还显示运行中」的错觉）。
@@ -1588,11 +1594,6 @@ private fun BundleDetailContent(
                     )
                 }
             }
-        }
-        // 插件自己的原生 UI（官方客户端里也是一块独立的插件界面）。
-        PluginUis.forBundle(bundle.packageName)?.let { pluginUi ->
-            Spacer(Modifier.height(28.dp))
-            pluginUi.Section(pluginHooks)
         }
         Spacer(Modifier.height(28.dp))
         Text("来源信息", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)

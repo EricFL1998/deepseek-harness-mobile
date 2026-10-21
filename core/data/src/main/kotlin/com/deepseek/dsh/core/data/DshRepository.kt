@@ -496,7 +496,22 @@ class DshRepository(
             is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
         }
 
-    suspend fun setBundleEnabled(hostId: String, packageName: String, enabled: Boolean): Result<Boolean> {
+    /**
+     * 启停一个 bundle。
+     *
+     * 返回 Host 的完整变更结果，而不是只回布尔：`restart-required` 和 `warnings`
+     * 是界面必须告诉用户的（官方网页端同样会提示「请重启 DSH 使更改生效」）。
+     *
+     * @param hostId Host 标识。
+     * @param packageName bundle 包名。
+     * @param enabled 目标状态。
+     * @returns 变更结果（含 restartRequired / restartReason / warnings）。
+     */
+    suspend fun setBundleEnabled(
+        hostId: String,
+        packageName: String,
+        enabled: Boolean,
+    ): Result<BundleChangeOutcome> {
         val current = _pluginManagerSnapshotFlow.value
         if (current != null) {
             val updatedExp = current.experimentalBundles.map {
@@ -510,9 +525,20 @@ class DshRepository(
                 installedBundles = updatedInst
             )
         }
-        return when (val res = client.setBundleEnabled(hostId, packageName, enabled)) {
-            is RemoteResult.Success -> Result.success(res.data)
-            is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
+        val args = buildJsonObject {
+            put("name", packageName)
+            put("enabled", enabled)
+        }
+        return rpcRaw(hostId, "pluginManager/setBundleEnabled", args.toString()).mapCatching { raw ->
+            val value = remoteValueOrThrow(raw) as? JsonObject ?: error("Host 没有返回变更结果")
+            fun text(key: String): String? = (value[key] as? JsonPrimitive)?.contentOrNull
+            val warnings = (value["warnings"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+                .mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            BundleChangeOutcome(
+                application = text("application"),
+                restartReason = text("restartReason"),
+                warnings = warnings,
+            )
         }
     }
 

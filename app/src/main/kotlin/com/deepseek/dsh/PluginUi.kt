@@ -46,7 +46,6 @@ internal object PluginUis {
         // 新插件在这里登记（每个插件一个 .kt 文件）。
         CotTranslationPluginUi,
         VoiceInputPluginUi,
-        InspectorDevToolsPluginUi,
     )
 
     /** @param bundle bundle 包名。 @returns 该 bundle 的原生 UI，没有时 null。 */

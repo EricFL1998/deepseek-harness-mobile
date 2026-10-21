@@ -42,19 +42,19 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * 「开发者工具」插件的原生界面：会话数据诊断（只读）。
+ * 「开发者工具」插件的原生界面：调试面板。
  *
- * 官方 `experimental-session-inspector` 在会话右侧栏提供原始日志/聊天分组两
- * 种视图；手机上没有右侧栏，这里做成会话头部的调试入口 + 全屏只读面板，
- * 展示 App 实际收到的原始会话帧：序号、类型、时间 (UTC)、数据，支持按类型
- * 关键词过滤（与官方「类型筛选」相同的包含匹配语义）。
+ * 官方有两块：`experimental-inspector` 在 `shell.bottom` 嵌 Chrome DevTools，
+ * `experimental-session-inspector` 在会话右侧栏展示原始日志/聊天分组。手机
+ * 没有右侧栏与快捷键，所以合并成会话头部的调试入口 + 全屏面板，里面两个页签：
+ * 「原始数据」= 当前会话收到的原始帧，`NodeJS 诊断` = 同一个 DevTools 前端。
  */
 internal object SessionInspectorPluginUi {
-    /** 启用后才会出现调试入口的 bundle（开发者工具 = inspector + session-inspector）。 */
+    /** 启用这个 profile bundle 后才会出现调试入口（含 inspector + session-inspector）。 */
     const val BUNDLE = "@deepseek-ai/dsh-experimental-inspector-profile"
 
     /**
-     * 会话数据诊断面板。
+     * 调试面板。
      *
      * @param frames 当前会话的原始帧（最新在后）。
      * @param sessionId 会话 id；为空时提示先打开会话。
@@ -67,15 +67,7 @@ internal object SessionInspectorPluginUi {
         onDismiss: () -> Unit,
     ) {
         val colors = LocalDshPanelColors.current
-        var filter by remember { mutableStateOf("") }
-        var expandedIndex by remember { mutableStateOf<Int?>(null) }
-        val keyword = filter.trim().trim('*').lowercase(Locale.US)
-        val matched = remember(frames, keyword) {
-            if (keyword.isEmpty()) frames else frames.filter { it.type.lowercase(Locale.US).contains(keyword) }
-        }
-        val timeFormat = remember {
-            SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        }
+        var tab by remember { mutableStateOf(0) }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -86,13 +78,22 @@ internal object SessionInspectorPluginUi {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 8.dp),
+                        .padding(top = 12.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("会话数据诊断", color = colors.labelPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = "在会话侧边栏分析当前会话原始日志和聊天分组数据",
+                            text = if (tab == 0) "会话数据诊断" else "NodeJS 诊断",
+                            color = colors.labelPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = if (tab == 0) {
+                                "在会话侧边栏分析当前会话原始日志和聊天分组数据"
+                            } else {
+                                "按 Ctrl/Cmd+Shift+. 在底部面板打开 Chrome DevTools 进行开发调试"
+                            },
                             color = colors.labelTertiary,
                             fontSize = 11.sp,
                             lineHeight = 16.sp,
@@ -101,119 +102,142 @@ internal object SessionInspectorPluginUi {
                     InspectorChip(text = "关闭", onClick = onDismiss)
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(colors.bgModulePlatform)
-                            .border(0.5.dp, colors.borderL2, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                    ) {
-                        if (filter.isEmpty()) {
-                            Text("输入类型片段，如 delta", color = colors.labelTertiary, fontSize = 12.sp)
-                        }
-                        BasicTextField(
-                            value = filter,
-                            onValueChange = { filter = it },
-                            singleLine = true,
-                            textStyle = TextStyle(color = colors.labelPrimary, fontSize = 12.sp),
-                            cursorBrush = SolidColor(colors.labelPrimary),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    Text(
-                        text = if (keyword.isEmpty()) {
-                            "共 ${frames.size} 条"
-                        } else {
-                            "${matched.size}/${frames.size}"
-                        },
-                        color = colors.labelTertiary,
-                        fontSize = 11.sp,
-                    )
+                    InspectorTab(text = "原始数据", selected = tab == 0) { tab = 0 }
+                    InspectorTab(text = "NodeJS 诊断", selected = tab == 1) { tab = 1 }
                 }
-                Spacer(Modifier.height(8.dp))
-                when {
-                    sessionId.isNullOrBlank() -> Text(
-                        text = "请先打开一个会话。",
-                        color = colors.labelTertiary,
-                        fontSize = 12.5.sp,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                    frames.isEmpty() -> Text(
-                        text = "暂无记录",
-                        color = colors.labelTertiary,
-                        fontSize = 12.5.sp,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                    matched.isEmpty() -> Text(
-                        text = "当前表格没有匹配记录，请修改类型关键词。",
-                        color = colors.labelTertiary,
-                        fontSize = 12.5.sp,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                    else -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 2.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("序号", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(44.dp))
-                            Text("类型", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(96.dp))
-                            Text("时间 (UTC)", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(88.dp))
-                            Text("数据", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
-                        }
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 24.dp),
-                        ) {
-                            itemsIndexed(matched, key = { _, frame -> frame.index }) { _, frame ->
-                                val open = expandedIndex == frame.index
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { expandedIndex = if (open) null else frame.index }
-                                        .padding(vertical = 5.dp),
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = frame.index.toString(),
-                                            color = colors.labelTertiary,
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 10.5.sp,
-                                            modifier = Modifier.width(44.dp),
-                                        )
-                                        Text(
-                                            text = frame.type,
-                                            color = colors.labelSecondary,
-                                            fontSize = 11.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.width(96.dp),
-                                        )
-                                        Text(
-                                            text = timeFormat.format(Date(frame.timestamp)),
-                                            color = colors.labelTertiary,
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 10.sp,
-                                            modifier = Modifier.width(88.dp),
-                                        )
-                                        Text(
-                                            text = frame.text,
-                                            color = colors.labelTertiary,
-                                            fontSize = 10.5.sp,
-                                            maxLines = if (open) Int.MAX_VALUE else 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                    }
-                                }
-                            }
+                if (tab == 1) {
+                    NodeJsDevToolsPane()
+                } else {
+                    RawDataContent(frames = frames, sessionId = sessionId)
+                }
+            }
+        }
+    }
+}
+
+/** 原始数据页签：序号 / 类型 / UTC 时间 / 数据，带类型关键词过滤。 */
+@Composable
+private fun RawDataContent(frames: List<SessionRawFrame>, sessionId: String?) {
+    val colors = LocalDshPanelColors.current
+    var filter by remember { mutableStateOf("") }
+    var expandedIndex by remember { mutableStateOf<Int?>(null) }
+    val keyword = filter.trim().trim('*').lowercase(Locale.US)
+    val matched = remember(frames, keyword) {
+        if (keyword.isEmpty()) frames else frames.filter { it.type.lowercase(Locale.US).contains(keyword) }
+    }
+    val timeFormat = remember {
+        SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.bgModulePlatform)
+                .border(0.5.dp, colors.borderL2, RoundedCornerShape(10.dp))
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+        ) {
+            if (filter.isEmpty()) {
+                Text("输入类型片段，如 delta", color = colors.labelTertiary, fontSize = 12.sp)
+            }
+            BasicTextField(
+                value = filter,
+                onValueChange = { filter = it },
+                singleLine = true,
+                textStyle = TextStyle(color = colors.labelPrimary, fontSize = 12.sp),
+                cursorBrush = SolidColor(colors.labelPrimary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Text(
+            text = if (keyword.isEmpty()) "共 ${frames.size} 条" else "${matched.size}/${frames.size}",
+            color = colors.labelTertiary,
+            fontSize = 11.sp,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    when {
+        sessionId.isNullOrBlank() -> Text(
+            text = "请先打开一个会话。",
+            color = colors.labelTertiary,
+            fontSize = 12.5.sp,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        frames.isEmpty() -> Text(
+            text = "暂无记录",
+            color = colors.labelTertiary,
+            fontSize = 12.5.sp,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        matched.isEmpty() -> Text(
+            text = "当前表格没有匹配记录，请修改类型关键词。",
+            color = colors.labelTertiary,
+            fontSize = 12.5.sp,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        else -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("序号", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(44.dp))
+                Text("类型", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(96.dp))
+                Text("时间 (UTC)", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(88.dp))
+                Text("数据", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                itemsIndexed(matched, key = { _, frame -> frame.index }) { _, frame ->
+                    val open = expandedIndex == frame.index
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { expandedIndex = if (open) null else frame.index }
+                            .padding(vertical = 5.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = frame.index.toString(),
+                                color = colors.labelTertiary,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.width(44.dp),
+                            )
+                            Text(
+                                text = frame.type,
+                                color = colors.labelSecondary,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.width(96.dp),
+                            )
+                            Text(
+                                text = timeFormat.format(Date(frame.timestamp)),
+                                color = colors.labelTertiary,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                modifier = Modifier.width(88.dp),
+                            )
+                            Text(
+                                text = frame.text,
+                                color = colors.labelTertiary,
+                                fontSize = 10.5.sp,
+                                maxLines = if (open) Int.MAX_VALUE else 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
                 }
@@ -222,7 +246,7 @@ internal object SessionInspectorPluginUi {
     }
 }
 
-/** 小胶囊按钮（与插件页同一套视觉）。 */
+/** 小胶囊（关闭等动作）。 */
 @Composable
 private fun InspectorChip(text: String, onClick: () -> Unit) {
     val colors = LocalDshPanelColors.current
@@ -235,5 +259,29 @@ private fun InspectorChip(text: String, onClick: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(text = text, color = colors.labelSecondary, fontSize = 12.sp)
+    }
+}
+
+/** 调试面板的页签。 */
+@Composable
+private fun InspectorTab(text: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = LocalDshPanelColors.current
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (selected) colors.buttonPrimaryFill else colors.bgModulePlatform)
+            .border(
+                0.5.dp,
+                if (selected) colors.buttonPrimaryFill else colors.borderL2,
+                RoundedCornerShape(9.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = text,
+            color = if (selected) colors.labelPrimaryForeground else colors.labelSecondary,
+            fontSize = 12.sp,
+        )
     }
 }

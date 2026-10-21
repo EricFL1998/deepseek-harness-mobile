@@ -34,28 +34,19 @@ import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
- * 「开发者工具」插件的原生界面：NodeJS 诊断（Chrome DevTools）。
+ * 「开发者工具」里的 NodeJS 诊断（Chrome DevTools）。
  *
- * 官方 `experimental-inspector` 本身就是把 chrome-devtools-frontend 放进
- * `shell.bottom` 的 iframe，并通过 Host 代理 CDP。原生侧没有可移植的等价物，
- * 所以这里按官方同样的做法：用 WebView 载入同一个 DevTools 前端（Host 的
- * `/inspector/devtools/devtools_app.html`），并把会话 cookie 同步给 WebView，
- * 让它与浏览器里打开的 DevTools 是同一个应用。
+ * 官方 `experimental-inspector` 把 chrome-devtools-frontend 放进 `shell.bottom`
+ * 的 iframe，并通过 Host 代理 CDP。原生侧没有可移植的等价物，所以按官方同样
+ * 的做法：用 WebView 载入同一个 DevTools 前端（Host 的
+ * `/inspector/devtools/devtools_app.html`），并把会话 cookie 同步给 WebView。
  *
- * 注：官方入口是快捷键 + 底部面板；手机上没有该快捷键，入口放在插件详情里。
+ * 入口与官方一致：不是插件详情页，而是调试面板（会话数据诊断）里的一个页签；
+ * 手机没有 Ctrl/Cmd+Shift+. 的底部面板快捷键。
  */
-internal object InspectorDevToolsPluginUi : PluginUi {
-    override val bundle: String = "@deepseek-ai/dsh-experimental-inspector-profile"
-
-    @Composable
-    override fun Section(hooks: PluginUiHooks) {
-        NodeJsDevToolsPane()
-    }
-}
-
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun NodeJsDevToolsPane() {
+internal fun NodeJsDevToolsPane() {
     val colors = LocalDshPanelColors.current
     val context = LocalContext.current
     val app = context.applicationContext as? DshApplication

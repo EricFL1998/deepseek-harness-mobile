@@ -499,6 +499,41 @@ fun MainAppHost(
             kotlinx.coroutines.delay(1_000)
         }
     }
+    /** Host `restartReason` → 官方「请重启 DSH 使更改生效」的具体说明。 */
+    fun restartReasonText(reason: String?): String = when (reason) {
+        "package-moved" ->
+            "已安装的插件包解析到了另一个目录，或者更改替换了 DSH 安装自带的包。从其他位置安装前请先卸载。"
+        "no-hmr" -> "这项更改无法热更新，需要重启 DSH 才能生效。"
+        "host-module" -> "这项更改涉及 Host 模块加载，需要重启 DSH 才能生效。"
+        "unmanaged-plugin" -> "这项更改涉及未托管的插件，需要重启 DSH 才能生效。"
+        "module-comparison" -> "插件模块需要重新比较加载，需要重启 DSH 才能生效。"
+        else -> "需要重启 DSH 才能生效。"
+    }
+    // 启停插件后 Host 若要求重启或带提示，按官方做法明确告诉用户。
+    var pluginChangeNotice by remember { mutableStateOf<List<String>?>(null) }
+    pluginChangeNotice?.let { lines ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pluginChangeNotice = null },
+            title = { Text("插件设置已更新") },
+            text = {
+                Column {
+                    lines.forEach { line ->
+                        Text(
+                            text = line,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.padding(bottom = 6.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { pluginChangeNotice = null }) {
+                    Text("知道了")
+                }
+            },
+        )
+    }
     if (sessionInspectorOpen) {
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { sessionInspectorOpen = false },
@@ -1925,15 +1960,31 @@ fun MainAppHost(
                                         val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
                                         // profile 的 bundle 清单在 Host 启动时会被重置成模板，
                                         // 所以把用户明确拨动过的开关记一份，Host 起来后补回去。
-                                        if (result.isSuccess) {
-                                            rememberBundleSelection(packageName, enabled)
-                                        } else {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
-                                                android.widget.Toast.LENGTH_SHORT,
-                                            ).show()
-                                        }
+                                        result.fold(
+                                            onSuccess = { outcome ->
+                                                rememberBundleSelection(packageName, enabled)
+                                                if (outcome.restartRequired) {
+                                                    pluginChangeNotice = listOf(
+                                                        "请重启 DSH 使更改生效。",
+                                                        restartReasonText(outcome.restartReason),
+                                                    )
+                                                } else if (outcome.warnings.isNotEmpty()) {
+                                                    // 不阻塞界面：官方把一般提示放在插件页内；原生用短 toast 暴露。
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        outcome.warnings.first().take(120),
+                                                        android.widget.Toast.LENGTH_LONG,
+                                                    ).show()
+                                                }
+                                            },
+                                            onFailure = {
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
+                                                    android.widget.Toast.LENGTH_SHORT,
+                                                ).show()
+                                            },
+                                        )
                                         // 双向同步：开关值以 Host 的实际状态为准。成功时
                                         // 这只是确认；失败时它会把开关拨回真实状态，而不是
                                         // 让界面停在用户按下的那个位置。
@@ -1943,15 +1994,30 @@ fun MainAppHost(
                                 },
                                 onToggleBundleAwait = { packageName, enabled ->
                                     val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
-                                    if (result.isSuccess) {
-                                        rememberBundleSelection(packageName, enabled)
-                                    } else {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
-                                            android.widget.Toast.LENGTH_SHORT,
-                                        ).show()
-                                    }
+                                    result.fold(
+                                        onSuccess = { outcome ->
+                                            rememberBundleSelection(packageName, enabled)
+                                            if (outcome.restartRequired) {
+                                                pluginChangeNotice = listOf(
+                                                    "请重启 DSH 使更改生效。",
+                                                    restartReasonText(outcome.restartReason),
+                                                )
+                                            } else if (outcome.warnings.isNotEmpty()) {
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    outcome.warnings.first().take(120),
+                                                    android.widget.Toast.LENGTH_LONG,
+                                                ).show()
+                                            }
+                                        },
+                                        onFailure = {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        },
+                                    )
                                     dshRepository.refreshBridgePluginCatalog()
                                     dshRepository.refreshPluginInventory(activeHostId)
                                     result.isSuccess
