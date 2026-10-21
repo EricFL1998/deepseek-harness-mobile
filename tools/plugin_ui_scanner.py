@@ -43,7 +43,6 @@ PROJECTION_RE = re.compile(r"useProjection\(\s*['\"]([^'\"]+)['\"]")
 HOOK_RE = re.compile(r"\b(useChat|useSession|useProjection|usePerformanceUsage)\b")
 RPC_SUFFIX_RE = re.compile(r"RPC_PREFIX\}\s*([A-Za-z0-9_\-]+)")
 RPC_CALL_RE = re.compile(r"\bcall\(\s*['\"]([A-Za-z0-9_\-]+)['\"]")
-RPC_STRING_RE = re.compile(r"['\"]([a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-_.]*)['\"]")
 T_CALL_RE = re.compile(r"\bt\(\s*['\"]([^'\"]+)['\"]")
 TEXT_RE = re.compile(r">([^<>{}]{2,80})<")
 JSX_TAG_RE = re.compile(r"<\s*(/?)\s*([A-Za-z][\w.]*)([^>]*)>", re.S)
@@ -62,6 +61,7 @@ class PluginSlot:
     source: str
     native: str
     hosted: bool
+    implemented: bool = False
     data: list[str] = field(default_factory=list)
     texts: list[str] = field(default_factory=list)
     buttons: list[str] = field(default_factory=list)
@@ -289,17 +289,31 @@ def locale_tables(plugin: Path) -> dict[str, dict[str, str]]:
     return result
 
 
-def scan(plugin: Path, root: Path) -> PluginUI:
+def scan_companion(path: Path) -> tuple[set[str], bool]:
+    """Find NativeSlot contributions and PageContent pages registered by a companion APK."""
+    slots: set[str] = set()
+    pages = False
+    files = [path] if path.is_file() else list(path.rglob("*.kt"))
+    for file in files:
+        text = file.read_text(encoding="utf-8", errors="ignore")
+        slots.update(re.findall(r"NativeSlot\.([A-Z_]+)", text))
+        if "PageRegistry.register" in text or ": PageContent" in text:
+            pages = True
+    return slots, pages
+
+
+def scan(plugin: Path, root: Path, companion: Path | None = None) -> PluginUI:
     package_name, version, sources, source_list = load_sources(plugin)
     mapping = parse_mapping(root)
     official = parse_registry(root)
     hosts = scan_hosts(root)
+    companion_slots, companion_pages = scan_companion(companion) if companion else (set(), False)
     warnings: list[str] = []
     slot_items: list[PluginSlot] = []
     rpc_methods: set[str] = set()
     for path, text in sources.items():
         rpc_methods.update(RPC_CALL_RE.findall(text))
-        rpc_methods.update(RPC_STRING_RE.findall(text))
+        rpc_methods.update(RPC_SUFFIX_RE.findall(text))
         for body, component in iter_register_calls(text):
             name = NAME_RE.search(body)
             if name is None:
@@ -322,10 +336,16 @@ def scan(plugin: Path, root: Path) -> PluginUI:
                 | {f"rpc:{item}" for item in RPC_CALL_RE.findall(component_text or "")}
             )
             hosted = bool(native and native in hosts)
+            implemented = bool(
+                (native and native in companion_slots)
+                or (companion_pages and slot == "settings.section")
+            )
             if not native:
                 warnings.append(f"slot 没有 NativeSlot 映射: {slot} ({component})")
             elif not hosted:
                 warnings.append(f"NativeSlot 已映射但没有宿主: {native} ({slot})")
+            if companion is not None and not implemented:
+                warnings.append(f"插件有 UI，原生伴侣未实现: {slot} / {component}")
             slot_items.append(
                 PluginSlot(
                     slot=slot,
@@ -336,6 +356,7 @@ def scan(plugin: Path, root: Path) -> PluginUI:
                     source=component_path or path,
                     native=native,
                     hosted=hosted,
+                    implemented=implemented,
                     data=data,
                     texts=texts,
                     buttons=buttons,
@@ -372,15 +393,16 @@ def report(ui: PluginUI) -> str:
         "",
         "## 落点与原生状态",
         "",
-        "| slot | entry | order | component | 原生落点 | 宿主 | 数据依赖 |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| slot | entry | order | component | 原生落点 | 宿主 | 原生实现 | 数据依赖 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for item in ui.slots:
         data = ", ".join(f"`{entry}`" for entry in item.data) or "—"
         lines.append(
             f"| `{item.slot}` | `{item.entry or '—'}` | {item.order if item.order is not None else '—'} | "
             f"`{item.component}` | `{item.native or '未映射'}` | "
-            f"{'是' if item.hosted else '**否**'} | {data} |"
+            f"{'是' if item.hosted else '**否**'} | "
+            f"{'是' if item.implemented else '**否**'} | {data} |"
         )
     lines += ["", "## 组件与可见 UI", ""]
     for item in ui.slots:
@@ -420,6 +442,7 @@ def report(ui: PluginUI) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plugin", required=True, help="Plugin package directory")
+    parser.add_argument("--companion", default="", help="Native companion source/dir to check implemented slots")
     parser.add_argument("--root", default=".")
     parser.add_argument("--write", default="")
     parser.add_argument("--json", default="")
@@ -430,7 +453,7 @@ def main() -> int:
     if not plugin.exists():
         print(f"plugin not found: {plugin}", file=sys.stderr)
         return 2
-    ui = scan(plugin, root)
+    ui = scan(plugin, root, Path(args.companion).resolve() if args.companion else None)
     text = report(ui)
     if args.write:
         (root / args.write).write_text(text, encoding="utf-8")
@@ -439,7 +462,11 @@ def main() -> int:
             json.dumps(asdict(ui), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
     print(text)
-    if args.check and (any(not item.native for item in ui.slots) or any(not item.hosted for item in ui.slots)):
+    incomplete = [
+        item for item in ui.slots
+        if not item.native or not item.hosted or (args.companion and not item.implemented)
+    ]
+    if args.check and incomplete:
         print("plugin UI coverage check FAILED", file=sys.stderr)
         return 1
     print("plugin UI coverage check OK", file=sys.stderr)
