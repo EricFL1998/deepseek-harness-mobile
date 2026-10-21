@@ -457,6 +457,14 @@ fun MainAppHost(
             voiceRecorder.cancel()
         }
     }
+    // 思考内容翻译（官方 cot-translation 的 reasoning body）：插件启用时给
+    // ReasoningCard 提供「查看译文/查看原文」能力。
+    val cotTranslationEnabled = remember(dshRepository.bridgePluginCatalogFlow.value) {
+        dshRepository.bridgePluginCatalogFlow.value.bundles.any {
+            it.name == CotTranslationPluginUi.bundle && it.enabled
+        }
+    }
+
     // Claude Code 模组横幅：官方在 conversation.input.dock 画一条 Host 下发的
     // 动态横幅；只有 Claude Code 子智能体插件启用且当前会话存在时订阅。
     val claudeCodeModsEnabled = remember(dshRepository.bridgePluginCatalogFlow.value) {
@@ -1776,6 +1784,15 @@ fun MainAppHost(
                                 onVoiceStop = { stopVoice() },
                                 onVoiceCancel = { cancelVoice() },
                                 onVoiceTranscriptConsumed = { voiceTranscript = null },
+                                translateReasoning = if (cotTranslationEnabled) {
+                                    { text ->
+                                        dshRepository.cotTranslationTranslate(
+                                            activeHostId,
+                                            text,
+                                            selectedSessionId ?: "",
+                                        )
+                                    }
+                                } else null,
                                 bandSnapshot = bandSnapshot,
                                 bandPressing = bandPressing,
                                 onBandPress = { generation, actionId -> pressClaudeCodeBand(generation, actionId) },

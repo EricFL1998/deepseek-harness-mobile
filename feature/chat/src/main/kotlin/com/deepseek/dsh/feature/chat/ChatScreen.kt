@@ -50,6 +50,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -200,6 +201,12 @@ fun ModernChatScreen(
     stats: ComposerStats = ComposerStats(),
     // 录音输入（官方录音输入插件的 composer activity）：麦克风按钮与录音条。
     // Claude Code 模组横幅（官方 conversation.input.dock）。
+
+    /** 思考内容翻译（官方 cot-translation 的 reasoning body）；null 表示未启用。 */
+
+
+    translateReasoning: (suspend (String) -> Result<String>)? = null,
+
 
     bandSnapshot: com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot? = null,
 
@@ -494,6 +501,7 @@ fun ModernChatScreen(
                                 onRetry = { onSendMessage(row.message.content) },
                                 onAnswerUserQuestion = onAnswerUserQuestion,
                                 onOpenToolDetail = { toolDetail = it },
+                                translateReasoning = translateReasoning,
                             )
                         }
                         is ChatRow.TurnDone -> TurnCompletedRow(
@@ -506,6 +514,7 @@ fun ModernChatScreen(
                             expanded = collapsedTurns[row.key] != true,
                             onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
                             onOpenDetail = { toolDetail = it },
+                            translateReasoning = translateReasoning,
                         )
                     }
                 }
@@ -1136,16 +1145,50 @@ fun QuickChip(label: String, onClick: () -> Unit) {
 
 /**
  * 思考链折叠面板（文案对齐 `chat.deepDivingFor`）。
+ *
+ * @param translateReasoning 思考内容翻译（官方 cot-translation 的
+ *   `conversation.chat.reasoning.body` 部分）；null 表示插件未启用。
  */
 @Composable
 fun ReasoningCard(
     isFinished: Boolean,
     elapsedSeconds: String,
     reasoningText: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    translateReasoning: (suspend (String) -> Result<String>)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val preview = remember(reasoningText) { reasoningText.lineSequence().firstOrNull().orEmpty() }
+    // 译文状态：官方在展开的思考内容上提供「查看译文/查看原文」与失败重试。
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var translated by remember(reasoningText) { mutableStateOf<String?>(null) }
+    var showTranslation by remember(reasoningText) { mutableStateOf(false) }
+    var translating by remember(reasoningText) { mutableStateOf(false) }
+    var translateFailed by remember(reasoningText) { mutableStateOf(false) }
+    fun toggleTranslation() {
+        val translator = translateReasoning ?: return
+        if (showTranslation) {
+            showTranslation = false
+            return
+        }
+        val cached = translated
+        if (cached != null) {
+            showTranslation = true
+            return
+        }
+        scope.launch {
+            translating = true
+            translateFailed = false
+            translator(reasoningText).fold(
+                onSuccess = { text ->
+                    translated = text
+                    showTranslation = true
+                },
+                onFailure = { translateFailed = true },
+            )
+            translating = false
+        }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -1195,12 +1238,60 @@ fun ReasoningCard(
         }
 
         AnimatedVisibility(visible = expanded) {
-            Text(
-                text = reasoningText,
-                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp, fontSize = 13.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 22.dp, top = 4.dp, bottom = 4.dp)
-            )
+            Column {
+                if (translateReasoning != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(start = 22.dp, top = 4.dp),
+                    ) {
+                        if (translating) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                                text = "正在翻译思考内容",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                        } else {
+                            Text(
+                                text = if (showTranslation) "查看原文" else "查看译文",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { toggleTranslation() }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                        if (translateFailed) {
+                            Text(
+                                text = "翻译暂不可用，已显示原文",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                            Text(
+                                text = "重试",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { toggleTranslation() }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = if (showTranslation) translated ?: reasoningText else reasoningText,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp, fontSize = 13.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 22.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
         }
     }
 }
@@ -1246,6 +1337,7 @@ private fun ToolProcessGroup(
     expanded: Boolean,
     onToggle: () -> Unit,
     onOpenDetail: (ToolDetailData) -> Unit,
+    translateReasoning: (suspend (String) -> Result<String>)? = null,
     pluginActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
     onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
 ) {
@@ -1300,6 +1392,7 @@ private fun ToolProcessGroup(
                             elapsedSeconds = "",
                             reasoningText = item.content.substringBefore('\u0001'),
                             modifier = Modifier.fillMaxWidth(),
+                            translateReasoning = translateReasoning,
                         )
                     } else {
                         ToolMessageItem(
@@ -1835,6 +1928,7 @@ fun ModernMessageItem(
     onRetry: () -> Unit = {},
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenToolDetail: (ToolDetailData) -> Unit = {},
+    translateReasoning: (suspend (String) -> Result<String>)? = null,
 ) {
     val isUser = message.role == MessageRole.USER
 
@@ -1871,6 +1965,7 @@ fun ModernMessageItem(
                         elapsedSeconds = "",
                         reasoningText = contentParts[0],
                         modifier = Modifier.fillMaxWidth(),
+                        translateReasoning = translateReasoning,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -2011,15 +2106,10 @@ fun BottomInputBar(
     onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
     showDockStats: Boolean = true,
-    // 录音输入：麦克风按钮与录音条（官方 conversation.input.activity）。
     // Claude Code 模组横幅（官方 conversation.input.dock）。
-
     bandSnapshot: com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot? = null,
-
     bandPressing: Boolean = false,
-
     onBandPress: (Long, String) -> Unit = { _, _ -> },
-
     voiceEnabled: Boolean = false,
     voiceRecording: Boolean = false,
     voiceSeconds: Int = 0,

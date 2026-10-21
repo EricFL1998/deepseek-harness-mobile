@@ -566,6 +566,62 @@ class DshRepository(
             is RemoteResult.Failure -> Result.failure(IllegalStateException("${res.code}: ${res.message}"))
         }
 
+    // ── 思考过程翻译（cotTranslation Remote）──────────────────────────────────
+    //
+    // 官方在 conversation.chat.reasoning.body 把展开的思考内容翻译后展示，
+    // 提供「查看译文/查看原文」切换；译文按段落缓存，重新展开不再请求。
+
+    /** 读翻译上限、当前偏好与可用服务。 */
+    suspend fun cotTranslationLimits(hostId: String): Result<CotTranslationLimits> =
+        rpcRaw(hostId, "cotTranslation/limits", "{}").mapCatching { raw ->
+            parseCotTranslationLimits(remoteValueOrThrow(raw)) ?: error("翻译服务没有返回配置")
+        }
+
+    /**
+     * 翻译一段思考内容。
+     *
+     * 按空行拆段、按 `maxTextChars` 切分后顺序请求（与官方相同），最后按原段落
+     * 拼接；任何一段失败都返回失败，由界面显示「翻译暂不可用，已显示原文」。
+     *
+     * @param hostId Host 标识。
+     * @param text 思考内容原文。
+     * @param sessionId 会话 id（Host 用于缓存与统计）。
+     * @returns 译文。
+     */
+    suspend fun cotTranslationTranslate(
+        hostId: String,
+        text: String,
+        sessionId: String,
+    ): Result<String> {
+        val limits = cotTranslationLimits(hostId).getOrElse { return Result.failure(it) }
+        val paragraphs = text.split(Regex("\\r?\\n(?:[\\t ]*\\r?\\n)+"))
+        val translated = mutableListOf<String>()
+        for (paragraph in paragraphs) {
+            if (paragraph.isBlank()) continue
+            val pieces = paragraph.chunked(limits.maxTextChars.coerceAtLeast(200))
+            val builder = StringBuilder()
+            for (piece in pieces) {
+                val args = buildJsonObject {
+                    put(
+                        "request",
+                        buildJsonObject {
+                            put("provider", limits.provider)
+                            put("targetLanguage", limits.targetLanguage)
+                            put("text", piece)
+                            put("sessionId", sessionId)
+                        },
+                    )
+                }
+                val result = rpcRaw(hostId, "cotTranslation/translate", args.toString())
+                    .mapCatching { raw -> (remoteValueOrThrow(raw) as? JsonPrimitive)?.contentOrNull.orEmpty() }
+                    .getOrElse { return Result.failure(it) }
+                builder.append(result)
+            }
+            translated.add(builder.toString())
+        }
+        return Result.success(translated.joinToString("\n\n"))
+    }
+
     // ── Claude Code 模组横幅（claudeCodeMods Remote）──────────────────────────
     //
     // 官方在 conversation.input.dock 画一条由 Host 下发的动态横幅；watchBand 是

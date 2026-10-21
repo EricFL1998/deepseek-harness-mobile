@@ -28,6 +28,19 @@ sealed interface RemoteResult<out T> {
     data class Failure(val code: String, val message: String) : RemoteResult<Nothing>
 }
 
+/** 一条原始会话帧（开发者工具/会话数据诊断用）。 */
+@Serializable
+data class SessionRawFrame(
+    /** 自增序号（诊断表的「序号」列）。 */
+    val index: Int,
+    /** 帧的顶层类型（`item`/`end`/…）。 */
+    val type: String,
+    /** 原始 JSON 文本。 */
+    val text: String,
+    /** 收到时间（epoch ms）。 */
+    val timestamp: Long,
+)
+
 @Serializable
 sealed interface RemoteEvent {
     @Serializable
@@ -114,6 +127,11 @@ interface DshClientProtocol {
         hostId: String,
         sessionId: String,
     ): Flow<kotlinx.serialization.json.JsonElement?>
+    /**
+     * 最近收到的原始会话帧（只读诊断）。最多保留 500 条，按时间顺序。
+     * @param sessionId 会话 id。
+     */
+    fun rawSessionFrames(sessionId: String): List<SessionRawFrame>
 }
 
 

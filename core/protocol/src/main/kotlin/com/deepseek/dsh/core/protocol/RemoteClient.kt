@@ -1579,6 +1579,32 @@ class RemoteClient(
         }
     }
 
+    /** 每个会话最近收到的原始帧（开发者工具/会话数据诊断用），最多 500 条。 */
+    private val rawFrames =
+        java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.ConcurrentLinkedDeque<SessionRawFrame>>()
+    private val rawFrameCounters =
+        java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger>()
+
+    override fun rawSessionFrames(sessionId: String): List<SessionRawFrame> =
+        rawFrames[sessionId]?.toList() ?: emptyList()
+
+    /** 记录一条原始会话帧；按会话封顶 500 条，避免长期运行占内存。 */
+    private fun recordRawFrame(sessionId: String, text: String) {
+        val counter = rawFrameCounters.getOrPut(sessionId) {
+            java.util.concurrent.atomic.AtomicInteger(0)
+        }
+        val index = counter.incrementAndGet()
+        val type = runCatching {
+            val root = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+            (root?.get("type") as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: "frame"
+        }.getOrDefault("frame")
+        val queue = rawFrames.getOrPut(sessionId) {
+            java.util.concurrent.ConcurrentLinkedDeque()
+        }
+        queue.addLast(SessionRawFrame(index, type, text, System.currentTimeMillis()))
+        while (queue.size > 500) queue.pollFirst()
+    }
+
     private val followSockets = mutableListOf<okhttp3.WebSocket>()
     private val eventBus = kotlinx.coroutines.flow.MutableSharedFlow<RemoteEvent>(extraBufferCapacity = 128)
     private val toolNames = mutableMapOf<String, String>()
@@ -1612,6 +1638,7 @@ class RemoteClient(
             }
             override fun onMessage(
                 webSocket: okhttp3.WebSocket, text: String) {
+                recordRawFrame(sessionId, text)
                 try {
                     val root = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject ?: return
                     if (root["type"]?.toString()?.trim('"') != "item") return
