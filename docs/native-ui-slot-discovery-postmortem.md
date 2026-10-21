@@ -10,7 +10,7 @@
 不是「slot 清单不存在」，而是**我们一开始按“页面”而不是按“落点清单”实现**，并且没有把
 Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
 
-- `NativeSlot` 枚举按“手机上的承载位置”分组（9 个），文档声称覆盖官方 38 个槽位；
+- `NativeSlot` 枚举按“手机上的承载位置”分组（9 个），文档曾声称覆盖官方 38 个槽位；
 - 但真正把 `NativeSlotHost` 放进 Compose 界面的是**手写的一个个容器**，第一个版本只接了
   设置页、插件页和会话主区域，`COMPOSER_DOCK` 没有宿主容器；
 - 没有宿主容器的 slot 不报错、不占位、也不触发降级日志，插件声明了也等于静默丢失；
@@ -22,7 +22,7 @@ Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
 
 ### 2.1 官方 slot 清单其实已经在 App 里有常量
 
-`DshSlotRegistry` 有 33 个官方槽位名常量，覆盖：
+`DshSlotRegistry` 有 30 个官方槽位名常量，覆盖：
 
 - conversation.*（input / composer / chat / reasoning / actions）
 - tool.call.*
@@ -34,7 +34,7 @@ Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
 
 ### 2.2 NativeSlot 只有 9 个落点，且映射关系只写在注释里
 
-`NativeSlot.kt` 用 9 个枚举承载 33 个官方槽位，注释写明了大致归属，但代码中**没有一张
+`NativeSlot.kt` 用 9 个枚举承载 30 个官方槽位，注释写明了大致归属，但代码中**没有一张
 `slotName -> NativeSlot` 的表**。运行时没有任何地方校验：
 
 - 每个 `DshSlotRegistry` 常量是否都有归属的 `NativeSlot`；
@@ -86,7 +86,7 @@ Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
    验收标准是“我的插件页面能打开”，不是“每个官方 slot 都有确定行为”。
 
 5. **文档先行但未落地成代码约束。**
-   `NativeSlot` 注释写了“38 个槽位全部映射”，但这是声明，不是测试；后续新增
+   `NativeSlot` 注释曾写“38 个槽位全部映射”，但这是声明，不是测试；后续新增
    官方 slot 或落点时没有失败用例提醒。
 
 ## 4. 改进措施
@@ -95,7 +95,7 @@ Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
 
 - 所有 9 个 `NativeSlot` 都应有宿主容器；`WEB_ISLAND_FULL` 需要明确由全屏 Web 容器认领
   或标记为“不使用”。
-- 补一份显式映射表（见 `slot-mapping.md`），把 33 个官方槽位逐条映射到落点与容器。
+- 补一份显式映射表（见 `slot-mapping.md`），把 30 个官方槽位逐条映射到落点与容器。
 
 ### 4.2 构建期 / 启动期校验
 
@@ -106,7 +106,29 @@ Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
 3. **静默变可见**：`SlotRegistry` 对“有贡献但无宿主”的 slot 输出警告；开发构建在
    composer 上方显示未接入提示，而不是完全无声。
 
-### 4.3 流程
+### 4.3 已落地：先扫全，再实现
+
+这次复盘之后补了三条硬约束，保证“哪怕 UI 不对，覆盖是完整的”：
+
+1. **显式映射表**：`NativeSlotMapping` 把 30 个官方 slot 逐个映射到 `NativeSlot`
+   或 `explicitlyUnsupported`；不再只写在注释里。
+2. **覆盖测试**：`SlotCoverageTest` 用反射读取 `DshSlotRegistry` 常量，断言
+   “已映射 + 明确不支持 = 官方全集”，新增官方 slot 未处理会直接失败。
+3. **扫描工具 + 生成清单**：`tools/slot_inventory.py` 同时扫描映射表和 App 源码中的
+   `NativeSlot.X` 宿主引用，生成 `docs/slot-inventory.md`；只要某个落点“声明了映射但
+   代码里没有宿主容器”，工具退出码为 1。
+
+当前扫描结果：官方 slot 30 个，已映射 21 个，明确不支持 9 个，未覆盖 0 个，
+声明映射但无宿主 0 个。工作流固定为：
+
+```bash
+python tools/slot_inventory.py --write docs/slot-inventory.md
+./gradlew :app:testDebugUnitTest --tests com.deepseek.dsh.SlotCoverageTest
+```
+
+先让这两步通过，再开始写 UI；UI 可以迭代，slot 覆盖不允许回退。
+
+### 4.4 流程
 
 - 新做任何 native UI 功能，第一步先产出 slot inventory（官方槽位 × 落点 × 容器 × 验收方式），
   评审后再写 UI。

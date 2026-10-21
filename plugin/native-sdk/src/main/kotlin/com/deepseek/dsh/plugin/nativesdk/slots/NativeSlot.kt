@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonObject
  * 原生落点：一个官方槽位在手机端的承载位置。
  *
  * 与 App `plugin/surface` 模块的 `PlacementDestination` 一一对应——官方插件能改的
- * 38 个槽位（conversation.* / tool.call.* / sidebar.* / shell.overlay /
+ * 30 个槽位（conversation.* / tool.call.* / sidebar.* / shell.overlay /
  * settings.* / plugins.tab）全部映射到这些落点，**没有对应位置的由 App 补容器**，
  * 保证每个官方槽位在原生端都有改点。
  *
