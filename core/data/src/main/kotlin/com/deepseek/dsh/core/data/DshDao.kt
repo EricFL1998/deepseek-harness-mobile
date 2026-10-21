@@ -39,7 +39,10 @@ interface DshDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAppSettings(settings: AppSettingsEntity)
 
-    @Query("SELECT * FROM messages WHERE hostId = :hostId AND sessionId = :sessionId ORDER BY seq ASC, createdAt ASC")
+    // 会话顺序以墙钟时间为准：用户消息由 App 本地入库（seq=0），AI 消息带 Host
+    // 事件 seq；若先按 seq 排，所有用户气泡会被排到 AI 回复之前。createdAt 是
+    // 两端共享的时间轴，seq 只作为同一毫秒内的稳定兜底。
+    @Query("SELECT * FROM messages WHERE hostId = :hostId AND sessionId = :sessionId ORDER BY createdAt ASC, seq ASC, messageId ASC")
     fun getMessages(hostId: String, sessionId: String): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

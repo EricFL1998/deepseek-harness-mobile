@@ -1700,7 +1700,9 @@ class RemoteClient(
                             }?.joinToString("").orEmpty()
                             val content = when {
                                 reasoning.isBlank() -> answer
-                                answer.isBlank() -> reasoning
+                                // 只有思考、没有可见回答：保留分隔符，UI 据此把它当
+                                // 可折叠的 reasoning 行，而不是普通 assistant 文本。
+                                answer.isBlank() -> reasoning + "\u0001"
                                 else -> reasoning + "\u0001" + answer
                             }
                             emit("assistant_$seq", MessageRole.ASSISTANT, content)

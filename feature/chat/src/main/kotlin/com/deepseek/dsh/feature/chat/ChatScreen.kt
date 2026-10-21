@@ -261,9 +261,10 @@ fun ModernChatScreen(
     val collapsedTurns = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     val chatRows = remember(messages, isThinking) { buildChatRows(messages, isThinking) }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    // chatRows 会把思考/工具过程也拆成行，索引与 messages 不一致；按实际行数滚到底。
+    LaunchedEffect(chatRows.size, isThinking) {
+        if (chatRows.isNotEmpty()) {
+            listState.animateScrollToItem(chatRows.lastIndex)
         }
     }
 
@@ -518,16 +519,24 @@ fun ModernChatScreen(
                         }
                         is ChatRow.TurnDone -> TurnCompletedRow(
                             durationMs = row.durationMs,
-                            expanded = collapsedTurns[row.key] != true,
+                            expanded = collapsedTurns[row.key] == true,
                             onClick = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
                         )
-                        is ChatRow.Process -> ToolProcessGroup(
-                            items = row.items,
-                            expanded = collapsedTurns[row.key] != true,
-                            onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
-                            onOpenDetail = { toolDetail = it },
-                            translateReasoning = translateReasoning,
-                        )
+                        is ChatRow.Process -> {
+                            val running = row.items.any {
+                                it.role == MessageRole.TOOL && toolStatus(it) == "running"
+                            }
+                            if (running || collapsedTurns[row.key] == true) {
+                                ToolProcessGroup(
+                                    items = row.items,
+                                    expanded = true,
+                                    header = false,
+                                    onToggle = {},
+                                    onOpenDetail = { toolDetail = it },
+                                    translateReasoning = translateReasoning,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -1376,60 +1385,84 @@ private fun ToolProcessGroup(
     translateReasoning: (suspend (String) -> Result<String>)? = null,
     pluginActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
     onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
+    /** false 时由外层整轮完成头负责折叠，本组件只渲染过程内容。 */
+    header: Boolean = true,
 ) {
     val running = items.firstOrNull { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
     val isRunning = running != null
     val summary = remember(items) { processSummary(items) }
     val activeName = running?.content?.split(2.toChar())?.getOrNull(3).orEmpty()
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .clickable(onClick = onToggle),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isRunning) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    modifier = Modifier.size(13.dp),
-                    strokeWidth = 1.5.dp,
-                    color = MaterialTheme.colorScheme.primary
+        if (header) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .clickable(onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isRunning) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(13.dp),
+                        strokeWidth = 1.5.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isRunning) processVerb(activeName, done = false) else summary,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-            } else {
                 Icon(
-                    imageVector = Icons.Default.Build,
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.outline
                 )
             }
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = if (isRunning) processVerb(activeName, done = false) else summary,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.outline
-            )
         }
-        AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(start = 20.dp, top = 2.dp)) {
+        AnimatedVisibility(visible = if (!header) true else expanded) {
+            Column(modifier = Modifier.padding(start = if (header) 20.dp else 0.dp, top = 2.dp)) {
                 items.filterNot { it.role == MessageRole.TOOL && toolStatus(it) == "running" }.forEach { item ->
                     if (item.role == MessageRole.ASSISTANT) {
-                        ReasoningCard(
-                            isFinished = true,
-                            elapsedSeconds = "",
-                            reasoningText = item.content.substringBefore('\u0001'),
-                            modifier = Modifier.fillMaxWidth(),
-                            translateReasoning = translateReasoning,
-                        )
+                        val separator = item.content.indexOf('\u0001')
+                        if (separator >= 0) {
+                            ReasoningCard(
+                                isFinished = true,
+                                elapsedSeconds = "",
+                                reasoningText = item.content.substring(0, separator),
+                                modifier = Modifier.fillMaxWidth(),
+                                translateReasoning = translateReasoning,
+                            )
+                            val answer = item.content.substring(separator + 1)
+                            if (answer.isNotBlank()) {
+                                Text(
+                                    text = answer,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                )
+                            }
+                        } else if (item.content.isNotBlank()) {
+                            // 中间回复：属于本轮过程，折叠在完成头内。
+                            Text(
+                                text = item.content,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            )
+                        }
                     } else {
                         ToolMessageItem(
                             content = item.content,
@@ -1697,46 +1730,71 @@ private sealed interface ChatRow {
 
 private fun buildChatRows(messages: List<ChatMessage>, isThinking: Boolean): List<ChatRow> {
     val rows = mutableListOf<ChatRow>()
-    var process = mutableListOf<ChatMessage>()
-    var turnStart = 0L
-    var lastCreated = 0L
-    fun flush(closed: Boolean) {
-        if (process.isEmpty()) return
-        val key = process.first().messageId
-        val duration = if (turnStart > 0 && lastCreated > 0) (lastCreated - turnStart).coerceAtLeast(0L) else -1L
-        if (closed) rows.add(ChatRow.TurnDone(key, duration))
-        rows.add(ChatRow.Process(key, process.toList()))
-        process = mutableListOf()
-    }
-    for (message in messages) {
-        lastCreated = maxOf(lastCreated, message.createdAt)
-        val sep = message.content.indexOf('\u0001')
-        when {
-            message.role == MessageRole.USER -> {
-                flush(closed = true)
-                turnStart = message.createdAt
-                rows.add(ChatRow.Single(message))
-            }
-            message.role == MessageRole.TOOL -> process.add(message)
-            message.role == MessageRole.ASSISTANT && sep >= 0 -> {
-                val reasoning = message.content.substring(0, sep)
-                val answer = message.content.substring(sep + 1)
-                if (reasoning.isNotBlank()) {
-                    process.add(message.copy(messageId = message.messageId + "_r", content = reasoning + '\u0001'))
+
+    /**
+     * 一个 turn = 一条用户消息 + 其后的 AI/工具消息。
+     *
+     * 完成头（TurnDone）紧跟在用户消息后、AI 内容前，且每个 turn 只出现一次；
+     * 不能在每条中间 AI 消息后插入，否则“已完成 + 分割线”会夹在回复中间。
+     */
+    fun appendTurn(user: ChatMessage?, turn: List<ChatMessage>, closed: Boolean) {
+        if (user != null) rows.add(ChatRow.Single(user))
+        if (user != null && closed) {
+            val lastCreated = turn.maxOfOrNull { it.createdAt } ?: user.createdAt
+            rows.add(
+                ChatRow.TurnDone(
+                    key = user.messageId,
+                    durationMs = (lastCreated - user.createdAt).coerceAtLeast(0L),
+                )
+            )
+        }
+        val process = mutableListOf<ChatMessage>()
+        var finalAnswer: ChatMessage? = null
+        // 官方只把「最后一个有内容的 assistant 消息」当最终回答，其余思考/中间回复
+        // 都属于本轮的 process，由完成头统一折叠。
+        val finalIndex = turn.indexOfLast { it.role == MessageRole.ASSISTANT && it.content.isNotBlank() }
+        turn.forEachIndexed { index, message ->
+            val sep = message.content.indexOf('\u0001')
+            when {
+                message.role == MessageRole.TOOL -> process.add(message)
+                message.role == MessageRole.ASSISTANT && index == finalIndex -> {
+                    if (sep >= 0) {
+                        val reasoning = message.content.substring(0, sep)
+                        val answer = message.content.substring(sep + 1)
+                        if (reasoning.isNotBlank()) {
+                            process.add(message.copy(messageId = message.messageId + "_r", content = reasoning + '\u0001'))
+                        }
+                        if (answer.isNotBlank()) {
+                            finalAnswer = message.copy(messageId = message.messageId + "_a", content = answer)
+                        }
+                    } else {
+                        finalAnswer = message
+                    }
                 }
-                if (answer.isNotBlank()) {
-                    flush(closed = true)
-                    rows.add(ChatRow.Single(message.copy(messageId = message.messageId + "_a", content = answer)))
-                }
-            }
-            else -> {
-                flush(closed = true)
-                rows.add(ChatRow.Single(message))
+                message.role == MessageRole.ASSISTANT -> process.add(message)
+                else -> rows.add(ChatRow.Single(message))
             }
         }
+        if (process.isNotEmpty()) {
+            rows.add(ChatRow.Process(key = user?.messageId ?: process.first().messageId, items = process.toList()))
+        }
+        finalAnswer?.let { rows.add(ChatRow.Single(it)) }
     }
-    val running = process.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
-    flush(closed = !isThinking && !running)
+
+    var index = 0
+    while (index < messages.size) {
+        val user = messages[index].takeIf { it.role == MessageRole.USER }
+        var end = index + 1
+        while (end < messages.size && messages[end].role != MessageRole.USER) end++
+        val turn = messages.subList(index + 1, end)
+        val running = turn.any { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
+        // 已有最终回答的轮次即使 running 状态短暂滞后，也要显示完成头；否则用户会
+        // 看到回复却永远等不到“已完成/用时”这一行。
+        val answered = turn.any { it.role == MessageRole.ASSISTANT && it.content.isNotBlank() }
+        val closed = user != null && (end < messages.size || answered || (!isThinking && !running))
+        appendTurn(user, turn, closed)
+        index = end
+    }
     return rows
 }
 private fun toolStatus(message: ChatMessage): String =
