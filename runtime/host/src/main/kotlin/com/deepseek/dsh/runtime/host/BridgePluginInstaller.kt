@@ -252,6 +252,9 @@ class BridgePluginInstaller(
 internal fun ensureProfilePresetLink(profileDir: File) {
     val nodeModules = File(profileDir, "node_modules").apply { mkdirs() }
     val presetLink = File(nodeModules, "@deepseek-ai")
+    // 旧版本/手工排查留下的备份目录必须清掉：Host 会把它们当作独立包扫描，
+    // 在设置和插件页里显示重复条目。
+    File(nodeModules, "@deepseek-ai.merged").deleteRecursively()
     // profiles/web -> profiles -> .dsh -> root -> rootfs 根
     val installed = File(
         profileDir,
@@ -275,7 +278,10 @@ internal fun ensureProfilePresetLink(profileDir: File) {
                 java.nio.file.Paths.get(installedLinkTarget),
             )
         }.isSuccess
-        if (linked) return
+        if (linked) {
+            backup.deleteRecursively()
+            return
+        }
         // 链接不可用（文件系统限制）时恢复原目录，并合并缺失的包。
         backup.renameTo(presetLink)
         installed.listFiles()?.forEach { source ->
@@ -289,7 +295,10 @@ internal fun ensureProfilePresetLink(profileDir: File) {
         }
         return
     }
-    if (presetLink.exists()) return
+    if (presetLink.exists()) {
+        File(nodeModules, "@deepseek-ai.local").deleteRecursively()
+        return
+    }
     runCatching {
         java.nio.file.Files.createSymbolicLink(
             presetLink.toPath(),

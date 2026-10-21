@@ -17,6 +17,16 @@
     <string name="nav_runtime">本地 Linux 运行时</string>
     <string name="nav_new_session">新建会话</string>
     <string name="session_new">新会话</string>
+    <string name="page_plugins">插件</string>
+    <string name="page_automation">自动化任务</string>
+    <string name="page_files">文件</string>
+    <string name="page_hosts">远程连接</string>
+    <string name="page_approvals">授权请求</string>
+    <string name="page_runtime">运行时</string>
+    <string name="page_settings">设置</string>
+    <string name="drawer_default_user">DeepSeek 用户</string>
+    <string name="account_official_tag">DeepSeek 官方</string>
+    <string name="account_unauth_tag">未认证</string>
 
     <!-- 首次打开引导由 feature/runtime 提供（Onboarding 文案） -->
 
@@ -205,7 +215,3 @@
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
 </resources>
-
-
-
-

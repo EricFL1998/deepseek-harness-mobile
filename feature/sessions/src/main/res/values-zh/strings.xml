@@ -119,6 +119,8 @@
     <string name="drawer_account_feedback">意见反馈</string>
     <string name="drawer_account_signout">退出登录</string>
     <string name="drawer_account_signin">登录官方账号</string>
+    <string name="drawer_account_login">登录</string>
+    <string name="drawer_workspaces">工作区</string>
     <string name="drawer_nav_plugins">插件发现与生态</string>
     <string name="drawer_nav_schedule">定时自动化任务</string>
     <string name="drawer_nav_hosts">远程主机控制</string>

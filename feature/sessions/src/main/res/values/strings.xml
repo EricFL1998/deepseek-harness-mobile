@@ -119,6 +119,8 @@
     <string name="drawer_account_feedback">Feedback</string>
     <string name="drawer_account_signout">Sign Out</string>
     <string name="drawer_account_signin">Sign In with Official Account</string>
+    <string name="drawer_account_login">Log In</string>
+    <string name="drawer_workspaces">Workspaces</string>
     <string name="drawer_nav_plugins">Plugin Market &amp; Ecosystem</string>
     <string name="drawer_nav_schedule">Scheduled Automation</string>
     <string name="drawer_nav_hosts">Remote Host Control</string>

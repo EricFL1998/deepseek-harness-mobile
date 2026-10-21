@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,7 +101,7 @@ internal fun SettingsPluginsPane(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SettingsPaneTitle(text = "内置插件", large = true, modifier = Modifier.weight(1f))
+                SettingsPaneTitle(text = stringResource(R.string.settings_section_plugins), large = true, modifier = Modifier.weight(1f))
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = Color.Transparent,
@@ -108,7 +109,7 @@ internal fun SettingsPluginsPane(
                     onClick = onOpenConfigFile
                 ) {
                     Text(
-                        text = "打开配置文件",
+                        text = stringResource(R.string.settings_plugins_open_config),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = palette.labelPrimary,
@@ -118,7 +119,7 @@ internal fun SettingsPluginsPane(
             }
         }
         item(key = "plugins_intro") {
-            SettingsIntro(text = "查看内置部署的插件列表")
+            SettingsIntro(text = stringResource(R.string.settings_plugins_desc))
         }
 
         // 1. 搜索框：36dp 高度、R12 圆角、border-l4 描边、放大镜图标

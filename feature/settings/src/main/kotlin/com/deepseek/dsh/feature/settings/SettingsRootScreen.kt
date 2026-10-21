@@ -42,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,21 +61,21 @@ private data class SettingsContentKey(
  */
 enum class SettingsSectionTab(
     val id: String,
-    val title: String,
-    val subtitle: String,
+    val titleResId: Int,
+    val subtitleResId: Int,
     val iconResId: Int,
 ) {
     // 顺序与 settings 导航一致（order: account -10, general 0, models 10, plugins 15, agent-presets 20）
-    ACCOUNT("account", "账号与余额", "DeepSeek 官方 OAuth 授权与余额", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user),
-    GENERAL("general", "通用设置", "界面、语言与启动行为", com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
-    MODELS("models", "模型", "提供商、模型与 API Key 配置", com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model),
-    PLUGINS("plugins", "内置插件", "已安装插件与配置", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_personalization),
-    AGENT_PRESETS("agent-presets", "Agent 预设", "工作过程模式：紧凑 / 标准 / 详细", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_agent_preset),
-    ARCHIVED("archived-sessions", "归档会话", "已归档的会话记录与快照", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
-    MOBILE_RUNTIME("mobile-runtime", "移动运行时", "Linux 容器休眠、长任务守护与高危拦截", com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
-    NOTIFICATIONS("notifications", "通知", "任务完成通知与系统权限", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule),
-    REMOTE("remote", "远程连接", "连接另一台机器上的 DSH Host", com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin),
-    UPDATE("update", "更新", "检查 GitHub Release 与新版本", com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
+    ACCOUNT("account", R.string.settings_section_account, R.string.settings_section_account_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user),
+    GENERAL("general", R.string.settings_section_general, R.string.settings_section_general_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
+    MODELS("models", R.string.settings_section_models, R.string.settings_section_models_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model),
+    PLUGINS("plugins", R.string.settings_section_plugins, R.string.settings_section_plugins_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_personalization),
+    AGENT_PRESETS("agent-presets", R.string.settings_section_agent_presets, R.string.settings_section_agent_presets_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_agent_preset),
+    ARCHIVED("archived-sessions", R.string.settings_section_archived, R.string.settings_section_archived_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
+    MOBILE_RUNTIME("mobile-runtime", R.string.settings_section_mobile_runtime, R.string.settings_section_mobile_runtime_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
+    NOTIFICATIONS("notifications", R.string.settings_section_notifications, R.string.settings_section_notifications_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule),
+    REMOTE("remote", R.string.settings_section_remote, R.string.settings_section_remote_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin),
+    UPDATE("update", R.string.settings_section_update, R.string.settings_section_update_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
 }
 
 /**
@@ -198,7 +199,8 @@ fun SettingsRootScreen(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
-                            text = activeSection?.title ?: "设置",
+                            text = activeSection?.let { stringResource(it.titleResId) }
+                                ?: stringResource(R.string.settings_title),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = textPrimary,
                         )
@@ -614,7 +616,7 @@ private fun SettingsNavRow(
         )
         Spacer(modifier = Modifier.width(14.dp))
         Text(
-            text = tab.title,
+            text = stringResource(tab.titleResId),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 16.sp,

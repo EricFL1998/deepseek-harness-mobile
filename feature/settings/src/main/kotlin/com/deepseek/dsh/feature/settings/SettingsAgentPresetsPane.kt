@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import com.deepseek.dsh.core.designsystem.DshDialogCloseButton
 import com.deepseek.dsh.core.designsystem.DshHeadlessModal
 import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
@@ -81,11 +82,11 @@ internal fun SettingsAgentPresetsPane(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "agent_presets_title") {
-            SettingsPaneTitle(text = "Agent 预设", large = true)
+            SettingsPaneTitle(text = stringResource(R.string.settings_section_agent_presets), large = true)
         }
         item(key = "agent_presets_intro") {
             SettingsIntro(
-                text = "选择 Agent 的工具和工作方式。日常任务用「标准模式」，扩展 DSH 的能力用「创造模式」。",
+                text = stringResource(R.string.settings_agent_presets_desc),
             )
         }
         item(key = "agent_presets_group") {

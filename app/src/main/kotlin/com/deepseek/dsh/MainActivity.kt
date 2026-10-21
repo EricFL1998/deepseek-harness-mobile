@@ -1513,7 +1513,7 @@ fun MainAppHost(
             drawerContent = {
                 androidx.compose.foundation.layout.Column {
                     ModernNavigationDrawerContent(
-                    userName = accountState.profile?.name ?: "DeepSeek 用户",
+                    userName = accountState.profile?.name ?: stringResource(R.string.drawer_default_user),
                     avatarUrl = accountState.profile?.avatarUrl,
                     updateVersion = updateInfo?.tag?.takeIf {
                         com.deepseek.dsh.feature.settings.UpdateCenter.hasUpdate(context)
@@ -1523,12 +1523,19 @@ fun MainAppHost(
                         settingsInitialSection = com.deepseek.dsh.feature.settings.SettingsSectionTab.UPDATE
                         activePage = ActivePage.SETTINGS
                     },
-                    userTag = if (accountState.isSignedIn) "DeepSeek 官方" else "未认证",
+                    userTag = if (accountState.isSignedIn) {
+                        stringResource(R.string.account_official_tag)
+                    } else {
+                        stringResource(R.string.account_unauth_tag)
+                    },
                     accountBalance = accountState.wallets.firstOrNull()?.let { formatAmount(it.balance) } ?: "¥0.00",
                     isSignedIn = accountState.isSignedIn,
                     onSignIn = { showSignInDialog = true },
                     onSignOut = hostSignOut,
                     workspaces = workspaceFolders,
+                    workspaceDisplayName = { name ->
+                        if (name == DEFAULT_WORKSPACE_DIR_NAME) defaultWorkspaceLabel else name
+                    },
                     selectedWorkspaceName = activeWorkspaceName,
                     onSelectWorkspace = { folder -> activeWorkspaceName = folder.name },
                     selectedSessionId = selectedSessionId,
@@ -2792,14 +2799,15 @@ fun PageBackBar(
 }
 
 /** 子页面顶栏标题；与抽屉里的条目文案保持一致。 */
+@Composable
 private fun pageTitleOf(page: ActivePage): String = when (page) {
-    ActivePage.PLUGINS -> "插件"
-    ActivePage.AUTOMATION -> "自动化任务"
-    ActivePage.FILES -> "文件"
-    ActivePage.HOSTS -> "远程连接"
-    ActivePage.APPROVAL -> "授权请求"
-    ActivePage.RUNTIME -> "运行时"
-    ActivePage.SETTINGS -> "设置"
+    ActivePage.PLUGINS -> stringResource(R.string.page_plugins)
+    ActivePage.AUTOMATION -> stringResource(R.string.page_automation)
+    ActivePage.FILES -> stringResource(R.string.page_files)
+    ActivePage.HOSTS -> stringResource(R.string.page_hosts)
+    ActivePage.APPROVAL -> stringResource(R.string.page_approvals)
+    ActivePage.RUNTIME -> stringResource(R.string.page_runtime)
+    ActivePage.SETTINGS -> stringResource(R.string.page_settings)
     ActivePage.CHAT -> "deepseek"
 }
 @Composable

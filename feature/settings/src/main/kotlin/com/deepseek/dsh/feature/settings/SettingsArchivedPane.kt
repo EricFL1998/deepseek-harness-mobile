@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 /**
@@ -29,13 +30,13 @@ internal fun SettingsArchivedPane(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "archived_title") {
-            SettingsPaneTitle(text = "归档会话")
+            SettingsPaneTitle(text = stringResource(R.string.settings_section_archived))
         }
         item(key = "archived_intro") {
-            SettingsIntro(text = "已归档的会话会保存在本机，之后可以恢复或删除。")
+            SettingsIntro(text = stringResource(R.string.settings_archived_desc))
         }
         item(key = "archived_empty") {
-            SettingsEmptyState(text = "暂无已归档会话")
+            SettingsEmptyState(text = stringResource(R.string.settings_archived_empty))
         }
     }
 }

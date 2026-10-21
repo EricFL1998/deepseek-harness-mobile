@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -318,7 +319,7 @@ internal fun SettingsNotificationsPane(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { SettingsPaneTitle("通知") }
+        item { SettingsPaneTitle(stringResource(R.string.settings_section_notifications)) }
         item {
             SettingsCard {
                 NotificationSwitchRow(
@@ -406,7 +407,7 @@ internal fun SettingsRemotePane(
         ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { SettingsPaneTitle("远程连接") }
+        item { SettingsPaneTitle(stringResource(R.string.settings_section_remote)) }
         item {
             SettingsCard {
                 Text("Host 地址", style = SettingsText.RowTitle, color = palette.labelPrimary)

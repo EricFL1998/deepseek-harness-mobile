@@ -123,6 +123,8 @@ fun ModernNavigationDrawerContent(
     onSignIn: () -> Unit = {},
     onSignOut: () -> Unit = {},
     workspaces: List<WorkspaceFolder> = emptyList(),
+    /** 把磁盘工作区名映射成界面显示名（默认工作区需本地化）。 */
+    workspaceDisplayName: (String) -> String = { it },
     selectedSessionId: String?,
     onSelectSession: (String) -> Unit,
     onNewChatClick: () -> Unit,
@@ -269,14 +271,14 @@ fun ModernNavigationDrawerContent(
         ) {
             DrawerItem(
                 iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
-                title = "插件",
+                title = stringResource(R.string.drawer_nav_plugins),
                 onClick = onNavigatePlugins,
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
             DrawerItem(
                 iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule,
-                title = "自动化任务",
+                title = stringResource(R.string.drawer_nav_schedule),
                 onClick = onNavigateSchedule,
                 textColor = textPrimary,
                 iconTint = textSecondary
@@ -357,7 +359,7 @@ fun ModernNavigationDrawerContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "工作区",
+                text = stringResource(R.string.drawer_workspaces),
                 color = textMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -534,7 +536,7 @@ fun ModernNavigationDrawerContent(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = folder.name,
+                            text = workspaceDisplayName(folder.name),
                             color = textPrimary,
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
@@ -668,7 +670,7 @@ fun ModernNavigationDrawerContent(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text = if (isSignedIn) userName else "更多",
+                    text = if (isSignedIn) userName else stringResource(R.string.drawer_account_menu_more),
                     color = textPrimary,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -730,7 +732,7 @@ fun ModernNavigationDrawerContent(
                 } else {
                     AccountMenuRow(
                         iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_user,
-                        label = "登录",
+                        label = stringResource(R.string.drawer_account_login),
                         onClick = {
                             showAccountMenu = false
                             onSignIn()

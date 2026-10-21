@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,10 +63,10 @@ internal fun SettingsModelsPane(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "models_title") {
-            SettingsPaneTitle(text = "模型", large = false)
+            SettingsPaneTitle(text = stringResource(R.string.settings_section_models), large = false)
         }
         item(key = "models_intro") {
-            SettingsIntro(text = "填入各提供商的 API 密钥即可使用其模型。", large = true)
+            SettingsIntro(text = stringResource(R.string.settings_models_desc), large = true)
         }
         item(key = "models_account") {
             Column(modifier = Modifier.padding(top = 14.dp)) {

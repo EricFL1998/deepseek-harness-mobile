@@ -199,7 +199,31 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
-</resources>
-
-
-
+    <!-- 设置分区导航 -->
+    <string name="settings_section_account">账号与余额</string>
+    <string name="settings_section_account_desc">DeepSeek 官方 OAuth 授权与余额</string>
+    <string name="settings_section_general">通用设置</string>
+    <string name="settings_section_general_desc">界面、语言与启动行为</string>
+    <string name="settings_section_models">模型</string>
+    <string name="settings_section_models_desc">提供商、模型与 API Key 配置</string>
+    <string name="settings_section_plugins">内置插件</string>
+    <string name="settings_section_plugins_desc">已安装插件与配置</string>
+    <string name="settings_section_agent_presets">Agent 预设</string>
+    <string name="settings_section_agent_presets_desc">工作过程模式：紧凑 / 标准 / 详细</string>
+    <string name="settings_section_archived">归档会话</string>
+    <string name="settings_section_archived_desc">已归档的会话记录与快照</string>
+    <string name="settings_section_mobile_runtime">移动运行时</string>
+    <string name="settings_section_mobile_runtime_desc">Linux 容器休眠、长任务守护与高危拦截</string>
+    <string name="settings_section_notifications">通知</string>
+    <string name="settings_section_notifications_desc">任务完成通知与系统权限</string>
+    <string name="settings_section_remote">远程连接</string>
+    <string name="settings_section_remote_desc">连接另一台机器上的 DSH Host</string>
+    <string name="settings_section_update">更新</string>
+    <string name="settings_section_update_desc">检查 GitHub Release 与新版本</string>
+    <string name="settings_update_title">软件更新</string>    <string name="settings_archived_desc">已归档的会话会保存在本机，之后可以恢复或删除。</string>
+    <string name="settings_archived_empty">暂无已归档会话</string>
+    <string name="settings_plugins_open_config">打开配置文件</string>
+    <string name="settings_plugins_desc">查看内置部署的插件列表</string>
+    <string name="settings_agent_presets_desc">选择 Agent 的工具和工作方式。日常任务用「标准模式」，扩展 DSH 的能力用「创造模式」。</string>
+    <string name="settings_models_desc">填入各提供商的 API 密钥即可使用其模型。</string>
+    <string name="settings_update_desc">客户端、兼容层插件与底层运行时</string></resources>
