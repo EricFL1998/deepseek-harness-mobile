@@ -86,6 +86,20 @@ internal data class OfficialField(
 )
 
 /**
+ * 官方页面的一个密钥字段（例如网页搜索的 API Key）。
+ *
+ * 值不落设置文档，而是 Host 的 `credentials` 域：页面只读「已配置/可写」，
+ * 写入走 `credentials/set`。引用名由设置文档里的 `apiKeyEnv` 给出。
+ *
+ * @param messagesNs 提供 `apiKeyEnv` 的设置命名空间（Messages API 那一支）。
+ * @param defaultRef `apiKeyEnv` 缺失时的兜底引用名。
+ */
+internal data class OfficialCredentialSpec(
+    val messagesNs: String,
+    val defaultRef: String = "DEEPSEEK_API_KEY",
+)
+
+/**
  * 一个官方设置页：标题、说明、字段，以及页面涉及的命名空间。
  *
  * @param title 页面标题（官方条目 label）。
@@ -93,6 +107,7 @@ internal data class OfficialField(
  * @param fields 字段表，顺序即页面顺序。
  * @param namespaces 页面读写的命名空间（含开关写入的那一个）。
  * @param searchApiToggle 是否有「启用新版 Web 搜索 API」开关。
+ * @param credential 页面的 API Key 字段；null 表示这一页没有。
  */
 internal data class OfficialPageSpec(
     val title: String,
@@ -100,6 +115,7 @@ internal data class OfficialPageSpec(
     val fields: List<OfficialField>,
     val namespaces: List<String>,
     val searchApiToggle: Boolean = false,
+    val credential: OfficialCredentialSpec? = null,
 )
 
 /** 注册表：官方设置页 id → 字段表（每页在自己的文件里定义）。 */
@@ -141,6 +157,8 @@ private sealed interface DocState {
  * @param onBack 返回插件页。
  * @param loadDocument 读取命名空间表单。
  * @param saveDocument 回写命名空间。
+ * @param loadCredential 读取一个凭据引用的状态（官方页面的 API Key）。
+ * @param saveCredential 写入一个凭据引用。
  */
 @Composable
 fun OfficialPluginSettingsPage(
@@ -148,9 +166,11 @@ fun OfficialPluginSettingsPage(
     onBack: () -> Unit,
     loadDocument: suspend (String) -> PluginSettingsDocument?,
     saveDocument: suspend (String, JsonObject, Int) -> Boolean,
+    loadCredential: suspend (String) -> com.deepseek.dsh.core.data.DshRepository.CredentialStatus? = { null },
+    saveCredential: suspend (String, String) -> Boolean = { _, _ -> false },
 ) {
     val spec = OFFICIAL_PAGES[itemId] ?: return
-    OfficialSettingsScaffold(spec, onBack, loadDocument, saveDocument)
+    OfficialSettingsScaffold(spec, onBack, loadDocument, saveDocument, loadCredential, saveCredential)
 }
 
 /**
@@ -159,6 +179,8 @@ fun OfficialPluginSettingsPage(
  * @param onBack 返回插件页（系统返回键同样走这里）。
  * @param loadDocument 读取命名空间表单。
  * @param saveDocument 回写命名空间。
+ * @param loadCredential 读取凭据状态。
+ * @param saveCredential 写入凭据。
  */
 @Composable
 private fun OfficialSettingsScaffold(
@@ -166,6 +188,8 @@ private fun OfficialSettingsScaffold(
     onBack: () -> Unit,
     loadDocument: suspend (String) -> PluginSettingsDocument?,
     saveDocument: suspend (String, JsonObject, Int) -> Boolean,
+    loadCredential: suspend (String) -> com.deepseek.dsh.core.data.DshRepository.CredentialStatus?,
+    saveCredential: suspend (String, String) -> Boolean,
 ) {
     // 系统返回先关这一页，而不是退出插件页。
     BackHandler(onBack = onBack)
@@ -176,6 +200,13 @@ private fun OfficialSettingsScaffold(
     val edits = remember(spec) { mutableStateMapOf<String, String>() }
     var saving by remember(spec) { mutableStateOf(false) }
     var saveError by remember(spec) { mutableStateOf<String?>(null) }
+    // 官方页面的 API Key 属于 Host 的 `credentials` 域，不是设置文档：单独一份状态，
+    // 值只单向写入 Host，读回来只有「已配置/可写」这些事实。
+    var apiKeyText by remember(spec) { mutableStateOf("") }
+    var credentialRef by remember(spec) { mutableStateOf<String?>(null) }
+    var credential by remember(spec) {
+        mutableStateOf<com.deepseek.dsh.core.data.DshRepository.CredentialStatus?>(null)
+    }
 
     LaunchedEffect(spec, reloadKey) {
         val loaded = mutableMapOf<String, DocState>()
@@ -188,6 +219,22 @@ private fun OfficialSettingsScaffold(
             }
         }
         docs = loaded
+        // API Key 的引用名来自设置文档的 `apiKeyEnv`（Host 配置的凭据引用名）。
+        // 两家 API 各有一份 `apiKeyEnv`：按当前选中的 API 取，取不到再兜底。
+        val useApi = (loaded["web"] as? DocState.Loaded)?.document?.let { web ->
+            (web.value["searchProvider"] as? JsonPrimitive)?.contentOrNull == "deepseek-search-api" &&
+                (web.value["fetchProvider"] as? JsonPrimitive)?.contentOrNull == "deepseek-fetch-api"
+        } ?: false
+        val refNs = if (useApi) "web-deepseek-api" else spec.credential?.messagesNs
+        val ref = (loaded[refNs] as? DocState.Loaded)?.document
+            ?.value?.get("apiKeyEnv")?.let { (it as? JsonPrimitive)?.contentOrNull }
+            ?.takeIf { it.isNotBlank() }
+            ?: spec.credential?.defaultRef
+        if (ref != credentialRef) {
+            credentialRef = ref
+            apiKeyText = ""
+        }
+        credential = ref?.let { runCatching { loadCredential(it) }.getOrNull() }
     }
 
     fun docOf(ns: String): PluginSettingsDocument? = (docs[ns] as? DocState.Loaded)?.document
@@ -251,6 +298,23 @@ private fun OfficialSettingsScaffold(
                 }
                 byNamespace.getOrPut(field.ns) { mutableMapOf() }[field.key] = value
             }
+            // API Key 先写：它在 Host 的凭据域，写完设置值再刷新整页。
+            val pendingKey = apiKeyText.trim()
+            if (spec.credential != null && pendingKey.isNotEmpty()) {
+                // 引用名跟着「当前选中的 API」走：两家 API 各有自己的 apiKeyEnv。
+                val useApiNow = edits["web\u0000searchApi"]?.let { it == "true" } ?: searchApiOn()
+                val refNs = if (useApiNow) "web-deepseek-api" else spec.credential.messagesNs
+                val ref = (docOf(refNs)?.value?.get("apiKeyEnv") as? JsonPrimitive)?.contentOrNull
+                    ?.takeIf { it.isNotBlank() }
+                    ?: credentialRef
+                    ?: throw IllegalStateException("找不到凭据引用名，无法保存密钥。")
+                if (credential?.writable == false) {
+                    throw IllegalStateException("这个密钥由部署环境提供，不能在这里修改。")
+                }
+                if (!saveCredential(ref, pendingKey)) {
+                    throw IllegalStateException("Host 没有接受这个密钥。")
+                }
+            }
             byNamespace.forEach { (ns, patch) ->
                 val revision = docOf(ns)?.revision ?: 0
                 if (!saveDocument(ns, JsonObject(patch), revision)) {
@@ -260,6 +324,7 @@ private fun OfficialSettingsScaffold(
         }.fold(
             onSuccess = {
                 edits.clear()
+                apiKeyText = ""
                 reloadKey += 1
             },
             onFailure = { error -> saveError = error.message ?: "保存失败" },
@@ -305,6 +370,14 @@ private fun OfficialSettingsScaffold(
                         onChange = { next -> edit(webSearchToggleField(), if (next) "true" else "false") },
                     )
                 }
+                // API Key 与字段在同一页保存，但它是写 Host 的凭据域而不是设置文档。
+                if (spec.credential != null) {
+                    CredentialEditor(
+                        value = apiKeyText,
+                        status = credential,
+                        onChange = { apiKeyText = it },
+                    )
+                }
                 // 分组标题只在第一次出现时打印一次：官方页面同样按小节组织字段。
                 var currentGroup: String? = null
                 spec.fields
@@ -339,12 +412,13 @@ private fun OfficialSettingsScaffold(
                     }
                 SubagentModelListNote(spec, docOf("subagent-model-selection-settings"), edits)
                 Spacer(Modifier.height(24.dp))
+                val hasKeyEdit = apiKeyText.isNotBlank()
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (saving) colors.bgModulePlatform else colors.buttonPrimaryFill)
-                            .clickable(enabled = !saving && edits.isNotEmpty()) { saving = true },
+                            .clickable(enabled = !saving && (edits.isNotEmpty() || hasKeyEdit)) { saving = true },
                     ) {
                         Text(
                             text = if (saving) "保存中…" else "保存",
@@ -355,7 +429,7 @@ private fun OfficialSettingsScaffold(
                     }
                     val status = when {
                         saveError != null -> saveError
-                        edits.isEmpty() -> "已保存"
+                        edits.isEmpty() && !hasKeyEdit -> "已保存"
                         else -> "有未保存的修改"
                     }
                     Text(
@@ -403,12 +477,82 @@ private fun SubagentModelListNote(
     )
 }
 
+/**
+ * 官方页面的 API Key 编辑器。
+ *
+ * 值不落设置文档：Host 的凭据域保存密钥，只回报「已配置/可写」。不可写时
+ * （由账号或进程环境提供）输入框禁用并说明原因，而不是假装能改。
+ *
+ * @param value 本次输入的密钥（空表示不修改）。
+ * @param status Host 回报的凭据状态。
+ * @param onChange 输入回调。
+ */
+@Composable
+private fun CredentialEditor(
+    value: String,
+    status: com.deepseek.dsh.core.data.DshRepository.CredentialStatus?,
+    onChange: (String) -> Unit,
+) {
+    val colors = LocalDshPanelColors.current
+    val writable = status?.writable != false
+    val configured = status?.configured == true
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "API Key",
+                color = colors.labelPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = if (configured) "已配置密钥。" else "未配置密钥。",
+                color = colors.labelTertiary,
+                fontSize = 11.5.sp,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = if (!writable) {
+                "这个密钥由部署环境或账号提供，不能在这里修改。"
+            } else {
+                "不写入设置文件。留空表示保持当前密钥。"
+            },
+            color = colors.labelTertiary,
+            fontSize = 11.5.sp,
+            lineHeight = 16.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = true,
+            enabled = writable,
+            placeholder = {
+                Text(
+                    text = if (configured) "已配置，输入新值可替换" else "输入密钥",
+                    fontSize = 13.sp,
+                )
+            },
+            textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace),
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
 /** 一个数字/文本字段：标题、说明与输入框，对应官方 `SettingsValueField`。 */
 @Composable
 private fun FieldEditor(
     label: String,
-    hint: String?,
-    value: String,
+    hint: String?,    value: String,
     numeric: Boolean,
     onChange: (String) -> Unit,
 ) {

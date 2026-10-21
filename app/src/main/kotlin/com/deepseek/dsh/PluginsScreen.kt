@@ -133,6 +133,10 @@ fun PluginsScreen(
     /** 回写插件设置字段。 */
     savePluginSettings: suspend (String, kotlinx.serialization.json.JsonObject, Int) -> Boolean =
         { _, _, _ -> false },
+    /** 读取一个凭据引用的状态（配置状态 + 可写性），用于官方页面的 API Key。 */
+    loadCredential: suspend (String) -> com.deepseek.dsh.core.data.DshRepository.CredentialStatus? = { null },
+    /** 写入一个凭据引用。 */
+    saveCredential: suspend (String, String) -> Boolean = { _, _ -> false },
     /** 外层 App 返回按钮的点击计数：详情页打开时自增，由本页关掉详情。 */
     backSignal: Int = 0,
     /** 详情页开关状态上报：外层据此决定返回是关详情还是离开插件页。 */
@@ -436,6 +440,8 @@ fun PluginsScreen(
                         onBack = { selectedConfig = null },
                         loadDocument = loadPluginSettings,
                         saveDocument = savePluginSettings,
+                        loadCredential = loadCredential,
+                        saveCredential = saveCredential,
                     )
                 } else {
                     PluginSettingsEditorPage(

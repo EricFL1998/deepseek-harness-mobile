@@ -16,7 +16,14 @@ import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.ComposerStats
 import com.deepseek.dsh.core.model.MessageRole
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import com.deepseek.dsh.core.model.PluginSettingsDocument
 import com.deepseek.dsh.core.model.PluginSettingsPage
 import com.deepseek.dsh.core.model.PluginSlotEntry
@@ -277,6 +284,71 @@ class DshRepository(
             is BridgeResult.Failure -> false
         }
     }
+
+    /**
+     * 描述一个凭据引用（不返回值，只回可配置状态与可写性）。
+     *
+     * 凭据不属于设置文档：插件页的 API Key 之类的字段写的是 Host 的 `credentials`
+     * 域，bridge 没有这层接口，所以走 Host 自己的 Remote API（`credentials/describe`）。
+     * 网页版设置页读的也是同一条路径。
+     *
+     * @param hostId Host 标识。
+     * @param ref 凭据引用名（例如 `DEEPSEEK_API_KEY`）。
+     * @returns 状态；Host 不可用或响应无法解析时返回 null。
+     */
+    suspend fun credentialStatus(hostId: String, ref: String): CredentialStatus? {
+        val args = buildJsonObject {
+            put("refs", kotlinx.serialization.json.buildJsonArray { add(JsonPrimitive(ref)) })
+        }
+        val raw = rpcRaw(hostId, "credentials/describe", args.toString()).getOrNull() ?: return null
+        val root = runCatching { credentialJson.parseToJsonElement(raw) as JsonObject }.getOrNull() ?: return null
+        val value = root["result"]?.jsonObjectOrNull()?.get("value")?.jsonObjectOrNull() ?: return null
+        val entry = value[ref]?.jsonObjectOrNull() ?: return null
+        return CredentialStatus(
+            configured = entry["configured"]?.jsonPrimitive?.booleanOrNull ?: false,
+            writable = entry["writable"]?.jsonPrimitive?.booleanOrNull ?: true,
+            source = entry["source"]?.jsonPrimitive?.contentOrNull,
+        )
+    }
+
+    /**
+     * 写入一个凭据引用。
+     *
+     * @param hostId Host 标识。
+     * @param ref 凭据引用名。
+     * @param value 非空密钥值；写进去的值不会再被任何读接口返回。
+     * @returns 是否被 Host 接受。
+     */
+    suspend fun setCredential(hostId: String, ref: String, value: String): Boolean {
+        val args = buildJsonObject {
+            put("ref", ref)
+            put("value", value)
+        }
+        val raw = rpcRaw(hostId, "credentials/set", args.toString()).getOrNull() ?: return false
+        val root = runCatching { credentialJson.parseToJsonElement(raw) as JsonObject }.getOrNull() ?: return false
+        return root["result"]?.jsonObjectOrNull()?.get("ok")?.jsonPrimitive?.booleanOrNull == true
+    }
+
+    /**
+     * 删除一个凭据引用。
+     *
+     * @param hostId Host 标识。
+     * @param ref 凭据引用名。
+     * @returns 是否被 Host 接受。
+     */
+    suspend fun unsetCredential(hostId: String, ref: String): Boolean {
+        val args = buildJsonObject { put("ref", ref) }
+        val raw = rpcRaw(hostId, "credentials/unset", args.toString()).getOrNull() ?: return false
+        val root = runCatching { credentialJson.parseToJsonElement(raw) as JsonObject }.getOrNull() ?: return false
+        return root["result"]?.jsonObjectOrNull()?.get("ok")?.jsonPrimitive?.booleanOrNull == true
+    }
+
+    /** 一个凭据引用的可配置状态；值本身永远不会到达客户端。 */
+    data class CredentialStatus(
+        val configured: Boolean,
+        val writable: Boolean,
+        val source: String?,
+    )
 
     /**
      * 读取一次插件目录。
@@ -745,3 +817,9 @@ class DshRepository(
 
 /** 原生设置页位置；bridge 用这个名字说明条目该落在设置里。 */
 private const val SETTINGS_PAGE_SLOT = "settings.page"
+
+// 凭据接口的响应只是 Host 自己的 JSON：这里单独一个宽松实例，不影响其他解码。
+private val credentialJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
+
+private fun JsonElement?.jsonObjectOrNull(): JsonObject? = this as? JsonObject
+

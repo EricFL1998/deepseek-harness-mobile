@@ -21,6 +21,8 @@ internal val WEB_SEARCH_SETTINGS_PAGE: OfficialPageSpec = OfficialPageSpec(
     title = "网页搜索",
     description = "设置 DeepSeek 的搜索提供方。",
     searchApiToggle = true,
+    // API Key 是 Host 凭据域的引用：名字来自 `web-search-deepseek.apiKeyEnv`。
+    credential = OfficialCredentialSpec(messagesNs = "web-search-deepseek"),
     fields = listOf(
         OfficialField(
             ns = "web-search-deepseek",

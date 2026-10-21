@@ -502,7 +502,22 @@ fun MainAppHost(
             val ready = discovered.filter {
                 it.status == com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY
             }
-            ready.forEach { loader.load(it) }
+            // Only successfully loaded companions may replace a Web settings section.
+            // Replacing the whole snapshot also drops routes for uninstalled/incompatible APKs.
+            val loaded = ready.mapNotNull { installed ->
+                loader.load(installed)?.let { plugin -> installed to plugin }
+            }
+            com.deepseek.dsh.plugin.nativehost.NativePageRegistry.replaceAll(
+                loaded.map { (installed, plugin) ->
+                    com.deepseek.dsh.plugin.nativehost.NativePageRegistration(
+                        pluginId = plugin.descriptor.id,
+                        jsPackage = installed.jsPackage,
+                        pages = com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.forPlacement(
+                            com.deepseek.dsh.plugin.nativesdk.pages.PageEntry.Placement.SETTINGS,
+                        ),
+                    )
+                },
+            )
             ready.forEach { plugin ->
                 runCatching {
                     val jsPackage = com.deepseek.dsh.plugin.nativehost.NativePluginPairing
@@ -1550,6 +1565,12 @@ fun MainAppHost(
                                 loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
                                 savePluginSettings = { ns, patch, revision ->
                                     dshRepository.updatePluginSettings(ns, patch, revision)
+                                },
+                                // 凭据域不是设置文档：官方页面的 API Key 走 Host 的
+                                // credentials 接口，bridge 没有这层，直接调 Host Remote API。
+                                loadCredential = { ref -> dshRepository.credentialStatus(activeHostId, ref) },
+                                saveCredential = { ref, value ->
+                                    dshRepository.setCredential(activeHostId, ref, value)
                                 },
                                 backSignal = pluginBackSignal,
                                 onDetailOpenChange = { pluginDetailOpen = it },
