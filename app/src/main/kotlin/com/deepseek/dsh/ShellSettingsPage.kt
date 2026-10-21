@@ -1,7 +1,7 @@
 package com.deepseek.dsh
 
 /**
- * 「命令执行设置」页的字段表。
+ * 「终端」页的字段表。
  *
  * 逐条对照官方 `@deepseek-ai/dsh-client-ui-settings-shell` 的 `ShellCard`：
  * 两个数字字段，绑定 `bash-sandbox` 命名空间的 `timeoutMs` / `maxOutputBytes`。
@@ -12,7 +12,7 @@ package com.deepseek.dsh
  * 本部署没有 `pwsh-sandbox` 行，所以这里也只列 bash 的两个字段。
  */
 internal val SHELL_SETTINGS_PAGE: OfficialPageSpec = OfficialPageSpec(
-    title = "命令执行设置",
+    title = "终端",
     description = "限制每条命令最多能跑多久、最多输出多少内容。",
     fields = listOf(
         OfficialField(

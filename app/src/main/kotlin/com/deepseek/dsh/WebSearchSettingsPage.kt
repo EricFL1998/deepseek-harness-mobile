@@ -1,7 +1,7 @@
 package com.deepseek.dsh
 
 /**
- * 「网页搜索设置」页的字段表。
+ * 「网页搜索」页的字段表。
  *
  * 逐条对照官方 `@deepseek-ai/dsh-client-ui-settings-web-search` 的 `WebSearchCard`：
  *
@@ -18,7 +18,7 @@ package com.deepseek.dsh
  * 一个改不动的输入框，密钥仍在网页版/Host 侧维护。
  */
 internal val WEB_SEARCH_SETTINGS_PAGE: OfficialPageSpec = OfficialPageSpec(
-    title = "网页搜索设置",
+    title = "网页搜索",
     description = "设置 DeepSeek 的搜索提供方。",
     searchApiToggle = true,
     fields = listOf(

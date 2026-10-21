@@ -1186,9 +1186,14 @@ fun MainAppHost(
         ) {
             // 对话页使用完整顶栏；设置页自带标题栏（不再叠加）；其余全屏页只保留返回条，
             // 避免出现双 header。
-            BackHandler(enabled = activePage != ActivePage.CHAT &&
-                !(activePage == ActivePage.PLUGINS && pluginDetailOpen)) {
-                activePage = ActivePage.CHAT
+            BackHandler(enabled = activePage != ActivePage.CHAT) {
+                // 插件子页面（详情 / 更多插件）打开时，系统返回先关子页面；顶栏返回走同一个
+                // 信号，两条返回路径的行为保持一致。
+                if (activePage == ActivePage.PLUGINS && pluginDetailOpen) {
+                    pluginBackSignal += 1
+                } else {
+                    activePage = ActivePage.CHAT
+                }
             }
             BackHandler(enabled = drawerState.isOpen) {
                 scope.launch { drawerState.close() }

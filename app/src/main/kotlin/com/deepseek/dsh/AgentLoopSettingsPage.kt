@@ -1,7 +1,7 @@
 package com.deepseek.dsh
 
 /**
- * 「智能体运行设置」页的字段表。
+ * 「Agent 循环」页的字段表。
  *
  * 逐条对照官方 `@deepseek-ai/dsh-client-ui-settings-agent-loop` 的 `AgentLoopCard`：
  * 一个数字字段，绑定 `agent-loop` 命名空间的 `maxParallelToolCalls`。
@@ -9,8 +9,8 @@ package com.deepseek.dsh
  * `maxParallelHint`）。
  */
 internal val AGENT_LOOP_SETTINGS_PAGE: OfficialPageSpec = OfficialPageSpec(
-    title = "智能体运行设置",
-    description = "配置同时执行的工具调用数量上限。",
+    title = "Agent 循环",
+    description = "控制 Agent 派发工具调用的方式。",
     fields = listOf(
         OfficialField(
             ns = "agent-loop",

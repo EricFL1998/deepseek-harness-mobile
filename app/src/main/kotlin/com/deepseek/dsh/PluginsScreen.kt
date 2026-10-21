@@ -38,13 +38,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -148,6 +148,8 @@ fun PluginsScreen(
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
     var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
+    // 「内置插件配置」的每一行后面都是 Host 的设置文档：点开就是可编辑的表单。
+    var selectedConfig by remember { mutableStateOf<ConfigEntryRow?>(null) }
     // 「更多插件」页面：从实验性分组头部的「更多 ›」进入。
     var showMorePlugins by remember { mutableStateOf(false) }
     // 原生伴侣：详情页 + 停用集合 + 已装列表（merge 进已安装分组）。
@@ -158,34 +160,81 @@ fun PluginsScreen(
     // 插件页分段页签：0 = 插件（现有列表），1 = 原生插件商店。
     var pluginsTabIndex by remember { mutableStateOf(0) }
     val installedNativePlugins = nativePluginItems.filter { it.installed }
+    /**
+     * Host 的全部设置命名空间。
+     *
+     * 两个来源合成一份：`settings.page`（没有所属 Loader 行的独立设置页）与
+     * `plugins.row.config`（挂在某个 bundle 行上的行级配置）。两者的 id 都是
+     * `<bundle>#<namespace>`，取 `#` 之后的部分就是 bridge `settings/describe`
+     * 要的命名空间。
+     */
+    val settingsNamespaces = remember(hostSettingsPages, rowConfigSurfaces) {
+        val fromPages = hostSettingsPages.map { page ->
+            SettingsNamespace(
+                ns = page.id.substringAfterLast('#'),
+                title = page.title,
+                description = page.description.orEmpty(),
+                module = page.module,
+            )
+        }
+        val fromRows = rowConfigSurfaces.map { surface ->
+            SettingsNamespace(
+                ns = surface.id.substringAfterLast('#'),
+                title = surface.title,
+                description = surface.description.orEmpty(),
+                module = surface.module,
+            )
+        }
+        (fromPages + fromRows)
+            .filter { it.ns.isNotBlank() }
+            .distinctBy { it.ns }
+    }
+
+    /**
+     * 官方设置页面背后是哪几份文档。
+     *
+     * 官方页面的组件是自定义界面，App 没有它们；但每份设置文档都能用 Host 投影
+     * 出来的表单原生渲染。命名空间来自各官方页面自己的实现（`ui-settings-*`
+     * 里读的 `configForms` 命名空间），按页面注册 id 对到文档；表里没有的页面
+     * 按「页面 id 是命名空间前缀」兜底，再匹配不到就返回空（页面会说明没有可读
+     * 设置文档，而不是假装打开）。
+     */
+    fun namespacesForRow(rowId: String, packageName: String?): List<String> {
+        // 有逐字段复刻的官方页面时，用它自己声明的命名空间（最准确）。
+        officialSettingsNamespaces(rowId)?.let { declared -> return declared }
+        val family = packageName
+            ?.substringAfterLast("settings-")
+            ?.takeIf { it.isNotBlank() && it != packageName }
+        val exact = settingsNamespaces.filter { it.ns == rowId }
+        if (exact.isNotEmpty()) return exact.map { it.ns }
+        val prefixed = settingsNamespaces.filter { namespace ->
+            listOfNotNull(rowId, family).any { prefix ->
+                namespace.ns == prefix || namespace.ns.startsWith("$prefix-")
+            }
+        }
+        return prefixed.map { it.ns }
+    }
+
     // 官方插件分类只有一个来源：bridge 的 `client-slots/plugins.item` 注册。
     // 文案、顺序与图形都是官方客户端自己的资源。bridge 不可用时这个分组直接
     // 不出现 —— 宁可少一行，也不拿写死的分类表冒充官方数据。
-    // 官方设置条目的**来源**是 Host：凡是声明了设置页的插件，Host 都会为它生成命名空间，
-    // bridge 的 `host-slots` 把这些位置报上来。只有 Host 没报任何条目时，才回落到
-    // 客户端 bundle 的 `plugins.item` 注册（那条路在预构建 web 客户端上通常为空）。
-    val officialConfigItems = remember(bridgeCatalog, hostSettingsPages) {
-        if (hostSettingsPages.isNotEmpty()) {
-            hostSettingsPages.map { page ->
-                OfficialConfigItem(
-                    id = page.id,
-                    title = page.title,
-                    description = page.description.orEmpty(),
-                    iconRes = 0,
-                    iconSvg = null,
-                )
-            }
-        } else {
-            bridgeCatalog.categories.map { category ->
-                OfficialConfigItem(
+    //
+    // `@deepseek-ai/dsh-cordis-client-runner` 的注册要排除：它把「插槽目录示例」
+    // 也当成了真实注册（每个 slot 都有一条 `id: my-entry / label: My entry`），
+    // 那不是插件页面，列出来只会在设置里多一行永远打不开的「My entry」。
+    val officialConfigItems = remember(bridgeCatalog, settingsNamespaces) {
+        bridgeCatalog.categories
+            .filter { it.packageName != CORDIS_CLIENT_RUNNER_PACKAGE }
+            .map { category ->
+                ConfigEntryRow(
                     id = category.id,
                     title = category.label,
                     description = "",
-                    iconRes = 0,
                     iconSvg = category.iconSvg,
+                    namespaces = namespacesForRow(category.id, category.packageName),
+                    official = true,
                 )
             }
-        }
     }
     var disabledPlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -208,12 +257,26 @@ fun PluginsScreen(
             .sortedBy { optionalBundleRank(it.packageName) }
         fromBridge.ifEmpty { pluginManagerSnapshot?.experimentalBundles.orEmpty() }
     }
-    /** 默认收起、只有「更多插件」里才出现的实验性插件；启用后会升进上面的主列表。 */
+    /**
+     * 默认收起、只有「更多插件」里才出现的插件。
+     *
+     * 两类：一类是官方可选实验性 bundle 里被主列表收起的；另一类是官方的非可选
+     * 包但设备上装不上（`availability = missing`，例如两个 subagent 包）——它们
+     * 不在「实验性」定义里，可官方页面照样列出来标「未安装」，漏掉就少两行。
+     */
     val derivedMoreBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
         bridgeCatalog.bundles
-            .filter { it.optional }
             .map { it.toPluginBundleItem() }
-            .filterNot(::pinnedToMainList)
+            .filter { bundle ->
+                bundle.official && (
+                    if (bundle.isExperimental) {
+                        !pinnedToMainList(bundle)
+                    } else {
+                        !bundle.installed && bundle.availability != "installation"
+                    }
+                    )
+            }
+            .filterNot { BUILTIN_PROFILE_BUNDLES.contains(it.packageName) }
             .sortedBy { optionalBundleRank(it.packageName) }
     }
     val derivedInstalledBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
@@ -224,8 +287,58 @@ fun PluginsScreen(
         fromBridge.ifEmpty { pluginManagerSnapshot?.installedBundles.orEmpty() }
     }
 
+    /**
+     * 已安装的第三方「行插件」。
+     *
+     * 走 patch 挂上的插件没有 bundle 记录，Host 只把它们报成 Loader 行
+     * （`pluginManager/listPlugins`）。只列第三方：官方模块与 bridge 自己是
+     * 基础层，停用/卸载都不该出现在用户列表里。
+     */
+    val derivedInstalledRows = remember(pluginRows) {
+        pluginRows.filter { row ->
+            val module = row.moduleName
+            module.isNotBlank() &&
+                !module.startsWith("@deepseek-ai/") &&
+                !module.startsWith("cordis:") &&
+                module != BRIDGE_PLUGIN_PACKAGE &&
+                row.entryId != null
+        }
+    }
+
     fun keyOf(item: SurfaceItem): String = "${item.pluginId}::${item.slot}"
     fun enabledOf(item: SurfaceItem): Boolean = keyOf(item) !in disabledPlugins
+
+    /**
+     * 子页面与 App 顶栏的协作。
+     *
+     * 详情页/「更多插件」页都渲染在本页内部，而返回按钮画在 App 的 [PageBackBar] 里，
+     * 两者不在同一棵组合树：本页只能用「上报开关 + 消费信号」这一对参数跟顶栏沟通。
+     * 打开子页面时报 `true`，顶栏的返回就只关子页面、不离开插件页；关完报 `false`，
+     * 返回恢复成「离开插件页」。子页面自己不再画返回箭头 —— 否则一条返回会出现两次。
+     */
+    val detailOpen = selectedBundle != null ||
+        selectedNativePlugin != null ||
+        selectedConfig != null ||
+        showMorePlugins ||
+        selectedPlugin != null
+    LaunchedEffect(detailOpen) { onDetailOpenChange(detailOpen) }
+    // 离开插件页时（例如从抽屉切走）把开关复位，避免下次进页面时返回键被吃掉一次。
+    DisposableEffect(Unit) {
+        onDispose { onDetailOpenChange(false) }
+    }
+    // 顶栏返回的点击计数：只消费比上次更大的信号，避免重组时重复关闭。
+    var handledBackSignal by remember { mutableStateOf(0) }
+    LaunchedEffect(backSignal) {
+        if (backSignal <= handledBackSignal) return@LaunchedEffect
+        handledBackSignal = backSignal
+        when {
+            selectedConfig != null -> selectedConfig = null
+            selectedBundle != null -> selectedBundle = null
+            selectedNativePlugin != null -> selectedNativePlugin = null
+            showMorePlugins -> showMorePlugins = false
+            selectedPlugin != null -> selectedPlugin = null
+        }
+    }
 
     val bundleDetail = selectedBundle
     if (bundleDetail != null) {
@@ -233,8 +346,8 @@ fun PluginsScreen(
             Box(modifier = modifier.fillMaxSize().background(colors.bgBase)) {
                 BundleDetailContent(
                     bundle = bundleDetail,
-                    onBack = { selectedBundle = null },
                     onToggle = { enabled -> onToggleBundle(bundleDetail.packageName, enabled) },
+                    onToggleComponent = onToggleComponent,
                     onUninstall = { onUninstall(SurfaceItem(pluginId = bundleDetail.packageName, slot = "host.bundle", title = bundleDetail.title)) },
                 )
             }
@@ -249,7 +362,30 @@ fun PluginsScreen(
         ) {
             val detail = selectedPlugin
             val nativeDetail = selectedNativePlugin
-            if (nativeDetail != null) {
+            val configDetail = selectedConfig
+            if (configDetail != null) {
+                // 「内置插件配置」的详情。
+                //
+                // 四个官方页面（子智能体 / 网页搜索 / Agent 循环 / 终端）在
+                // `OfficialSettings.kt` 里有逐字段的原生复刻（文案逐条对照官方
+                // 中文词典、保存语义与官方一致），优先走它；其余条目用 Host
+                // 投影出来的通用表单兜底，保证每一行都能打开且能写回 Host。
+                if (hasOfficialPluginSettingsPage(configDetail.id)) {
+                    OfficialPluginSettingsPage(
+                        itemId = configDetail.id,
+                        onBack = { selectedConfig = null },
+                        loadDocument = loadPluginSettings,
+                        saveDocument = savePluginSettings,
+                    )
+                } else {
+                    PluginSettingsEditorPage(
+                        title = configDetail.title,
+                        namespaces = configDetail.namespaces,
+                        load = loadPluginSettings,
+                        save = savePluginSettings,
+                    )
+                }
+            } else if (nativeDetail != null) {
                 NativePluginDetailPage(
                     item = nativeDetail,
                     onBack = { selectedNativePlugin = null },
@@ -257,9 +393,9 @@ fun PluginsScreen(
                 )
             } else if (showMorePlugins) {
                 // 「更多插件」单独页面：实验性分组头部的「更多 ›」进入。
+                // 返回由 App 顶栏承载（`backSignal`），页面内不再重复画箭头。
                 MorePluginsScreen(
                     bundles = derivedMoreBundles,
-                    onBack = { showMorePlugins = false },
                     onOpen = { selectedBundle = it },
                     onToggle = { bundle, enabled -> onToggleBundle(bundle.packageName, enabled) },
                 )
@@ -338,7 +474,11 @@ fun PluginsScreen(
                             )
                         }
                         itemsIndexed(officialConfigItems, key = { index, item -> "official_config_${index}_${item.id}" }) { index, item ->
-                            OfficialConfigRow(item = item, showDivider = index != officialConfigItems.lastIndex)
+                            OfficialConfigRow(
+                                item = item,
+                                showDivider = index != officialConfigItems.lastIndex,
+                                onClick = { selectedConfig = item },
+                            )
                         }
                     }
 
@@ -419,7 +559,8 @@ fun PluginsScreen(
                     }
 
                     val hostBundles = derivedInstalledBundles
-                    if (surfaces.isEmpty() && hostBundles.isEmpty()) {
+                    val hostRows = derivedInstalledRows
+                    if (surfaces.isEmpty() && hostBundles.isEmpty() && hostRows.isEmpty()) {
                         item(key = "installed_empty") {
                             Text(
                                 text = "还没有安装任何插件。",
@@ -438,7 +579,8 @@ fun PluginsScreen(
                             ) { index, bundle ->
                                 InstalledHostBundleRow(
                                     bundle = bundle,
-                                    showDivider = index != hostBundles.lastIndex || surfaces.isNotEmpty(),
+                                    showDivider = index != hostBundles.lastIndex ||
+                                        surfaces.isNotEmpty() || hostRows.isNotEmpty(),
                                     onOpen = { selectedBundle = bundle },
                                     onToggle = { enabled ->
                                         onToggleBundle(bundle.packageName, enabled)
@@ -453,6 +595,35 @@ fun PluginsScreen(
                                         )
                                     },
                                     locked = isLockedBundle(bundle.packageName),
+                                )
+                            }
+                        }
+
+                        // 1.2 再渲染第三方「行插件」：patch 挂上的插件没有 bundle
+                        // 记录，Host 只把它们报成 Loader 行；不列出来，用户装了插件
+                        // 也会看到空列表。
+                        if (hostRows.isNotEmpty()) {
+                            itemsIndexed(
+                                items = hostRows,
+                                key = { index, row -> "host_row_${index}_${row.moduleName}" },
+                            ) { index, row ->
+                                InstalledPluginRowItem(
+                                    row = row,
+                                    showDivider = index != hostRows.lastIndex || surfaces.isNotEmpty(),
+                                    onToggle = { enabled ->
+                                        row.entryId?.let { entryId ->
+                                            onTogglePluginRow(entryId, enabled)
+                                        }
+                                    },
+                                    onUninstall = {
+                                        onUninstall(
+                                            SurfaceItem(
+                                                pluginId = row.moduleName,
+                                                slot = "plugin.row",
+                                                title = row.title,
+                                            )
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -555,13 +726,16 @@ private fun BridgePluginBundleSummary.toPluginBundleItem(): PluginBundleItem = P
     removable = removable,
     error = errorCode,
     iconData = iconDataUrl,
-    rows = rows.map { row ->
+            rows = rows.map { row ->
         PluginComponentInfo(
             rowId = row.rowId,
             moduleName = row.moduleName,
             title = row.title,
             description = row.description.orEmpty(),
-            enabled = true,
+            // Host 报的开关状态就是真实状态：不要写死 `true`，否则详情页的
+            // 「N 运行中」和每一行的开关都会和 Host 不一致。
+            enabled = row.enabled == true,
+            entryId = row.entryId,
         )
     },
 )
@@ -1034,8 +1208,8 @@ private fun SduiFeatureCard(
 @Composable
 private fun BundleDetailContent(
     bundle: PluginBundleItem,
-    onBack: () -> Unit,
     onToggle: (Boolean) -> Unit,
+    onToggleComponent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
 ) {
     val colors = LocalDshPanelColors.current
@@ -1045,20 +1219,8 @@ private fun BundleDetailContent(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = PluginsDimens.PageHorizontal, vertical = PluginsDimens.PageTop),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("‹", color = colors.labelPrimary, fontSize = 26.sp)
-            }
-            Spacer(Modifier.width(8.dp))
-            Text("插件", color = colors.labelSecondary, fontSize = 12.sp)
-        }
-        Spacer(Modifier.height(18.dp))
+        // 返回不放这里：App 顶栏的 [PageBackBar] 已经在页面顶部画了返回，
+        // 子页面再画一条会让顶部出现两条返回（用户明确要求复用顶栏）。
         // 头部：真实图标 + 标题 / 描述 / 包名，成一块；右侧只放开关或「必需」标记。
         Row(verticalAlignment = Alignment.Top) {
             BundleArtwork(bundle)
@@ -1151,8 +1313,23 @@ private fun BundleDetailContent(
                     Text(component.description.ifBlank { component.moduleName }, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(component.moduleName, color = colors.labelTertiary, fontFamily = FontFamily.Monospace, fontSize = 10.5.sp)
                 }
-                Text("运行中", color = colors.labelSecondary, fontSize = 11.sp)
-                DshSwitch(checked = component.enabled, onCheckedChange = { /* 组件启停暂由 bundle 控制 */ })
+                // 开关反映这一行的真实状态（Host 的 Loader inventory），拨动后
+                // 由 Host 只重载这一行；Host 没把这一行解析成 Loader 入口时没有
+                // 可拨的目标，开关保持禁用而不是假装能开。
+                Text(
+                    text = if (component.enabled) "运行中" else "已停用",
+                    color = if (component.enabled) colors.labelSecondary else colors.labelTertiary,
+                    fontSize = 11.sp,
+                )
+                DshSwitch(
+                    checked = component.enabled,
+                    enabled = component.entryId != null,
+                    onCheckedChange = { enabled ->
+                        component.entryId?.let { entryId ->
+                            onToggleComponent(entryId, enabled)
+                        }
+                    },
+                )
             }
         }
         Spacer(Modifier.height(28.dp))
@@ -1274,22 +1451,31 @@ private fun PluginMetaIcon(iconData: String?, size: Dp, radius: Dp, glyphSize: D
     }
 }
 
-private data class OfficialConfigItem(
-    val id: String,
-    val title: String,
-    val description: String,
-    val iconRes: Int,
-    /** bridge 提供的官方 SVG 图形；非空时优先于 [iconRes]。 */
-    val iconSvg: String? = null,
-)
+/** 一个官方 `plugins.item` 分类之外的设置入口 id。 */
+private const val OTHER_SETTINGS_ROW_ID = "__other_settings__"
+
+/**
+ * 官方客户端 bundle 里的插槽目录示例包。
+ *
+ * 它把文档里的示例注册（`id: my-entry / label: My entry`）也当成了真实注册，
+ * 每个 slot 都有一条；那不是插件页面，列出来只会在设置里多一行打不开的
+ * 「My entry」，所以在装配「内置插件配置」时整体排除。
+ */
+private const val CORDIS_CLIENT_RUNNER_PACKAGE = "@deepseek-ai/dsh-cordis-client-runner"
 
 @Composable
-private fun OfficialConfigRow(item: OfficialConfigItem, showDivider: Boolean) {
+private fun OfficialConfigRow(
+    item: ConfigEntryRow,
+    showDivider: Boolean,
+    onClick: () -> Unit,
+) {
     val colors = LocalDshPanelColors.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1310,12 +1496,6 @@ private fun OfficialConfigRow(item: OfficialConfigItem, showDivider: Boolean) {
                         tint = colors.labelPrimary,
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else if (item.iconRes != 0) {
-                    androidx.compose.foundation.Image(
-                        painter = painterResource(id = item.iconRes),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                    )
                 } else {
                     // 没有图标（Host 设置页条目本来就没有图标字段）：画默认插件图标。
                     // 这是视觉占位，不是掩盖——painterResource(0) 才是要避开的崩溃。
@@ -1334,6 +1514,72 @@ private fun OfficialConfigRow(item: OfficialConfigItem, showDivider: Boolean) {
                 }
             }
             Text("›", color = colors.labelTertiary, fontSize = 18.sp)
+        }
+        if (showDivider) {
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(colors.borderL4))
+        }
+    }
+}
+
+/**
+ * 已安装的第三方「行插件」：标题/说明 + 真实开关 + 卸载。
+ *
+ * 这类插件不是 bundle，Host 用 `setPluginEnabled` 直接重载这一行；开关状态
+ * 跟着 `pluginManager/listPlugins` 报的 `enabled` 走。
+ */
+@Composable
+private fun InstalledPluginRowItem(
+    row: PluginRowInfo,
+    showDivider: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onUninstall: () -> Unit,
+) {
+    val colors = LocalDshPanelColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            PluginMetaIcon(iconData = row.iconData, size = 40.dp, radius = 12.dp, glyphSize = 18.dp)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = row.title.ifBlank { row.moduleName },
+                    color = colors.labelPrimary,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = row.description.ifBlank { row.moduleName },
+                    color = colors.labelTertiary,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            DshSwitch(checked = row.enabled, onCheckedChange = onToggle)
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onUninstall),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
+                    contentDescription = "卸载",
+                    tint = colors.stateErrorPrimary,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
         if (showDivider) {
             Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(colors.borderL4))
@@ -1374,6 +1620,8 @@ private fun InstalledHostBundleRow(
     onOpen: () -> Unit = {},
     /** 必需的基础设施插件：只能查看，不能停用或卸载。 */
     locked: Boolean = false,
+    /** 设备上装不上的包（`availability = missing`）：开关没有意义，禁用。 */
+    toggleEnabled: Boolean = true,
 ) {
     val colors = LocalDshPanelColors.current
     val rowInteraction = remember { MutableInteractionSource() }
@@ -1455,7 +1703,8 @@ private fun InstalledHostBundleRow(
             } else {
                 DshSwitch(
                     checked = bundle.enabled,
-                    onCheckedChange = onToggle
+                    onCheckedChange = onToggle,
+                    enabled = toggleEnabled,
                 )
                 Box(
                     modifier = Modifier
@@ -1599,37 +1848,8 @@ private fun PluginDetailContent(
                 bottom = PluginsDimens.PageBottom,
             ),
     ) {
-        // 面包屑：‹ 插件
-        val crumbInteraction = remember { MutableInteractionSource() }
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(
-                    interactionSource = crumbInteraction,
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onBack,
-                )
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_left),
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(14.dp),
-            )
-            Text(
-                text = "插件",
-                color = colors.labelTertiary,
-                fontSize = 12.5.sp,
-                lineHeight = 20.sp,
-            )
-        }
-
-        Spacer(Modifier.height(32.dp))
-
+        // 返回不放这里：App 顶栏的 [PageBackBar] 已经画了返回，详情页再画一条
+        // 面包屑就是第二条返回。用户明确要求复用顶栏。
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -2065,11 +2285,13 @@ private fun PluginsInstallDialog(
 /**
  * 「更多插件」页面：实验性分组头部的「更多 ›」进入，列全部默认收起的实验性插件。
  * 与主列表同一套行样式。
+ *
+ * 这一页**不画返回箭头**：返回由 App 顶栏的 [PageBackBar] 提供（见 PluginsScreen 里的
+ * `backSignal` 处理）。同一个动作画两次会让页面顶部出现两条返回。
  */
 @Composable
 private fun MorePluginsScreen(
     bundles: List<PluginBundleItem>,
-    onBack: () -> Unit,
     onOpen: (PluginBundleItem) -> Unit,
     onToggle: (PluginBundleItem, Boolean) -> Unit,
 ) {
@@ -2079,26 +2301,16 @@ private fun MorePluginsScreen(
             .fillMaxSize()
             .background(colors.bgBase),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            androidx.compose.material3.IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = colors.labelPrimary,
-                )
-            }
-            Text(
-                text = "实验性插件",
-                color = colors.labelPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
+        // 只留标题（说明当前在哪个子页），返回箭头交给顶栏。
+        PluginsGroupTitle(
+            text = "实验性插件",
+            modifier = Modifier.padding(
+                start = PluginsDimens.PageHorizontal,
+                end = PluginsDimens.PageHorizontal,
+                top = PluginsDimens.PageTop,
+                bottom = PluginsDimens.GroupTitleGap,
+            ),
+        )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -2118,6 +2330,8 @@ private fun MorePluginsScreen(
                     onToggle = { enabled -> onToggle(bundle, enabled) },
                     onUninstall = { },
                     locked = isLockedBundle(bundle.packageName),
+                    // 设备上装不上的包（`availability = missing`）没有可拨的状态。
+                    toggleEnabled = bundle.availability != "missing",
                 )
             }
         }

@@ -272,6 +272,8 @@ data class BridgeBundleRow(
     val description: String? = null,
     val icon: String? = null,
     val enabled: Boolean? = null,
+    /** Loader 入口 id；行没被 Host 解析成入口时为空，也就不能拨动它的开关。 */
+    val entryId: String? = null,
 )
 
 /** `package-inventory` 的一条 Loader row。 */

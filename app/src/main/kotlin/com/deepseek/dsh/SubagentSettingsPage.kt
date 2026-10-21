@@ -1,7 +1,7 @@
 package com.deepseek.dsh
 
 /**
- * 「子智能体设置」页的字段表。
+ * 「子智能体」页的字段表。
  *
  * 逐条对照官方 `@deepseek-ai/dsh-client-ui-settings-subagent` 的 `SubagentCard`：
  *
@@ -17,7 +17,7 @@ package com.deepseek.dsh
  * `subagentModelSelectionChoose`/`subagentModelSelectionOff`）。
  */
 internal val SUBAGENT_SETTINGS_PAGE: OfficialPageSpec = OfficialPageSpec(
-    title = "子智能体设置",
+    title = "子智能体",
     description = "设置子智能体的递归层级、数量和模型。",
     fields = listOf(
         OfficialField(

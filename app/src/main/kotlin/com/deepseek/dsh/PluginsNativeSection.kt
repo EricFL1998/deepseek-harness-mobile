@@ -271,17 +271,7 @@ fun NativePluginDetailPage(
 ) {
     val colors = LocalDshPanelColors.current
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "‹ 原生插件",
-                color = colors.labelPrimary,
-                fontSize = 15.sp,
-                modifier = Modifier.clickable(onClick = onBack).padding(8.dp),
-            )
-        }
+        // 返回不放这里：App 顶栏已经有返回条，页面内再画一条就是第二条返回。
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(24.dp),

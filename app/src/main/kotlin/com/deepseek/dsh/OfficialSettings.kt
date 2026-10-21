@@ -117,6 +117,16 @@ private val OFFICIAL_PAGES: Map<String, OfficialPageSpec> = mapOf(
  */
 fun hasOfficialPluginSettingsPage(itemId: String): Boolean = OFFICIAL_PAGES.containsKey(itemId)
 
+/**
+ * 官方页面读写的设置命名空间。
+ *
+ * 插件页的「内置插件配置」用它把一行对应到真实文档；没有逐字段复刻页面时
+ * 返回 null，调用方回落到按命名空间前缀匹配。
+ * @param itemId 官方 `plugins.item` 注册 id。
+ * @returns 命名空间列表，或 null。
+ */
+fun officialSettingsNamespaces(itemId: String): List<String>? = OFFICIAL_PAGES[itemId]?.namespaces
+
 /** 一个命名空间的加载结果。 */
 private sealed interface DocState {
     data object Loading : DocState

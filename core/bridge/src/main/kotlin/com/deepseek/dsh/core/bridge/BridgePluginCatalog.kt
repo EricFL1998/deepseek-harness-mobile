@@ -116,6 +116,7 @@ object BridgePluginCatalog {
                         description = row.description,
                         iconDataUrl = row.icon,
                         enabled = row.enabled,
+                        entryId = row.entryId,
                     )
                 },
             )
@@ -260,4 +261,6 @@ data class BridgePluginRowSummary(
     val iconDataUrl: String?,
     /** Whether this row is enabled; null means the Host did not report it. */
     val enabled: Boolean? = null,
+    /** The Loader entry this row resolves to, when the Host reports one. */
+    val entryId: String? = null,
 )
