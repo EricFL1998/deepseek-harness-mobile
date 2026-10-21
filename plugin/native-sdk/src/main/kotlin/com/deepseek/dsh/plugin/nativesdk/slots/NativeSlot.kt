@@ -25,6 +25,12 @@ enum class NativeSlot {
     /** 设置页 / 插件页（Sheet）。承载 settings.section、settings.general.item、plugins.tab。 */
     SETTINGS_SHEET,
 
+    /**
+     * 设置 → 模型页每个 provider 卡片下方的扩展区
+     * （官方 keyed slot `settings.models.provider-card`）。
+     */
+    SETTINGS_PROVIDER_CARD,
+
     /** 侧栏面板。承载 sidebar.workspaces、sidebar.panellist、sidebar.right.pane.* 等。 */
     SIDEBAR_PANEL,
 

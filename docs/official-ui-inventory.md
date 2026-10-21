@@ -5,9 +5,9 @@
 
 ## 概览
 
-- 官方 slot：30
+- 官方 slot：31
 - 官方注册条目：145
-- 已映射 NativeSlot：30
+- 已映射 NativeSlot：31
 - 未映射官方 slot：0
 - 已映射但无宿主：0
 - composer.dock 注册条目未拆成原生落点：0
@@ -36,6 +36,7 @@
 | `conversation.view` | `CONVERSATION_VIEW` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt | `chat`, `trajectory` |
 | `plugins.tab` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt | `discover` |
 | `settings.general.item` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt | `permission`, `language`, `appearance`, `font-size`, `transcript-view`, `developer-tools`, `shortcuts`, `link-opening`, `composer-enter`, `performance-usage`, `UploadRow`, `current-version` |
+| `settings.models.provider-card` | `SETTINGS_PROVIDER_CARD` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsModelsPane.kt | — |
 | `settings.section` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt | `account`, `general`, `models`, `plugins`, `agent-presets` |
 | `shell.overlay` | `PLUGIN_OVERLAY` | app\src\main\kotlin\com\deepseek\dsh\MainActivity.kt | `TerminalCleanup`, `account.platform-page`, `chat.quota-notice`, `desktop-onboarding`, `host-release-change`, `plugin-manager.refresh-toast`, `schedule.delete-toast`, `session-log-upload-toast`, `shortcuts`, `workspace.row-toast`, `workspace.session-archive`, `workspace.session-rename` |
 | `sidebar.panellist` | `SIDEBAR_PANEL` | app\src\main\kotlin\com\deepseek\dsh\MainActivity.kt | `PluginsPanelIcon`, `TaskManagerIcon` |
@@ -222,6 +223,7 @@
 - `conversation.view <- dsh-upstream\packages\client\ui-conversation\src\client\apply.ts`
 - `plugins.tab <- dsh-upstream\packages\client\ui-plugin-manager\src\client\index.ts`
 - `settings.general.item <- dsh-upstream\packages\client\ui-settings-general\src\client\index.ts`
+- `settings.models.provider-card <- dsh-upstream\packages\client\ui-settings-models\src\client\index.ts`
 - `settings.section <- dsh-upstream\packages\client\ui-settings-general\src\client\index.ts`
 - `shell.overlay <- dsh-upstream\packages\client\ui-layout\src\client\index.ts`
 - `sidebar.panellist <- dsh-upstream\packages\client\ui-sidebar\src\client\index.ts`

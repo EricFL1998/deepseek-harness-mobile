@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.serialization.json.put
 
 /**
  * 模型设置（对齐官方 ModelsSection / ProviderEditor）。
@@ -129,6 +130,16 @@ internal fun SettingsModelsPane(
                         }
                     }
                 }
+                // settings.models.provider-card（keyed slot）：订阅/额度/第三方登录
+                // 等插件扩展块，按 provider 卡片就地渲染。
+                com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                    slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.SETTINGS_PROVIDER_CARD,
+                    spec = kotlinx.serialization.json.buildJsonObject {
+                        put("provider", provider.id)
+                        put("displayName", provider.name)
+                    },
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
         item(key = "models_add") {

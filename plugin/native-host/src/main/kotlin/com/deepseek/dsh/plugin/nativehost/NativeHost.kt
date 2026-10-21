@@ -29,6 +29,11 @@ object NativeHost {
      */
     @Volatile
     var rpcHandler: (suspend (method: String, payload: kotlinx.serialization.json.JsonObject) -> Result<String>)? = null
+
+    /** 当前会话的模型/推理档位选择器；由 App 聊天页注入。 */
+    @Volatile
+    var modelSelectHandler:
+        (suspend (provider: String, model: String, reasoningEffort: String?) -> Result<Unit>)? = null
 }
 
 /**

@@ -34,5 +34,6 @@ object DshSlotRegistry {
     const val SHELL_OVERLAY: String = "shell.overlay"
     const val SETTINGS_SECTION: String = "settings.section"
     const val SETTINGS_GENERAL_ITEM: String = "settings.general.item"
+    const val SETTINGS_MODELS_PROVIDER_CARD: String = "settings.models.provider-card"
     const val PLUGINS_TAB: String = "plugins.tab"
 }

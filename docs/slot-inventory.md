@@ -4,8 +4,8 @@
 > `mapped` 是 `NativeSlotMapping` 的声明，`hosted` 是 App 源码里真实出现的
 > `NativeSlotHost`/`NativeSlot.X` 引用。两者不一致时工具失败。
 
-- 官方 slot 常量：30
-- 已映射：30
+- 官方 slot 常量：31
+- 已映射：31
 - 明确不支持：0
 - 未覆盖：0
 - 声明了映射但未找到宿主：0
@@ -18,9 +18,9 @@
 | `conversation.chat.reasoning.body` | `CHAT_STREAM` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.chat.turnTail` | `CHAT_STREAM` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.composer.bar` | `COMPOSER_BAR` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
-| `conversation.composer.dock` | `COMPOSER_DOCK` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt<br>plugin\native-host\src\main\kotlin\com\deepseek\dsh\plugin\nativehost\NativeHost.kt |
+| `conversation.composer.dock` | `COMPOSER_DOCK` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ComposerDockBar.kt<br>plugin\native-host\src\main\kotlin\com\deepseek\dsh\plugin\nativehost\NativeHost.kt |
 | `conversation.input.attachments` | `COMPOSER_ATTACHMENTS` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
-| `conversation.input.dock` | `COMPOSER_DOCK` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt<br>plugin\native-host\src\main\kotlin\com\deepseek\dsh\plugin\nativehost\NativeHost.kt |
+| `conversation.input.dock` | `COMPOSER_DOCK` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ComposerDockBar.kt<br>plugin\native-host\src\main\kotlin\com\deepseek\dsh\plugin\nativehost\NativeHost.kt |
 | `conversation.input.left` | `COMPOSER_LEFT` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.input.model` | `COMPOSER_MODEL` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.input.overlay` | `COMPOSER_OVERLAY` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
@@ -32,6 +32,7 @@
 | `conversation.view` | `CONVERSATION_VIEW` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `plugins.tab` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt |
 | `settings.general.item` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt |
+| `settings.models.provider-card` | `SETTINGS_PROVIDER_CARD` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsModelsPane.kt |
 | `settings.section` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt |
 | `shell.overlay` | `PLUGIN_OVERLAY` | app\src\main\kotlin\com\deepseek\dsh\MainActivity.kt |
 | `sidebar.panellist` | `SIDEBAR_PANEL` | app\src\main\kotlin\com\deepseek\dsh\MainActivity.kt |

@@ -1,6 +1,7 @@
 package com.deepseek.dsh.plugin.nativehost
 
 import com.deepseek.dsh.plugin.nativesdk.host.PluginHostApi
+import com.deepseek.dsh.plugin.nativesdk.host.PluginModelHost
 import com.deepseek.dsh.plugin.nativesdk.host.PluginRpcHost
 import com.deepseek.dsh.plugin.nativesdk.host.PluginStorage
 import com.deepseek.dsh.plugin.nativesdk.theme.PluginTheme
@@ -21,8 +22,24 @@ import kotlinx.serialization.json.JsonObject
  */
 internal class SlotBridgeHost(
     private val delegate: PluginHostApi,
-) : PluginHostApi, PluginRpcHost {
+) : PluginHostApi, PluginRpcHost, PluginModelHost {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    override fun selectModel(
+        provider: String,
+        model: String,
+        reasoningEffort: String?,
+        onResult: (Result<Unit>) -> Unit,
+    ) {
+        scope.launch {
+            val handler = NativeHost.modelSelectHandler
+            if (handler == null) {
+                onResult(Result.failure(IllegalStateException("当前页面不支持切换模型")))
+                return@launch
+            }
+            onResult(handler(provider, model, reasoningEffort))
+        }
+    }
 
     override fun callRpc(method: String, payload: JsonObject, onResult: (Result<JsonElement>) -> Unit) {
         scope.launch {

@@ -21,6 +21,7 @@
     "conversation.view",
     "plugins.tab",
     "settings.general.item",
+    "settings.models.provider-card",
     "settings.section",
     "shell.overlay",
     "sidebar.panellist",
@@ -1688,6 +1689,7 @@
     "shell.overlay": "PLUGIN_OVERLAY",
     "settings.section": "SETTINGS_SHEET",
     "settings.general.item": "SETTINGS_SHEET",
+    "settings.models.provider-card": "SETTINGS_PROVIDER_CARD",
     "plugins.tab": "SETTINGS_SHEET"
   },
   "hosts": {
@@ -1724,6 +1726,9 @@
     "COMPOSER_PERMISSION": [
       "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
     ],
+    "COMPOSER_RIGHT": [
+      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
+    ],
     "COMPOSER_MODEL": [
       "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
     ],
@@ -1731,9 +1736,6 @@
       "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
     ],
     "COMPOSER_OVERLAY": [
-      "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
-    ],
-    "COMPOSER_RIGHT": [
       "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ChatScreen.kt"
     ],
     "COMPOSER_DOCK_ACTIVITY": [
@@ -1748,6 +1750,9 @@
     "COMPOSER_DOCK": [
       "feature\\chat\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\chat\\ComposerDockBar.kt",
       "plugin\\native-host\\src\\main\\kotlin\\com\\deepseek\\dsh\\plugin\\nativehost\\NativeHost.kt"
+    ],
+    "SETTINGS_PROVIDER_CARD": [
+      "feature\\settings\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\settings\\SettingsModelsPane.kt"
     ],
     "SETTINGS_SHEET": [
       "feature\\settings\\src\\main\\kotlin\\com\\deepseek\\dsh\\feature\\settings\\SettingsRootScreen.kt"
@@ -1780,6 +1785,7 @@
     "conversation.view <- dsh-upstream\\packages\\client\\ui-conversation\\src\\client\\apply.ts",
     "plugins.tab <- dsh-upstream\\packages\\client\\ui-plugin-manager\\src\\client\\index.ts",
     "settings.general.item <- dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
+    "settings.models.provider-card <- dsh-upstream\\packages\\client\\ui-settings-models\\src\\client\\index.ts",
     "settings.section <- dsh-upstream\\packages\\client\\ui-settings-general\\src\\client\\index.ts",
     "shell.overlay <- dsh-upstream\\packages\\client\\ui-layout\\src\\client\\index.ts",
     "sidebar.panellist <- dsh-upstream\\packages\\client\\ui-sidebar\\src\\client\\index.ts",

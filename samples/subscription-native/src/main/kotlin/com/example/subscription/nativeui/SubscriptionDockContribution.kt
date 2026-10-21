@@ -36,6 +36,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import kotlin.math.roundToInt
 
@@ -70,6 +71,14 @@ class SubscriptionDockContribution : SlotContribution() {
                     return@LaunchedEffect
                 }
                 kotlinx.coroutines.delay(if (attempt == 0) 800L else 2_000L)
+            }
+        }
+        // Web 版 UsageChip 每 60 秒刷新；原生 dock 同样周期刷新。
+        LaunchedEffect(modelId, data != null) {
+            if (data == null) return@LaunchedEffect
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                loadDockData(rpc, modelId)?.let { data = it }
             }
         }
 
@@ -195,10 +204,17 @@ private suspend fun balanceData(rpc: PluginRpcHost): DockData? {
         currency to text
     }
     if (rows.isEmpty()) return null
+    val withBonus = rows.toMutableList()
+    (value["bonusWallets"] as? JsonArray)?.forEach { element ->
+        val wallet = element as? JsonObject ?: return@forEach
+        val amount = wallet.str("balance").toDoubleOrNull() ?: return@forEach
+        if (amount <= 0) return@forEach
+        withBonus += "赠金 ${wallet.str("currency")}" to "+${formatMoney(wallet.str("currency"), wallet.str("balance"))}"
+    }
     return DockData(
         compact = "DeepSeek ${rows.first().second}",
         title = "DeepSeek Account 额度",
-        rows = rows,
+        rows = withBonus,
     )
 }
 
@@ -217,13 +233,19 @@ private suspend fun usageData(rpc: PluginRpcHost, status: JsonElement?, provider
     var compactPercent: Int? = null
     for (element in accounts) {
         val account = element as? JsonObject ?: continue
+        val plan = account.str("plan").ifBlank { account.str("account") }
         val windows = account["windows"] as? JsonArray ?: continue
         for (windowElement in windows) {
             val window = windowElement as? JsonObject ?: continue
             val label = window.str("label").ifBlank { "额度" }
             val percent = window["usedPercent"]?.jsonPrimitive?.doubleOrNull ?: continue
             compactPercent = compactPercent ?: percent.roundToInt()
-            rows += label to "${percent.roundToInt()}%"
+            val reset = (window["resetsAt"] as? JsonPrimitive)?.longOrNull?.let(::resetLabel)
+            val rowLabel = if (plan.isBlank()) label else "$plan · $label"
+            rows += rowLabel to buildString {
+                append(percent.roundToInt()).append('%')
+                if (!reset.isNullOrBlank()) append(" · ").append(reset)
+            }
         }
     }
     if (rows.isEmpty()) return null
@@ -302,8 +324,18 @@ private fun rpcValue(body: JsonElement): JsonObject? {
 private fun JsonObject.str(key: String): String =
     (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
 
-private fun formatMoney(currency: String, raw: String): String {
-    val amount = raw.toDoubleOrNull()?.let { String.format("%.2f", it) } ?: raw
+private fun resetLabel(resetsAt: Long): String {
+    val remaining = resetsAt - System.currentTimeMillis()
+    if (remaining <= 0) return "即将重置"
+    val hours = remaining / 3_600_000
+    return when {
+        hours < 1 -> "${(remaining / 60_000).coerceAtLeast(1)}m 后重置"
+        hours < 24 -> "${hours}h 后重置"
+        else -> "${hours / 24}d 后重置"
+    }
+}
+
+private fun formatMoney(currency: String, raw: String): String {    val amount = raw.toDoubleOrNull()?.let { String.format("%.2f", it) } ?: raw
     val symbol = when (currency) {
         "CNY" -> "¥"
         "USD" -> "$"

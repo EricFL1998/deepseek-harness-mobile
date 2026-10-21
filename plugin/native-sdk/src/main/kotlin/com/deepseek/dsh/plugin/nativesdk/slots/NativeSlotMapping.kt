@@ -52,6 +52,7 @@ object NativeSlotMapping {
         "shell.overlay" to NativeSlot.PLUGIN_OVERLAY,
         "settings.section" to NativeSlot.SETTINGS_SHEET,
         "settings.general.item" to NativeSlot.SETTINGS_SHEET,
+        "settings.models.provider-card" to NativeSlot.SETTINGS_PROVIDER_CARD,
         "plugins.tab" to NativeSlot.SETTINGS_SHEET,
     )
 

@@ -1885,6 +1885,19 @@ fun MainAppHost(
                                 },
                                 selectedModel = currentModel,
                                 selectedModelId = effectiveModelIdByName[currentModel] ?: currentModel,
+                                onNativeModelSelect = { provider, model, effort ->
+                                    runCatching {
+                                        val sid = selectedSessionId
+                                            ?: error("没有活跃会话，无法切换 fast 模式")
+                                        dshRepository.selectModel(
+                                            activeHostId,
+                                            sid,
+                                            model,
+                                            provider,
+                                            effort,
+                                        )
+                                    }
+                                },
                                 availableModels = availableModelNames,
                                 agentPresetLabel = com.deepseek.dsh.feature.chat.agentPresetLabel(
                                     pendingAgentPreset ?: currentAppSettings.transcriptView

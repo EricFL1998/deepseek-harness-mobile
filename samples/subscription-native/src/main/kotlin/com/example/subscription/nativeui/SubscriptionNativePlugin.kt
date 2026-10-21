@@ -46,6 +46,10 @@ class SubscriptionNativePlugin : DshUiPlugin {
         SlotRegistry.register(SubscriptionSettingsContribution())
         // 输入框 dock：订阅额度胶囊。
         SlotRegistry.register(SubscriptionDockContribution())
+        // 设置 → 模型页 provider 卡片扩展（keyed settings.models.provider-card）。
+        SlotRegistry.register(ProviderCardExtrasContribution())
+        // 模型选择器左侧的快切模式按钮（conversation.input.right）。
+        SlotRegistry.register(FastModeContribution())
         PageRegistry.register(SubscriptionSettingsPage())
     }
 }

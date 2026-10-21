@@ -1,5 +1,14 @@
 # 订阅插件：原生 UI 缺口（自动扫描 + 人工核对）
 
+> **更新（2026-10-21）：`ProviderCardExtras` 与 `FastModeButton` 已补齐。**
+> - 新增 `SETTINGS_PROVIDER_CARD` 宿主与 `ProviderCardExtrasContribution`；
+> - 新增 `PluginModelHost` + `SlotBridgeHost.selectModel`，`COMPOSER_RIGHT` 上的
+>   `FastModeContribution` 已接 `model-variants`；
+> - 扫描器带 `--companion` 已通过（4/4 落点实现）；下方原始报告保留作记录。
+>
+> 仍待补齐的细节见第 3 节（dock 面板细化、设备码复制、签到/任务成功反馈等）。
+
+
 > 扫描对象：`dsh-plugin-subscription-oauth@0.17.17` 的插件源码（source map 内嵌 TSX）。
 > 工具：`python tools/plugin_ui_scanner.py --plugin <pkg> --companion <native-src>`
 >

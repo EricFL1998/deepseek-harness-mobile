@@ -1,5 +1,7 @@
 package com.deepseek.dsh.feature.chat
 
+import kotlinx.serialization.json.put
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -189,6 +191,9 @@ fun ModernChatScreen(
     selectedModel: String = "",
     /** 当前模型 id（如 deepseek-account/deepseek-flash、kimi-for-coding），传给 dock 解析 provider。 */
     selectedModelId: String = "",
+    /** 原生落点要求切换模型/推理档位（如插件 fast-mode 按钮）。 */
+    onNativeModelSelect: suspend (provider: String, model: String, reasoningEffort: String?) -> Result<Unit> =
+        { _, _, _ -> Result.failure(IllegalStateException("不支持切换模型")) },
     availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     onModelSelected: (String) -> Unit = {},
@@ -262,6 +267,8 @@ fun ModernChatScreen(
     val listState = rememberLazyListState()
     val collapsedTurns = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
     val chatRows = remember(messages, isThinking) { buildChatRows(messages, isThinking) }
+    // slot 贡献（fast-mode 等）通过同一入口切换当前会话模型/推理档位。
+    com.deepseek.dsh.plugin.nativehost.NativeHost.modelSelectHandler = onNativeModelSelect
 
     // chatRows 会把思考/工具过程也拆成行，索引与 messages 不一致；按实际行数滚到底。
     LaunchedEffect(chatRows.size, isThinking) {
@@ -2421,6 +2428,16 @@ fun BottomInputBar(
                         }
                     }
 
+                    // conversation.input.right：模型选择器左侧的插件控件
+                    // （订阅插件的 fast-mode 按钮）。当前模型/推理档位随 spec 下发。
+                    com.deepseek.dsh.plugin.nativehost.NativeSlotInline(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_RIGHT,
+                        spec = kotlinx.serialization.json.buildJsonObject {
+                            put("modelId", selectedModelId)
+                            put("reasoningEffort", selectedReasoningId)
+                        },
+                    )
+
                     // 模型与推理等级：贴近右侧发送按钮，菜单锚定在此。
                     Spacer(modifier = Modifier.weight(1f))
                     com.deepseek.dsh.plugin.nativehost.OfficialSlot(
@@ -2485,10 +2502,7 @@ fun BottomInputBar(
                     }
 
                     // 生成中：发送按钮切换为停止按钮，两者不同时出现。
-                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
-                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_RIGHT,
-                    ) {
-                        if (isGenerating) {
+                    if (isGenerating) {
                             Surface(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.error,
@@ -2524,7 +2538,6 @@ fun BottomInputBar(
                     }
                 }
             }
-        }
         }
 
         Spacer(modifier = Modifier.height(6.dp))
