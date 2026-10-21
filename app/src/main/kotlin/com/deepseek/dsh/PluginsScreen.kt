@@ -1313,10 +1313,19 @@ private fun OfficialConfigRow(item: OfficialConfigItem, showDivider: Boolean) {
                         tint = colors.labelPrimary,
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else {
+                } else if (item.iconRes != 0) {
                     androidx.compose.foundation.Image(
                         painter = painterResource(id = item.iconRes),
                         contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    // 没有图标（Host 设置页条目本来就没有图标字段）：画默认插件图标。
+                    // 这是视觉占位，不是掩盖——painterResource(0) 才是要避开的崩溃。
+                    Icon(
+                        imageVector = Icons.Filled.Widgets,
+                        contentDescription = null,
+                        tint = colors.labelPrimary,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
