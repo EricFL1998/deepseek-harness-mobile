@@ -68,12 +68,12 @@ private fun DemoSettingsContent(theme: PluginTheme) {
                 verticalArrangement = Arrangement.spacedBy(theme.spacingUnit / 2),
             ) {
                 Text(
-                    "已注册 ${DemoSlots.entries.size} 个原生落点",
+                    "已注入 ${DemoSlots.entries.count { it.hostReady }} / ${DemoSlots.entries.size} 个原生落点",
                     style = theme.textBody,
                     color = theme.colorOnSurface,
                 )
                 Text(
-                    "输入栏、消息动作、工具卡片、设置页、overlay、侧栏等都会出现 Demo 标记。",
+                    "其中 4 个（标题角、输入浮层、顶层 overlay、Web 岛）宿主位置仍在修，Demo 页只展示说明，不向真实界面注入。",
                     style = theme.textCaption,
                     color = theme.colorOnSurfaceVariant,
                 )
