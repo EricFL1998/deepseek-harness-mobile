@@ -65,6 +65,8 @@ data class NativePluginItem(
      * 没有声明时为 null，伴侣只能独立出现在列表里。
      */
     val jsPackage: String? = null,
+    /** APK 更新时间（毫秒），插件商店据此提示更新。 */
+    val lastUpdateTime: Long = 0L,
 )
 
 /**

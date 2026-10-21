@@ -33,6 +33,8 @@ data class InstalledNativePlugin(
      * 装 APK 时 App 读它连带装 JS 插件；缺省时兜底用 [pluginId] 当 npm 包名试装。
      */
     val jsPackage: String? = null,
+    /** APK 的安装/更新时间（毫秒），用于插件商店的更新提醒。 */
+    val lastUpdateTime: Long = 0L,
 ) {
     enum class Status { READY, ABI_TOO_NEW, APP_TOO_OLD, SIGNATURE_MISMATCH, DISABLED }
 }
@@ -73,9 +75,9 @@ class NativePluginDiscovery(private val context: Context) {
             val packageName = serviceInfo.packageName
             val fingerprint = signingFingerprint(pm, packageName) ?: return@mapNotNull null
 
-            val versionCode = runCatching {
-                pm.getPackageInfo(packageName, 0).longVersionCode.toInt()
-            }.getOrDefault(0)
+            val pkgInfo = runCatching { pm.getPackageInfo(packageName, 0) }.getOrNull()
+            val versionCode = pkgInfo?.longVersionCode?.toInt() ?: 0
+            val lastUpdateTime = pkgInfo?.lastUpdateTime ?: 0L
 
             // ABI 门禁：任一不匹配 → 标记状态，绝不进入加载流程。
             val status = when {
@@ -97,6 +99,7 @@ class NativePluginDiscovery(private val context: Context) {
                 status = status,
                 serviceComponent = ComponentName(packageName, serviceInfo.name),
                 jsPackage = jsPackage,
+                lastUpdateTime = lastUpdateTime,
             )
         }
     }

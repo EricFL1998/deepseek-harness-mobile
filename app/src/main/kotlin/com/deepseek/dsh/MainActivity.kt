@@ -918,6 +918,7 @@ fun MainAppHost(
                     signatureFingerprint = installed.signatureFingerprint,
                     jsPackage = installed.jsPackage,
                     packageName = installed.packageName,
+                    lastUpdateTime = installed.lastUpdateTime,
                 )
             }
             }
@@ -929,6 +930,9 @@ fun MainAppHost(
     var nativeCompanionAvailable by remember {
         mutableStateOf<com.deepseek.dsh.core.bridge.BridgeNativeCompanion?>(null)
     }
+    // 从“JS 已装、伴生 APK 可装”跳转时，直接打开插件商店的对应仓库详情。
+    var pluginStoreSeedUrl by remember { mutableStateOf<String?>(null) }
+    var pluginInitialTab by remember { mutableStateOf(0) }
 
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
@@ -2022,6 +2026,8 @@ fun MainAppHost(
                                 bridgeCatalog = bridgePluginCatalog,
                                 bridgeWarnings = bridgeWarnings,
                                 managedPluginPackages = managedPluginPackages,
+                                storeSeedUrl = pluginStoreSeedUrl,
+                                initialTab = pluginInitialTab,
                                 hostSettingsPages = pluginSettingsPages,
                                 rowConfigSurfaces = pluginSlotSurfaces,
                                 // 「内置插件配置」的每行背后是一个 Host 设置命名空间：
@@ -2487,9 +2493,11 @@ fun MainAppHost(
                         )
                     }
                     androidx.compose.material3.TextButton(onClick = {
+                        pluginStoreSeedUrl = companion.storeUrl
+                        pluginInitialTab = 1
                         nativeCompanionAvailable = null
                         activePage = ActivePage.PLUGINS
-                    }) { androidx.compose.material3.Text("去查看") }
+                    }) { androidx.compose.material3.Text("去安装") }
                     androidx.compose.material3.TextButton(onClick = { nativeCompanionAvailable = null }) {
                         androidx.compose.material3.Text("忽略")
                     }
@@ -2622,16 +2630,16 @@ private fun HostStartupSplash(
             Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = when {
-                    phase == RuntimePhase.ERROR -> "本地 Host 启动失败"
+                    phase == RuntimePhase.ERROR -> stringResource(R.string.host_startup_failed)
                     title.isNotBlank() -> title
-                    else -> "正在启动本地 Host…"
+                    else -> stringResource(R.string.host_starting)
                 },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(12.dp))
             if (phase == RuntimePhase.ERROR) {
-                androidx.compose.material3.Button(onClick = onRetry) { Text("重试") }
+                androidx.compose.material3.Button(onClick = onRetry) { Text(stringResource(R.string.action_host_retry)) }
             } else {
                 androidx.compose.material3.CircularProgressIndicator(
                     modifier = Modifier.size(22.dp),
@@ -2663,13 +2671,13 @@ private fun StoragePermissionGate(onRequest: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = "需要文件访问权限",
+                text = stringResource(R.string.storage_permission_title),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "DSH 的工作区位于 Documents/DSH-Workspace，必须授予「所有文件访问权限」才能读写文件并继续使用。",
+                text = stringResource(R.string.storage_permission_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -2679,7 +2687,7 @@ private fun StoragePermissionGate(onRequest: () -> Unit) {
                 onClick = onRequest,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("去开启权限")
+                Text(stringResource(R.string.storage_permission_grant))
             }
 
         }

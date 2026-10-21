@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -145,6 +146,10 @@ fun PluginsScreen(
     onDetailOpenChange: (Boolean) -> Unit = {},
     /** 「原生插件」tab 的商店列表项（可装伴侣 APK）。 */
     nativePluginItems: List<com.deepseek.dsh.plugin.nativehost.NativePluginItem> = emptyList(),
+    /** 从“JS 安装后提示伴生 APK”跳转时，直接打开该仓库详情。 */
+    storeSeedUrl: String? = null,
+    /** 初始页签：0 = 插件，1 = 插件商店。 */
+    initialTab: Int = 0,
     /** 插件市场的数据源；「自定义插件市场」bundle 启用时 tab 才会出现。 */
     marketBackend: MarketBackend? = null,
     /** 语音识别的 Host 接口（语音输入插件用）。 */
@@ -173,7 +178,7 @@ fun PluginsScreen(
     }
     var disabledNativePlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
     // 插件页分段页签：0 = 插件（现有列表），1 = 原生插件商店，2 = 发现（插件市场）。
-    var pluginsTabIndex by remember { mutableStateOf(0) }
+    var pluginsTabIndex by remember(initialTab) { mutableStateOf(initialTab) }
     // 「发现」tab 由「自定义插件市场」bundle 的客户端插件注册；bundle 关闭时没有
     // 这个页签（官方页面同样只在插件注册了 plugins.tab 时才画页签条）。
     val marketEnabled = remember(bridgeCatalog) {
@@ -545,9 +550,16 @@ fun PluginsScreen(
                         selectedIndex = pluginsTabIndex,
                         onSelect = { pluginsTabIndex = it },
                         labels = if (marketEnabled) {
-                            listOf("插件", "插件商店", "发现")
+                            listOf(
+                                stringResource(R.string.nav_plugins),
+                                stringResource(R.string.plugins_tab_store),
+                                stringResource(R.string.plugins_tab_discover),
+                            )
                         } else {
-                            listOf("插件", "插件商店")
+                            listOf(
+                                stringResource(R.string.nav_plugins),
+                                stringResource(R.string.plugins_tab_store),
+                            )
                         },
                         modifier = Modifier.padding(
                             start = PluginsDimens.PageHorizontal,
@@ -577,10 +589,12 @@ fun PluginsScreen(
                         ),
                     )
                     if (pluginsTabIndex == 1) {
-                        // 「原生插件」tab = 商店：浏览/发现/安装可装的伴侣 APK。
-                        NativeStoreTab(
+                        // 「插件商店」tab：GitHub topic dsh-mobile-plugin 远程发现。
+                        PluginStoreTab(
                             items = nativePluginItems,
-                            onOpenDetail = { selectedNativePlugin = it },
+                            initialRepoUrl = storeSeedUrl,
+                            backSignal = backSignal,
+                            onDetailOpenChange = onDetailOpenChange,
                             modifier = Modifier.weight(1f),
                         )
                     } else if (pluginsTabIndex == 2) {
@@ -619,7 +633,7 @@ fun PluginsScreen(
                     if (officialConfigItems.isNotEmpty()) {
                         item(key = "builtin_config_head") {
                             PluginsGroupTitle(
-                                text = "内置插件配置",
+                                text = stringResource(R.string.plugins_builtin_config),
                                 modifier = Modifier.padding(
                                     top = PluginsDimens.SectionGap,
                                     bottom = PluginsDimens.GroupTitleGap,
@@ -664,7 +678,7 @@ fun PluginsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "实验性插件",
+                                    text = stringResource(R.string.plugins_experimental),
                                     color = colors.labelPrimary,
                                     fontSize = 14.sp,
                                     lineHeight = 22.sp,
@@ -672,7 +686,7 @@ fun PluginsScreen(
                                 )
                                 if (derivedMoreBundles.isNotEmpty()) {
                                     Text(
-                                        text = "更多 ›",
+                                        text = stringResource(R.string.plugins_more) + " ›",
                                         color = colors.labelTertiary,
                                         fontSize = 12.5.sp,
                                         modifier = Modifier.clickable { showMorePlugins = true },
@@ -703,7 +717,7 @@ fun PluginsScreen(
                     // 1. 已安装插件：只列第三方（官方与实验性已各自成组）
                     item(key = "installed_group_head") {
                         PluginsGroupTitle(
-                            text = "已安装插件",
+                            text = stringResource(R.string.plugins_installed_section),
                             modifier = Modifier.padding(
                                 top = PluginsDimens.SectionGap,
                                 bottom = PluginsDimens.GroupTitleGap,
@@ -718,7 +732,7 @@ fun PluginsScreen(
                     ) {
                         item(key = "installed_empty") {
                             Text(
-                                text = "还没有安装任何插件。",
+                                text = stringResource(R.string.plugins_empty),
                                 color = colors.labelTertiary,
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
@@ -1117,14 +1131,16 @@ private fun PluginsPageHead(
                 .padding(end = 16.dp)
         ) {
             Text(
-                text = if (isNativeTab) "插件商店" else "插件",
+                text = if (isNativeTab) stringResource(R.string.plugins_store_title)
+                else stringResource(R.string.nav_plugins),
                 color = colors.labelPrimary,
                 fontSize = 20.sp,
                 lineHeight = 28.sp,
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = if (isNativeTab) "浏览和安装带原生界面的插件" else "安装、启用和配置插件",
+                text = if (isNativeTab) stringResource(R.string.plugins_store_subtitle)
+                else stringResource(R.string.plugins_subtitle),
                 color = colors.labelSecondary,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
@@ -1153,7 +1169,7 @@ private fun PluginsPageHead(
             ) {
                 Icon(
                     imageVector = DshIcons.RefreshOutline,
-                    contentDescription = "刷新",
+                    contentDescription = stringResource(R.string.plugins_refresh),
                     tint = colors.labelSecondary,
                     modifier = Modifier.size(16.dp),
                 )
@@ -1161,7 +1177,8 @@ private fun PluginsPageHead(
             Box {
                 PluginsSplitAddButton(
                     expanded = addMenuOpen,
-                    primaryLabel = if (isNativeTab) "安装原生插件" else "添加插件",
+                    primaryLabel = if (isNativeTab) stringResource(R.string.plugins_install_native)
+                    else stringResource(R.string.action_add_plugin),
                     onPrimaryClick = {
                         onDismissAddMenu()
                         onAddPluginClick()
@@ -1275,14 +1292,14 @@ private fun PluginsAddMenu(
     ) {
         AddPluginMenuItem(
             iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_download_outline,
-            title = "安装第三方插件",
-            description = "支持 npm 包、Git 仓库和本地目录",
+            title = stringResource(R.string.plugins_add_third_party),
+            description = stringResource(R.string.plugins_add_third_party_desc),
             onClick = onInstallExternal,
         )
         AddPluginMenuItem(
             iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_agent_preset_outline,
-            title = "让 Agent 创建插件",
-            description = "用创造模式描述能力，由 Agent 编写并安装插件",
+            title = stringResource(R.string.plugins_agent_create),
+            description = stringResource(R.string.plugins_agent_create_desc),
             onClick = onCreatePlugin,
         )
     }
@@ -1815,7 +1832,7 @@ private fun InstalledPluginRowItem(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    text = row.title.ifBlank { row.moduleName },
+                    text = officialPluginTitle(row.title.ifBlank { row.moduleName }),
                     color = colors.labelPrimary,
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
@@ -1823,7 +1840,7 @@ private fun InstalledPluginRowItem(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = row.description.ifBlank { row.moduleName },
+                    text = officialPluginDescription(row.title, row.description.ifBlank { row.moduleName }),
                     color = colors.labelTertiary,
                     fontSize = 11.5.sp,
                     lineHeight = 16.sp,
@@ -1866,8 +1883,8 @@ private fun PluginConfigRow(row: PluginRowInfo, showDivider: Boolean) {
         ) {
             PluginMetaIcon(iconData = row.iconData, size = 40.dp, radius = 12.dp, glyphSize = 18.dp)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(row.title, color = colors.labelPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
-                Text(row.description.ifBlank { row.moduleName }, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(officialPluginTitle(row.title), color = colors.labelPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+                Text(officialPluginDescription(row.title, row.description.ifBlank { row.moduleName }), color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Text("›", color = colors.labelTertiary, fontSize = 18.sp)
         }
@@ -2569,7 +2586,7 @@ private fun MorePluginsScreen(
     ) {
         // 只留标题（说明当前在哪个子页），返回箭头交给顶栏。
         PluginsGroupTitle(
-            text = "实验性插件",
+            text = stringResource(R.string.plugins_experimental),
             modifier = Modifier.padding(
                 start = PluginsDimens.PageHorizontal,
                 end = PluginsDimens.PageHorizontal,

@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -509,18 +510,26 @@ fun ModernChatScreen(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.Top
             ) {
-                items(
+                itemsIndexed(
                     items = chatRows,
-                    key = { row ->
+                    key = { _, row ->
                         when (row) {
                             is ChatRow.Single -> row.message.messageId
                             is ChatRow.Process -> "proc_${row.key}"
                             is ChatRow.TurnDone -> "done_${row.key}"
                         }
                     }
-                ) { row ->
+                ) { index, row ->
+                    val previous = chatRows.getOrNull(index - 1)
+                    val topPadding = when {
+                        row is ChatRow.TurnDone -> 8.dp
+                        // 完成头下面紧跟 AI 正文：不再叠加 16dp 的全局行距。
+                        previous is ChatRow.TurnDone -> 2.dp
+                        else -> 12.dp
+                    }
+                    Column(modifier = Modifier.padding(top = topPadding)) {
                     when (row) {
                         is ChatRow.Single -> Column {
                             ModernMessageItem(
@@ -550,6 +559,7 @@ fun ModernChatScreen(
                             }
                         }
                     }
+                    } // 行间距容器
                 }
 
                 val hasOpenProcess = chatRows.any { row ->
@@ -1360,7 +1370,7 @@ private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.height(24.dp).clickable(onClick = onClick),
+            modifier = Modifier.height(22.dp).clickable(onClick = onClick),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -1383,7 +1393,7 @@ private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick
         androidx.compose.material3.HorizontalDivider(
             thickness = 0.5.dp,
             color = MaterialTheme.colorScheme.outlineVariant,
-            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
         )
     }
 }

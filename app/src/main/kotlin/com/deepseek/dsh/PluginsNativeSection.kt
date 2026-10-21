@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -143,8 +144,8 @@ fun NativeStoreTab(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = if (query.isBlank()) "商店里还没有原生插件。带原生界面的插件会在收录后出现在这里。"
-                    else "没有匹配「$query」的原生插件。",
+                    text = if (query.isBlank()) stringResource(R.string.plugins_store_empty)
+                    else stringResource(R.string.plugins_store_no_match, query),
                     color = colors.labelSecondary,
                     fontSize = 13.sp,
                     lineHeight = 20.sp,
@@ -193,7 +194,8 @@ private fun NativeStoreRow(item: NativePluginItem, colors: DshPanelColors, onCli
             Text(item.description, color = colors.labelTertiary, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 1)
         }
         NativeChip(
-            text = if (item.installed) "已安装" else "可安装",
+            text = if (item.installed) stringResource(R.string.plugins_native_installed)
+            else stringResource(R.string.plugins_native_available),
             colors = colors,
         )
     }
@@ -241,7 +243,7 @@ fun NativeInstalledRow(
                         lineHeight = 20.sp,
                         fontWeight = FontWeight.Medium,
                     )
-                    NativeChip(text = "原生", colors = colors)
+                    NativeChip(text = stringResource(R.string.plugins_native_badge), colors = colors)
                     if (note != null) {
                         NativeChip(text = note, colors = colors)
                     }
@@ -306,7 +308,7 @@ fun NativePluginDetailPage(
             if (item.capabilities.isNotEmpty()) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("声明的能力", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.plugins_capabilities), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         for (cap in item.capabilities) Text("· $cap", color = colors.labelSecondary, fontSize = 13.sp)
                     }
                 }
@@ -314,7 +316,7 @@ fun NativePluginDetailPage(
             item.signatureFingerprint?.let { fp ->
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("签名指纹", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.plugins_signature), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Text(fp.take(16) + "…", color = colors.labelTertiary, fontSize = 12.sp)
                     }
                 }
@@ -322,7 +324,7 @@ fun NativePluginDetailPage(
             if (item.installed) {
                 item {
                     Text(
-                        text = "卸载",
+                        text = stringResource(R.string.plugins_uninstall),
                         color = colors.stateErrorPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
@@ -368,7 +370,7 @@ private fun NativeSearchField(
         contentAlignment = Alignment.CenterStart,
     ) {
         if (value.isEmpty()) {
-            Text(text = "搜索原生插件", color = colors.labelTertiary, fontSize = 13.sp)
+            Text(text = stringResource(R.string.plugins_store_search), color = colors.labelTertiary, fontSize = 13.sp)
         }
         BasicTextField(
             value = value,
