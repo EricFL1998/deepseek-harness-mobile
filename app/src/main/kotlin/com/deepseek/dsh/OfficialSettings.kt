@@ -338,10 +338,10 @@ private fun OfficialSettingsScaffold(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = PluginsDimens.PageHorizontal, vertical = PluginsDimens.PageTop),
     ) {
-        Text(spec.title, color = colors.labelPrimary, fontSize = 19.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+        Text(officialCopy(spec.title), color = colors.labelPrimary, fontSize = 19.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
         if (spec.description.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
-            Text(spec.description, color = colors.labelSecondary, fontSize = 13.sp, lineHeight = 19.sp)
+            Text(officialCopy(spec.description), color = colors.labelSecondary, fontSize = 13.sp, lineHeight = 19.sp)
         }
         Spacer(Modifier.height(20.dp))
 
@@ -390,21 +390,21 @@ private fun OfficialSettingsScaffold(
                             currentGroup = field.group
                             if (field.group != null) {
                                 Spacer(Modifier.height(20.dp))
-                                Text(field.group, color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(officialCopy(field.group), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                         when (field.kind) {
                             OfficialFieldKind.NUMBER, OfficialFieldKind.TEXT -> FieldEditor(
-                                label = field.label,
-                                hint = field.hint,
+                                label = officialCopy(field.label),
+                                hint = field.hint?.let { officialCopy(it) },
                                 value = valueOf(field),
                                 numeric = field.kind == OfficialFieldKind.NUMBER,
                                 onChange = { text -> edit(field, text) },
                             )
 
                             OfficialFieldKind.TOGGLE -> ToggleRow(
-                                label = field.label,
-                                hint = field.hint,
+                                label = officialCopy(field.label),
+                                hint = field.hint?.let { officialCopy(it) },
                                 checked = toggleOf(field),
                                 onChange = { next -> edit(field, if (next) "true" else "false") },
                             )
