@@ -330,8 +330,8 @@ fun MainAppHost(
     LaunchedEffect(sessionRunningNow) {
         if (wasSessionRunning && !sessionRunningNow) {
             if (currentAppSettings.notificationsEnabled && currentAppSettings.notifyOnTurnComplete) {
-                val title = sessions.find { it.sessionId == selectedSessionId }?.title ?: "会话"
-                DshNotifications.notify(context, "DSH 已完成", "$title 已完成本轮回复")
+                val title = sessions.find { it.sessionId == selectedSessionId }?.title ?: context.getString(R.string.notify_session)
+                DshNotifications.notify(context, context.getString(R.string.notify_done_title), context.getString(R.string.notify_done_body, title))
             }
         }
         wasSessionRunning = sessionRunningNow
@@ -413,9 +413,9 @@ fun MainAppHost(
             voiceError = null
             voiceSeconds = 0
             voiceRecording = voiceRecorder.start()
-            if (!voiceRecording) voiceError = "当前设备不支持录音，请检查麦克风。"
+            if (!voiceRecording) voiceError = context.getString(R.string.voice_device_unsupported)
         } else {
-            voiceError = "麦克风权限未开启，请在系统设置中允许访问。"
+            voiceError = context.getString(R.string.voice_permission_denied)
         }
     }
     fun startVoice() {
@@ -425,7 +425,7 @@ fun MainAppHost(
             voiceError = null
             voiceSeconds = 0
             voiceRecording = voiceRecorder.start()
-            if (!voiceRecording) voiceError = "当前设备不支持录音，请检查麦克风。"
+            if (!voiceRecording) voiceError = context.getString(R.string.voice_device_unsupported)
         } else {
             voicePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
         }
@@ -435,7 +435,7 @@ fun MainAppHost(
         voiceRecording = false
         voiceLevel = 0f
         if (wav == null) {
-            voiceError = "未识别到语音"
+            voiceError = context.getString(R.string.voice_no_speech)
             return
         }
         voiceBusy = true
@@ -444,14 +444,14 @@ fun MainAppHost(
             val provider = catalog?.selected
             if (catalog == null || provider == null) {
                 voiceBusy = false
-                voiceError = "语音识别失败：语音服务暂不可用"
+                voiceError = context.getString(R.string.voice_service_unavailable)
                 return@launch
             }
             // 本地识别器未就绪时先准备；准备失败要如实告诉用户，
             // 而不是在转写阶段抛出一个笼统的 transcription-failed。
             val phase = provider.preparation?.phase
             if (phase != "ready" && phase != "standby") {
-                voiceError = "语音识别暂不可用：请先在语音设置中完成模型准备"
+                voiceError = context.getString(R.string.voice_prepare_required)
                 voiceBusy = false
                 return@launch
             }
@@ -459,14 +459,14 @@ fun MainAppHost(
             dshRepository.speechTranscribe(activeHostId, provider.id, catalog.language, encoded).fold(
                 onSuccess = { text ->
                     if (text.isBlank()) {
-                        voiceError = "未识别到语音"
+                        voiceError = context.getString(R.string.voice_no_speech)
                     } else {
                         voiceTranscript = text
                         voiceError = null
                     }
                 },
                 onFailure = { error ->
-                    voiceError = "语音识别失败：${error.message ?: "未知错误"}"
+                    voiceError = context.getString(R.string.voice_failed, error.message ?: error.toString())
                 },
             )
             voiceBusy = false
@@ -904,16 +904,16 @@ fun MainAppHost(
                 com.deepseek.dsh.plugin.nativehost.NativePluginItem(
                     pluginId = installed.pluginId,
                     name = installed.pluginId.substringAfterLast('.'),
-                    description = "原生界面插件（${installed.packageName}）",
+                    description = context.getString(R.string.plugin_native_description, installed.packageName),
                     version = installed.version.toString(),
                     capabilities = emptyList(),
                     installed = true,
                     statusLabel = when (installed.status) {
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY -> "已安装"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.ABI_TOO_NEW -> "需更新插件"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.APP_TOO_OLD -> "需更新 App"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.SIGNATURE_MISMATCH -> "身份不符"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.DISABLED -> "已停用"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY -> context.getString(R.string.plugin_status_installed)
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.ABI_TOO_NEW -> context.getString(R.string.plugin_status_update_plugin)
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.APP_TOO_OLD -> context.getString(R.string.plugin_status_update_app)
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.SIGNATURE_MISMATCH -> context.getString(R.string.plugin_status_identity_mismatch)
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.DISABLED -> context.getString(R.string.plugin_status_disabled)
                     },
                     signatureFingerprint = installed.signatureFingerprint,
                     jsPackage = installed.jsPackage,
@@ -1095,7 +1095,7 @@ fun MainAppHost(
     // 首次启动先准备 rootfs：未安装/未下载完成之前不进入 onboarding。
     // 已安装过就直接视为就绪，避免重新打开时闪一下安装进度条；首次安装仍走 null→安装。
     var rootfsReady by remember { mutableStateOf<Boolean?>(null) }
-    var rootfsSetupProgress by remember { mutableStateOf(0f to "检查本地运行时...") }
+    var rootfsSetupProgress by remember { mutableStateOf(0f to context.getString(R.string.runtime_checking)) }
     var rootfsSetupError by remember { mutableStateOf<String?>(null) }
     var rootfsInstallAttempt by remember { mutableStateOf(0) }
 
@@ -1129,19 +1129,19 @@ fun MainAppHost(
     if (showRootfsUpdatePrompt) {
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { showRootfsUpdatePrompt = false },
-            title = "运行时更新",
-            closeLabel = "稍后",
-            description = "发现新的 rootfs：$availableRootfsVersion（当前 $installedRootfsVersion）。更新会重新下载运行时，并保留你的账号、会话与工作区。",
+            title = stringResource(R.string.runtime_update_title),
+            closeLabel = stringResource(R.string.runtime_update_later),
+            description = stringResource(R.string.runtime_update_desc, availableRootfsVersion ?: "", installedRootfsVersion ?: ""),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "稍后",
+                    text = stringResource(R.string.runtime_update_later),
                     primary = false,
                     enabled = true,
                     onClick = { showRootfsUpdatePrompt = false },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "立即更新",
+                    text = stringResource(R.string.runtime_update_now),
                     primary = true,
                     enabled = true,
                     onClick = {
@@ -1210,7 +1210,7 @@ fun MainAppHost(
     if (rootfsReady == null) {
         HostStartupSplash(
             phase = RuntimePhase.STARTING,
-            title = "正在检查本地运行时…",
+            title = stringResource(R.string.runtime_checking),
             onRetry = {}
         )
         return
@@ -1410,7 +1410,7 @@ fun MainAppHost(
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { showAddWorkspaceDialog = false },
             title = "新建工作区",
-            closeLabel = "关闭",
+            closeLabel = stringResource(R.string.action_close),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = "取消",
@@ -1447,7 +1447,7 @@ fun MainAppHost(
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { renameWorkspaceFolder = null },
             title = "重命名工作区",
-            closeLabel = "关闭",
+            closeLabel = stringResource(R.string.action_close),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = "取消", primary = false, enabled = true,
@@ -1485,7 +1485,7 @@ fun MainAppHost(
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { deleteWorkspaceFolder = null },
             title = "删除工作区",
-            closeLabel = "关闭",
+            closeLabel = stringResource(R.string.action_close),
             description = "将删除「${folder.name}」及其中的所有文件，此操作不可撤销。",
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
@@ -2536,12 +2536,12 @@ fun MainAppHost(
         if (showSignInDialog) {
             com.deepseek.dsh.core.designsystem.DshDialog(
                 onDismiss = { showSignInDialog = false },
-                title = "开始使用",
-                closeLabel = "关闭",
-                description = "登录 DeepSeek 账号，或添加 API Key，即可开始使用。你的项目和文件保存在本地。",
+                title = stringResource(R.string.onboarding_title),
+                closeLabel = stringResource(R.string.action_close),
+                description = stringResource(R.string.onboarding_desc),
                 footer = {
                     com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = "添加 API Key",
+                        text = stringResource(R.string.onboarding_add_key),
                         primary = false,
                         enabled = true,
                         onClick = {
@@ -2551,7 +2551,7 @@ fun MainAppHost(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = "登录",
+                        text = stringResource(R.string.onboarding_login),
                         primary = true,
                         enabled = true,
                         onClick = {
@@ -2566,9 +2566,9 @@ fun MainAppHost(
         if (showApiKeyDialog) {
             com.deepseek.dsh.core.designsystem.DshDialog(
                 onDismiss = { showApiKeyDialog = false },
-                title = "添加一个 API Key 开始使用",
-                closeLabel = "关闭",
-                description = "配置 DeepSeek 官方模型，即可开始使用。",
+                title = stringResource(R.string.onboarding_key_title),
+                closeLabel = stringResource(R.string.action_close),
+                description = stringResource(R.string.onboarding_key_desc),
                 footer = {
                     com.deepseek.dsh.core.designsystem.DshDialogButton(
                         text = "取消",
@@ -2578,7 +2578,7 @@ fun MainAppHost(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = "登录",
+                        text = stringResource(R.string.onboarding_login),
                         primary = true,
                         enabled = apiKeyInput.isNotBlank(),
                         onClick = {
@@ -2592,7 +2592,7 @@ fun MainAppHost(
                     com.deepseek.dsh.core.designsystem.DshTextInput(
                         value = apiKeyInput,
                         onValueChange = { apiKeyInput = it },
-                        placeholder = "输入 API 密钥",
+                        placeholder = stringResource(R.string.onboarding_key_placeholder),
                     )
                 },
             )
@@ -2814,7 +2814,7 @@ fun RuntimeControlScreen(
                             },
                             enabled = !isInstalling
                         ) {
-                            Text(if (isInstalling) "安装中..." else "安装/重置 Rootfs")
+                            Text(if (isInstalling) stringResource(R.string.runtime_installing) else stringResource(R.string.runtime_install_reset))
                         }
                     }
 
@@ -3276,13 +3276,13 @@ private fun RootfsSetupScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "正在准备本地 Linux 运行时",
+                text = stringResource(R.string.runtime_preparing),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "首次启动需要下载并解压 rootfs，完成后才能继续设置。",
+                text = stringResource(R.string.runtime_prepare_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -3305,14 +3305,14 @@ private fun RootfsSetupScreen(
             if (error != null) {
                 Spacer(modifier = Modifier.height(18.dp))
                 Text(
-                    text = "准备失败：$error",
+                    text = stringResource(R.string.runtime_prepare_failed, error ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 androidx.compose.material3.Button(onClick = onRetry) {
-                    Text("重试")
+                    Text(stringResource(R.string.action_retry))
                 }
             }
         }
