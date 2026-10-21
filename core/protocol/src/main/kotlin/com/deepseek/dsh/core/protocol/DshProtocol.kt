@@ -71,9 +71,26 @@ interface DshClientProtocol {
     suspend fun installPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun uninstallPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun setBundleEnabled(hostId: String, packageName: String, enabled: Boolean): RemoteResult<Boolean>
+
+    /**
+     * 启停 profile 里的一条 Loader 行（非 bundle 安装的插件）。
+     *
+     * @param entryId `pluginManager/listPlugins` 返回的 entryId，如 `include:<id>`。
+     * @param enabled 目标状态。
+     */
+    suspend fun setPluginEnabled(hostId: String, entryId: String, enabled: Boolean): RemoteResult<Boolean>
     suspend fun openSettingsDocument(hostId: String): RemoteResult<Boolean>
     suspend fun getRemoteSettings(hostId: String): RemoteResult<Map<String, String>>
     suspend fun rpcRaw(hostId: String, method: String, argsJson: String): RemoteResult<String>
+
+    /**
+     * 调一条插件注册在 Host 上的 /api/<method> 路由（裸 payload，不再包 args）。
+     *
+     * 插件把它的 RPC 注册成 Host 的 HTTP 路由（如 subscription-oauth.status），
+     * 请求体是 {type,rpcId,method,payload}，payload 就是插件自己的参数对象。App 用
+     * 这个通道取插件数据，再把数据作为 props 交给静态转译——不执行插件代码。
+     */
+    suspend fun pluginRpc(hostId: String, method: String, payloadJson: String): RemoteResult<String>
     suspend fun updateRemoteSettings(hostId: String, ns: String, patchJson: String): RemoteResult<Boolean>
     suspend fun getAutomationTasks(hostId: String): RemoteResult<List<AutomationTaskItem>>
     suspend fun getTeamTasks(hostId: String): RemoteResult<List<TeamTaskItem>>

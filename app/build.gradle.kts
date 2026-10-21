@@ -71,7 +71,8 @@ dependencies {
 
     implementation(project(":plugin:runtime-web"))
     implementation(project(":plugin:surface"))
-    implementation(project(":plugin:mobile-ui"))
+    implementation(project(":plugin:native-sdk"))
+    implementation(project(":plugin:native-host"))
 
     implementation(project(":runtime:host"))
     implementation(project(":runtime:bridge"))

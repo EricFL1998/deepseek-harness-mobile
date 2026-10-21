@@ -42,6 +42,8 @@ object BridgeProtocol {
 @Serializable
 data class BridgeManifest(
     val bridgeVersion: String = "",
+    /** 插件自身的版本；Host 未上报（旧插件）时为 null。 */
+    val pluginVersion: String? = null,
     val dshVersion: String? = null,
     val providers: List<BridgeProviderEntry> = emptyList(),
     val warnings: List<String> = emptyList(),
@@ -184,6 +186,8 @@ data class BridgeSlotRegistration(
     val placement: String? = null,
     @SerialName("package") val packageName: String? = null,
     val locale: String? = null,
+    /** 注册来源：`static`（静态提取）或 `evaluated`（VM 求值）；旧插件不上报。 */
+    val origin: String? = null,
     val render: BridgeSlotRender? = null,
 ) {
     /** 客户端用于 dispatch 的稳定身份：`id` 优先，keyed slot 回落到 `key`。 */
@@ -264,6 +268,7 @@ data class BridgeBundleRow(
     val title: String? = null,
     val description: String? = null,
     val icon: String? = null,
+    val enabled: Boolean? = null,
 )
 
 /** `package-inventory` 的一条 Loader row。 */

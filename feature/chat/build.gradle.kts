@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -30,8 +31,11 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:protocol"))
     implementation(project(":core:data"))
+    implementation(project(":core:bridge"))
+    implementation(libs.kotlinx.serialization.json)
     implementation(project(":plugin:surface"))
-    implementation(project(":plugin:mobile-ui"))
+    implementation(project(":plugin:native-sdk"))
+    implementation(project(":plugin:native-host"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)

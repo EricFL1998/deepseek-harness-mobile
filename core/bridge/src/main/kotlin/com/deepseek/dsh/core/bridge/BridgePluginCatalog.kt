@@ -115,6 +115,7 @@ object BridgePluginCatalog {
                         title = row.title ?: row.moduleName,
                         description = row.description,
                         iconDataUrl = row.icon,
+                        enabled = row.enabled,
                     )
                 },
             )
@@ -257,4 +258,6 @@ data class BridgePluginRowSummary(
     val title: String,
     val description: String?,
     val iconDataUrl: String?,
+    /** Whether this row is enabled; null means the Host did not report it. */
+    val enabled: Boolean? = null,
 )

@@ -6,6 +6,9 @@
 > [`core/bridge`](../core/bridge) is the Android consumer. Where the shipped
 > code settles a question this document left open, the note is marked
 > **As built**.
+>
+> 架构层面的取舍（原生 UI / Web-first 薄壳 / 全 Web 套壳）见
+> [移动端 UI 架构选型](mobile-ui-architecture.md)。
 
 The bridge is a Host-side DSH plugin that exposes the **official web client’s own
 runtime data** to native clients (Android, desktop shells, test harnesses) as a
@@ -41,7 +44,8 @@ Base: `http://127.0.0.1:<port>/dsh-mobile/bridge/v1`
   "dshVersion": "0.2.1-rc.2",
   "providers": [
     { "id": "client-assets", "version": 1, "capabilities": ["boot-graph", "module-source", "locale"], "readOnly": true },
-    { "id": "client-slots", "version": 1, "capabilities": ["list", "describe", "render-tree", "icon-svg"], "readOnly": true },
+    { "id": "client-slots", "version": 1, "capabilities": ["list", "describe", "render-tree", "icon-svg", "dispatch"], "readOnly": true },
+    { "id": "transpile", "version": 1, "capabilities": ["component-tree"], "readOnly": true },
     { "id": "package-inventory", "version": 1, "capabilities": ["bundles", "rows", "meta-icon"], "readOnly": true },
     { "id": "rpc", "version": 1, "capabilities": ["invoke"], "authorization": "host-session" }
   ]
@@ -108,10 +112,13 @@ isolated Node VM with a **React-shaped stub** (no DOM), captures
 
 Ops:
 
-- `list { slot? }` → registrations with id, label, order, package, locale keys,
+- `list { slot?, locale? }` → registrations with id, label, order, package, locale keys,
   plus `emptySlots` (slots the evaluated bundles touched but filled with
-  nothing).
-- `describe { slot, id }` → full contribution metadata.
+  nothing). A contribution appears **once**: the provider deduplicates by
+  `slot|id|package` because the same bundle is reachable through several roots
+  (the installation's `node_modules`, the profile's `@deepseek-ai` symlink). The
+  first (installation-first) row wins, so the authoritative copy and its label survive.
+- `describe { slot, id, locale? }` → full contribution metadata.
 - `render-tree { componentId, props? }` → a serialized element tree produced by
   the component function under the React stub. The client converts the tree to
   native widgets or SVG. This is how official artwork/icons are obtained without
@@ -131,6 +138,49 @@ module request other than `react` / `react-dom`; a bundle that needs one is
 reported as a `warnings` entry and its registrations stay readable, so one
 incompatible bundle does not blank the catalog. One evaluation is cached per
 entry revision.
+
+## Provider: `transpile` — **removed in bridge 2.0.0**
+
+The static component-tree provider was retired on 2026-10-20. The phone renders
+plugin UI through the plugin's **full Web UI** (the real Web client in the
+WebView container), so the static projection into native controls was deleted
+along with the App's `plugin/mobile-ui` renderer.
+
+What survives, and where it now lives:
+
+- The **inline-locale reading** the slot scanners still need — recovering a
+  bundle's own copy tables (`const en = {…}`) and resolving a label thunk
+  (`label: () => t('nav')`) — was extracted verbatim into
+  `slots/bundle-locale.ts`. `client-slots/list` and `describe` keep resolving
+  localized labels through it; nothing else of the transpiler remains.
+- `render-tree` and `icon-svg` are untouched: they belong to `client-slots` and
+  power the plugin catalogue's official artwork, not the retired component-tree.
+
+**As built (v1.4.0 fix):** a profile's `node_modules` is added to the scan roots
+*without* an `existsSync` gate. Inside proot a `stat` on a translated path can
+fail where `readdir` plainly reads the directory — the plugin's own
+`import.meta.url` proved the path was right while the check said no — and the
+gate silently hid every third-party plugin's UI. The scanner already treats an
+absent root as "no bundles", so the gate bought nothing and cost correctness.
+
+**As built (2026-10-20):** `list` and `describe` accept an optional `locale`
+(BCP-47, e.g. `zh-Hans-CN`). A registration's `label` is usually a thunk
+(`label: () => t('nav')`) whose text lives in the bundle's own inline copy
+tables (`const en = {…}` / `const zh = {…}`), and many packages ship no
+`locale/` directory. The static reader resolves the thunk key through the
+bundle's inline dictionaries, preferring `[locale, base(locale), …configured
+localeTags]`, so the phone shows “订阅” rather than the registration id
+`subscriptions` and follows the client language. Registration rows also carry
+`labelKey` (additive; clients ignore unknown fields).
+
+## Provider: `client-slots` additions
+
+- Registrations carry `origin: "static" | "evaluated"` so a client can mark
+  statically extracted entries as potentially incomplete.
+- `dispatch { componentId, event, payload? }` delivers one native UI event to
+  the plugin: the bridge re-broadcasts it on the Host event bus as
+  `ui/<componentId>/<event>` and queues a `client/refresh` transient message
+  (`events/pending`), so the phone re-pulls the tree once the plugin reacted.
 
 ## Provider: `package-inventory`
 
@@ -243,12 +293,42 @@ That is why `runtimeVersion` carries three segments:
 
 `RootfsVersion.parse` splits it and `assessUpdate` decides:
 
-- plugin behind the plugin repo's latest release → `PLUGIN_REQUIRED`;
-- only the rootfs or dsh segment moved → `ROOTFS_OPTIONAL`;
+- the **running plugin** (bridge manifest `pluginVersion`, falling back to the
+  profile's on-disk `package.json`) compares **older than** the plugin repo's
+  latest release → `PLUGIN_REQUIRED`;
+- only the dsh segment moved → `ROOTFS_OPTIONAL`;
 - otherwise → `NONE`.
+
+Versions compare by numeric segment, never as text: an installed development
+build (`1.24.0`) is *newer* than a release `1.1.0`, so Settings says there is
+nothing to do instead of offering a downgrade. An unreadable version is treated
+as behind — updating is the safe way to converge — but a missing latest release
+(offline) leaves the action disabled rather than failing on the wire.
 
 **Both kinds surface only in Settings → Updates.** Opening the app never
 interrupts with a prompt, and no update blocks startup.
+
+### The client installs the plugin from the tag archive
+
+The Host runs inside proot, where Android's DNS resolver is unavailable:
+`getent hosts github.com` fails with `EAI_AGAIN`, so `dsh plugin add` (git +
+pnpm) cannot reach GitHub, and the Host's pnpm rewrites the profile manifest
+anyway. The App process uses the system resolver, so the **App** performs the
+in-place install:
+
+1. read the plugin repo's latest release tag (`BridgeReleaseChecker`);
+2. download that tag's source archive through the App's HTTP stack
+   (`codeload.github.com/.../zip/refs/tags/v<version>`);
+3. validate the archive — single root, no path escape, package name/version
+   match, `main` and `dsh.bundle.patch` present;
+4. extract it over `root/.dsh/profiles/web/node_modules/dsh-mobile-bridge-plugin`
+   (staged, then swapped, so a failure leaves the previous version in place);
+5. restart the Host, which reloads the web-app patch row that mounts the plugin.
+
+No pnpm, no git inside the rootfs, and no profile-manifest write: the plugin is
+mounted by the web-app layer's patch row, which survives profile reconciliation.
+The APK's `bridge-plugin.json` supplies only the repository URL; its `version`
+field is a build-time baseline, never the update target.
 
 ### Releases are version markers
 
@@ -259,8 +339,8 @@ never publish.
 
 Two consumers read that tag:
 
-- the Android client, via `BridgeReleaseChecker`, to decide whether Settings
-  should offer the plugin update;
+- the Android client, via `BridgeReleaseChecker` and the tag archive it
+  downloads for the in-place install;
 - the rootfs build, to decide which plugin version to bundle and stamp as
   `-bridge<version>`.
 

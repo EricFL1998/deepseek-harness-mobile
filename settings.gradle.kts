@@ -40,7 +40,13 @@ include(":feature:files")
 // Plugin System
 include(":plugin:runtime-web")
 include(":plugin:surface")
-include(":plugin:mobile-ui")
+include(":plugin:native-sdk")
+include(":plugin:native-host")
+
+// 样例伴侣插件（SDK 自证）
+include(":samples:genui-native")
+include(":samples:kimi-native")
+include(":samples:subscription-native")
 
 // Runtime & Bridge
 include(":runtime:host")

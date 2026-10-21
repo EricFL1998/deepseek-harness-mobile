@@ -39,6 +39,11 @@ internal fun SettingsModelsPane(
     onOpenConfigFile: () -> Unit,
     onSaveProvider: (ModelProviderUi, String, String, List<String>) -> Unit,
     modifier: Modifier = Modifier,
+    /** 插件声明的 settings.models.provider-card 组件（componentId 列表）。 */
+    /** bridge 门面；为 null 时插件组件不渲染。 */
+    bridgeRegistry: com.deepseek.dsh.core.bridge.BridgeRegistry? = null,
+    /** 插件请求刷新的组件 id 流（client/refresh 事件）。 */
+    pluginComponentRefresh: kotlinx.coroutines.flow.SharedFlow<String>? = null,
 ) {
     val palette = LocalSettingsPalette.current
     val providers = remember(providersRaw, settingsRaw, credentialsRaw) {
@@ -127,6 +132,8 @@ internal fun SettingsModelsPane(
                 onClick = onOpenConfigFile,
             )
         }
+        // settings.models.provider-card：插件声明的 provider 卡片（订阅、用量、
+        // 第三方登录等），就地渲染成原生控件，交互经 bridge 回传给插件。
     }
 }
 

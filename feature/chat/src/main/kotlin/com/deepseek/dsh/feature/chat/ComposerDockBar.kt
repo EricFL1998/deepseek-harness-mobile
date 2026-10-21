@@ -1,7 +1,6 @@
 package com.deepseek.dsh.feature.chat
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -29,24 +28,21 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.deepseek.dsh.core.model.ComposerStats
-import com.deepseek.dsh.core.model.SurfaceItem
 import com.deepseek.dsh.feature.chat.R
 
 /**
  * `conversation.composer.dock` 底栏。
  *
  * 对齐 composer dock：一行无底色、无边框的读数，按顺序为
- * 推理速率（tok/s）、缓存命中率、上下文占用环形计量；插件注入项排在其后。
+ * 推理速率（tok/s）、缓存命中率、上下文占用环形计量。
  */
 @Composable
 fun ComposerDockBar(
     stats: ComposerStats = ComposerStats(),
     showStats: Boolean = true,
-    dockPluginSurfaces: List<SurfaceItem> = emptyList(),
-    onPluginClick: (SurfaceItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    if (!showStats && dockPluginSurfaces.isEmpty()) return
+    if (!showStats) return
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -55,7 +51,6 @@ fun ComposerDockBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        if (showStats) {
         // 1. 推理速率（IconGaugeOutline + "<speed> tok/s"）
         StatReading(
             label = stringResource(R.string.stat_tok_per_sec, stats.outputSpeedTokensPerSec),
@@ -96,24 +91,6 @@ fun ComposerDockBar(
                 style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                 color = MaterialTheme.colorScheme.outline,
             )
-        }
-
-        }
-        // 4. 插件动态注入的 conversation.composer.dock 项
-        dockPluginSurfaces.forEach { item ->
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable { onPluginClick(item) }
-                    .padding(horizontal = 8.dp, vertical = 1.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = item.title ?: item.pluginId,
-                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
         }
     }
 }

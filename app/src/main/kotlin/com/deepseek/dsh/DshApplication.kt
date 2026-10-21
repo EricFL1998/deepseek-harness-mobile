@@ -60,11 +60,28 @@ class DshApplication : Application() {
     }
 
     /**
+     * 正在运行的本地 Host 的 loopback 端口与启动 token。
+     *
+     * WebView 岛屿要自己发请求（插件的 RPC、资源），不能借用 App 的 OkHttp 会话，
+     * 所以把这一对值留在这里：岛屿用 `?token=` 换到同一份 cookie，之后与 App 看到
+     * 的是同一个 Host、同一个会话。未绑定时为 0/null。
+     */
+    @Volatile
+    var localHostPort: Int = 0
+        private set
+
+    @Volatile
+    var localHostToken: String? = null
+        private set
+
+    /**
      * 将仓库客户端绑定到本地 Host 运行时实际报告的 loopback 端口，并用启动
      * token 换取访问 cookie；UI 的所有数据请求随后都走这个真实地址。
      */
     suspend fun bindLocalHost(port: Int, token: String?) {
         val baseUrl = "http://127.0.0.1:$port"
+        localHostPort = port
+        localHostToken = token
         defaultClient.updateBaseUrl(baseUrl)
         // bridge 与 Remote API 共用同一个回环地址与会话 CookieJar；先绑地址，
         // 再换 token，这样 bridge 的第一次请求就带着已建立的会话。
@@ -81,6 +98,8 @@ class DshApplication : Application() {
     }
 
     fun unbindLocalHost() {
+        localHostPort = 0
+        localHostToken = null
         defaultClient.updateBaseUrl("http://127.0.0.1:1")
         dshRepository.bindBridge(
             "http://127.0.0.1:1",

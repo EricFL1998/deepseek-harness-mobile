@@ -70,17 +70,12 @@ import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.MessageRole
 import com.deepseek.dsh.core.model.SessionInfo
 import com.deepseek.dsh.core.model.SurfaceItem
+import com.deepseek.dsh.core.model.isThirdPartyPlugin
 import com.deepseek.dsh.core.model.SurfaceKind
 import com.deepseek.dsh.feature.chat.ModernChatScreen
 import com.deepseek.dsh.feature.files.FilesScreen
 import com.deepseek.dsh.feature.files.WorkspaceManager
 import com.deepseek.dsh.feature.sessions.ModernNavigationDrawerContent
-import com.deepseek.dsh.plugin.mobileui.SduiAction
-import com.deepseek.dsh.plugin.mobileui.SduiButton
-import com.deepseek.dsh.plugin.mobileui.SduiPage
-import com.deepseek.dsh.plugin.mobileui.SduiPageRenderer
-import com.deepseek.dsh.plugin.mobileui.SduiSection
-import com.deepseek.dsh.plugin.mobileui.SduiText
 import com.deepseek.dsh.plugin.surface.PluginOverlayContainer
 import com.deepseek.dsh.plugin.surface.SurfaceCatalogStore
 import com.deepseek.dsh.plugin.surface.SurfaceSheet
@@ -108,6 +103,14 @@ class MainActivity : ComponentActivity() {
     private val deepseekOAuthManager = com.deepseek.dsh.core.protocol.DeepSeekOAuthManager()
     private lateinit var workspaceManager: WorkspaceManager
 
+    /** 原生伴侣插件重扫信号：onResume 时递增，组合里据此重扫（卸载/安装即更新）。 */
+    private val nativePluginRescanFlow = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    override fun onResume() {
+        super.onResume()
+        nativePluginRescanFlow.value += 1
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -117,8 +120,20 @@ class MainActivity : ComponentActivity() {
         )
 
         // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
-
         setContent {
+
+            // 原生插件宿主：能力桥 + 主题快照 provide 给所有落点容器。
+            // host 为 null 时（bridge 未连）各落点不渲染，页面照常。
+            val nativeTheme = com.deepseek.dsh.plugin.nativehost.rememberPluginTheme()
+            val nativeHost = com.deepseek.dsh.plugin.nativehost.rememberNativeHostApi(
+                dispatcher = { componentId, event, payload ->
+                    app.dshRepository.bridge()?.dispatchUiEvent(componentId, event, payload)
+                },
+            )
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.deepseek.dsh.plugin.nativehost.NativeHost.LocalHost provides nativeHost,
+                com.deepseek.dsh.plugin.nativehost.NativeHost.LocalTheme provides nativeTheme,
+            ) {
             DshTheme {
                 // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
                 val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -138,8 +153,10 @@ class MainActivity : ComponentActivity() {
                     workspaceManager = workspaceManager,
                     layout = app.runtimeLayout,
                     dshRepository = app.dshRepository,
-                    settingsRepository = app.settingsRepository
+                    settingsRepository = app.settingsRepository,
+                    nativePluginRescanFlow = nativePluginRescanFlow,
                 )
+            }
             }
         }
     }
@@ -162,11 +179,9 @@ enum class ActivePage {
     FILES,
     PLUGINS,
     AUTOMATION,
-    TASKBOARD,
     HOSTS,
     APPROVAL,
     SETTINGS,
-    SDUI_SAMPLE,
     RUNTIME
 }
 
@@ -184,12 +199,23 @@ fun MainAppHost(
     workspaceManager: WorkspaceManager,
     layout: RuntimeLayout,
     dshRepository: com.deepseek.dsh.core.data.DshRepository,
-    settingsRepository: com.deepseek.dsh.core.data.DefaultSettingsRepository
+    settingsRepository: com.deepseek.dsh.core.data.DefaultSettingsRepository,
+    /** 原生伴侣插件重扫信号（onResume 递增）；卸载/安装后回前台即重扫。 */
+    nativePluginRescanFlow: kotlinx.coroutines.flow.StateFlow<Int> =
+        kotlinx.coroutines.flow.MutableStateFlow(0),
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     var activePage by remember { mutableStateOf(ActivePage.CHAT) }
+    // 插件详情页打开时，顶栏返回/系统返回先退回插件列表，而不是直接离开插件页。
+    var pluginDetailOpen by remember { mutableStateOf(false) }
+    var pluginBackSignal by remember { mutableStateOf(0) }
+    // 「原生插件」tab 的列表：NativePluginDiscovery 扫描系统里已装的伴侣 APK。
+    // 进入插件页时扫一次；卸载/安装由 PackageManager 广播驱动重扫（见 onResume）。
+    var nativePluginItems by remember {
+        mutableStateOf<List<com.deepseek.dsh.plugin.nativehost.NativePluginItem>>(emptyList())
+    }
     var settingsInitialSection by remember {
         mutableStateOf<com.deepseek.dsh.feature.settings.SettingsSectionTab?>(null)
     }
@@ -199,6 +225,46 @@ fun MainAppHost(
     }
     LaunchedEffect(Unit) {
         com.deepseek.dsh.feature.settings.UpdateCenter.ensureChecked(context)
+    }
+
+    // 扫描系统里已装的原生伴侣 APK，填充「原生插件」tab，并把 READY 的插件
+    // 装载进 App 进程（触发它们的落点/工具/页面注册）。卸载/安装后回前台时
+    // 重扫（onResume 递增信号），保证「卸载即从列表摘除」。
+    val nativePluginRescanSignal by nativePluginRescanFlow.collectAsState()
+    LaunchedEffect(nativePluginRescanSignal) {
+        runCatching {
+            val discovery = com.deepseek.dsh.plugin.nativehost.NativePluginDiscovery(context)
+            val loader = com.deepseek.dsh.plugin.nativehost.NativePluginLoader(context)
+            val appVersionCode = context.packageManager
+                .getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+            val discovered = discovery.scan(
+                appVersionCode = appVersionCode,
+                supportedApiVersion = com.deepseek.dsh.plugin.nativehost.NativeAbi.CURRENT,
+                pinnedFingerprints = emptyMap(),
+            )
+            // 装载 READY 插件进 App 进程：它们的 init 块会跑 SlotRegistry.register 等，
+            // 落点容器（NativeSlotHost）于是能读到这些贡献。
+            discovered.filter { it.status == com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY }
+                .forEach { loader.load(it) }
+            nativePluginItems = discovered.map { installed ->
+                com.deepseek.dsh.plugin.nativehost.NativePluginItem(
+                    pluginId = installed.pluginId,
+                    name = installed.pluginId.substringAfterLast('.'),
+                    description = "原生界面插件（${installed.packageName}）",
+                    version = installed.version.toString(),
+                    capabilities = emptyList(),
+                    installed = true,
+                    statusLabel = when (installed.status) {
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY -> "已安装"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.ABI_TOO_NEW -> "需更新插件"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.APP_TOO_OLD -> "需更新 App"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.SIGNATURE_MISMATCH -> "身份不符"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.DISABLED -> "已停用"
+                    },
+                    signatureFingerprint = installed.signatureFingerprint,
+                )
+            }
+        }
     }
 
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
@@ -330,13 +396,16 @@ fun MainAppHost(
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
-    val pluginSettingsPages by dshRepository.pluginSettingsPagesFlow.collectAsState()
-    val pluginSlotSurfaces by dshRepository.pluginSlotSurfacesFlow.collectAsState()
-    val pluginSlotEntries by dshRepository.pluginSlotEntriesFlow.collectAsState()
     val pluginRows by dshRepository.pluginRowsFlow.collectAsState()
     // 插件页目录来自 bridge/v1：官方 slot 注册优先，Host 原生清单兜底。
     val bridgePluginCatalog by dshRepository.bridgePluginCatalogFlow.collectAsState()
     val bridgeWarnings by dshRepository.bridgeWarningsFlow.collectAsState()
+    // 插件声明的 UI 入口（settings.section 等 slot 注册）：设置页按落点渲染。
+    val pluginSlotEntries by dshRepository.pluginSlotEntriesFlow.collectAsState()
+    val pluginSettingsPages by dshRepository.pluginSettingsPagesFlow.collectAsState()
+    // Host 声明的行级/页面级设置位置：插件页的「内置插件配置」用它把官方设置页
+    // 映射到真正的设置命名空间。
+    val pluginSlotSurfaces by dshRepository.pluginSlotSurfacesFlow.collectAsState()
 
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
@@ -370,26 +439,9 @@ fun MainAppHost(
         }
     }
 
-    // bridge 插件更新走 Host 自己的安装 RPC，而不是由 App 另起 proot：
-    // 应用进程的 seccomp 会让 glibc 的 mkdtemp 拿到 ENOSYS，而 Host 进程执行
-    // 同一条命令正常。这也是插件页「添加插件」用的同一条路径。
-    DisposableEffect(activeHostId) {
-        HostRuntimeHolder.pluginInstaller = { spec ->
-            // fold/runCatching 都是 inline，因此可以在 suspend lambda 里安全地
-            // 调用挂起的版本读取。
-            dshRepository.installPlugin(activeHostId, spec).fold(
-                onSuccess = {
-                    runCatching { runtimeManager.installedBridgeVersion() }.getOrNull()
-                        ?.let { version -> Result.success(version) }
-                        ?: Result.failure(
-                            IllegalStateException("安装命令已返回，但读不到插件版本")
-                        )
-                },
-                onFailure = { error -> Result.failure(error) },
-            )
-        }
-        onDispose { HostRuntimeHolder.pluginInstaller = null }
-    }
+    // bridge 插件更新的「运行中版本」来源与「重启 Host」动作由 App 层注入：
+    // runtime 模块不认识数据层，而重启需要当前工作区路径，只有这里知道。
+    // 真正的安装（下载 tag 归档、解压进 rootfs）由 HostRuntimeManager 完成。
 
     LaunchedEffect(activeHostId) {
         dshRepository.refreshSessions(activeHostId)
@@ -410,6 +462,18 @@ fun MainAppHost(
 
     val backupAndDiag = remember {
         com.deepseek.dsh.runtime.host.RuntimeBackupAndDiagnostics(layout)
+    }
+    // 「添加插件」的 App 侧兜底安装器：Host 内的 pnpm 在 proot 下拿不到
+    // rename/unlink/mkdtemp（ENOSYS），所以 Host 安装失败后由 App 自己下载、
+    // 解压、装依赖并挂到 profile 的 patch 层。
+    val appPluginInstaller = remember(layout) {
+        com.deepseek.dsh.runtime.host.PluginBundleInstaller(context, layout)
+    }
+    // App 安装器挂过的包名：用来区分「随安装自带」的官方插件和用户后来装的。
+    var managedPluginPackages by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(appPluginInstaller) {
+        managedPluginPackages = runCatching { appPluginInstaller.managedPackages() }
+            .getOrDefault(emptySet())
     }
     var activeSheetSurface by remember { mutableStateOf<SurfaceItem?>(null) }
     var activeOverlaySurface by remember { mutableStateOf<SurfaceItem?>(null) }
@@ -796,9 +860,6 @@ fun MainAppHost(
     var activeWorkspaceName by remember { mutableStateOf("默认工作区") }
     val activeWorkspaceCwd = "/workspace/$activeWorkspaceName"
     val activeWorkspaceFolderPath = java.io.File(activeWorkspace, activeWorkspaceName).absolutePath
-    var pluginDrawerEntry by remember {
-        mutableStateOf<com.deepseek.dsh.core.model.PluginSlotEntry?>(null)
-    }
     var showAddWorkspaceDialog by remember { mutableStateOf(false) }
     var newWorkspaceName by remember { mutableStateOf("") }
     var renameWorkspaceFolder by remember {
@@ -807,6 +868,26 @@ fun MainAppHost(
     var renameWorkspaceName by remember { mutableStateOf("") }
     var deleteWorkspaceFolder by remember {
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
+    }
+
+    // bridge 插件更新后需要两件事：读到「正在运行」的版本（bridge manifest），
+    // 以及重启 Host 让新代码加载。两者都只有 App 层能提供，因此注入给 runtime。
+    DisposableEffect(activeHostId, activeWorkspace.absolutePath) {
+        HostRuntimeHolder.runningBridgeVersionProvider = {
+            runCatching { dshRepository.bridgePluginVersion(forceRefresh = true) }.getOrNull()
+        }
+        HostRuntimeHolder.restartHost = {
+            val stopped = runtimeManager.stop()
+            if (stopped.isFailure) {
+                stopped
+            } else {
+                runtimeManager.start(activeWorkspace.absolutePath).map { }
+            }
+        }
+        onDispose {
+            HostRuntimeHolder.runningBridgeVersionProvider = null
+            HostRuntimeHolder.restartHost = null
+        }
     }
     // 插件瞬态消息：Host 排队、客户端轮询取走，用系统 Toast 呈现。
     // 没有事件通道时这段是空转，取不到消息也不会打扰任何东西。
@@ -819,60 +900,26 @@ fun MainAppHost(
             // 后续批次继续推进，扫描完成后不再产生新条目，刷新也就变成一次廉价读。
             if (ticks % 4 == 0) {
                 runCatching { dshRepository.refreshBridgePluginCatalog() }
+            }
+            // 插件界面的入口不能只依赖「Host 状态刚变成有端口」那一刻：Host 冷启动时
+            // 首个 bridge 请求可能先于会话 cookie 就绪而失败，一次失败就会让设置里的
+            // 「插件界面」整组消失。入口为空时用更短的周期重试，稳定后降低频率。
+            val entriesEmpty = dshRepository.pluginSlotEntriesFlow.value.isEmpty()
+            val settingsRefreshEvery = if (entriesEmpty) 2 else 8
+            if (ticks % settingsRefreshEvery == 0) {
                 runCatching { dshRepository.refreshPluginSettingsPages() }
             }
             runCatching {
-                dshRepository.pendingPluginEvents().forEach { event ->
+                val events = dshRepository.pendingPluginEvents()
+                // client/refresh 转成组件刷新信号；toast 用系统 Toast 呈现。
+                dshRepository.dispatchPluginEvents(events)
+                events.forEach { event ->
                     if (event.kind == "toast" && event.text.isNotBlank()) {
                         android.widget.Toast.makeText(context, event.text, android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             }
         }
-    }
-
-    pluginDrawerEntry?.let { entry ->
-        // 提示类落点直接走系统 Toast：这类贡献本来就是一句瞬时文本，套一层对话框
-        // 反而更重。没有运行时事件通道时，由用户点击触发。
-        if (entry.placement == "toast") {
-            android.widget.Toast.makeText(
-                context,
-                entry.title ?: entry.id ?: entry.slot,
-                android.widget.Toast.LENGTH_SHORT,
-            ).show()
-            pluginDrawerEntry = null
-            return@let
-        }
-        com.deepseek.dsh.core.designsystem.DshDialog(
-            onDismiss = { pluginDrawerEntry = null },
-            title = entry.title ?: entry.id ?: entry.slot,
-            closeLabel = "关闭",
-            footer = {
-                com.deepseek.dsh.core.designsystem.DshDialogButton(
-                    text = "知道了",
-                    primary = true,
-                    enabled = true,
-                    onClick = { pluginDrawerEntry = null },
-                )
-            },
-            content = {
-                androidx.compose.foundation.layout.Column {
-                    androidx.compose.material3.Text(
-                        text = "该入口由插件在 ${entry.slot} 声明，具体的界面内容尚未接入。",
-                        fontSize = 13.sp,
-                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    entry.module?.let {
-                        androidx.compose.foundation.layout.Spacer(Modifier.height(6.dp))
-                        androidx.compose.material3.Text(
-                            text = it,
-                            fontSize = 11.sp,
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
-                        )
-                    }
-                }
-            },
-        )
     }
     if (showAddWorkspaceDialog) {
         com.deepseek.dsh.core.designsystem.DshDialog(
@@ -1025,7 +1072,8 @@ fun MainAppHost(
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModernNavigationDrawerContent(
+                androidx.compose.foundation.layout.Column {
+                    ModernNavigationDrawerContent(
                     userName = accountState.profile?.name ?: "DeepSeek 用户",
                     avatarUrl = accountState.profile?.avatarUrl,
                     updateVersion = updateInfo?.tag?.takeIf {
@@ -1041,8 +1089,6 @@ fun MainAppHost(
                     isSignedIn = accountState.isSignedIn,
                     onSignIn = { showSignInDialog = true },
                     onSignOut = hostSignOut,
-                    pluginDrawerEntries = pluginSlotEntries.filter { it.placement == "drawer" },
-                    onSelectPluginDrawerEntry = { entry -> pluginDrawerEntry = entry },
                     workspaces = workspaceFolders,
                     selectedWorkspaceName = activeWorkspaceName,
                     onSelectWorkspace = { folder -> activeWorkspaceName = folder.name },
@@ -1069,12 +1115,6 @@ fun MainAppHost(
                         scope.launch {
                             drawerState.close()
                             activePage = ActivePage.AUTOMATION
-                        }
-                    },
-                    onNavigateKanban = {
-                        scope.launch {
-                            drawerState.close()
-                            activePage = ActivePage.TASKBOARD
                         }
                     },
                     onNavigateRuntime = {
@@ -1106,23 +1146,23 @@ fun MainAppHost(
                             activePage = ActivePage.SETTINGS
                         }
                     }
-                )
+                    )
+                    // sidebar.*：原生插件在侧栏面板底部的落点。
+                    com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.SIDEBAR_PANEL,
+                        spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                    )
+                }
             }
         ) {
             // 对话页使用完整顶栏；设置页自带标题栏（不再叠加）；其余全屏页只保留返回条，
             // 避免出现双 header。
-            BackHandler(enabled = activePage != ActivePage.CHAT) {
+            BackHandler(enabled = activePage != ActivePage.CHAT &&
+                !(activePage == ActivePage.PLUGINS && pluginDetailOpen)) {
                 activePage = ActivePage.CHAT
             }
             BackHandler(enabled = drawerState.isOpen) {
                 scope.launch { drawerState.close() }
-            }
-            val conversationHeaderEntries = remember(pluginSlotEntries) {
-                pluginSlotEntries.filter {
-                    it.placement == "conversation" &&
-                        (it.slot.startsWith("conversation.session.header") ||
-                            it.slot == "conversation.header")
-                }
             }
             val chatPage = activePage == ActivePage.CHAT
             val pageHasOwnHeader = activePage == ActivePage.SETTINGS
@@ -1139,14 +1179,19 @@ fun MainAppHost(
                                 },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
-                                pluginHeaderActions = conversationHeaderEntries,
-                                onPluginHeaderAction = { entry -> pluginDrawerEntry = entry },
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
 
                             !pageHasOwnHeader -> PageBackBar(
                                 title = pageTitleOf(activePage),
-                                onBack = { activePage = ActivePage.CHAT },
+                                onBack = {
+                                    // 插件详情页打开时，App 的返回先关详情；再按一次才离开插件页。
+                                    if (activePage == ActivePage.PLUGINS && pluginDetailOpen) {
+                                        pluginBackSignal += 1
+                                    } else {
+                                        activePage = ActivePage.CHAT
+                                    }
+                                },
                             )
                         }
                     }
@@ -1172,24 +1217,6 @@ fun MainAppHost(
                         Box(modifier = Modifier.weight(1f)) {
                     when (activePage) {
                         ActivePage.CHAT -> {
-                            // 输入区下方的插件胶囊：宿主目录里的 DOCK surface 与真实 slot 注册
-                            // （conversation.*dock）合并，后者的落点由 bridge 翻译。
-                            val registeredDockPlugins = pluginSlotEntries
-                                .filter {
-                                    it.placement == "conversation" &&
-                                        (it.slot.endsWith(".dock") || it.slot == "conversation.composer.bar")
-                                }
-                                .map {
-                                    SurfaceItem(
-                                        pluginId = it.module ?: it.id ?: it.slot,
-                                        slot = it.slot,
-                                        order = it.order,
-                                        title = it.title ?: it.id ?: it.slot,
-                                        kind = SurfaceKind.DOCK,
-                                    )
-                                }
-                            val dockPlugins = catalog.surfaces.filter { it.kind == SurfaceKind.DOCK } +
-                                registeredDockPlugins
                             var reasoningLevel by remember {
                                 mutableStateOf(
                                     runCatching {
@@ -1342,15 +1369,22 @@ fun MainAppHost(
                                 },
                                 selectedModel = currentModel,
                                 availableModels = availableModelNames,
-                                agentPresetLabel = pluginSnapshot?.agentPresets
-                                    ?.firstOrNull { it.id == (pendingAgentPreset ?: currentAppSettings.transcriptView) }
-                                    ?.let { group -> group.name.takeIf { it.isNotBlank() && it != group.id } }
-                                    ?: when (pendingAgentPreset ?: currentAppSettings.transcriptView) {
-                                        "cordis" -> "创造模式"
-                                        "minimal" -> "极简模式"
-                                        "ptc" -> "PTC 模式"
-                                        else -> "标准模式"
-                                    },                                modelGroups = catalogInfo.groups,
+                                agentPresetLabel = when (pendingAgentPreset ?: currentAppSettings.transcriptView) {
+                                    "cordis" -> "创造模式"
+                                    "minimal" -> "极简模式"
+                                    "ptc" -> "PTC 模式"
+                                    else -> "标准模式"
+                                },
+                                agentPresetSelectedId = pendingAgentPreset ?: currentAppSettings.transcriptView,
+                                onAgentPresetSelected = { preset ->
+                                    // 立即生效：新会话用新预设；当前会话保持原样。
+                                    pendingAgentPreset = preset
+                                    scope.launch {
+                                        settingsRepository.updateSettings { current ->
+                                            current.copy(transcriptView = preset)
+                                        }
+                                    }
+                                },                                modelGroups = catalogInfo.groups,
                                 onModelSelected = { model ->
                                     selectedSessionId?.let { sid ->
                                         scope.launch {
@@ -1404,16 +1438,6 @@ fun MainAppHost(
                                         settingsRepository.updateSettings { it.copy(defaultReasoningLevel = level.name) }
                                     }
                                 },
-                                dockPluginSurfaces = dockPlugins,
-                                pluginToolActions = pluginSlotEntries.filter { it.placement == "tool.card" },
-                                // 只挂助手动作；用户消息侧的 slot 不属于这一处。
-                                pluginAssistantActions = pluginSlotEntries.filter {
-                                    it.slot == "conversation.chat.assistant-actions"
-                                },
-                                onPluginAction = { entry -> pluginDrawerEntry = entry },
-                                onDockPluginClick = { pluginItem ->
-                                    activeSheetSurface = pluginItem
-                                },
                                 stats = currentSessionStats,
                                 onOpenAttachmentMenu = {
                                     activePage = ActivePage.FILES
@@ -1436,8 +1460,17 @@ fun MainAppHost(
                                 pluginRows = pluginRows,
                                 bridgeCatalog = bridgePluginCatalog,
                                 bridgeWarnings = bridgeWarnings,
+                                managedPluginPackages = managedPluginPackages,
                                 hostSettingsPages = pluginSettingsPages,
-                                rowConfigSurfaces = pluginSlotSurfaces.filter { it.slot == "plugins.row.config" },
+                                rowConfigSurfaces = pluginSlotSurfaces,
+                                // 「内置插件配置」的每行背后是一个 Host 设置命名空间：
+                                // 表单和回写都走同一对接口，原生控件照官方设置页渲染。
+                                loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
+                                savePluginSettings = { ns, patch, revision ->
+                                    dshRepository.updatePluginSettings(ns, patch, revision)
+                                },
+                                backSignal = pluginBackSignal,
+                                onDetailOpenChange = { pluginDetailOpen = it },
                                 onOpenSurface = { item ->
                                     if (item.kind == SurfaceKind.OVERLAY) {
                                         activeOverlaySurface = item
@@ -1445,20 +1478,39 @@ fun MainAppHost(
                                         activeSheetSurface = item
                                     }
                                 },
-                                onOpenSdui = {
-                                    activePage = ActivePage.SDUI_SAMPLE
-                                },
+                                onOpenSdui = { },
                                 onInstallPlugin = { pkgName ->
-                                    scope.launch {
-                                        val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
-                                        if (hostRes.isSuccess) {
-                                            android.widget.Toast.makeText(context, "插件安装成功", android.widget.Toast.LENGTH_SHORT).show()
-                                            dshRepository.refreshPluginInventory(activeHostId)
-                                        } else {
-                                            val errMsg = hostRes.exceptionOrNull()?.message ?: "安装失败"
-                                            android.widget.Toast.makeText(context, "插件安装失败: $errMsg", android.widget.Toast.LENGTH_LONG).show()
-                                        }
+                                    val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
+                                    // Host 内 pnpm 依赖 proot 的 rename/unlink/mkdtemp，
+                                    // 这台设备上全部返回 ENOSYS。失败后改用 App 自己的
+                                    // 文件与网络能力完成同一件事，再重启 Host 加载。
+                                    val usedFallback = hostRes.isFailure
+                                    val result = if (hostRes.isSuccess) {
+                                        Result.success(pkgName)
+                                    } else {
+                                        appPluginInstaller.install(pkgName) { _, _ -> }
                                     }
+                                    result.fold(
+                                        onSuccess = { installed ->
+                                            if (usedFallback) {
+                                                // 文件已就位，重启 Host 才会让新插件进入 Loader。
+                                                HostRuntimeHolder.restartHost?.invoke()
+                                                kotlinx.coroutines.delay(1_200)
+                                            }
+                                            managedPluginPackages = runCatching {
+                                                appPluginInstaller.managedPackages()
+                                            }.getOrDefault(managedPluginPackages)
+                                            dshRepository.refreshPluginInventory(activeHostId)
+                                            dshRepository.refreshBridgePluginCatalog()
+                                            dshRepository.refreshPluginSettingsPages()
+                                            Result.success(installed)
+                                        },
+                                        onFailure = { error ->
+                                            Result.failure(
+                                                IllegalStateException(error.message ?: "安装失败")
+                                            )
+                                        },
+                                    )
                                 },
                                 onToggleBundle = { packageName, enabled ->
                                     scope.launch {
@@ -1467,14 +1519,58 @@ fun MainAppHost(
                                         // 这只是确认；失败时它会把开关拨回真实状态，而不是
                                         // 让界面停在用户按下的那个位置。
                                         dshRepository.refreshBridgePluginCatalog()
-            dshRepository.refreshPluginSettingsPages()
                                         dshRepository.refreshPluginInventory(activeHostId)
+                                    }
+                                },
+                                onTogglePluginRow = { entryId, enabled ->
+                                    scope.launch {
+                                        // 行插件不是 bundle：Host 用 setPluginEnabled 写
+                                        // profile patch 的 disabled 覆盖，立即生效；失败时
+                                        // refreshPluginInventory 会把开关拨回真实状态。
+                                        dshRepository.setPluginEnabled(activeHostId, entryId, enabled)
+                                        // profile patch 每次启动都会被重建，所以再把覆盖
+                                        // 持久化到 web-app patch，重启后开关状态不丢。
+                                        val patchId = entryId.removePrefix("include:")
+                                        appPluginInstaller.setRowEnabled(patchId, enabled)
+                                        dshRepository.refreshBridgePluginCatalog()
+                                        dshRepository.refreshPluginSettingsPages()
+                                    }
+                                },
+                                onToggleComponent = { entryId, enabled ->
+                                    scope.launch {
+                                        // 子组件就是 bundle patch 插进来的一行：Host 把它
+                                        // 记进 profile 的 cordis.patch.yml
+                                        // （`- id: <rowId> / disabled: true`）并只重载这一行，
+                                        // bundle 其余部分照常运行。失败时
+                                        // refreshPluginInventory 会把开关拨回真实状态。
+                                        dshRepository.setPluginEnabled(activeHostId, entryId, enabled)
+                                        dshRepository.refreshBridgePluginCatalog()
+                                        dshRepository.refreshPluginSettingsPages()
                                     }
                                 },
                                 onUninstall = { item ->
                                     scope.launch {
-                                        dshRepository.uninstallPlugin(activeHostId, item.pluginId)
+                                        if (item.slot == "plugin.row") {
+                                            // 行插件没有 bundle 记录：直接走 App 侧卸载。
+                                            // Host 的 removeBundle 对非 bundle 目标不适用，
+                                            // 而且可能长时间不返回，不能先等它。
+                                            appPluginInstaller.uninstall(item.pluginId).onSuccess {
+                                                managedPluginPackages = runCatching {
+                                                    appPluginInstaller.managedPackages()
+                                                }.getOrDefault(managedPluginPackages)
+                                                HostRuntimeHolder.restartHost?.invoke()
+                                                kotlinx.coroutines.delay(1_200)
+                                            }
+                                        } else {
+                                            dshRepository.uninstallPlugin(activeHostId, item.pluginId)
+                                            // 同包名可能曾被 App 兜底以 Loader 行挂上：摘掉
+                                            // 残留的挂载名，避免 Host 重建后它又出现。
+                                            appPluginInstaller.stripRowMountName(item.pluginId)
+                                        }
                                         surfaceStore.removeSurfaceItem(item.pluginId, item.slot)
+                                        dshRepository.refreshPluginInventory(activeHostId)
+                                        dshRepository.refreshBridgePluginCatalog()
+                                        dshRepository.refreshPluginSettingsPages()
                                     }
                                 }
                             ,
@@ -1482,7 +1578,8 @@ fun MainAppHost(
                                     pendingAgentPreset = "cordis"
                                     selectedSessionId = null
                                     activePage = ActivePage.CHAT
-                                }
+                                },
+                                nativePluginItems = nativePluginItems
                             )
                         }
 
@@ -1492,12 +1589,6 @@ fun MainAppHost(
                                 onCreateTask = {
                                     activePage = ActivePage.CHAT
                                 }
-                            )
-                        }
-
-                        ActivePage.TASKBOARD -> {
-                            TaskBoardScreen(
-                                tasks = teamTasks
                             )
                         }
 
@@ -1537,13 +1628,12 @@ fun MainAppHost(
                         }
 
                         ActivePage.SETTINGS -> {
+                            // 打开设置页时补一次拉取：用户不一定等得到定时轮询的下一拍，
+                            // 进入页面就先让「插件界面」有数据。
+                            LaunchedEffect(Unit) {
+                                runCatching { dshRepository.refreshPluginSettingsPages() }
+                            }
                             com.deepseek.dsh.feature.settings.SettingsRootScreen(
-                                pluginSettingsPages = pluginSettingsPages,
-                                pluginSlotEntries = pluginSlotEntries,
-                                loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
-                                savePluginSettings = { ns, patch, revision ->
-                                    dshRepository.updatePluginSettings(ns, patch, revision)
-                                },
                                 settings = currentAppSettings,
                                 initialSection = settingsInitialSection,
                                 onUpdateSettings = { updated ->
@@ -1605,8 +1695,22 @@ fun MainAppHost(
                                             .getOrNull()
                                         dshRepository.refreshModelCatalog(activeHostId)
                                     }
-                                },                                builtInPlugins = builtInPluginsList,
+                                },
+                                builtInPlugins = builtInPluginsList,
 
+                                bridgeRegistry = dshRepository.bridge(),
+                                pluginSlotEntries = pluginSlotEntries,
+                                pluginSettingsPages = pluginSettingsPages,
+                                pluginComponentRefresh = dshRepository.pluginComponentRefreshFlow,
+                                // 端口要跟着运行时状态走：Host 是异步启动的，直接读
+                                // Application 上的普通字段拿到的是启动前的 0。
+                                hostPort = status?.port ?: dshApplication.localHostPort,
+                                hostToken = status?.token ?: dshApplication.localHostToken,
+                                hostPortProvider = { dshApplication.localHostPort.takeIf { it > 0 } ?: (status?.port ?: 0) },
+                                loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
+                                savePluginSettings = { ns, patch, revision ->
+                                    dshRepository.updatePluginSettings(ns, patch, revision)
+                                },
                                 runtimeStatus = status,
                                 onStartRuntime = {
                                     scope.launch {
@@ -1649,34 +1753,6 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.SDUI_SAMPLE -> {
-                            val samplePage = SduiPage(
-                                title = "SDUI 声明式插件原生渲染",
-                                description = "基于 v4.0 §7.8.1：由插件 JSON 声明，客户端零 WebView 原生渲染",
-                                children = listOf(
-                                    SduiSection(
-                                        title = "插件控制面板",
-                                        children = listOf(
-                                            SduiText(text = "这是一个完全由原生 Compose 树渲染的插件界面。"),
-                                            SduiButton(
-                                                label = "返回插件列表",
-                                                action = SduiAction.Close(),
-                                                primary = true
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                            SduiPageRenderer(
-                                page = samplePage,
-                                onAction = { action ->
-                                    if (action is SduiAction.Close) {
-                                        activePage = ActivePage.PLUGINS
-                                    }
-                                }
-                            )
-                        }
-
                         ActivePage.RUNTIME -> {
                             RuntimeControlScreen(
                                 runtimeManager = runtimeManager,
@@ -1709,6 +1785,12 @@ fun MainAppHost(
                 onClose = { activeOverlaySurface = null }
             )
         }
+
+        // shell.overlay：原生插件的顶层浮层落点。
+        com.deepseek.dsh.plugin.nativehost.NativeSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.PLUGIN_OVERLAY,
+            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+        )
 
         // 官方登录对话框：浏览器 OAuth 为主，API Key 为备选。
         if (showSignInDialog) {
@@ -2086,12 +2168,10 @@ fun PageBackBar(
 private fun pageTitleOf(page: ActivePage): String = when (page) {
     ActivePage.PLUGINS -> "插件"
     ActivePage.AUTOMATION -> "自动化任务"
-    ActivePage.TASKBOARD -> "任务看板"
     ActivePage.FILES -> "文件"
     ActivePage.HOSTS -> "远程连接"
     ActivePage.APPROVAL -> "授权请求"
     ActivePage.RUNTIME -> "运行时"
-    ActivePage.SDUI_SAMPLE -> "界面示例"
     ActivePage.SETTINGS -> "设置"
     ActivePage.CHAT -> "deepseek"
 }
@@ -2257,9 +2337,6 @@ fun ModernTopAppBar(
     title: String,
     showModeCapsule: Boolean = false,
     teamTasks: List<com.deepseek.dsh.core.model.TeamTaskItem> = emptyList(),
-    /** 插件声明在会话头部的入口（conversation.session.header.*）。 */
-    pluginHeaderActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
-    onPluginHeaderAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
     onMenuClick: () -> Unit
 ) {
     val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
@@ -2303,29 +2380,6 @@ fun ModernTopAppBar(
             }
 
             Spacer(modifier = Modifier.width(12.dp))
-
-            if (pluginHeaderActions.isNotEmpty()) {
-                Spacer(Modifier.weight(1f))
-                pluginHeaderActions.forEach { entry ->
-                    Surface(
-                        shape = CircleShape,
-                        color = barColors.bgModulePlatform,
-                        onClick = { onPluginHeaderAction(entry) },
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .size(32.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Widgets,
-                                contentDescription = entry.title ?: entry.slot,
-                                tint = barColors.labelSecondary,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    }
-                }
-            }
 
             if (showModeCapsule) {
                 // 中间切换胶囊 (参考截图 2: 快速 / 进阶)
@@ -2466,8 +2520,4 @@ private fun parseWorkspaceId(raw: String?): String? {
     if (raw.isNullOrBlank()) return null
     return Regex("\"workspaceId\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.getOrNull(1)
 }
-
-
-
-
 

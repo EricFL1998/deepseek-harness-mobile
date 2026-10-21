@@ -39,7 +39,9 @@ import com.deepseek.dsh.runtime.host.HostRuntimeHolder
 import com.deepseek.dsh.runtime.host.RootfsVersion
 import com.deepseek.dsh.runtime.host.UpdateAssessment
 import com.deepseek.dsh.runtime.host.UpdateNeed
+import com.deepseek.dsh.runtime.host.comparePluginVersions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -81,6 +83,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
      */
     suspend fun refreshAssessment() {
         try {
+            assessmentError = null
             val manager = HostRuntimeHolder.manager
             if (manager == null) {
                 // 运行时尚未创建（例如首次启动还没走到初始化）：这不是错误，
@@ -97,8 +100,26 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(Unit) {
-        UpdateCenter.check(context)
+        // APK 更新在启动时已经查过一次；这里复用那次结果，避免每次打开面板都
+        // 打一次 GitHub API（未授权接口每小时只有 60 次）。
+        UpdateCenter.ensureChecked(context)
         refreshAssessment()
+    }
+
+    /**
+     * 等 App 重新绑定重启后的 Host，再读运行中的插件版本。
+     *
+     * 重启会换端口，客户端的 bridge 绑定由主界面异步重建；这里轮询到读得到为止，
+     * 读不到就返回 null（由调用方报「Host 没加载插件」），绝不当成成功。
+     */
+    suspend fun awaitRunningPluginVersion(): String? {
+        repeat(12) {
+            val running = HostRuntimeHolder.runningBridgeVersionProvider
+                ?.let { provider -> runCatching { provider() }.getOrNull() }
+            if (running != null) return running
+            delay(700)
+        }
+        return null
     }
 
     fun openUrl(url: String) {
@@ -107,6 +128,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
 
     val installed = RootfsVersion.parse(assessment.installed)
     val packaged = RootfsVersion.parse(assessment.available)
+    val pluginComparison = comparePluginVersions(assessment.installedPlugin, assessment.latestPlugin)
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -173,7 +195,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                     assessment.need == UpdateNeed.PLUGIN_REQUIRED -> {
                         Text(
                             "客户端与 Host 通过 bridge/v1 通信，两者必须说同一个协议版本。" +
-                                "插件更新只需在运行时内安装，不会重新下载镜像。",
+                                "插件更新只需在运行时内安装，不会重新下载镜像；完成后会自动重启 Host。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -185,12 +207,18 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                         )
                     }
                     assessment.latestPlugin == null -> Text(
-                        "无法读取插件最新版本（可能离线）。已安装 ${assessment.installedPlugin ?: "未知"}。",
+                        "无法读取插件最新版本（网络不可用或 GitHub 限流）。" +
+                            "已安装 ${assessment.installedPlugin ?: "未知"}。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline,
                     )
+                    pluginComparison != null && pluginComparison > 0 -> Text(
+                        "已安装 ${assessment.installedPlugin}，比最新发布 ${assessment.latestPlugin} 更新，无需更新。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     else -> Text(
-                        "已是最新版本 ${assessment.latestPlugin}。",
+                        "已是最新版本 ${assessment.installedPlugin}。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -208,42 +236,64 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        enabled = !pluginBusy && assessmentLoaded,
+                        enabled = !pluginBusy && assessmentLoaded && assessment.canUpdatePlugin,
                         onClick = {
                             scope.launch {
                                 pluginBusy = true
                                 pluginError = null
-                                pluginStatus = "准备更新…"
                                 val manager = HostRuntimeHolder.manager
+                                val target = assessment.latestPlugin
                                 if (manager == null) {
                                     pluginError = "运行时不可用"
                                     pluginBusy = false
                                     return@launch
                                 }
-                                // 优先走 Host 自己的安装 RPC：App 进程另起 proot 时
-                                // 会被 seccomp 拦掉 mkdtemp（ENOSYS）。
-                                val installer = HostRuntimeHolder.pluginInstaller
-                                val spec = com.deepseek.dsh.runtime.host.BridgePluginManifest
-                                    .load(context)?.installSpec()
-                                val result = if (installer != null && !spec.isNullOrBlank()) {
-                                    pluginStatus = "通过 Host 安装 $spec…"
-                                    installer(spec)
-                                } else {
-                                    manager.updateBridgePlugin { _, step ->
-                                        pluginStatus = step
-                                    }
+                                if (target == null) {
+                                    pluginError = "无法读取插件最新版本，请检查网络后重新检查"
+                                    pluginBusy = false
+                                    return@launch
                                 }
-                                pluginBusy = false
+                                pluginStatus = "准备更新到 $target…"
+                                // 下载与解压都在 App 进程完成：Host 跑在 proot 里，
+                                // 解析不到 github.com，无法在那里跑 git/pnpm。
+                                val result = manager.updateBridgePlugin(target) { _, step ->
+                                    pluginStatus = step
+                                }
                                 result.fold(
                                     onSuccess = { version ->
-                                        pluginStatus = "插件已更新到 $version"
-                                        // 装完重读一次：结论应立刻从「必需」变回「最新」。
+                                        pluginStatus = "插件 $version 已安装，正在重启 Host…"
+                                        val restart = HostRuntimeHolder.restartHost
+                                        val restartFailure = restart?.invoke()?.exceptionOrNull()
+                                        if (restart == null) {
+                                            pluginStatus = "插件 $version 已安装；重启 Host 后生效"
+                                        }
+                                        // 装完必须以「运行中的插件版本」收尾：文件对了但
+                                        // Host 没加载（依赖缺失、启动失败）时，界面不能
+                                        // 假装更新成功。
+                                        delay(1_200)
+                                        val running = awaitRunningPluginVersion()
+                                        pluginStatus = "插件 $version 已写入"
+                                        pluginError = when {
+                                            restartFailure != null ->
+                                                "Host 重启失败：" + (restartFailure.message ?: "未知原因")
+                                            running == null ->
+                                                "Host 没有加载 bridge 插件；请点「重启 Host」重试，" +
+                                                    "仍失败时更新 Rootfs 镜像"
+                                            running != version ->
+                                                "Host 正在运行 $running，不是 $version；" +
+                                                    "请点「重启 Host」重试"
+                                            else -> {
+                                                pluginStatus = "插件已更新到 $version，Host 已重启"
+                                                null
+                                            }
+                                        }
                                         refreshAssessment()
                                     },
                                     onFailure = { failure ->
                                         pluginError = failure.message ?: "插件更新失败"
                                     },
                                 )
+                                pluginBusy = false
                             }
                         },
                     ) {
@@ -260,6 +310,31 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                         enabled = !pluginBusy && !rootfsBusy,
                         onClick = { scope.launch { refreshAssessment() } },
                     ) { Text("重新检查") }
+                    OutlinedButton(
+                        enabled = !pluginBusy && !rootfsBusy,
+                        onClick = {
+                            scope.launch {
+                                pluginBusy = true
+                                pluginError = null
+                                pluginStatus = "正在重启 Host…"
+                                val restart = HostRuntimeHolder.restartHost
+                                if (restart == null) {
+                                    pluginError = "运行时不可用"
+                                } else {
+                                    val restarted = restart()
+                                    if (restarted.isFailure) {
+                                        pluginError = "Host 重启失败：" +
+                                            (restarted.exceptionOrNull()?.message ?: "未知原因")
+                                    } else {
+                                        pluginStatus = "Host 已重启"
+                                    }
+                                }
+                                delay(1_200)
+                                refreshAssessment()
+                                pluginBusy = false
+                            }
+                        },
+                    ) { Text("重启 Host") }
                 }
             }
         }
@@ -314,16 +389,28 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                             // 镜像替换会重启 Host，因此先停掉再装。
                             withContext(Dispatchers.IO) { manager.stop() }
                             val result = manager.installRootfs { _, step -> rootfsStatus = step }
-                            rootfsBusy = false
                             result.fold(
                                 onSuccess = {
-                                    rootfsStatus = "镜像已更新"
+                                    // 新镜像内已经换了插件与引擎；装完把 Host 拉起来，
+                                    // 否则整页会停在「已停止」，用户还得自己去运行页启动。
+                                    val restart = HostRuntimeHolder.restartHost
+                                    rootfsStatus = if (restart == null) {
+                                        "镜像已更新；请启动 Host"
+                                    } else {
+                                        val restarted = restart()
+                                        if (restarted.isSuccess) "镜像已更新，Host 已重启"
+                                        else "镜像已更新，但 Host 启动失败：" +
+                                            (restarted.exceptionOrNull()?.message ?: "未知原因")
+                                    }
+                                    rootfsBusy = false
+                                    delay(1_200)
                                     refreshAssessment()
                                 },
                                 onFailure = { failure ->
                                     rootfsStatus = "镜像更新失败：${failure.message}"
                                 },
                             )
+                            rootfsBusy = false
                         }
                     },
                 ) { Text(if (rootfsBusy) "正在安装…" else "更新镜像（可选）") }

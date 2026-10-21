@@ -372,6 +372,17 @@ class BridgeClientTest {
     }
 
     @Test
+    fun `slot registration decodes its origin`() {
+        val registration = BridgeJson.instance.decodeFromString(
+            BridgeSlotRegistration.serializer(),
+            """{ "slot": "settings.section", "id": "subscription", "origin": "static",
+                 "render": { "kind": "component", "componentId": "pkg#subscription" } }""",
+        )
+        assertEquals("static", registration.origin)
+        assertEquals("pkg#subscription", registration.componentId)
+    }
+
+    @Test
     fun `render tree props survive as json for a renderer`() = runBlocking {
         val props = buildJsonObject {
             put("view", "summary")

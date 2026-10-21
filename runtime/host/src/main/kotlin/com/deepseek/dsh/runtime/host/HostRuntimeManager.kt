@@ -42,15 +42,19 @@ interface HostRuntimeManager {
     /**
      * 在 rootfs 内单独安装/更新 bridge 插件，不重下 rootfs。
      *
-     * 走 GitHub 源码安装：Host 内执行
-     * `dsh plugin --profile web add <repo>#<tag>`，因此需要网络；失败时返回
-     * 可读原因，绝不留半装状态（命令自身是原子的）。
+     * 下载插件仓库对应 tag 的源码归档，校验后铺进 profile 的 `node_modules`；
+     * 不走 Host 的 git/pnpm（proot 内解析不到 GitHub，且 pnpm 会重写 profile
+     * 清单）。装完需要重启 Host 才会加载新代码。
+     * @param version 目标版本，取插件仓库的最新 release。
      * @param onProgress 进度与步骤文案。
-     * @return 成功后 rootfs 内读到的插件版本。
+     * @return 成功后读到的插件版本。
      */
-    suspend fun updateBridgePlugin(onProgress: (Float, String) -> Unit): Result<String>
+    suspend fun updateBridgePlugin(
+        version: String,
+        onProgress: (Float, String) -> Unit,
+    ): Result<String>
 
-    /** 读取 rootfs 内已安装的 bridge 插件版本；未安装或读不到时为 null。 */
+    /** 读取实际在用的 bridge 插件版本（运行中优先，其次落盘）；都读不到时为 null。 */
     suspend fun installedBridgeVersion(): String?
 
     /**

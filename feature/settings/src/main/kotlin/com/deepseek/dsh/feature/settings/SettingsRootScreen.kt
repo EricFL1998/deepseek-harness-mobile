@@ -2,6 +2,7 @@ package com.deepseek.dsh.feature.settings
 
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.PluginInventorySnapshotInfo
+import com.deepseek.dsh.core.model.isThirdPartyPlugin
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -89,6 +90,15 @@ fun SettingsRootScreen(
     pluginSettingsPages: List<com.deepseek.dsh.core.model.PluginSettingsPage> = emptyList(),
     /** 插件声明的全部入口（带原生落点），用于汇总尚未有专门屏幕的位置。 */
     pluginSlotEntries: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
+    /** bridge 门面；提供时插件声明的组件（settings.section 等）可渲染成原生控件。 */
+    bridgeRegistry: com.deepseek.dsh.core.bridge.BridgeRegistry? = null,
+    /** 插件请求刷新的组件 id 流（client/refresh 事件）。 */
+    pluginComponentRefresh: kotlinx.coroutines.flow.SharedFlow<String>? = null,
+    /** 本地 Host 的 loopback 端口与启动 token；插件的完整界面（WebView）用它们。 */
+    hostPort: Int = 0,
+    hostToken: String? = null,
+    /** 需要时再取一次 Host 端口（异步就绪）。 */
+    hostPortProvider: (() -> Int)? = null,
     /** 读取一份插件设置表单。 */
     loadPluginSettings: suspend (String) -> com.deepseek.dsh.core.model.PluginSettingsDocument? = { null },
     /** 回写插件设置字段。 */
@@ -118,11 +128,17 @@ fun SettingsRootScreen(
     var activePluginPage by remember {
         mutableStateOf<com.deepseek.dsh.core.model.PluginSettingsPage?>(null)
     }
+    var activePluginComponent by remember { mutableStateOf<com.deepseek.dsh.core.model.PluginSlotEntry?>(null) }
     var currentSettings by remember(settings) { mutableStateOf(settings) }
     var selectedAgentPreset by remember { mutableStateOf(settings.transcriptView) }
 
     BackHandler(enabled = true) {
-        if (activeSection != null) activeSection = null else onClose()
+        when {
+            activePluginComponent != null -> activePluginComponent = null
+            activePluginPage != null -> activePluginPage = null
+            activeSection != null -> activeSection = null
+            else -> onClose()
+        }
     }
 
     val bgTheme = MaterialTheme.colorScheme.background
@@ -136,42 +152,47 @@ fun SettingsRootScreen(
                 .background(bgTheme)
                 .statusBarsPadding()
         ) {
-            // 顶部 Header：圆底返回按钮 + 居中标题（与全屏子页面统一的 72dp 高度）
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
+            // 顶层 Header 只在「设置主页 / 分区面板」显示。插件界面与插件设置页
+            // 自带同一套返回条，这里再画一次就会出现两个返回按钮（且顶层的那个
+            // 返回的是设置根，不是上一级插件界面）。
+            val subPageOpen = activePluginComponent != null || activePluginPage != null
+            if (!subPageOpen) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(72.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        onClick = { if (activeSection == null) onClose() else activeSection = null },
-                        modifier = Modifier.size(44.dp),
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(72.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = textPrimary,
-                                modifier = Modifier.size(22.dp),
-                            )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            onClick = { if (activeSection == null) onClose() else activeSection = null },
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = textPrimary,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = activeSection?.title ?: "设置",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = textPrimary,
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.size(44.dp))
                     }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = activeSection?.title ?: "设置",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = textPrimary,
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.size(44.dp))
                 }
             }
 
@@ -180,7 +201,19 @@ fun SettingsRootScreen(
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "settings_nav"
             ) { section ->
-                if (activePluginPage != null) {
+                if (activePluginComponent != null) {
+                    val entry = activePluginComponent!!
+                    PluginComponentPane(
+                        componentId = entry.resolvedComponentId() ?: "${entry.module}#${entry.slot}",
+                        title = entry.title ?: entry.identity ?: entry.slot,
+                        registry = bridgeRegistry,
+                        onBack = { activePluginComponent = null },
+                        refreshEvents = pluginComponentRefresh,
+                        hostPort = hostPort,
+                        hostToken = hostToken,
+                        hostPortProvider = hostPortProvider,
+                    )
+                } else if (activePluginPage != null) {
                     val page = activePluginPage!!
                     PluginSettingsPage(
                         ns = page.id,
@@ -198,6 +231,15 @@ fun SettingsRootScreen(
                             .padding(horizontal = 12.dp),
                         contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
                     ) {
+                        // settings.general.item 等：原生插件在设置主页顶部的落点。
+                        // 插件在此显示状态卡/快捷入口等原生内容；没有注册时不占空间。
+                        item(key = "native_slot_settings") {
+                            com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                                slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.SETTINGS_SHEET,
+                                spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                                modifier = Modifier.padding(bottom = 8.dp),
+                            )
+                        }
                         item(key = "settings_card") {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
@@ -221,57 +263,6 @@ fun SettingsRootScreen(
                                 }
                             }
                         }
-                        // 插件声明的其他位置：落点已由 bridge 判定，这里按位置分组列出。
-                        // 已经有专门屏幕的位置（设置、插件列表）不在此重复。
-                        run {
-                            val elsewhere = pluginSlotEntries
-                                .filterNot {
-                                    it.placement == "settings.page" ||
-                                        it.placement == "plugins.item" ||
-                                        it.placement == "plugins.row.config"
-                                }
-                                .groupBy { it.placement }
-                            if (elsewhere.isNotEmpty()) {
-                                item(key = "plugin_entry_head") {
-                                    Text(
-                                        text = "插件入口",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
-                                    )
-                                }
-                                item(key = "plugin_entry_card") {
-                                    Surface(
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = cardBg,
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Column {
-                                            val rows = elsewhere.entries.flatMap { (placement, entries) ->
-                                                entries.map { placement to it }
-                                            }
-                                            rows.forEachIndexed { index, (placement, entry) ->
-                                                SettingsNavRow(
-                                                    title = entry.title ?: entry.id ?: entry.slot,
-                                                    subtitle = (com.deepseek.dsh.core.model.PLACEMENT_LABELS[placement]
-                                                        ?: placement) + " · " + entry.slot,
-                                                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
-                                                    onClick = { },
-                                                )
-                                                if (index != rows.lastIndex) {
-                                                    HorizontalDivider(
-                                                        thickness = 0.5.dp,
-                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                                        modifier = Modifier.padding(start = 52.dp, end = 16.dp),
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
                         // 插件声明的设置页：Host 为每个声明了 Config 的插件行生成命名空间，
                         // 这里按同一个顺序列出来；内容页尚未实现。
                         if (pluginSettingsPages.isNotEmpty()) {
@@ -298,6 +289,49 @@ fun SettingsRootScreen(
                                                 onClick = { activePluginPage = page },
                                             )
                                             if (index != pluginSettingsPages.lastIndex) {
+                                                HorizontalDivider(
+                                                    thickness = 0.5.dp,
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                    modifier = Modifier.padding(start = 52.dp, end = 16.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // 插件声明的 UI（settings.section 等 slot 注册）：点进去是该插件
+                        // 静态转译出的原生渲染树，而不是只有表单 schema 的页面。
+                        // 官方分区已有本页面自己的原生面板，这里只列第三方插件。
+                        val pluginComponents = pluginSlotEntries
+                            .filter {
+                                it.slot == "settings.section" &&
+                                    it.isThirdPartyPlugin
+                            }
+                        if (pluginComponents.isNotEmpty() && bridgeRegistry != null) {
+                            item(key = "plugin_components_card_head") {
+                                Text(
+                                    text = "插件界面",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
+                                )
+                            }
+                            item(key = "plugin_components_card") {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = cardBg,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column {
+                                        pluginComponents.forEachIndexed { index, entry ->
+                                            SettingsNavRow(
+                                                title = entry.title ?: entry.id ?: entry.slot,
+                                                subtitle = entry.module ?: entry.slot,
+                                                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
+                                                onClick = { activePluginComponent = entry },
+                                            )
+                                            if (index != pluginComponents.lastIndex) {
                                                 HorizontalDivider(
                                                     thickness = 0.5.dp,
                                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
@@ -342,6 +376,8 @@ fun SettingsRootScreen(
                             credentialsRaw = modelCredentialsRaw,
                             onOpenConfigFile = onOpenSettingsDocument,
                             onSaveProvider = onSaveModelProvider,
+                            bridgeRegistry = bridgeRegistry,
+                            pluginComponentRefresh = pluginComponentRefresh,
                         )
 
                         SettingsSectionTab.PLUGINS -> SettingsPluginsPane(

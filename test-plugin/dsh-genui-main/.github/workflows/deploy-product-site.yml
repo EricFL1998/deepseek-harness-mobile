@@ -1,0 +1,53 @@
+name: Deploy dsh-genui site to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/build-anthology-page.mts"
+      - "site/**"
+      - ".github/workflows/deploy-product-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # 选集页（site/anthology.html）在 CI 里从 gallerySpec 现场生成：
+      # 8MB+ 的自包含产物不进 git，线上永远跟随 main 的渲染器与选集内容。
+      - name: Build renderer bundle
+        run: pnpm build
+      - name: Generate anthology page
+        run: npx tsx scripts/build-anthology-page.mts
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./site"
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

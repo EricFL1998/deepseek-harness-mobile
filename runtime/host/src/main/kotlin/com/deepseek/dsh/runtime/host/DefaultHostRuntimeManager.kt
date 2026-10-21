@@ -71,8 +71,19 @@ class DefaultHostRuntimeManager(
     }
 
     override suspend fun installedBridgeVersion(): String? = withContext(Dispatchers.IO) {
-        BridgePluginInstaller(context, layout).installedVersion()
+        runningBridgeVersion() ?: BridgePluginInstaller(context, layout).installedVersion()
     }
+
+    /**
+     * 读 Host **正在运行**的插件版本。
+     *
+     * 落盘的 `package.json` 与运行中的代码可能不一致（装完还没重启），而更新判断
+     * 关心的是「现在跑的是哪一版」。Host 未运行、bridge 不可达或插件没加载时报 null，
+     * 调用方退回落盘版本。
+     */
+    private suspend fun runningBridgeVersion(): String? = runCatching {
+        HostRuntimeHolder.runningBridgeVersionProvider?.invoke()
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 
     override suspend fun assessUpdates(): UpdateAssessment = withContext(Dispatchers.IO) {
         // 每一步各自容错：查询插件仓库要联网、读 rootfs 要访问文件系统，
@@ -86,7 +97,7 @@ class DefaultHostRuntimeManager(
         val installedRootfs = runCatching { installedRootfsVersion() }.getOrNull()
         val availableRootfs = runCatching { availableRootfsVersion() }.getOrNull()
         val installedPlugin = runCatching {
-            BridgePluginInstaller(context, layout).installedVersion()
+            runningBridgeVersion() ?: BridgePluginInstaller(context, layout).installedVersion()
         }.getOrNull()
         assessUpdate(
             installed = installedRootfs,
@@ -97,6 +108,7 @@ class DefaultHostRuntimeManager(
     }
 
     override suspend fun updateBridgePlugin(
+        version: String,
         onProgress: (Float, String) -> Unit,
     ): Result<String> = withContext(Dispatchers.IO) {
         val manifest = BridgePluginManifest.load(context)
@@ -106,7 +118,11 @@ class DefaultHostRuntimeManager(
         if (manifest.repository.isBlank()) {
             return@withContext Result.failure(IllegalStateException("插件清单未配置安装源"))
         }
-        BridgePluginInstaller(context, layout).install(manifest.installSpec(), onProgress)
+        BridgePluginInstaller(context, layout).installFromRelease(
+            repository = manifest.repository,
+            version = version,
+            onProgress = onProgress,
+        )
     }
 
     override suspend fun installRootfs(onProgress: (Float, String) -> Unit): Result<Unit> = withContext(Dispatchers.IO) {
@@ -194,7 +210,7 @@ class DefaultHostRuntimeManager(
     private fun applyBundledRuntimePatches() {
         // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
-        val patchRevision = "14"
+        val patchRevision = "22"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
@@ -219,6 +235,11 @@ class DefaultHostRuntimeManager(
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tool-fs-search/lib/index.js",
             "rootfs-patches/dsh-storage-json-index.js" to
                 "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-storage-json/lib/index.js",
+            // 客户端模块的包解析在 Android/proot 下走 Loader 解析器会全部落空，
+            // 启动清单因此为空、浏览器外壳起不来；这份补丁改成从 tree 的
+            // node_modules 直接读清单。
+            "rootfs-patches/dsh-client-modules-index.js" to
+                "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-client-modules/lib/index.js",
         )
         patches.forEach { (asset, relative) ->
             val target = File(layout.rootfsDir, relative)
@@ -230,7 +251,6 @@ class DefaultHostRuntimeManager(
             }
         }
         File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
-        applyBridgeBundleRow()
         runCatching {
             patchMarker.parentFile?.mkdirs()
             patchMarker.writeText(patchRevision)
@@ -247,6 +267,187 @@ class DefaultHostRuntimeManager(
      *
      * 幂等：已经追加过就不再重复写，避免文件无限增长。
      */
+
+    /**
+     * 给已安装的第三方插件补一行 Loader 行。
+     *
+     * 插件装进 profile 的 node_modules 之后，Host 不会自己把它挂上：profile 的
+     * `dsh.profile.bundles` 每次启动都会被核对，设备上没有 pnpm/git 源时外部依赖判定
+     * 不成立、条目被删；profile 的 `cordis.patch.yml` 也会被运行时重写。web-app 的
+     * patch 属于「随安装发布的状态」，不受这两处影响，因此第三方插件的行写在这一层。
+     *
+     * 只处理非 `@deepseek-ai/` 的包，并且只在包里确实带客户端半边（`dsh.client`）时
+     * 补行——那是「这个包会在界面里出现」的判据。幂等：行已存在就跳过。
+     */
+    private fun applyInstalledPluginRows() {
+        val webAppPatch = File(
+            layout.rootfsDir,
+            "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/" +
+                "@deepseek-ai/dsh-web-app/cordis.patch.yml",
+        )
+        if (!webAppPatch.isFile) return
+        val profileModules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules")
+        val packages = profileModules.listFiles()?.filter { it.isDirectory } ?: return
+        runCatching {
+            var current = webAppPatch.readText()
+            // ① 先清掉本类历次追加过的独立挂载行（形状见 prunePluginRows）。
+            //
+            // 不清会出两类故障：
+            // - 「行在、包不在」的残留在 Loader 里创建失败 entry，整个 Web 客户端
+            //   停在启动失败页；
+            // - 同一包重复挂载（scoped 包的引号写法、安装器自己的 marker 块）会让
+            //   同一个插件被 apply 两次 —— 例如 genui 第二次注册同名 prompt section
+            //   直接抛错，插件被禁用。
+            // 只删「本类自己追加的」行：插件作者随包发布的 patch 内容（安装器按
+            // marker 原样写入）形状完全一样，必须保护，否则会删掉插件自己的挂载行。
+            val protectedPatches = readInstalledBundlePatches(profileModules)
+            val (pruned, removed) = prunePluginRows(current, protectedPatches)
+            if (removed.isNotEmpty()) {
+                current = pruned
+                webAppPatch.writeText(current)
+            }
+            // ② 再补齐已安装插件的挂载行（幂等）。安装器自己的 marker 块里已经
+            // 挂过的包（任何引号写法）跳过，不重复挂。
+            val appended = StringBuilder()
+            for (dir in packages) {
+                val name = dir.name
+                // 官方包由 profile 自带的 bundle 层负责，重复挂一行会加载两次；
+                // 第三方 scoped 包（@scope/name）要照挂，只排除官方 scope。
+                if (name == "@deepseek-ai" || name.startsWith(".")) continue
+                if (name.startsWith("@")) {
+                    val scopeDir = dir
+                    scopeDir.listFiles()?.forEach { scoped ->
+                        if (!scoped.isDirectory) return@forEach
+                        val scopedName = "${name}/${scoped.name}"
+                        if (!declaresClientHalf(scoped)) return@forEach
+                        if (rowMounted(current, scopedName) || appended.contains(scopedName)) return@forEach
+                        appended.appendLine().append("- insert:").appendLine().append("    - id: \"").append(scopedName).append("\"")
+                            .appendLine().append("      name: \"").append(scopedName).append("\"").appendLine()
+                    }
+                    continue
+                }
+                if (name == "dsh-mobile-bridge-plugin") continue
+                if (rowMounted(current, name) || appended.contains(name)) continue
+                if (!declaresClientHalf(dir)) continue
+                appended.appendLine().append("- insert:").appendLine().append("    - id: ").append(name)
+                    .appendLine().append("      name: ").append(name).appendLine()
+            }
+            if (appended.isNotEmpty()) webAppPatch.appendText(appended.toString())
+        }
+    }
+
+    /**
+     * 读取已安装插件随包发布的 cordis patch 文本（`package.json` 的
+     * `dsh.bundle.patch`）。
+     *
+     * 安装器会把这些文本原样写进 web-app patch（带 `# android-installed:` 标记）。
+     * 它们和本类追加的独立行形状可能完全相同，清理时必须按内容保护，不能只看形状。
+     */
+    private fun readInstalledBundlePatches(profileModules: File): List<String> {
+        val texts = mutableListOf<String>()
+        fun readPackage(dir: File) {
+            val manifest = File(dir, "package.json")
+            val text = runCatching { manifest.readText() }.getOrNull() ?: return
+            val patchPath = runCatching {
+                org.json.JSONObject(text)
+                    .optJSONObject("dsh")
+                    ?.optJSONObject("bundle")
+                    ?.optString("patch")
+                    ?.takeIf { it.isNotBlank() }
+            }.getOrNull() ?: return
+            val file = File(dir, patchPath)
+            runCatching { file.readText() }.getOrNull()?.let { texts += it }
+        }
+        for (dir in profileModules.listFiles() ?: emptyArray()) {
+            if (!dir.isDirectory) continue
+            if (dir.name.startsWith("@")) {
+                dir.listFiles()?.filter { it.isDirectory }?.forEach(::readPackage)
+            } else {
+                readPackage(dir)
+            }
+        }
+        return texts
+    }
+
+    /** patch 里是否已经挂过这个包的行（`name:` 可能带单/双引号，也可能裸写）。 */
+    private fun rowMounted(patchText: String, packageName: String): Boolean =
+        patchText.contains("name: $packageName") ||
+            patchText.contains("name: \"$packageName\"") ||
+            patchText.contains("name: '$packageName'")
+
+    /**
+     * 一份 `package.json` 是否声明了浏览器半边（`dsh.client`）。
+     *
+     * 判据用 JSON 结构而不是文本包含：`"dsh"`/`"client"` 这样的子串在依赖名或
+     * description 里也会出现，误判会把纯 Host 服务当 UI 插件挂进浏览器。
+     */
+    private fun declaresClientHalf(dir: File): Boolean {
+        val manifest = File(dir, "package.json")
+        val text = runCatching { manifest.readText() }.getOrNull() ?: return false
+        return runCatching {
+            val root = org.json.JSONObject(text)
+            val dsh = root.optJSONObject("dsh") ?: return@runCatching false
+            dsh.has("client")
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 清掉本类追加过的独立挂载块（全部，不做保留判断）。
+     *
+     * 只认同一种形状：顶层 `- insert:` 紧跟两行 `- id: X` / `name: X`，且后面
+     * 没有更多字段（补丁自带的 insert 块通常在 name 之后还有 config/disabled
+     * 或并列的多条 row；安装器写入的 marker 块也带 `# android-installed:` 注释
+     * 和插件自己的多行 patch，因此都不会被误删）。官方 scope 的包不碰。
+     *
+     * 调用方随后会按当前 profile 目录重建需要的行，因此这里不区分「包是否还在」：
+     * 先全删，避免同一形状在多次启动/安装之间累积成重复 entry。
+     *
+     * @param text patch 文件内容。
+     * @param protectedPatches 插件随包发布的 patch 文本；这些内容原样保留。
+     * @returns 处理后的内容与被移除的包名。
+     */
+    private fun prunePluginRows(
+        text: String,
+        protectedPatches: List<String>,
+    ): Pair<String, List<String>> {
+        val lines = text.lines().toMutableList()
+        val removed = mutableListOf<String>()
+        var index = 0
+        while (index + 2 < lines.size) {
+            if (lines[index] != "- insert:") {
+                index += 1
+                continue
+            }
+            val idLine = lines[index + 1]
+            val nameLine = lines[index + 2]
+            if (!idLine.startsWith("    - id: ") || !nameLine.startsWith("      name: ")) {
+                index += 1
+                continue
+            }
+            val following = lines.getOrNull(index + 3)
+            val standalone = following == null || following.isBlank() ||
+                following.startsWith("- ") || following.startsWith("#")
+            if (!standalone) {
+                index += 1
+                continue
+            }
+            // 插件作者随包发布的行：内容完全一致时保留。
+            val blockText = "${lines[index]}\n${lines[index + 1]}\n${lines[index + 2]}"
+            if (protectedPatches.any { it.contains(blockText) }) {
+                index += 3
+                continue
+            }
+            val packageName = nameLine.removePrefix("      name: ").trim().trim('"', '\'')
+            if (packageName.isEmpty() || packageName.startsWith("@deepseek-ai/")) {
+                index += 3
+                continue
+            }
+            removed += packageName
+            repeat(3) { if (index < lines.size) lines.removeAt(index) }
+            if (index < lines.size && lines[index].isBlank()) lines.removeAt(index)
+        }
+        return lines.joinToString("\n") to removed
+    }
     private fun applyBridgeBundleRow() {
         val webAppPatch = File(
             layout.rootfsDir,
@@ -282,12 +483,14 @@ class DefaultHostRuntimeManager(
             )
         }
         applyBundledRuntimePatches()
-        // bridge 插件必须由客户端保证存在：先把它铺进 Host 安装目录（随安装发布的
-        // bundle，不参与 profile 依赖核对），再登记到 profile 的 bundles。设备上没有
-        // 可用的 pnpm/git 源，任何依赖 pnpm 的安装方式都无法在启动时稳定成立。
+        // 插件挂载层每次启动都核对一遍：卸载留下的「id 在、包不在」的 Loader 行
+        // 会让整个 Web 客户端停在启动失败页（一个失败的 entry 就够），而补丁
+        // 文件是持久化的，不修就一直是坏的。这是幂等的文件核对，成本只有一次读。
+        applyBridgeBundleRow()
+        applyInstalledPluginRows()
+        // bridge 插件由 rootfs 内置或 GitHub 安装；APK 不再内置代码。
         runCatching {
             val installer = BridgePluginInstaller(context, layout)
-            installer.ensureInstalledInHost()
             installer.ensureProfileEntry()
         }
         killStaleHostProcesses()
@@ -299,16 +502,7 @@ class DefaultHostRuntimeManager(
         // proot 的 bind 目标需要存在；DSH 配置目录先创建，避免首次启动 mkdir 失败。
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
         // profile 需要从自身目录解析 @deepseek-ai/* bundle；链接到 rootfs 全局 node_modules。
-        val profileNodeModules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules").apply { mkdirs() }
-        val presetLink = File(profileNodeModules, "@deepseek-ai")
-        if (!presetLink.exists()) {
-            runCatching {
-                java.nio.file.Files.createSymbolicLink(
-                    presetLink.toPath(),
-                    java.nio.file.Paths.get("../../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai")
-                )
-            }
-        }
+        ensureProfilePresetLink(File(layout.rootfsDir, "root/.dsh/profiles/web"))
         File(layout.rootfsDir, "root/.dsh/sessions/--workspace--").mkdirs()
         File(layout.rootfsDir, "root/.dsh/storages").mkdirs()
         File(layout.rootfsDir, "root/.dsh/storages/session-projection").mkdirs()
@@ -329,10 +523,28 @@ class DefaultHostRuntimeManager(
             parentFile?.mkdirs()
             writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
         }
-        // 把平台域名预先解析并写入 hosts，绕开 proot 内 glibc DNS 的 EAI_AGAIN。
+        // 把域名预先解析并写入 hosts，绕开 proot 内 glibc DNS 的 EAI_AGAIN。
+        //
+        // 这里不只列平台域名：插件页「添加插件」会在 Host 内跑 git/pnpm，它们
+        // 同样只认 hosts。缺了 GitHub 与 npm registry 的条目，安装会停在
+        // 「Could not resolve host」——这也是插件页安装失败的根因。每次启动
+        // 重新解析，IP 变了也能跟上。
         runCatching {
             val hosts = File(layout.rootfsDir, "etc/hosts")
-            val entries = listOf("platform.deepseek.com", "api.deepseek.com").mapNotNull { host ->
+            val hostNames = listOf(
+                // 平台账号与模型
+                "platform.deepseek.com",
+                "api.deepseek.com",
+                // 官方插件安装：git 仓库与源码归档
+                "github.com",
+                "codeload.github.com",
+                "api.github.com",
+                "raw.githubusercontent.com",
+                // 依赖包：官方 npm 与国内镜像
+                "registry.npmjs.org",
+                "registry.npmmirror.com",
+            )
+            val entries = hostNames.mapNotNull { host ->
                 runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
                     ?.let { "$it $host" }
             }

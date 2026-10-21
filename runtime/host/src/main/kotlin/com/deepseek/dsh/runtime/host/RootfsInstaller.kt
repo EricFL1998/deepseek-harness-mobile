@@ -115,7 +115,7 @@ class RootfsInstaller(
         val version = installedVersion() ?: return false
         if (version != manifest.runtimeVersion) return false
         val marker = readMarker()
-        val currentAbi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+        val currentAbi = android.os.Build.SUPPORTED_ABIS?.firstOrNull().orEmpty()
         if (!marker?.abi.isNullOrBlank() && currentAbi.isNotBlank() && marker.abi != currentAbi) return false
         return File(layout.rootfsDir, "etc/os-release").isFile ||
             File(layout.rootfsDir, "usr/bin/env").isFile
@@ -170,7 +170,7 @@ class RootfsInstaller(
                 val target = RootfsNaming.archiveCacheFile(
                     layout.cacheDir,
                     manifest.runtimeVersion,
-                    abi ?: android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" }
+                    abi ?: android.os.Build.SUPPORTED_ABIS?.firstOrNull().orEmpty().ifBlank { "unknown" }
                 )
                 if (!(target.isFile && digestMatches(target, expectedSha))) {
                     onProgress(InstallProgress("下载 rootfs（${manifest.baseDistro.ifBlank { "Debian" }}）...", 0.02f))
@@ -242,12 +242,39 @@ class RootfsInstaller(
             layout.optDshDir.mkdirs()
             layout.dshHomeDir.mkdirs()
             if (preservedHome.exists()) {
-                runCatching { preservedHome.copyRecursively(layout.dshHomeDir, overwrite = true) }
+                // 恢复旧 DSH_HOME（会话/凭证/设置），但 node_modules 单独合并：
+                // 新镜像的 node_modules 带着新版 bridge 与官方依赖，旧目录整体盖回去会把
+                // 新 bridge 弄丢（「行在、包不在」）；但旧目录里还有用户后来装的第三方插件，
+                // 全排除又会把它们弄丢。所以：① 恢复时跳过 node_modules；② 恢复后把旧
+                // node_modules 里**新镜像没有的**包（用户插件）补进来，同名以新镜像为准。
+                val nodeModulesRel = "profiles/web/node_modules"
+                val preservedNodeModules = File(preservedHome, nodeModulesRel).absolutePath
+                runCatching {
+                    preservedHome.walkTopDown().forEach { src ->
+                        if (src.absolutePath.startsWith(preservedNodeModules)) return@forEach
+                        val rel = src.relativeTo(preservedHome).path
+                        val dst = File(layout.dshHomeDir, rel)
+                        if (src.isDirectory) dst.mkdirs()
+                        else runCatching { dst.parentFile?.mkdirs(); src.copyTo(dst, overwrite = true) }
+                    }
+                }
+                // 把旧 node_modules 里新镜像缺失的包（用户装的第三方插件）补回来。
+                runCatching {
+                    val oldModules = File(preservedHome, nodeModulesRel)
+                    val newModules = File(layout.dshHomeDir, nodeModulesRel)
+                    oldModules.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") }
+                        ?.forEach { pkg ->
+                            val target = File(newModules, pkg.name)
+                            if (!target.exists()) {
+                                newModules.mkdirs()
+                                runCatching { pkg.copyRecursively(target, overwrite = false) }
+                            }
+                        }
+                }
                 preservedHome.deleteRecursively()
             }
-            // 旧 DSH_HOME 里的 profile 依赖可能锁定旧版 DSH，删除后由新版从全局安装解析。
+            // 旧 profile 的 pnpm-lock 可能锁定旧版 DSH；删掉让它由新版重新解析。
             runCatching {
-                File(layout.dshHomeDir, "profiles/web/node_modules").deleteRecursively()
                 File(layout.dshHomeDir, "profiles/web/pnpm-lock.yaml").delete()
             }
 
@@ -264,7 +291,7 @@ class RootfsInstaller(
                         baseDistro = manifest.baseDistro,
                         installedAt = System.currentTimeMillis(),
                         archiveBytes = archive.length(),
-                        abi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty(),
+                        abi = android.os.Build.SUPPORTED_ABIS?.firstOrNull().orEmpty(),
                         rootfsName = RootfsNaming.ARCHIVE_PREFIX,
                         releaseTag = RootfsNaming.releaseTag(manifest.runtimeVersion),
                     )

@@ -1,0 +1,78 @@
+name: publish.yml
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '重试发布的既有版本标签，例如 v0.1.35'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+# 同一标签的自动发布和手动重试互斥，避免重复发布。
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: 检出发布标签
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+
+      # 手动重试旧标签时使用当前工作流的控制脚本，不修改旧标签配置。
+      - name: 检出发布控制脚本
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .release-tools
+          sparse-checkout: scripts
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: 校验标签和双语说明
+        run: |
+          node .release-tools/scripts/release-control.mjs validate "$RELEASE_TAG"
+          node .release-tools/scripts/extract-release-notes.mjs "$RELEASE_TAG" "$RUNNER_TEMP/release-notes.md"
+
+      - name: 检查 npm 精确版本与提交
+        id: check
+        run: node .release-tools/scripts/release-control.mjs check "$RELEASE_TAG"
+
+      - name: Enable pnpm
+        if: steps.check.outputs.published != 'true'
+        run: corepack enable
+
+      - name: Install dependencies
+        if: steps.check.outputs.published != 'true'
+        run: pnpm install --frozen-lockfile --config.minimumReleaseAge=1440 --registry=https://registry.npmjs.org
+
+      - name: 完整发布验证
+        if: steps.check.outputs.published != 'true'
+        run: pnpm verify
+
+      - name: Publish to npm
+        if: steps.check.outputs.published != 'true'
+        run: npm publish --access public
+
+      - name: 确认 npm 发布后同步 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .release-tools/scripts/release-control.mjs release "$RELEASE_TAG" "$RUNNER_TEMP/release-notes.md"

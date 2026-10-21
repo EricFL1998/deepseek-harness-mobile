@@ -106,6 +106,18 @@ class DshRepository(
     /** 当前 bridge 门面；未绑定时为 null。 */
     fun bridge(): BridgeRegistry? = bridgeRegistry
 
+    /**
+     * 读取 Host **正在运行**的 bridge 插件版本。
+     *
+     * 这是更新判断最权威的「已装版本」来源：落盘文件可能已经换成新版本，但 Host
+     * 还没重启时，运行中的仍是旧代码。bridge 未绑定、Host 不可达或插件没加载时
+     * 返回 null，调用方退回落盘版本。
+     * @param forceRefresh 是否丢弃 manifest 缓存重新协商（Host 刚重启时用）。
+     * @return 插件版本；读不到时为 null。
+     */
+    suspend fun bridgePluginVersion(forceRefresh: Boolean = false): String? =
+        bridgeRegistry?.pluginVersion(forceRefresh)
+
     private val _pluginSettingsPagesFlow =
         MutableStateFlow<List<PluginSettingsPage>>(emptyList())
 
@@ -132,39 +144,56 @@ class DshRepository(
         _pluginSettingsPagesFlow.asStateFlow()
 
     /**
-     * 读取插件声明的设置页入口。
+     * 读取插件声明的界面入口与设置页。
      *
-     * 与插件目录不同，这条来自 Host 的服务端数据（设置命名空间），因此在没有可评估
-     * 客户端 bundle 的 Host 上也成立。失败不抛异常：条目消失比整页报错好。
+     * 两条来源互相独立，失败也互不牵连：
+     * - `client-slots/list` 是「插件界面」分组的唯一来源（注册 + 本地化 label）；
+     * - `host-slots/list` 提供 Host 侧设置命名空间，用来补「插件设置」分组。
+     *
+     * Host 刚启动时桥可能还没完成首轮鉴权/扫描：一次失败不能把两条都清空并
+     * 再也不重试（调用方会周期性重拉），所以这里分别降级。
      */
     suspend fun refreshPluginSettingsPages() {
         val registry = bridgeRegistry ?: run {
             _pluginSlotSurfacesFlow.value = emptyList()
             _pluginSettingsPagesFlow.value = emptyList()
+            _pluginSlotEntriesFlow.value = emptyList()
             return
         }
+        // ① 插件界面注册：关键路径，先取。
+        // 插件注册的 `label` 是 `t('key')` thunk：只有带上界面语言，bridge 才能解析出
+        // 与 Web 界面一致的文案（例如「订阅」而不是注册 id “subscriptions”）。
+        val locale = java.util.Locale.getDefault().toLanguageTag()
+        when (val all = registry.slotRegistrations(locale = locale)) {
+            is BridgeResult.Success -> {
+                _pluginSlotEntriesFlow.value = all.value.registrations
+                    // 同一个包可能经多个 node_modules 根（安装目录、profile 的
+                    // @deepseek-ai 符号链接）被扫描到多次；列表只应出现一次。
+                    .distinctBy { registration ->
+                        "${registration.slot}|${registration.identity}|${registration.packageName}"
+                    }
+                    .map { registration ->
+                        PluginSlotEntry(
+                            placement = registration.placement ?: "other",
+                            order = registration.order ?: 0,
+                            slot = registration.slot,
+                            id = registration.id,
+                            key = registration.key,
+                            title = registration.label,
+                            module = registration.packageName,
+                            componentId = registration.componentId,
+                        )
+                    }
+            }
+            // 失败时保留已有条目：一次瞬时失败不该让正在使用的入口消失。
+            is BridgeResult.Failure -> Unit
+        }
+        // ② Host 侧设置命名空间：可选路径，失败只影响「插件设置」分组。
         val surfaces = when (val result = registry.hostSlotSurfaces()) {
             is BridgeResult.Success -> result.value.surfaces
-            is BridgeResult.Failure -> {
-                _pluginSlotSurfacesFlow.value = emptyList()
-                _pluginSettingsPagesFlow.value = emptyList()
-                return
-            }
-        }
-        _pluginSlotSurfacesFlow.value = surfaces
-        _pluginSlotEntriesFlow.value = when (val all = registry.slotRegistrations()) {
-            is BridgeResult.Success -> all.value.registrations.map { registration ->
-                PluginSlotEntry(
-                    placement = registration.placement ?: "other",
-                    order = registration.order ?: 0,
-                    slot = registration.slot,
-                    id = registration.id,
-                    title = registration.label,
-                    module = registration.packageName,
-                )
-            }
             is BridgeResult.Failure -> emptyList()
         }
+        _pluginSlotSurfacesFlow.value = surfaces
         _pluginSettingsPagesFlow.value = surfaces
             .filter { it.slot == SETTINGS_PAGE_SLOT }
             .map { surface ->
@@ -190,6 +219,27 @@ class DshRepository(
         return when (val result = registry.pendingEvents()) {
             is BridgeResult.Success -> result.value.events
             is BridgeResult.Failure -> emptyList()
+        }
+    }
+
+    /**
+     * 插件请求刷新的组件 id 流（`client/refresh` 瞬态消息）。
+     *
+     * 插件在 Host 侧响应过 `dispatch` 回传的事件后，bridge 给手机排一条
+     * `client/refresh`；正在展示该组件树的页面（[pluginSlotEntriesFlow] 的消费
+     * 者）collect 这个流并重新拉取 `component-tree`，比固定间隔轮询省得多。
+     */
+    val pluginComponentRefreshFlow: kotlinx.coroutines.flow.MutableSharedFlow<String> =
+        kotlinx.coroutines.flow.MutableSharedFlow(extraBufferCapacity = 16)
+
+    /**
+     * 把一批瞬态消息里的 `client/refresh` 转成组件刷新信号；toast 由调用方另行呈现。
+     */
+    suspend fun dispatchPluginEvents(events: List<com.deepseek.dsh.core.bridge.BridgeTransientEvent>) {
+        for (event in events) {
+            if (event.kind == "client/refresh" && event.text.isNotBlank()) {
+                pluginComponentRefreshFlow.emit(event.text)
+            }
         }
     }
 
@@ -375,6 +425,27 @@ class DshRepository(
             is RemoteResult.Success -> Result.success(res.data)
             is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
         }
+    }
+
+    /**
+     * 启停一条 Loader 行插件（非 bundle 安装的第三方插件）。
+     *
+     * UI 先把开关拨到目标值，再以 Host 的实际状态为准刷新；失败时调用方负责
+     * 把界面拨回去（当前实现由 `refreshPluginInventory` 完成）。
+     *
+     * @param entryId `pluginManager/listPlugins` 的 entryId。
+     * @param enabled 目标状态。
+     */
+    suspend fun setPluginEnabled(hostId: String, entryId: String, enabled: Boolean): Result<Boolean> {
+        _pluginRowsFlow.value = _pluginRowsFlow.value.map { row ->
+            if (row.entryId == entryId) row.copy(enabled = enabled) else row
+        }
+        val result = when (val res = client.setPluginEnabled(hostId, entryId, enabled)) {
+            is RemoteResult.Success -> Result.success(res.data)
+            is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
+        }
+        refreshPluginInventory(hostId)
+        return result
     }
 
     suspend fun workspaceCreate(hostId: String, path: String): Result<String> =

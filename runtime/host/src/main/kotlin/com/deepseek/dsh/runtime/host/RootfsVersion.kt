@@ -130,7 +130,8 @@ enum class UpdateNeed {
  * @param installed 已安装的版本串。
  * @param available 可用的版本串（rootfs 清单里的 `runtimeVersion`）。
  * @param latestPlugin 插件仓库最新 release 的版本，未查询到时为 null。
- * @param installedPlugin rootfs 内实际装的插件版本，读不到时为 null。
+ * @param installedPlugin 实际在用的插件版本（优先取 Host 报出的运行中版本，
+ *   其次读 rootfs 内落盘的版本）；都读不到时为 null。
  */
 data class UpdateAssessment(
     val need: UpdateNeed = UpdateNeed.NONE,
@@ -143,21 +144,81 @@ data class UpdateAssessment(
     val hasUpdate: Boolean get() = need != UpdateNeed.NONE
 
     /**
+     * 插件是否落后于最新发布。
+     *
+     * 只有「已知最新版本」且「已装版本确实更旧（或未知）」时才成立；已装版本
+     * 比最新发布还新时（例如装了未发布的开发版）不算落后，也绝不允许降级。
+     */
+    val pluginOutdated: Boolean get() = installed != null &&
+        isPluginBehind(installedPlugin, latestPlugin)
+
+    /**
      * 「更新插件」按钮是否可用。
      *
-     * 已知最新版本、且打包版本或已装版本落后时可用；读不到任何一侧版本时也给
-     * 出可用状态：更新一次是最安全的收敛动作。
+     * 必须在已安装 rootfs、拿到最新发布版本、且已装版本确实落后时可用：
+     * 版本相同、已装版本更新、或离线拿不到最新版本时都不该按下去（按下去只会
+     * 装上错误的方向或直接失败）。
      */
-    val canUpdatePlugin: Boolean get() = need == UpdateNeed.PLUGIN_REQUIRED ||
-        (latestPlugin != null && installedPlugin != null && installedPlugin != latestPlugin)
+    val canUpdatePlugin: Boolean get() = pluginOutdated
+}
+
+/**
+ * 比较两个插件版本（`1.24.0` 与 `1.1.0`）。
+ *
+ * 只接受 `x.y.z` 三段，按数字段比较；带 `-rc.1` 一类后缀的预发布版本小于同号
+ * 正式版。任一侧为空或不是三段形态时返回 null —— 调用方据此退化为「不同即
+ * 落后」的保守判断，而不是把无法识别的版本当成最新。
+ * @param left 左侧版本。
+ * @param right 右侧版本。
+ * @return 负数表示 left 更旧，0 表示相同，正数表示 left 更新；不可比时为 null。
+ */
+fun comparePluginVersions(left: String?, right: String?): Int? {
+    fun parse(raw: String?): Pair<List<Int>, Boolean>? {
+        val text = raw?.trim()?.removePrefix("v")?.takeIf { it.isNotBlank() } ?: return null
+        val numeric = text.substringBefore('-').substringBefore('+')
+        val segments = numeric.split('.')
+        if (segments.size != 3) return null
+        val numbers = segments.map { it.toIntOrNull() ?: return null }
+        return numbers to text.contains('-')
+    }
+    val a = parse(left) ?: return null
+    val b = parse(right) ?: return null
+    for (index in 0..2) {
+        val difference = a.first[index].compareTo(b.first[index])
+        if (difference != 0) return difference
+    }
+    return when {
+        a.second == b.second -> 0
+        a.second -> -1
+        else -> 1
+    }
+}
+
+/**
+ * 已装版本是否落后于最新发布。
+ *
+ * 版本可解析时按数字段比较（因此 `1.24.0` 不会因为字符串不等而误判成落后
+ * 于 `1.1.0`）；不可解析时退回「不同即落后」：宁可提示一次，也不把无法识别
+ * 的版本当成最新而让契约端一直停在旧协议上。
+ * @param installed 已装版本；null 表示读不到。
+ * @param latest 最新发布版本；null 表示未查询到。
+ * @return 是否需要更新。
+ */
+fun isPluginBehind(installed: String?, latest: String?): Boolean {
+    if (latest.isNullOrBlank()) return false
+    if (installed.isNullOrBlank()) return true
+    val comparison = comparePluginVersions(latest, installed)
+    return if (comparison != null) comparison > 0 else latest.trim() != installed.trim()
 }
 
 /**
  * 比较各段版本，得出更新结论。
  *
  * 规则：
- * 1. 插件侧（`latestPlugin` vs 实际已装插件）：**任一可用来源显示落后 → PLUGIN_REQUIRED**。
- *    以「rootfs 里实际安装的版本」为准，因为用户可能已经单独更新过插件。
+ * 1. 插件侧（`latestPlugin` vs 实际在用的插件版本）：**最新发布确实更新时 →
+ *    PLUGIN_REQUIRED**。版本按数字段比较，已装版本比最新发布还新时不算落后。
+ *    实际在用的版本以 Host 报出的运行中版本为准，读不到时用 profile 内落盘的
+ *    版本；都不算「镜像里打包过」，那只是打包记录。
  * 2. 镜像侧（**dsh 段**变化）：**ROOTFS_OPTIONAL**，只在设置页提示。
  *    镜像重建本身（rootfs 段自增）不算变化：那通常只是把新插件打进镜像。
  *
@@ -166,7 +227,7 @@ data class UpdateAssessment(
  * @param installed 安装标记里的版本串；null 表示 rootfs 未安装。
  * @param available rootfs 清单里的版本串；null 表示拿不到清单。
  * @param latestPlugin 插件仓库最新 release 版本；null 表示未查询或查询失败。
- * @param installedPlugin rootfs 内实际安装的插件版本；null 表示读不到。
+ * @param installedPlugin 实际在用的插件版本；null 表示运行中和落盘都读不到。
  */
 fun assessUpdate(
     installed: String?,
@@ -186,19 +247,17 @@ fun assessUpdate(
         )
     }
 
-    val localVersion = RootfsVersion.parse(installed)
-
-    // 1. 插件：实际已装版本最权威；读不到时退回镜像里打包的版本。
+    // 1. 插件：只认实际在用的版本（Host 报出的运行中版本，或 rootfs 内落盘的
+    //    版本）。镜像里打包的 `-bridge` 段只是打包记录，不能当作「已安装」：
+    //    插件的家是 profile，镜像段说打包过不等于此刻还在。
     if (latestPlugin != null) {
-        val effectiveInstalled = installedPlugin ?: localVersion?.bridge
-        val pluginBehind = effectiveInstalled == null || effectiveInstalled != latestPlugin
-        if (pluginBehind) {
+        if (isPluginBehind(installedPlugin, latestPlugin)) {
             return UpdateAssessment(
                 need = UpdateNeed.PLUGIN_REQUIRED,
                 installed = installed,
                 available = available,
                 latestPlugin = latestPlugin,
-                installedPlugin = effectiveInstalled,
+                installedPlugin = installedPlugin,
             )
         }
     }

@@ -1,0 +1,21 @@
+# 依赖与构建缓存
+node_modules/
+*.tsbuildinfo
+*.tgz
+pnpm-debug.log*
+.dsh-archive-manager-build-*
+
+# npm 本地缓存（发布时临时使用）
+.npm-cache*/
+.pnpm-store/
+
+# 本地日志与系统文件
+*.log
+.DS_Store
+.gate-out.txt
+
+# 本地交接文档（不入库，仅本机维护）
+docs/
+
+# 本机代码索引
+.codegraph/

@@ -828,6 +828,10 @@ class RemoteClient(
                                     },
                                     version = bElem["version"]?.toString()?.trim('"'),
                                     official = bElem["official"]?.toString() == "true",
+                                    installed = bElem["installed"]?.toString() == "true",
+                                    // `installation` = 随安装自带；`installed` = 用户后来装的；
+                                    // `missing` = 声明了但设备上没有。已安装列表只认第二种。
+                                    availability = bElem["availability"]?.toString()?.trim('"') ?: "",
                                     removable = bElem["removable"]?.toString() != "false",
                                     error = (bElem["error"] as? kotlinx.serialization.json.JsonObject)?.get("code")?.toString()?.trim('"'),
                                     rows = componentRows,
@@ -934,9 +938,16 @@ class RemoteClient(
                     val ok = resultObj?.get("ok")?.toString()?.toBooleanStrictOrNull() ?: false
                     val valueObj = resultObj?.get("value") as? kotlinx.serialization.json.JsonObject
                     val errorObj = valueObj?.get("error") as? kotlinx.serialization.json.JsonObject
-                    if (!ok || errorObj != null) {
+                    val application = valueObj?.get("application")?.toString()?.trim('"')
+                    // 安装失败有两种形状：RPC 本身 ok=false，或 RPC 成功但 ChangeResult
+                    // 的 application=failed（带 error 或只有 error.code）。两者都是失败。
+                    val failed = !ok || errorObj != null || application == "failed"
+                    if (failed) {
                         val diag = errorObj?.get("diagnostic")?.toString()?.trim('"')
+                            ?.takeIf { it.isNotBlank() }
                             ?: errorObj?.get("message")?.toString()?.trim('"')
+                                ?.takeIf { it.isNotBlank() }
+                            ?: errorObj?.get("code")?.toString()?.trim('"')
                             ?: "安装失败"
                         RemoteResult.Failure("dsh/plugin/install-failed", diag)
                     } else {
@@ -1012,6 +1023,45 @@ class RemoteClient(
             }
         } catch (_: Exception) {
             RemoteResult.Success(true)
+        }
+    }
+
+    override suspend fun setPluginEnabled(
+        hostId: String,
+        entryId: String,
+        enabled: Boolean
+    ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "pluginManager/setPluginEnabled")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject {
+                    put("id", entryId)
+                    put("enabled", enabled)
+                })
+            })
+        }.toString()
+
+        val request = Request.Builder()
+            .url("$baseUrl/api/pluginManager/setPluginEnabled")
+            .post(payload.toRequestBody(mediaTypeJson))
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                // Host 对未知插件/只读行返回 ok:false，不能当成功吞掉。
+                val ok = response.isSuccessful &&
+                    !body.contains("\"ok\":false")
+                if (ok) RemoteResult.Success(true)
+                else RemoteResult.Failure(
+                    "dsh/plugin/set-enabled-failed",
+                    body.take(300).ifBlank { "HTTP ${response.code}" },
+                )
+            }
+        } catch (error: Exception) {
+            RemoteResult.Failure("dsh/plugin/set-enabled-error", error.message ?: "网络异常")
         }
     }
 
@@ -1138,6 +1188,37 @@ class RemoteClient(
                 RemoteResult.Failure("dsh/rpc-network", e.message ?: "rpc failed")
             }
         }
+    override suspend fun pluginRpc(
+        hostId: String,
+        method: String,
+        payloadJson: String,
+    ): RemoteResult<String> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        // A plugin route takes its own payload verbatim; unlike `rpcRaw` there is
+        // no `{args}` wrapper, because the plugin reads `envelopeRequest.payload`.
+        val body = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", method)
+            put(
+                "payload",
+                runCatching { json.parseToJsonElement(payloadJson) }.getOrNull() ?: buildJsonObject {},
+            )
+        }.toString()
+        val request = Request.Builder()
+            .url("$baseUrl/api/$method")
+            .post(body.toRequestBody(mediaTypeJson))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (response.isSuccessful) RemoteResult.Success(text)
+                else RemoteResult.Failure("dsh/rpc-failed", "HTTP ${response.code}: ${text.take(200)}")
+            }
+        } catch (e: Exception) {
+            RemoteResult.Failure("dsh/rpc-network", e.message ?: "plugin rpc failed")
+        }
+    }
+
     override suspend fun getAutomationTasks(
         hostId: String
     ): RemoteResult<List<AutomationTaskItem>> = withContext(kotlinx.coroutines.Dispatchers.IO) {

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.kimi.nativeui">
+
+    <application>
+        <service
+            android:name=".KimiPluginService"
+            android:exported="true"
+            android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
+            <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
+            <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+            <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.kimi-oauth" />
+            <meta-data android:name="dsh.plugin.name" android:value="Kimi 登录" />
+            <intent-filter>
+                <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
+            </intent-filter>
+        </service>
+
+        <!-- OAuth 深链回跳 -->
+        <activity android:name=".OAuthReturnActivity" android:exported="true">
+            <intent-filter>
+                <data android:scheme="dsh-plugin" android:host="changfenhuang.kimi-oauth" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

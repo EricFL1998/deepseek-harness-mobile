@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.dshgenui.nativeui">
+
+    <application>
+        <service
+            android:name=".GenuiPluginService"
+            android:exported="true"
+            android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
+            <!-- SDK 契约四要素（service 级，App 的 discovery 从这里读） -->
+            <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
+            <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+            <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.dsh-genui" />
+            <meta-data android:name="dsh.plugin.name" android:value="GenUI 界面" />
+            <intent-filter>
+                <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

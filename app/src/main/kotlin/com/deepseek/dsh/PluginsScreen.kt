@@ -46,6 +46,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -104,8 +106,13 @@ fun PluginsScreen(
     pluginManagerSnapshot: PluginManagerSnapshot? = null,
     onOpenSurface: (SurfaceItem) -> Unit,
     onOpenSdui: () -> Unit,
-    onInstallPlugin: (String) -> Unit,
+    /** 安装一个插件 spec（包名 / Git 地址 / 本地绝对路径）。挂起：Host 安装耗时以秒计。 */
+    onInstallPlugin: suspend (String) -> Result<String>,
     onToggleBundle: (String, Boolean) -> Unit = { _, _ -> },
+    /** 启停一条 Loader 行插件（第三方插件，非 bundle）：参数为 entryId 与目标状态。 */
+    onTogglePluginRow: (String, Boolean) -> Unit = { _, _ -> },
+    /** 启停 bundle 里的一个子组件（bundle patch 插进来的一行 Loader entry）。 */
+    onToggleComponent: (String, Boolean) -> Unit = { _, _ -> },
     onUninstall: (SurfaceItem) -> Unit = {},
     onCreatePlugin: () -> Unit = {},
     pluginRows: List<PluginRowInfo> = emptyList(),
@@ -115,10 +122,24 @@ fun PluginsScreen(
     hostSettingsPages: List<com.deepseek.dsh.core.model.PluginSettingsPage> = emptyList(),
     /** 插件声明在行级的原生配置入口（plugins.row.config），来自 Host 的服务端数据。 */
     rowConfigSurfaces: List<com.deepseek.dsh.core.bridge.BridgeSlotSurface> = emptyList(),
+    /** App 安装器管理的包名（web-app patch 里的挂载标记）。 */
+    managedPluginPackages: Set<String> = emptySet(),
+    /** 读取一份插件设置表单。 */
+    loadPluginSettings: suspend (String) -> com.deepseek.dsh.core.model.PluginSettingsDocument? = { null },
+    /** 回写插件设置字段。 */
+    savePluginSettings: suspend (String, kotlinx.serialization.json.JsonObject, Int) -> Boolean =
+        { _, _, _ -> false },
+    /** 外层 App 返回按钮的点击计数：详情页打开时自增，由本页关掉详情。 */
+    backSignal: Int = 0,
+    /** 详情页开关状态上报：外层据此决定返回是关详情还是离开插件页。 */
+    onDetailOpenChange: (Boolean) -> Unit = {},
+    /** 「原生插件」tab 的商店列表项（可装伴侣 APK）。 */
+    nativePluginItems: List<com.deepseek.dsh.plugin.nativehost.NativePluginItem> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showInstallDialog by remember { mutableStateOf(false) }
     var pluginPackageInput by remember { mutableStateOf("") }
     var installStatusMessage by remember { mutableStateOf<String?>(null) }
@@ -437,9 +458,15 @@ fun PluginsScreen(
                     onInstall = {
                     val spec = pluginPackageInput.trim()
                     if (spec.isNotEmpty()) {
-                        onInstallPlugin(spec)
-                        installStatusMessage = "OK: $spec"
-                        pluginPackageInput = ""
+                        // 安装是 suspend（Host 安装耗时以秒计），包一层协程。
+                        scope.launch {
+                            val result = runCatching { onInstallPlugin(spec) }
+                            installStatusMessage = result.fold(
+                                onSuccess = { "OK: $spec" },
+                                onFailure = { "失败：${it.message ?: "未知错误"}" },
+                            )
+                            if (result.isSuccess) pluginPackageInput = ""
+                        }
                     }
                 },
                 onDismiss = {
@@ -645,7 +672,7 @@ private fun isBuiltInBundle(packageName: String): Boolean =
 private fun isLockedBundle(packageName: String): Boolean = packageName == BRIDGE_PLUGIN_PACKAGE
 
 /** 页面与卡片的间距/圆角常量（PluginManagerPage.module.css + ui-primitives）。 */
-private object PluginsDimens {    /** 手机页面左右安全边距（clamp(24px, 4vw, 48px) 的下限）。 */
+internal object PluginsDimens {    /** 手机页面左右安全边距（clamp(24px, 4vw, 48px) 的下限）。 */
     val PageHorizontal = 24.dp
 
     /** 页面顶部内距（header 的 28px 在手机收窄）。 */

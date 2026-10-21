@@ -9,6 +9,19 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
+    <!-- 原生伴侣插件的绑定权限：签名级，主 App 声明，插件 APK 的服务用它守门。
+         只有与主 App 同签名（或明确持有该权限）的插件才能被绑定。 -->
+    <permission
+        android:name="com.deepseek.dsh.permission.BIND_PLUGIN"
+        android:protectionLevel="signature" />
+
+    <!-- Android 11+ 包可见性：声明主 App 要看到带 PLUGIN_UI action 的插件服务。 -->
+    <queries>
+        <intent>
+            <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
+        </intent>
+    </queries>
+
     <application
         android:name=".DshApplication"
         android:allowBackup="false"

@@ -14,7 +14,7 @@
       {
         "id": "client-slots",
         "version": 1,
-        "capabilities": ["list", "describe", "render-tree", "icon-svg"],
+        "capabilities": ["list", "describe", "render-tree", "icon-svg", "dispatch"],
         "readOnly": true
       },
       {
@@ -62,6 +62,7 @@
         "label": "Agent 循环",
         "package": "@deepseek-ai/dsh-client-ui-settings-agent-loop",
         "locale": "settings.agentLoop",
+        "origin": "evaluated",
         "render": { "kind": "component", "componentId": "agent-loop" }
       },
       {

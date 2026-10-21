@@ -144,6 +144,7 @@ class BridgeClient(
                     )
                 }
                 runCatching { decode(body) }.getOrElse { error ->
+                    println("DSH-BRIDGE-DECODE len=" + body.length + " err=" + error.message)
                     BridgeResult.Failure(
                         BridgeErrorCode.TRANSPORT_DECODE_FAILED,
                         "cannot decode the bridge response: ${error.message}",

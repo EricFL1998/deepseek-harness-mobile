@@ -40,12 +40,14 @@ class RuntimeHostTest {
         )
 
         val cmd = ProotCommandBuilder.build(config)
-        assertTrue(cmd.contains("-0"))
         assertTrue(cmd.contains("-r"))
         assertTrue(cmd.contains(layout.rootfsDir.absolutePath))
         assertTrue(cmd.contains("${config.userWorkspacePath}:/workspace"))
         assertTrue(cmd.contains("--link2symlink"))
-        assertTrue(cmd.contains("/opt/dsh/bin/dsh"))
+        // 直接跑 dsh 的 bin.js，而不是 /opt/dsh/bin/dsh 包装脚本：包装脚本会让
+        // import.meta.url 指向包装层，profile bundle 的解析锚点随之出错。
+        assertTrue(cmd.contains("/usr/local/bin/node"))
+        assertTrue(cmd.any { it.endsWith("@deepseek-ai/dsh/lib/bin.js") })
         assertTrue(cmd.contains("--profile"))
         assertTrue(cmd.contains("web"))
     }

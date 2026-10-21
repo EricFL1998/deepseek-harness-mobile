@@ -147,8 +147,9 @@ class RootfsVersionTest {
     }
 
     @Test
-    fun `an unknown installed plugin falls back to the packaged segment`() {
-        // 读不到实际安装版本时，用镜像里打包的版本作为依据。
+    fun `an unknown installed plugin is never assumed current`() {
+        // 读不到实际安装版本时，镜像里打包过的版本不能当作「已安装」：
+        // 文件可能已经被删掉或替换，按落后处理、提示一次更新最安全。
         val assessment = assessUpdate(
             installed = "1.0.0-dsh0.2.1-rc.2-bridge1.0.0",
             available = current,
@@ -156,7 +157,8 @@ class RootfsVersionTest {
             installedPlugin = null,
         )
         assertEquals(UpdateNeed.PLUGIN_REQUIRED, assessment.need)
-        assertEquals("1.0.0", assessment.installedPlugin)
+        assertNull(assessment.installedPlugin)
+        assertTrue(assessment.canUpdatePlugin)
     }
 
     @Test
@@ -232,5 +234,74 @@ class RootfsVersionTest {
             installedPlugin = null,
         )
         assertEquals(UpdateNeed.PLUGIN_REQUIRED, assessment.need)
+    }
+
+    @Test
+    fun `plugin versions compare numerically rather than as text`() {
+        // 回归：字符串不等曾把 1.24.0 判成落后于 1.1.0，于是「更新」会降级。
+        assertEquals(1, comparePluginVersions("1.24.0", "1.1.0"))
+        assertEquals(-1, comparePluginVersions("1.1.0", "1.24.0"))
+        assertEquals(1, comparePluginVersions("1.10.0", "1.9.9"))
+        assertEquals(0, comparePluginVersions("1.1.0", "1.1.0"))
+        assertEquals(0, comparePluginVersions("v1.1.0", "1.1.0"))
+        assertEquals(-1, comparePluginVersions("1.1.0-rc.1", "1.1.0"))
+        assertNull(comparePluginVersions("1.1", "1.1.0"))
+        assertNull(comparePluginVersions(null, "1.1.0"))
+    }
+
+    @Test
+    fun `a newer installed plugin is never a downgrade target`() {
+        // 本地装的是未发布的开发版（1.24.0），仓库最新发布是 1.1.0：
+        // 这不是落后，也不能把按钮变成「更新」（那是降级）。
+        val assessment = assessUpdate(
+            installed = "1.0.0-dsh0.2.1-rc.2-bridge1.1.0",
+            available = current,
+            latestPlugin = "1.1.0",
+            installedPlugin = "1.24.0",
+        )
+        assertEquals(UpdateNeed.NONE, assessment.need)
+        assertFalse(assessment.pluginOutdated)
+        assertFalse(assessment.canUpdatePlugin)
+    }
+
+    @Test
+    fun `a newer published release still counts as an update`() {
+        val assessment = assessUpdate(
+            installed = current,
+            available = current,
+            latestPlugin = "1.2.0",
+            installedPlugin = "1.1.0",
+        )
+        assertEquals(UpdateNeed.PLUGIN_REQUIRED, assessment.need)
+        assertTrue(assessment.pluginOutdated)
+        assertTrue(assessment.canUpdatePlugin)
+    }
+
+    @Test
+    fun `without a latest release the update action stays disabled`() {
+        // 离线时按下去只会失败；界面应保持「无法判断」，按钮不可用。
+        val assessment = assessUpdate(
+            installed = current,
+            available = current,
+            latestPlugin = null,
+            installedPlugin = "1.0.0",
+        )
+        assertFalse(assessment.pluginOutdated)
+        assertFalse(assessment.canUpdatePlugin)
+    }
+
+    @Test
+    fun `an unknown installed version can still be updated when the latest release is known`() {
+        // 旧镜像没有 `-bridge` 段，插件也没落盘：无从判断，按「落后」处理，
+        // 因为更新一次是最安全的收敛动作。
+        val assessment = assessUpdate(
+            installed = "1.0.0-dsh0.2.1-rc.2",
+            available = current,
+            latestPlugin = "1.1.0",
+            installedPlugin = null,
+        )
+        assertEquals(UpdateNeed.PLUGIN_REQUIRED, assessment.need)
+        assertTrue(assessment.pluginOutdated)
+        assertTrue(assessment.canUpdatePlugin)
     }
 }

@@ -186,6 +186,9 @@ fun ModernChatScreen(
     onModelSelected: (String) -> Unit = {},
     selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
     agentPresetLabel: String = "标准模式",
+    /** 当前选中的预设 id（standard/cordis），用于菜单打勾。 */
+    agentPresetSelectedId: String = "standard",
+    onAgentPresetSelected: (String) -> Unit = {},
     onPermissionSelected: (PermissionPreset) -> Unit = {},
     reasoningLevel: ReasoningLevel = ReasoningLevel.FAST,
     reasoningOptions: List<ReasoningOption> = emptyList(),
@@ -193,14 +196,6 @@ fun ModernChatScreen(
     effortLabelOverride: String? = null,
     onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
     onReasoningSelected: (ReasoningOption) -> Unit = {},
-    dockPluginSurfaces: List<SurfaceItem> = emptyList(),
-    /** 插件声明在工具卡片上的动作（落点 tool.card）。 */
-    pluginToolActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
-    /** 插件声明在助手消息上的动作（落点 conversation.chat.assistant-actions）。 */
-    pluginAssistantActions: List<com.deepseek.dsh.core.model.PluginSlotEntry> = emptyList(),
-    /** 点击插件动作；当前没有落地页，由上层说明来源。 */
-    onPluginAction: (com.deepseek.dsh.core.model.PluginSlotEntry) -> Unit = {},
-    onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
     isThinking: Boolean = false,
     onStopClick: () -> Unit = {},
@@ -215,6 +210,8 @@ fun ModernChatScreen(
     var workspaceAnchor by remember { mutableStateOf<Rect?>(null) }
     var permissionMenuOpen by remember { mutableStateOf(false) }
     var modelMenuOpen by remember { mutableStateOf(false) }
+    var agentPresetMenuOpen by remember { mutableStateOf(false) }
+    var agentPresetAnchor by remember { mutableStateOf<Rect?>(null) }
     var pendingConfirm by remember { mutableStateOf<PermissionPreset?>(null) }
 
     val listState = rememberLazyListState()
@@ -275,7 +272,14 @@ fun ModernChatScreen(
             )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.onGloballyPositioned { agentPresetAnchor = it.boundsInWindow() }) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { agentPresetMenuOpen = !agentPresetMenuOpen }
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_agent_preset_official),
                     contentDescription = null,
@@ -295,6 +299,17 @@ fun ModernChatScreen(
                     tint = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.size(14.dp)
                 )
+            }
+            // 与工作区/权限/模型同一套 popup：列出可选预设，当前项打勾。
+            AgentPresetMenu(
+                expanded = agentPresetMenuOpen,
+                currentId = agentPresetSelectedId,
+                onDismiss = { agentPresetMenuOpen = false },
+                onSelect = { id ->
+                    agentPresetMenuOpen = false
+                    onAgentPresetSelected(id)
+                },
+            )
             }
         }
         BottomInputBar(
@@ -350,8 +365,6 @@ fun ModernChatScreen(
             isPlanMode = isPlanMode,
             isGenerating = isThinking,
             onStop = onStopClick,
-            dockPluginSurfaces = dockPluginSurfaces,
-            onDockPluginClick = onDockPluginClick,
             stats = stats,
             showDockStats = messages.isNotEmpty() || isSending
         )
@@ -431,29 +444,6 @@ fun ModernChatScreen(
                                 onAnswerUserQuestion = onAnswerUserQuestion,
                                 onOpenToolDetail = { toolDetail = it },
                             )
-                            // 助手消息下方的插件动作：只挂在助手这一侧，用户消息不加。
-                            if (pluginAssistantActions.isNotEmpty() &&
-                                row.message.role == MessageRole.ASSISTANT &&
-                                row.message.content.isNotBlank() &&
-                                !row.message.content.contains('\u0001')
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(start = 40.dp, bottom = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    pluginAssistantActions.forEach { entry ->
-                                        Text(
-                                            text = entry.title ?: entry.id ?: entry.slot,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .clickable { onPluginAction(entry) }
-                                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                                        )
-                                    }
-                                }
-                            }
                         }
                         is ChatRow.TurnDone -> TurnCompletedRow(
                             durationMs = row.durationMs,
@@ -465,8 +455,6 @@ fun ModernChatScreen(
                             expanded = collapsedTurns[row.key] != true,
                             onToggle = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
                             onOpenDetail = { toolDetail = it },
-                            pluginActions = pluginToolActions,
-                            onPluginAction = onPluginAction,
                         )
                     }
                 }
@@ -478,6 +466,15 @@ fun ModernChatScreen(
                     item {
                         LiveToolStatus(messages = messages)
                     }
+                }
+                // conversation.chat.flow / chat.node：原生插件在消息流末尾的落点
+                // （会话摘要卡、跟进建议等）。
+                item(key = "native_slot_chat_stream") {
+                    com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.CHAT_STREAM,
+                        spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
             }
         }
@@ -748,6 +745,55 @@ private fun WorkspaceMenu(
                 )
             }
             DshMenuLabel("添加工作区…", Modifier.alignByBaseline())
+        }
+    }
+}
+
+/**
+ * Agent 预设菜单：与官方新会话页一致，只列「标准模式 / 创造模式」两项，
+ * 名称 + 描述两行，当前项打勾。PTC / 极简模式只在「开发者工具」开启后才
+ * 出现在官方菜单里，这里不开放。
+ */
+@Composable
+private fun AgentPresetMenu(
+    expanded: Boolean,
+    currentId: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    // 与官方 AgentPresetSeat 的候选项一致：标准 + 创造；名称与描述来自官方 i18n。
+    val entries = listOf(
+        Triple("standard", "标准模式", "处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。"),
+        Triple("cordis", "创造模式", "用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。"),
+    )
+    AnchoredMenuPopup(
+        expanded = expanded,
+        onDismiss = onDismiss,
+        align = DshMenuAlign.Start,
+        contentWidth = true,
+    ) {
+        entries.forEach { (id, name, description) ->
+            val selected = id == currentId
+            DshMenuRow(onClick = { onSelect(id) }) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name,
+                        color = LocalDshPanelColors.current.labelPrimary,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                    )
+                    Text(
+                        text = description,
+                        color = LocalDshPanelColors.current.labelTertiary,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (selected) DshMenuCheck()
+            }
         }
     }
 }
@@ -1237,6 +1283,16 @@ private fun ToolMessageItem(
     val summary = remember(name, args, body, status) { toolSummary(name, args, body, status) }
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(end = 16.dp)) {
+        // tool.call.toolview：原生插件接管工具结果渲染的落点。GenUI 插件的
+        // render_ui 工具的入参就是一份 dsh-ui spec，经这里交给注册的渲染器画出来。
+        com.deepseek.dsh.plugin.nativehost.NativeSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.TOOL_VIEW_SHEET,
+            spec = kotlinx.serialization.json.buildJsonObject {
+                put("name", kotlinx.serialization.json.JsonPrimitive(name))
+                put("status", kotlinx.serialization.json.JsonPrimitive(status))
+                put("args", kotlinx.serialization.json.JsonPrimitive(args))
+            },
+        )
         // 插件声明在工具卡片上的动作：只在展开时出现，避免每条工具行都加噪音。
         if (expanded && pluginActions.isNotEmpty()) {
             Row(
@@ -1767,10 +1823,21 @@ fun ModernMessageItem(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+                // 正文里的 ```dsh-ui 围栏由 GenUI 插件产生；原生兜底已移除，
+                // 这类界面内容请在插件的完整 Web 界面查看。
                 Text(
                     text = contentParts.last(),
-                    style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                // conversation.chat.assistant-actions：原生插件在助手消息下的动作落点。
+                com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                    slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.MESSAGE_ACTION,
+                    spec = kotlinx.serialization.json.buildJsonObject {
+                        put("role", kotlinx.serialization.json.JsonPrimitive("assistant"))
+                        put("content", kotlinx.serialization.json.JsonPrimitive(contentParts.last()))
+                    },
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -1904,8 +1971,14 @@ fun BottomInputBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
+        // conversation.composer.dock：原生插件在此落点显示内容（用量胶囊、状态卡等）。
+        // 通用容器从 NativeHost 读能力桥与主题；没有插件注册该落点时不占空间。
+        com.deepseek.dsh.plugin.nativehost.NativeSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK,
+            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2029,6 +2102,12 @@ fun BottomInputBar(
                         )
                     }
 
+                    // conversation.input.right：原生插件在发送/停止按钮旁的落点。
+                    com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_OVERLAY,
+                        spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                    )
+
                     // 生成中：发送按钮切换为停止按钮，两者不同时出现。
                     if (isGenerating) {
                         Surface(
@@ -2072,14 +2151,10 @@ fun BottomInputBar(
         ComposerDockBar(
             stats = stats,
             showStats = showDockStats,
-            dockPluginSurfaces = dockPluginSurfaces,
-            onPluginClick = { pluginItem ->
-                onDockPluginClick(pluginItem)
-            },
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     }
-}
+    }
 
 /**
  * 加号命令菜单：两组（添加 / 指令），行内左侧图标与标签、右侧描述。

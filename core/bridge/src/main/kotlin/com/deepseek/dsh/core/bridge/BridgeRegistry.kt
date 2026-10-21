@@ -1,5 +1,6 @@
 package com.deepseek.dsh.core.bridge
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -47,6 +48,22 @@ class BridgeRegistry(
     /** `client-assets` 是否可用。 */
     fun hasClientAssets(): Boolean = manifest?.serves(BridgeProtocol.PROVIDER_CLIENT_ASSETS, 1) == true
 
+    /**
+     * 读取正在运行的插件版本（manifest 的 `pluginVersion`）。
+     *
+     * 旧插件不上报该字段，此时返回 null；调用方应退回落盘版本，而不是把
+     * 「没上报」当成「没安装」。
+     * @param forceRefresh 是否丢弃 manifest 缓存重新协商。
+     * @return 插件版本；协商失败或 Host 未上报时为 null。
+     */
+    suspend fun pluginVersion(forceRefresh: Boolean = false): String? {
+        if (forceRefresh || manifest == null) {
+            val negotiated = negotiate(forceRefresh)
+            if (negotiated is BridgeResult.Failure) return null
+        }
+        return manifest?.pluginVersion?.takeIf { it.isNotBlank() }
+    }
+
     // ── client-assets ────────────────────────────────────────────────────────
 
     /** 读取 Host 注入给官方 shell 的 boot manifest。 */
@@ -72,12 +89,27 @@ class BridgeRegistry(
 
     // ── client-slots ─────────────────────────────────────────────────────────
 
-    /** 读取 slot 注册列表；`slot` 为 null 时返回全部。 */
-    suspend fun slotRegistrations(slot: String? = null): BridgeResult<BridgeSlotList> = query(
-        provider = BridgeProtocol.PROVIDER_CLIENT_SLOTS,
-        op = "list",
-        args = if (slot == null) BridgeArgs.none() else BridgeArgs.of("slot", slot),
-    ) { json.decodeFromString(BridgeSlotList.serializer(), it.toString()) }
+    /**
+     * 读取 slot 注册列表；`slot` 为 null 时返回全部。
+     *
+     * @param locale 客户端界面语言（BCP-47，例如 `zh-Hans-CN`）。插件在 bridge 里
+     *   注册的 `label` 通常是一个 `t('key')` thunk，只有给定语言才能解析成与 Web
+     *   界面一致的文案；不传时 bridge 用自身配置的默认语言。
+     */
+    suspend fun slotRegistrations(
+        slot: String? = null,
+        locale: String? = null,
+    ): BridgeResult<BridgeSlotList> {
+        val args = buildJsonObject {
+            slot?.let { put("slot", JsonPrimitive(it)) }
+            locale?.takeIf { it.isNotBlank() }?.let { put("locale", JsonPrimitive(it)) }
+        }
+        return query(
+            provider = BridgeProtocol.PROVIDER_CLIENT_SLOTS,
+            op = "list",
+            args = args,
+        ) { json.decodeFromString(BridgeSlotList.serializer(), it.toString()) }
+    }
 
     /** 读取一条注册的完整元数据。 */
     suspend fun describeSlot(slot: String, id: String): BridgeResult<BridgeSlotRegistration> = query(
@@ -102,6 +134,28 @@ class BridgeRegistry(
         op = "icon-svg",
         args = BridgeArgs.ofInt("size", size) + BridgeArgs.of("componentId", componentId),
     ) { json.decodeFromString(BridgeIconSvg.serializer(), it.toString()) }
+
+    /**
+     * 把一次原生交互（点击/输入/开关/提交）回传给插件。
+     *
+     * App 不执行插件 JS：事件到达 Host 后被转成 `ui/<componentId>/<event>`
+     * 总线消息，并给手机排一个 `client/refresh`，让组件树重新拉取。
+     */
+    suspend fun dispatchUiEvent(
+        componentId: String,
+        event: String,
+        payload: JsonObject = buildJsonObject { },
+    ): BridgeResult<Boolean> = query(
+        provider = BridgeProtocol.PROVIDER_CLIENT_SLOTS,
+        op = "dispatch",
+        args = BridgeArgs.of("componentId", componentId, "event", event) +
+            BridgeArgs.ofObject("payload", payload),
+    ) { element ->
+        // bridge 用 handled 说明「插件 Host 半边是否真的执行了」；未执行时客户端要兜底。
+        ((element as? kotlinx.serialization.json.JsonObject)
+            ?.get("handled") as? kotlinx.serialization.json.JsonPrimitive)
+            ?.content?.toBooleanStrictOrNull() ?: false
+    }
 
     // ── package-inventory ────────────────────────────────────────────────────
 

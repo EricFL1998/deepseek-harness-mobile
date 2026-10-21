@@ -73,21 +73,6 @@ fun PluginSettingsPage(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var document by remember(ns) { mutableStateOf<PluginSettingsDocument?>(null) }
-    var loading by remember(ns) { mutableStateOf(true) }
-    var failure by remember(ns) { mutableStateOf<String?>(null) }
-    var saving by remember(ns) { mutableStateOf(false) }
-    var saved by remember(ns) { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(ns) {
-        loading = true
-        failure = null
-        document = runCatching { loadDocument(ns) }.getOrNull()
-        loading = false
-        if (document == null) failure = "暂时读不到这个插件的设置"
-    }
-
     Column(modifier = modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -103,14 +88,62 @@ fun PluginSettingsPage(
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(20.dp),
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(Modifier.width(10.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
+        PluginSettingsForm(
+            ns = ns,
+            description = description,
+            loadDocument = loadDocument,
+            saveDocument = saveDocument,
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+        )
+    }
+}
 
+/**
+ * 一个设置命名空间的可编辑表单，不含页面标题与返回。
+ *
+ * 与 [PluginSettingsPage] 是同一份实现：插件页把多个命名空间的形式放进同一屏时
+ * 直接复用它，不再套一层会自己滚动的整页。
+ *
+ * @param ns 设置命名空间。
+ * @param description 表单上方的说明，可空。
+ * @param loadDocument 读取表单与当前值。
+ * @param saveDocument 回写字段，`expectedRevision` 用于冲突检测。
+ * @param modifier 外层修饰符（滚动、内距由调用方决定）。
+ */
+@Composable
+fun PluginSettingsForm(
+    ns: String,
+    description: String?,
+    loadDocument: suspend (String) -> PluginSettingsDocument?,
+    saveDocument: suspend (String, JsonObject, Int) -> Boolean,
+    modifier: Modifier = Modifier,
+) {
+    var document by remember(ns) { mutableStateOf<PluginSettingsDocument?>(null) }
+    var loading by remember(ns) { mutableStateOf(true) }
+    var failure by remember(ns) { mutableStateOf<String?>(null) }
+    var saving by remember(ns) { mutableStateOf(false) }
+    var saved by remember(ns) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(ns) {
+        loading = true
+        failure = null
+        document = runCatching { loadDocument(ns) }.getOrNull()
+        loading = false
+        if (document == null) failure = "暂时读不到这个插件的设置"
+    }
+
+    Column(modifier = modifier) {
         when {
             loading -> Row(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
@@ -133,10 +166,7 @@ fun PluginSettingsPage(
                 val fields = formFieldsOf(doc.schema)
                 val edits = remember(doc.ns, doc.revision) { mutableStateMapOf<String, JsonElement>() }
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     description?.takeIf { it.isNotBlank() }?.let {
@@ -194,7 +224,6 @@ fun PluginSettingsPage(
                             }
                         }
                     }
-                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
@@ -216,33 +245,71 @@ private enum class FieldKind { BOOLEAN, TEXT, NUMBER, ENUM, UNSUPPORTED }
 /**
  * 从 Host 的表单 JSON 里取顶层字段。
  *
- * schemastery 的投影用 `dict` 表示对象成员；为兼容 `properties` 两种写法都接受。
+ * Host 投影的是 schemastery 的 `toJSON` 形态：`{ uid, refs: { "<uid>": 节点 } }`，
+ * 根节点是 `refs[uid]`；对象的成员表是 `dict`，成员值是 uid（去 `refs` 里取）
+ * 或内联节点。老形态直接给 `dict`/`properties`，同样接受。
+ *
  * @param schema 表单 JSON。
  * @returns 字段定义，顺序与声明一致。
  */
 private fun formFieldsOf(schema: JsonObject): List<SettingField> {
-    val members = (schema["dict"] ?: schema["properties"])?.jsonObjectOrNull() ?: return emptyList()
+    val refs = schema["refs"]?.jsonObjectOrNull()
+    val root = resolveSchemaNode(schema["uid"], refs)
+        ?: schema.takeIf { it["dict"] != null || it["properties"] != null }
+        ?: return emptyList()
+    val members = (root["dict"] ?: root["properties"])?.jsonObjectOrNull() ?: return emptyList()
     return members.map { (name, node) ->
-        val object1 = node.jsonObjectOrNull() ?: return@map SettingField(name, FieldKind.UNSUPPORTED, null, null)
-        val type = object1["type"]?.jsonPrimitiveOrNull()?.contentOrNull
-        val description = object1["description"]?.jsonPrimitiveOrNull()?.contentOrNull
-        val default = object1["default"]
-        when (type) {
-            "boolean" -> SettingField(name, FieldKind.BOOLEAN, description, default)
-            "string", "text" -> SettingField(name, FieldKind.TEXT, description, default)
-            "number", "natural", "percent" -> SettingField(name, FieldKind.NUMBER, description, default)
-            "union" -> {
-                val options = (object1["list"] ?: object1["options"])?.jsonArrayOrNull()
-                    ?.mapNotNull { it.jsonPrimitiveOrNull()?.contentOrNull }
-                    .orEmpty()
-                if (options.isEmpty()) {
-                    SettingField(name, FieldKind.UNSUPPORTED, description, default)
-                } else {
-                    SettingField(name, FieldKind.ENUM, description, default, options)
+        val resolved = resolveSchemaNode(node, refs)
+            ?: return@map SettingField(name, FieldKind.UNSUPPORTED, null, null)
+        settingFieldOf(name, resolved, refs)
+    }
+}
+
+/**
+ * 把 `dict`/`list`/`inner` 里的一项解成节点本身。
+ * @param value uid（原始值）或内联节点。
+ * @param refs 文档级的 uid → 节点表。
+ * @returns 节点，解析不到时 null。
+ */
+private fun resolveSchemaNode(value: JsonElement?, refs: JsonObject?): JsonObject? {
+    val uid = value?.jsonPrimitiveOrNull()?.contentOrNull
+    if (uid != null) return refs?.get(uid)?.jsonObjectOrNull()
+    return value?.jsonObjectOrNull()
+}
+
+/**
+ * 把一个 schema 节点翻成可编辑字段。
+ * @param name 字段名。
+ * @param node 解析后的节点。
+ * @param refs 文档级节点表，union 的成员还要再解析一次。
+ * @returns 字段定义。
+ */
+private fun settingFieldOf(name: String, node: JsonObject, refs: JsonObject?): SettingField {
+    val meta = node["meta"]?.jsonObjectOrNull()
+    // schemastery 把 label/description 与默认值都放在 `meta` 里。
+    val description = meta?.get("description")?.jsonPrimitiveOrNull()?.contentOrNull
+    val default = meta?.get("default")
+    return when (val type = node["type"]?.jsonPrimitiveOrNull()?.contentOrNull) {
+        "boolean" -> SettingField(name, FieldKind.BOOLEAN, description, default)
+        "string", "text" -> SettingField(name, FieldKind.TEXT, description, default)
+        "number", "natural", "percent" -> SettingField(name, FieldKind.NUMBER, description, default)
+        // union 的成员是 const 节点，可选项就是它们的 `value`。
+        "union" -> {
+            val options = node["list"]?.jsonArrayOrNull()
+                ?.mapNotNull { entry ->
+                    resolveSchemaNode(entry, refs)
+                        ?.get("value")
+                        ?.jsonPrimitiveOrNull()
+                        ?.contentOrNull
                 }
+                .orEmpty()
+            if (options.isEmpty()) {
+                SettingField(name, FieldKind.UNSUPPORTED, description, default)
+            } else {
+                SettingField(name, FieldKind.ENUM, description, default, options)
             }
-            else -> SettingField(name, FieldKind.UNSUPPORTED, description, default)
         }
+        else -> SettingField(name, FieldKind.UNSUPPORTED, description, default, listOfNotNull(type))
     }
 }
 
@@ -271,9 +338,12 @@ private fun SettingField(
         }
 
         FieldKind.NUMBER, FieldKind.TEXT -> {
-            val text = value?.jsonPrimitiveOrNull()?.contentOrNull
+            val raw = value?.jsonPrimitiveOrNull()?.contentOrNull
                 ?.takeUnless { it == "null" }
                 .orEmpty()
+            // 数字字段按整数展示：Host 存的是 JSON number，`JsonPrimitive(5.0)` 的
+            // 文本是 "5.0"，直接显示会让人以为可以填小数。
+            val text = if (field.kind == FieldKind.NUMBER) raw.removeSuffix(".0") else raw
             OutlinedTextField(
                 value = text,
                 onValueChange = { next ->

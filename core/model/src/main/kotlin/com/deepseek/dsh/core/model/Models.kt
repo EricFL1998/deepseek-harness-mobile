@@ -358,9 +358,30 @@ data class PluginSlotEntry(
     val order: Int = 0,
     val slot: String,
     val id: String? = null,
+    /** keyed 槽位的身份（例如 `tool.call.toolview` 按工具名注册的 `render_ui`）。 */
+    val key: String? = null,
     val title: String? = null,
     val module: String? = null,
-)
+    /** bridge 给出的组件身份 `<package>#<id|key|slot>`，优先于客户端自行拼接。 */
+    val componentId: String? = null,
+) {
+    /** 用于按工具名/会话位匹配的稳定身份：id 优先，keyed 槽位回落到 key。 */
+    val identity: String? get() = id ?: key
+
+    /** 组件身份：bridge 有给就用，否则按 `<module>#<identity|slot>` 拼。 */
+    fun resolvedComponentId(): String? =
+        componentId ?: module?.let { "$it#${identity ?: slot}" }
+}
+
+/**
+ * 这个入口是否由**第三方**插件声明。
+ *
+ * 官方 `@deepseek-ai/…` 包向同一批浏览器槽位注册，但 App 对这些位置已有自己的
+ * 原生实现（输入区、设置分区、模型卡）。只有第三方贡献需要按插件树现画，
+ * 否则用户会看到两份同样的界面。
+ */
+val PluginSlotEntry.isThirdPartyPlugin: Boolean
+    get() = module != null && !module.startsWith("@deepseek-ai/")
 
 /** 原生落点 id 到中文名，用于尚未实现的位置。 */
 val PLACEMENT_LABELS: Map<String, String> = mapOf(

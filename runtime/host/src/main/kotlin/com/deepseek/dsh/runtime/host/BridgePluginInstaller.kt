@@ -13,36 +13,30 @@ import java.io.File
 /**
  * bridge 插件的发布信息（APK 内置）。
  *
- * 插件本身不进 APK：它从 GitHub 源码安装。APK 只带这张小清单，说明「期望
- * 哪个版本」和「从哪里装」，因此插件发版不需要重打 APK，也不需要重下 rootfs。
+ * 插件本身不进 APK：它从 GitHub 的 tag 源码归档安装。APK 只带这张小清单，说明
+ * 「安装源在哪里」与「首次打包时的基准版本」，因此插件发版不需要重打 APK，也不需要
+ * 重下 rootfs。
  */
 @Serializable
 data class BridgePluginManifest(
     /** 包名，必须与插件仓库 `package.json` 的 name 一致。 */
     val packageName: String = DEFAULT_PACKAGE,
-    /** 期望版本，与 rootfs 版本串里的 `-bridge` 段比较。 */
+    /**
+     * 基准版本，与 rootfs 版本串里的 `-bridge` 段同义。
+     *
+     * 它**不是**更新目标：更新目标永远是插件仓库的最新发布 tag —— 这份清单随
+     * APK 发布，会落后于插件仓库。字段保留是为了离线时说明「打包时用的是哪一版」。
+     */
     val version: String = "",
-    /** 安装源：GitHub 仓库地址；安装时拼成 `<repo>#v<version>`。 */
+    /** 安装源：GitHub 仓库地址，安装时按 `<repo>` 的 `v<version>` tag 下载归档。 */
     val repository: String = "",
-    /** 插件在 profile 里的行 id，用于判断是否已装。 */
-    val entryId: String = DEFAULT_PACKAGE,
 ) {
-    /** 可直接交给 `dsh plugin add` 的安装 spec。 */
-    fun installSpec(): String =
-        if (version.isBlank()) repository else "$repository#v$version"
-
     companion object {
         /** 与插件仓库保持一致的默认包名。 */
         const val DEFAULT_PACKAGE = "dsh-mobile-bridge-plugin"
 
         /** 内置清单在 assets 里的路径。 */
         const val ASSET = "bridge-plugin.json"
-
-        /** APK 内置的插件文件目录；启动时就地铺进 Host 安装目录。 */
-        const val ASSET_DIR = "bridge-plugin"
-
-        /** 插件的 bundle patch 文件名，用于校验安装完整性。 */
-        const val PATCH_FILE = "cordis.patch.yml"
 
         private val json = Json { ignoreUnknownKeys = true }
 
@@ -61,12 +55,15 @@ data class BridgePluginManifest(
 /**
  * rootfs 内的 bridge 插件安装器。
  *
- * 只用 `dsh plugin add` —— 与人在 Host 里手敲的命令完全相同，因此走的是官方
- * 的安装、版本校验与 profile 写入路径，没有第二套事实来源。
+ * 安装 = 下载已发布的 tag 源码归档 → 校验 → 解压到 profile 的 `node_modules`。
+ * 不在 Host 里跑 `dsh plugin add`：那条路依赖 proot 内的 git/pnpm 与 DNS，实测在
+ * 手机上不可用（proot 内解析不到 github.com），而且 Host 的 pnpm 会重写 profile
+ * 清单 —— 插件实际由 web-app 层的 patch 行挂载，profile 清单不是它的家。
  */
 class BridgePluginInstaller(
     private val context: Context,
     private val layout: RuntimeLayout,
+    private val downloader: BridgeReleaseDownloader = BridgeReleaseDownloader(),
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -75,126 +72,11 @@ class BridgePluginInstaller(
         get() = File(layout.rootfsDir, "root/.dsh/profiles/web")
 
     /**
-     * 确保 profile 把 bridge 插件登记为一个已安装的 bundle。
-     *
-     * 两处都要写，缺一不可：
-     *
-     * - `dependencies` 声明它确实是一个安装过的包；
-     * - `dsh.profile.bundles` 让它进入加载顺序。
-     *
-     * 只写 bundles 会被 DSH 判为无效配置（有 bundle 却没有对应依赖），启动时走恢复
-     * 路径把 bundles 重置回模板默认值 —— 这正是此前插件每次重启都消失、bridge 路由
-     * 404 的原因。
-     * @param packageName 目标包名。
-     * @param version 写进 dependencies 的版本号。
-     * @return 是否改写了 profile。
-     */
-    fun ensureProfileEntry(
-        packageName: String = BridgePluginManifest.DEFAULT_PACKAGE,
-        version: String = BridgePluginManifest.load(context)?.version.orEmpty(),
-    ): Boolean {
-        val inProfile = File(profileDir, "node_modules/$packageName")
-        if (!File(inProfile, "package.json").isFile) return false
-        val manifestFile = File(profileDir, "package.json")
-        if (!manifestFile.isFile) return false
-        return runCatching {
-            val root = json.parseToJsonElement(manifestFile.readText()) as JsonObject
-            val dsh = root["dsh"] as? JsonObject ?: return@runCatching false
-            val profile = dsh["profile"] as? JsonObject ?: return@runCatching false
-            val bundles = (profile["bundles"] as? JsonArray)
-                ?.mapNotNull { (it as? JsonPrimitive)?.content }
-                ?: emptyList()
-            val dependencies = root["dependencies"] as? JsonObject ?: JsonObject(emptyMap())
-            val declaredVersion = (dependencies[packageName] as? JsonPrimitive)?.content
-
-            if (bundles.contains(packageName) && declaredVersion != null) return@runCatching false
-
-            val updatedDependencies = if (declaredVersion == null) {
-                JsonObject(dependencies + (packageName to JsonPrimitive(version.ifBlank { "1.0.0" })))
-            } else {
-                dependencies
-            }
-            val updatedBundles = if (bundles.contains(packageName)) {
-                JsonArray(bundles.map { JsonPrimitive(it) })
-            } else {
-                JsonArray(bundles.map { JsonPrimitive(it) } + JsonPrimitive(packageName))
-            }
-            val updatedRoot = JsonObject(
-                root + mapOf(
-                    "dependencies" to updatedDependencies,
-                    "dsh" to JsonObject(
-                        dsh + mapOf(
-                            "profile" to JsonObject(profile + mapOf("bundles" to updatedBundles)),
-                        ),
-                    ),
-                ),
-            )
-            manifestFile.writeText(json.encodeToString(JsonObject.serializer(), updatedRoot))
-            true
-        }.getOrDefault(false)
-    }
-
-    /**
-     * 把 APK 内置的插件文件铺进 profile 的 `node_modules`。
-     *
-     * 位置由解析规则决定：patch 行里的 `dsh-mobile-bridge-plugin` 是从 **profile
-     * 目录**解析的（实测报错 `Cannot find package ... imported from
-     * /root/.dsh/profiles/web/`），所以包必须在那里。放 Host 安装目录不行。
-     *
-     * 普通目录足够：DSH 只在启动时核对 profile 的 **manifest**，不会删除
-     * `node_modules` 里的文件。这也是为什么插件挂载点改到了 web-app 的 patch 里。
-     *
-     * 文件按版本整目录替换：内容变了才重写，避免每次启动都复制十几万字节。
-     * @param packageName 目标包名。
-     * @return 目标目录是否可用。
-     */
-    fun ensureInstalledInHost(packageName: String = BridgePluginManifest.DEFAULT_PACKAGE): Boolean {
-        if (!File(layout.rootfsDir, "etc/os-release").isFile &&
-            !File(layout.rootfsDir, "usr/bin/env").isFile
-        ) {
-            return false
-        }
-        val version = BridgePluginManifest.load(context)?.version.orEmpty()
-        val target = File(profileDir, "node_modules/$packageName")
-        val stamp = File(target, ".bundled-version")
-        if (target.isDirectory && stamp.isFile && stamp.readText().trim() == version) {
-            // 版本一致且文件齐备：不必重拷。
-            if (File(target, "package.json").isFile &&
-                File(target, BridgePluginManifest.PATCH_FILE).isFile
-            ) {
-                return true
-            }
-        }
-        return runCatching {
-            target.deleteRecursively()
-            target.mkdirs()
-            copyAssetTree(BridgePluginManifest.ASSET_DIR, target)
-            stamp.writeText(version)
-            File(target, "package.json").isFile && File(target, BridgePluginManifest.PATCH_FILE).isFile
-        }.getOrDefault(false)
-    }
-
-    /** 把 assets 下的一棵树复制到磁盘目录，保留相对路径。 */
-    private fun copyAssetTree(assetRoot: String, target: File) {
-        val children = context.assets.list(assetRoot).orEmpty()
-        if (children.isEmpty()) {
-            // 叶子：是文件而不是目录。
-            val output = target
-            output.parentFile?.mkdirs()
-            context.assets.open(assetRoot).use { input ->
-                output.outputStream().use { out -> input.copyTo(out) }
-            }
-            return
-        }
-        target.mkdirs()
-        children.forEach { child -> copyAssetTree("$assetRoot/$child", File(target, child)) }
-    }
-
-    /**
      * 读取 rootfs 内已安装的插件版本。
      *
-     * 直接读安装目录的 `package.json`：这是 pnpm 实际落盘的内容，比问 DSH
-     * 更快且不依赖 Host 正在运行。
+     * 直接读安装目录的 `package.json`：这是实际落盘的内容，比问 DSH 更快，也
+     * 不依赖 Host 正在运行。
+     * @param packageName 目标包名。
      * @return 版本号；未安装或读不到时为 null。
      */
     fun installedVersion(packageName: String = BridgePluginManifest.DEFAULT_PACKAGE): String? {
@@ -202,133 +84,181 @@ class BridgePluginInstaller(
         if (!manifest.isFile) return null
         return runCatching {
             val node = json.parseToJsonElement(manifest.readText())
-            (node as? kotlinx.serialization.json.JsonObject)
+            (node as? JsonObject)
                 ?.get("version")
-                ?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
-        }.getOrNull()
+                ?.let { (it as? JsonPrimitive)?.content }
+        }.getOrNull()?.takeIf { it.isNotBlank() }
     }
 
     /**
-     * 在 rootfs 内安装或更新插件。
+     * 把插件的某个已发布版本装进 rootfs。
      *
-     * @param spec `dsh plugin add` 的安装 spec（通常是 `<repo>#v<version>`）。
+     * 目标版本来自插件仓库的最新 release，而不是 APK 内置清单：清单随 APK 发布，
+     * 必然落后于插件仓库。安装前先校验归档的包名/版本/入口，任何一步失败都不会
+     * 改动已安装的插件。
+     * @param repository GitHub 仓库地址（APK 清单里的 `repository`）。
+     * @param version 已发布版本，例如 `1.1.0`。
      * @param onProgress 进度与步骤文案。
      * @return 成功后读到的插件版本。
      */
-    suspend fun install(
-        spec: String,
+    suspend fun installFromRelease(
+        repository: String,
+        version: String,
         onProgress: (Float, String) -> Unit,
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (!File(layout.rootfsDir, "etc/os-release").isFile &&
-            !File(layout.rootfsDir, "usr/bin/env").isFile
-        ) {
+        val targetVersion = version.trim()
+        val rootfsInstalled = File(layout.rootfsDir, "etc/os-release").isFile ||
+            File(layout.rootfsDir, "usr/bin/env").isFile
+        if (!rootfsInstalled) {
             return@withContext Result.failure(IllegalStateException("rootfs 未安装，无法更新插件"))
         }
-        if (!layout.prootBinary.isFile) {
+        if (!profileDir.isDirectory) {
             return@withContext Result.failure(
-                IllegalStateException("缺少 ${layout.prootBinary.name}，无法在 rootfs 内执行命令")
+                IllegalStateException("Host profile 尚未初始化：请先启动一次 Host 再更新插件")
             )
         }
-        onProgress(0.05f, "准备在 rootfs 内安装插件…")
-        prepareHostDirectories()
-        val argv = listOf(
-            "/usr/local/bin/node",
-            "/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js",
-            "plugin",
-            "--profile",
-            "web",
-            "add",
-            spec,
-        )
-        val result = runProot(argv, timeoutMs = BRIDGE_INSTALL_TIMEOUT_MS) { fraction, step ->
-            // 安装耗时主要在网络与 pnpm 解析；把命令输出阶段映射到 0.1..0.9。
-            onProgress(0.1f + fraction * 0.8f, step)
+        if (BridgeReleaseDownloader.archiveUrl(repository, targetVersion) == null) {
+            return@withContext Result.failure(
+                IllegalStateException("插件安装源或目标版本不可用：$repository#v$targetVersion")
+            )
         }
-        result.fold(
-            onSuccess = {
-                onProgress(0.95f, "读取已安装版本…")
-                val version = installedVersion()
-                    ?: return@fold Result.failure(
-                        IllegalStateException("安装命令成功，但读不到插件版本；请检查 profile 目录")
-                    )
-                onProgress(1f, "插件已更新到 $version")
-                Result.success(version)
-            },
-            onFailure = { error ->
-                Result.failure(IllegalStateException("插件更新失败：${error.message}"))
-            },
-        )
-    }
 
-    /**
-     * 预建插件管理器要用的目录。
-     *
-     * 在模拟器上实测到：`.plugin-manager/logs` 不存在时，安装器里的
-     * `mkdtemp` 会拿到 `ENOSYS`（proot 在「父目录缺失」的路径上创建临时目录会
-     * 这样失败），于是整次安装以「退出码 1」结束。目录建好后同一命令立刻成功，
-     * 因此这不是权限问题，而是目录不存在。
-     *
-     * 这些目录由 DSH 自己维护，提前建出来是幂等的：已存在就什么都不做。
-     */
-    private fun prepareHostDirectories() {
-        val dshHome = File(layout.rootfsDir, "root/.dsh")
-        listOf(
-            File(dshHome, "tmp"),
-            File(dshHome, "profiles/web/.plugin-manager/logs"),
-        ).forEach { directory ->
-            runCatching { directory.mkdirs() }
-        }
-    }
+        ensureProfilePresetLink(profileDir)
 
-    /**
-     * 在 rootfs 里执行一条 DSH 命令。
-     *
-     * 复用 [ProotCommandBuilder] 的绑定与环境保护，只替换尾部命令，因此插件
-     * 安装看到的是与运行 Host 完全相同的环境。
-     */
-    private fun runProot(
-        argv: List<String>,
-        timeoutMs: Long,
-        onOutput: (Float, String) -> Unit,
-    ): Result<String> {
-        val builder = ProotCommandBuilder.buildExec(layout, argv)
-        val process = runCatching {
-            ProcessBuilder(builder.command).apply {
-                environment().putAll(builder.environment)
-                redirectErrorStream(true)
-            }.start()
-        }.getOrElse { error ->
-            return Result.failure(IllegalStateException("无法启动 proot：${error.message}"))
-        }
-        val output = StringBuilder()
-        val reader = Thread {
-            runCatching {
-                process.inputStream.bufferedReader().use { stream ->
-                    stream.forEachLine { line ->
-                        synchronized(output) { output.appendLine(line) }
-                        onOutput(0.5f, line.take(120))
-                    }
-                }
+        // 上次中断可能留下 staging/backup 目录；它们不是安装的一部分，先清掉，
+        // 免得坏掉的半装版本被下一次替换当成现状。
+        val nodeModules = File(profileDir, "node_modules").apply { mkdirs() }
+        nodeModules.listFiles()
+            ?.filter { it.name.startsWith(".dsh-plugin-") }
+            ?.forEach { runCatching { it.deleteRecursively() } }
+
+        onProgress(0.02f, "准备下载插件 $targetVersion…")
+        val archive = try {
+            downloader.download(repository, targetVersion) { fraction, step ->
+                onProgress(0.02f + fraction * 0.5f, step)
             }
+        } catch (error: Exception) {
+            return@withContext Result.failure(
+                IllegalStateException("插件归档下载失败：${error.message}")
+            )
         }
-        reader.isDaemon = true
-        reader.start()
-        val finished = process.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
-        if (!finished) {
-            process.destroyForcibly()
-            return Result.failure(IllegalStateException("插件安装超时（${timeoutMs / 1000}s）"))
+
+        onProgress(0.55f, "校验插件归档…")
+        val target = File(nodeModules, BridgePluginManifest.DEFAULT_PACKAGE)
+        val staging = File(nodeModules, ".dsh-plugin-incoming")
+        staging.deleteRecursively()
+        val contents = try {
+            BridgePluginArchive.extract(
+                archive = archive.inputStream(),
+                destination = staging,
+                expectedPackage = BridgePluginManifest.DEFAULT_PACKAGE,
+                expectedVersion = targetVersion,
+            )
+        } catch (error: Exception) {
+            staging.deleteRecursively()
+            return@withContext Result.failure(
+                IllegalStateException("插件归档校验失败：${error.message}")
+            )
         }
-        reader.join(2_000)
-        val exitCode = process.exitValue()
-        if (exitCode != 0) {
-            val tail = synchronized(output) { output.toString() }.trim().takeLast(600)
-            return Result.failure(IllegalStateException("退出码 $exitCode：$tail"))
+
+        // 运行时依赖必须在 Host 的模块解析路径上已经存在，否则插件装上也会
+        // 在 import 阶段失败。这里提前失败，已安装的插件保持不动。
+        val missingDependencies = contents.dependencies.keys.filterNot { dependency ->
+            File(nodeModules, dependency).exists()
         }
-        return Result.success(synchronized(output) { output.toString() })
+        if (missingDependencies.isNotEmpty()) {
+            staging.deleteRecursively()
+            return@withContext Result.failure(
+                IllegalStateException(
+                    "插件依赖 ${missingDependencies.joinToString()} 未随运行时提供；" +
+                        "请先更新 Rootfs 镜像，再更新插件"
+                )
+            )
+        }
+
+        onProgress(0.8f, "替换已安装的插件…")
+        try {
+            replaceDirectory(target = target, staging = staging)
+        } catch (error: Exception) {
+            staging.deleteRecursively()
+            return@withContext Result.failure(
+                IllegalStateException("替换插件文件失败：${error.message}")
+            )
+        }
+
+        onProgress(0.92f, "读取已安装版本…")
+        val installed = installedVersion()
+        if (installed != targetVersion) {
+            return@withContext Result.failure(
+                IllegalStateException(
+                    "插件文件已替换，但读到的版本是 ${installed ?: "未知"}（期望 $targetVersion）"
+                )
+            )
+        }
+        onProgress(1f, "插件已更新到 $installed")
+        Result.success(installed)
     }
 
-    private companion object {
-        /** 插件安装要拉 GitHub tarball 并跑 pnpm，给足 5 分钟。 */
-        const val BRIDGE_INSTALL_TIMEOUT_MS = 5 * 60 * 1000L
+    /**
+     * 是否把 bridge 插件登记成 profile 的 bundle。
+     *
+     * bridge 的挂载点在 `dsh-web-app/cordis.patch.yml`，不依赖 profile 的
+     * `package.json`/`bundles`；往 profile 写会在重启时把用户/官方安装的痕迹
+     * 冲掉（此前每次启动都把 profile 恢复成模板，原因就在这里）。因此这里只读
+     * 不写：确认插件目录存在即可，写 profile 的职责交给 Host 自己的安装路径。
+     *
+     * @param packageName 目标包名。
+     * @return 插件目录是否存在。
+     */
+    fun ensureProfileEntry(
+        packageName: String = BridgePluginManifest.DEFAULT_PACKAGE,
+        @Suppress("UNUSED_PARAMETER") version: String? = null,
+    ): Boolean {
+        val inProfile = File(profileDir, "node_modules/$packageName")
+        return File(inProfile, "package.json").isFile
+    }
+
+    /**
+     * 用 [staging] 整目录替换 [target]。
+     *
+     * 先把旧目录改名让位，再让新目录就位：任何一步失败都会把旧目录放回去，
+     * 因此「已安装的插件」要么是旧的、要么是新的，不会消失。
+     * @param target 已安装的插件目录。
+     * @param staging 已经校验过的新插件目录。
+     */
+    private fun replaceDirectory(target: File, staging: File) {
+        val parent = target.parentFile ?: throw IllegalStateException("插件目录没有父目录")
+        val backup = File(parent, ".dsh-plugin-previous-${System.nanoTime()}")
+        val hadPrevious = target.exists()
+        if (hadPrevious && !target.renameTo(backup)) {
+            throw IllegalStateException("无法移开已安装的插件目录")
+        }
+        if (!staging.renameTo(target)) {
+            if (hadPrevious) backup.renameTo(target)
+            throw IllegalStateException("无法把新插件目录放到安装位置")
+        }
+        if (hadPrevious) backup.deleteRecursively()
+    }
+}
+
+/**
+ * 确保 profile 的 `node_modules/@deepseek-ai` 指向 Host 安装自带的 @deepseek-ai。
+ *
+ * profile 里的 bundle 与 bridge 插件都按名字解析 `@deepseek-ai/<name>`，而手机上没有
+ * pnpm 源；这个符号链接是它们唯一的解析锚点。启动流程与插件安装都需要它，
+ * 因此只在这里定义一次。
+ * @param profileDir `root/.dsh/profiles/web`。
+ */
+internal fun ensureProfilePresetLink(profileDir: File) {
+    val nodeModules = File(profileDir, "node_modules").apply { mkdirs() }
+    val presetLink = File(nodeModules, "@deepseek-ai")
+    if (presetLink.exists()) return
+    runCatching {
+        java.nio.file.Files.createSymbolicLink(
+            presetLink.toPath(),
+            java.nio.file.Paths.get(
+                "../../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai"
+            ),
+        )
     }
 }
