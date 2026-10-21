@@ -146,6 +146,12 @@ fun PluginsScreen(
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
     var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
+    // 原生伴侣：详情页 + 停用集合 + 已装列表（merge 进已安装分组）。
+    var selectedNativePlugin by remember {
+        mutableStateOf<com.deepseek.dsh.plugin.nativehost.NativePluginItem?>(null)
+    }
+    var disabledNativePlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val installedNativePlugins = nativePluginItems.filter { it.installed }
     // 官方插件分类只有一个来源：bridge 的 `client-slots/plugins.item` 注册。
     // 文案、顺序与图形都是官方客户端自己的资源。bridge 不可用时这个分组直接
     // 不出现 —— 宁可少一行，也不拿写死的分类表冒充官方数据。
@@ -236,7 +242,14 @@ fun PluginsScreen(
                 .background(colors.bgBase)
         ) {
             val detail = selectedPlugin
-            if (detail != null) {
+            val nativeDetail = selectedNativePlugin
+            if (nativeDetail != null) {
+                NativePluginDetailPage(
+                    item = nativeDetail,
+                    onBack = { selectedNativePlugin = null },
+                    onUninstall = { selectedNativePlugin = null },
+                )
+            } else if (detail != null) {
                 PluginDetailContent(
                     item = detail,
                     enabled = enabledOf(detail),
@@ -438,9 +451,29 @@ fun PluginsScreen(
                             ) { index, item ->
                                 InstalledSurfaceRow(
                                     item = item,
-                                    showDivider = index != surfaces.lastIndex,
+                                    showDivider = index != surfaces.lastIndex || installedNativePlugins.isNotEmpty(),
                                     onOpen = { onOpenSurface(item) },
                                     onOpenDetail = { selectedPlugin = item },
+                                )
+                            }
+                        }
+
+                        // 1.3 已装的原生伴侣插件：同行样式 + 「原生」标记 + 开关。
+                        if (installedNativePlugins.isNotEmpty()) {
+                            itemsIndexed(
+                                items = installedNativePlugins,
+                                key = { index, p -> "native_${index}_${p.pluginId}" },
+                            ) { index, plugin ->
+                                NativeInstalledRow(
+                                    plugin = plugin,
+                                    showDivider = index != installedNativePlugins.lastIndex,
+                                    enabled = plugin.pluginId !in disabledNativePlugins,
+                                    onToggle = { enabled ->
+                                        disabledNativePlugins =
+                                            if (enabled) disabledNativePlugins - plugin.pluginId
+                                            else disabledNativePlugins + plugin.pluginId
+                                    },
+                                    onClick = { selectedNativePlugin = plugin },
                                 )
                             }
                         }
