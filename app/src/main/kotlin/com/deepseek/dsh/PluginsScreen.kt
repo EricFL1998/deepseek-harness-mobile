@@ -38,8 +38,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -2083,13 +2085,18 @@ private fun MorePluginsScreen(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = colors.labelPrimary,
+                )
+            }
             Text(
-                text = "‹ 实验性插件",
+                text = "实验性插件",
                 color = colors.labelPrimary,
                 fontSize = 15.sp,
-                modifier = Modifier
-                    .clickable(onClick = onBack)
-                    .padding(8.dp),
+                fontWeight = FontWeight.Medium,
             )
         }
         LazyColumn(

@@ -837,9 +837,17 @@ class RemoteClient(
                                     rows = componentRows,
                                     iconData = localizedJsonText((bElem["meta"] as? kotlinx.serialization.json.JsonObject)?.get("icon")),
                                 )
+                                // 已安装列表只列第三方：官方包（official）与基础层 profile bundle
+                                // 都不该出现在这里——它们要么在实验性分组，要么是底座不该列出。
+                                val isOfficial = bElem["official"]?.toString() == "true"
+                                val isBuiltinProfile = name in setOf(
+                                    "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app",
+                                    "@deepseek-ai/dsh-headless", "@deepseek-ai/dsh-sdk-app",
+                                    "@deepseek-ai/dsh-acp-app", "@deepseek-ai/dsh-sdk-minimal",
+                                )
                                 if (isExperimental) {
                                     experimentalList.add(item)
-                                } else {
+                                } else if (!isOfficial && !isBuiltinProfile) {
                                     installedList.add(item)
                                 }
                             }
