@@ -57,7 +57,7 @@ fun PluginsNativeTabs(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    labels: List<String> = listOf("插件", "插件商店"),
+    labels: List<String> = emptyList(),
 ) {
     val colors = LocalDshPanelColors.current
     val containerShape = RoundedCornerShape(16.dp)

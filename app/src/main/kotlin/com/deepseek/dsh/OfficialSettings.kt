@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -194,6 +196,7 @@ private fun OfficialSettingsScaffold(
     // 系统返回先关这一页，而不是退出插件页。
     BackHandler(onBack = onBack)
     val colors = LocalDshPanelColors.current
+    val context = LocalContext.current
     var docs by remember(spec) { mutableStateOf<Map<String, DocState>>(emptyMap()) }
     var reloadKey by remember(spec) { mutableStateOf(0) }
     // 编辑中的值：键是 "ns\u0000key"，避免两个命名空间的同名字段互相覆盖。
@@ -213,7 +216,7 @@ private fun OfficialSettingsScaffold(
         spec.namespaces.forEach { ns ->
             val document = runCatching { loadDocument(ns) }.getOrNull()
             loaded[ns] = if (document == null) {
-                DocState.Failed("这个插件当前没有加载，暂时无法配置。")
+                DocState.Failed(context.getString(R.string.settings_plugin_not_loaded))
             } else {
                 DocState.Loaded(document)
             }
@@ -288,7 +291,7 @@ private fun OfficialSettingsScaffold(
                 val value: JsonElement = when (field.kind) {
                     OfficialFieldKind.NUMBER -> {
                         val number = text.trim().toDoubleOrNull()
-                            ?: throw IllegalStateException("请输入数字：${field.label}")
+                            ?: throw IllegalStateException(context.getString(R.string.settings_number_required, field.label))
                         JsonPrimitive(
                             if (number == number.toLong().toDouble()) number.toLong() else number,
                         )
@@ -307,18 +310,18 @@ private fun OfficialSettingsScaffold(
                 val ref = (docOf(refNs)?.value?.get("apiKeyEnv") as? JsonPrimitive)?.contentOrNull
                     ?.takeIf { it.isNotBlank() }
                     ?: credentialRef
-                    ?: throw IllegalStateException("找不到凭据引用名，无法保存密钥。")
+                    ?: throw IllegalStateException(context.getString(R.string.settings_credential_ref_missing))
                 if (credential?.writable == false) {
-                    throw IllegalStateException("这个密钥由部署环境提供，不能在这里修改。")
+                    throw IllegalStateException(context.getString(R.string.settings_credential_env_locked))
                 }
                 if (!saveCredential(ref, pendingKey)) {
-                    throw IllegalStateException("Host 没有接受这个密钥。")
+                    throw IllegalStateException(context.getString(R.string.settings_credential_rejected))
                 }
             }
             byNamespace.forEach { (ns, patch) ->
                 val revision = docOf(ns)?.revision ?: 0
                 if (!saveDocument(ns, JsonObject(patch), revision)) {
-                    throw IllegalStateException("本部署没有接受这些值，已保留供你修改。")
+                    throw IllegalStateException(context.getString(R.string.settings_deployment_rejected))
                 }
             }
         }.fold(
@@ -327,7 +330,7 @@ private fun OfficialSettingsScaffold(
                 apiKeyText = ""
                 reloadKey += 1
             },
-            onFailure = { error -> saveError = error.message ?: "保存失败" },
+            onFailure = { error -> saveError = error.message ?: context.getString(R.string.settings_save_failed) },
         )
         saving = false
     }
@@ -354,7 +357,7 @@ private fun OfficialSettingsScaffold(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text("正在读取设置…", color = colors.labelTertiary, fontSize = 13.sp)
+                Text(stringResource(R.string.settings_loading), color = colors.labelTertiary, fontSize = 13.sp)
             }
 
             failed != null -> Text(failed, color = colors.labelTertiary, fontSize = 13.sp, lineHeight = 19.sp)
@@ -363,11 +366,12 @@ private fun OfficialSettingsScaffold(
                 // 网页搜索的开关决定显示哪一组字段：开＝Search/Fetch API，关＝Messages。
                 val searchApiOn = edits["web\u0000searchApi"]?.let { it == "true" } ?: searchApiOn()
                 if (spec.searchApiToggle) {
+                    val toggleField = webSearchToggleField()
                     ToggleRow(
-                        label = "启用新版 Web 搜索 API",
-                        hint = "默认关闭，搜索通过 DeepSeek Messages 完成。",
+                        label = stringResource(R.string.settings_web_search_toggle),
+                        hint = stringResource(R.string.settings_web_search_toggle_hint),
                         checked = searchApiOn,
-                        onChange = { next -> edit(webSearchToggleField(), if (next) "true" else "false") },
+                        onChange = { next -> edit(toggleField, if (next) "true" else "false") },
                     )
                 }
                 // API Key 与字段在同一页保存，但它是写 Host 的凭据域而不是设置文档。
@@ -421,7 +425,7 @@ private fun OfficialSettingsScaffold(
                             .clickable(enabled = !saving && (edits.isNotEmpty() || hasKeyEdit)) { saving = true },
                     ) {
                         Text(
-                            text = if (saving) "保存中…" else "保存",
+                            text = if (saving) stringResource(R.string.settings_saving) else stringResource(R.string.settings_save),
                             color = if (saving) colors.labelTertiary else colors.labelPrimaryForeground,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
@@ -429,8 +433,8 @@ private fun OfficialSettingsScaffold(
                     }
                     val status = when {
                         saveError != null -> saveError
-                        edits.isEmpty() && !hasKeyEdit -> "已保存"
-                        else -> "有未保存的修改"
+                        edits.isEmpty() && !hasKeyEdit -> stringResource(R.string.settings_saved)
+                        else -> stringResource(R.string.settings_unsaved_changes)
                     }
                     Text(
                         text = status ?: "",
@@ -445,10 +449,11 @@ private fun OfficialSettingsScaffold(
 }
 
 /** 网页搜索开关在编辑表里的伪字段：它不是某个命名空间的键，而是 `web` 的两个选择。 */
+@Composable
 private fun webSearchToggleField(): OfficialField = OfficialField(
     ns = "web",
     key = "searchApi",
-    label = "启用新版 Web 搜索 API",
+    label = stringResource(R.string.settings_web_search_toggle),
     hint = null,
     kind = OfficialFieldKind.TOGGLE,
 )
@@ -470,7 +475,7 @@ private fun SubagentModelListNote(
     if (!on) return
     Spacer(Modifier.height(10.dp))
     Text(
-        text = "Agent 可选模型列表需要在网页版设置页里编辑；已保存的授权模型会保留。",
+        text = stringResource(R.string.settings_subagent_models_note),
         color = colors.labelTertiary,
         fontSize = 11.5.sp,
         lineHeight = 16.sp,
@@ -510,7 +515,7 @@ private fun CredentialEditor(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = if (configured) "已配置密钥。" else "未配置密钥。",
+                text = if (configured) stringResource(R.string.settings_credential_configured) else stringResource(R.string.settings_credential_missing),
                 color = colors.labelTertiary,
                 fontSize = 11.5.sp,
             )
@@ -518,9 +523,9 @@ private fun CredentialEditor(
         Spacer(Modifier.height(2.dp))
         Text(
             text = if (!writable) {
-                "这个密钥由部署环境或账号提供，不能在这里修改。"
+                stringResource(R.string.settings_credential_locked_hint)
             } else {
-                "不写入设置文件。留空表示保持当前密钥。"
+                stringResource(R.string.settings_credential_file_hint)
             },
             color = colors.labelTertiary,
             fontSize = 11.5.sp,
@@ -534,7 +539,7 @@ private fun CredentialEditor(
             enabled = writable,
             placeholder = {
                 Text(
-                    text = if (configured) "已配置，输入新值可替换" else "输入密钥",
+                    text = if (configured) stringResource(R.string.settings_credential_replace) else stringResource(R.string.settings_credential_input),
                     fontSize = 13.sp,
                 )
             },

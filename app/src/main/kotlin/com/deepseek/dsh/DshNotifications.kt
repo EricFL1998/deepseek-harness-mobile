@@ -17,9 +17,9 @@ object DshNotifications {
                 manager.createNotificationChannel(
                     NotificationChannel(
                         CHANNEL_ID,
-                        "会话通知",
+                        context.getString(R.string.notify_channel_name),
                         NotificationManager.IMPORTANCE_DEFAULT
-                    ).apply { description = "DSH 会话完成与错误提醒" }
+                    ).apply { description = context.getString(R.string.notify_channel_desc) }
                 )
             }
         }

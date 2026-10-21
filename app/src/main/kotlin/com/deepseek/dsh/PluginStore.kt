@@ -102,6 +102,7 @@ internal fun PluginStoreTab(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalDshPanelColors.current
+    val context = LocalContext.current
     var repos by remember { mutableStateOf<List<GitHubPluginRepo>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableStateOf(0) }
@@ -124,7 +125,7 @@ internal fun PluginStoreTab(
         repos = null
         runCatching { fetchTopicRepos() }
             .onSuccess { repos = it }
-            .onFailure { error = it.message ?: "GitHub API 请求失败" }
+            .onFailure { error = it.message ?: context.getString(R.string.store_github_failed) }
     }
 
     if (selected != null) {
@@ -284,6 +285,7 @@ private fun PluginStoreDetail(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalDshPanelColors.current
+    val context = LocalContext.current
     var release by remember { mutableStateOf<GitHubRelease?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -293,7 +295,7 @@ private fun PluginStoreDetail(
         error = null
         runCatching { fetchLatestRelease(repo.fullName) }
             .onSuccess { release = it }
-            .onFailure { error = it.message ?: "无法读取 Release" }
+            .onFailure { error = it.message ?: context.getString(R.string.store_release_failed) }
         loading = false
     }
 
@@ -417,7 +419,7 @@ private fun ApkInstallRow(asset: GitHubApkAsset) {
                     message = null
                     scope.launch {
                         runCatching { downloadAndInstallApk(context, asset) }
-                            .onFailure { message = it.message ?: "安装失败" }
+                            .onFailure { message = it.message ?: context.getString(R.string.store_install_failed) }
                         installing = false
                     }
                 }
@@ -544,10 +546,10 @@ private suspend fun downloadAndInstallApk(context: Context, asset: GitHubApkAsse
         .header("User-Agent", "dsh-mobile-plugin-store")
         .build()
     storeClient.newCall(request).execute().use { response ->
-        if (!response.isSuccessful) error("下载失败 ${response.code}")
+        if (!response.isSuccessful) error(context.getString(R.string.store_download_failed, response.code))
         response.body?.byteStream()?.use { input ->
             target.outputStream().use { output -> input.copyTo(output) }
-        } ?: error("下载内容为空")
+        } ?: error(context.getString(R.string.store_empty_download))
     }
     withContext(Dispatchers.Main) {
         val uri = FileProvider.getUriForFile(
