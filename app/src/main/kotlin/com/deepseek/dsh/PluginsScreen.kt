@@ -143,6 +143,8 @@ fun PluginsScreen(
     onDetailOpenChange: (Boolean) -> Unit = {},
     /** 「原生插件」tab 的商店列表项（可装伴侣 APK）。 */
     nativePluginItems: List<com.deepseek.dsh.plugin.nativehost.NativePluginItem> = emptyList(),
+    /** 插件市场的数据源；「自定义插件市场」bundle 启用时 tab 才会出现。 */
+    marketBackend: MarketBackend? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
@@ -165,8 +167,16 @@ fun PluginsScreen(
         mutableStateOf<com.deepseek.dsh.plugin.nativehost.NativePluginItem?>(null)
     }
     var disabledNativePlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // 插件页分段页签：0 = 插件（现有列表），1 = 原生插件商店。
+    // 插件页分段页签：0 = 插件（现有列表），1 = 原生插件商店，2 = 发现（插件市场）。
     var pluginsTabIndex by remember { mutableStateOf(0) }
+    // 「发现」tab 由「自定义插件市场」bundle 的客户端插件注册；bundle 关闭时没有
+    // 这个页签（官方页面同样只在插件注册了 plugins.tab 时才画页签条）。
+    val marketEnabled = remember(bridgeCatalog) {
+        bridgeCatalog.bundles.any { it.name == PLUGIN_MARKET_BUNDLE && it.enabled }
+    }
+    LaunchedEffect(marketEnabled) {
+        if (!marketEnabled && pluginsTabIndex == 2) pluginsTabIndex = 0
+    }
     /**
      * Host 的全部设置命名空间。
      *
@@ -524,6 +534,11 @@ fun PluginsScreen(
                     PluginsNativeTabs(
                         selectedIndex = pluginsTabIndex,
                         onSelect = { pluginsTabIndex = it },
+                        labels = if (marketEnabled) {
+                            listOf("插件", "原生插件", "发现")
+                        } else {
+                            listOf("插件", "原生插件")
+                        },
                         modifier = Modifier.padding(
                             start = PluginsDimens.PageHorizontal,
                             end = PluginsDimens.PageHorizontal,
@@ -558,6 +573,30 @@ fun PluginsScreen(
                             onOpenDetail = { selectedNativePlugin = it },
                             modifier = Modifier.weight(1f),
                         )
+                    } else if (pluginsTabIndex == 2) {
+                        // 「发现」tab：浏览器市场（官方 client-ui-plugin-market 的 plugins.tab）。
+                        val hooks = marketBackend?.let { backend ->
+                            MarketHooks(
+                                loadIndexes = backend.loadIndexes,
+                                search = backend.search,
+                                saveIndexes = backend.saveIndexes,
+                                install = { spec -> onInstallPlugin(spec) },
+                            )
+                        }
+                        if (hooks == null) {
+                            Text(
+                                text = "插件市场暂不可用。",
+                                color = colors.labelTertiary,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(PluginsDimens.PageHorizontal, 16.dp),
+                            )
+                        } else {
+                            PluginMarketTab(
+                                hooks = hooks,
+                                onInstalled = { },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -883,6 +922,8 @@ internal fun companionsOf(
  * 哪些开关默认是开的」。内容（标题/描述/图标/开关状态）全部来自 Host。
  */
 /** 基础层 bundle：`/plugins` 页面永远不列它们，即使 profile 声明为依赖。 */
+private const val PLUGIN_MARKET_BUNDLE = "@deepseek-ai/dsh-experimental-plugin-market-bundle"
+
 private val BUILTIN_PROFILE_BUNDLES = setOf(
     "@deepseek-ai/dsh-base",
     "@deepseek-ai/dsh-web-app",

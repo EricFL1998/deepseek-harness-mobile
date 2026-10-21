@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity() {
 
     /** 原生伴侣插件重扫信号：onResume 时递增，组合里据此重扫（卸载/安装即更新）。 */
     private val nativePluginRescanFlow = kotlinx.coroutines.flow.MutableStateFlow(0)
+    private var nativePackageReceiver: android.content.BroadcastReceiver? = null
 
     override fun onResume() {
         super.onResume()
@@ -117,6 +118,23 @@ class MainActivity : ComponentActivity() {
         workspaceManager = WorkspaceManager(
             preferredPublicDir = visibleWorkspaceDir,
             appPrivateDir = filesDir
+        )
+        nativePackageReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+                nativePluginRescanFlow.value += 1
+            }
+        }
+        val packageFilter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_PACKAGE_ADDED)
+            addAction(android.content.Intent.ACTION_PACKAGE_REMOVED)
+            addAction(android.content.Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            nativePackageReceiver,
+            packageFilter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
 
         // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
@@ -162,6 +180,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        nativePackageReceiver?.let { runCatching { unregisterReceiver(it) } }
+        nativePackageReceiver = null
         if (isFinishing) {
             val app = application as DshApplication
             Thread {
@@ -465,6 +485,27 @@ fun MainAppHost(
     }
 
     /**
+     * 记住用户通过 App 打开/关闭过的实验性 bundle。
+     *
+     * Device 上的 profile 清单在 Host 启动时会被重建为模板（实测：写入的
+     * `dsh.profile.bundles` 在下次启动后消失），因此不能只依赖 profile；
+     * 这里留一份本地选择，Host 起来后补回去。
+     * @param name bundle 包名。
+     * @param enabled 打开还是关闭。
+     */
+    fun rememberBundleSelection(name: String, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PLUGIN_SELECTION_PREFS, android.content.Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(PLUGIN_SELECTION_KEY, emptySet())?.toMutableSet() ?: mutableSetOf()
+        if (enabled) current.add(name) else current.remove(name)
+        prefs.edit().putStringSet(PLUGIN_SELECTION_KEY, current).apply()
+    }
+
+    /** 用户打开过的实验性 bundle 包名。 */
+    fun savedEnabledBundles(): Set<String> =
+        context.getSharedPreferences(PLUGIN_SELECTION_PREFS, android.content.Context.MODE_PRIVATE)
+            .getStringSet(PLUGIN_SELECTION_KEY, emptySet())?.toSet() ?: emptySet()
+
+    /**
      * 把某个 JS 插件配对的伴侣 APK 全部排进卸载队列。
      *
      * 配对依据是 APK manifest 的 `dsh.plugin.jsPackage`，不按包名猜。
@@ -488,7 +529,8 @@ fun MainAppHost(
     // 配对的 JS 插件（甲 manifest 声明 / 乙商店索引兜底），装完重启 Host。
     val nativePluginRescanSignal by nativePluginRescanFlow.collectAsState()
     LaunchedEffect(nativePluginRescanSignal, appPluginInstaller) {
-        runCatching {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
             val discovery = com.deepseek.dsh.plugin.nativehost.NativePluginDiscovery(context)
             val loader = com.deepseek.dsh.plugin.nativehost.NativePluginLoader(context)
             val appVersionCode = context.packageManager
@@ -502,10 +544,19 @@ fun MainAppHost(
             val ready = discovered.filter {
                 it.status == com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY
             }
+            // Drop pages whose package disappeared before loading the next snapshot.
+            // Otherwise an already open page could keep executing an uninstalled ClassLoader.
+            val discoveredIds = discovered.map { it.pluginId }.toSet()
+            com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.snapshot()
+                .map { it.first }.filter { it.isNotBlank() && it !in discoveredIds }
+                .forEach { com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.removeOwner(it) }
             // Only successfully loaded companions may replace a Web settings section.
             // Replacing the whole snapshot also drops routes for uninstalled/incompatible APKs.
             val loaded = ready.mapNotNull { installed ->
-                loader.load(installed)?.let { plugin -> installed to plugin }
+                com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.removeOwner(installed.pluginId)
+                com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.withOwner(installed.pluginId) {
+                    loader.load(installed)
+                }?.let { plugin -> installed to plugin }
             }
             com.deepseek.dsh.plugin.nativehost.NativePageRegistry.replaceAll(
                 loaded.map { (installed, plugin) ->
@@ -513,7 +564,8 @@ fun MainAppHost(
                         pluginId = plugin.descriptor.id,
                         jsPackage = installed.jsPackage,
                         pages = com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.forPlacement(
-                            com.deepseek.dsh.plugin.nativesdk.pages.PageEntry.Placement.SETTINGS,
+                            placement = com.deepseek.dsh.plugin.nativesdk.pages.PageEntry.Placement.SETTINGS,
+                            owner = installed.pluginId,
                         ),
                     )
                 },
@@ -560,6 +612,7 @@ fun MainAppHost(
                     jsPackage = installed.jsPackage,
                     packageName = installed.packageName,
                 )
+            }
             }
         }
     }
@@ -983,6 +1036,9 @@ fun MainAppHost(
     }
     // 插件瞬态消息：Host 排队、客户端轮询取走，用系统 Toast 呈现。
     // 没有事件通道时这段是空转，取不到消息也不会打扰任何东西。
+    // profile 清单每次 Host 启动会被重置，这个集合保证每个 App 会话里每个
+    // bundle 只补一次，避免反复触发 Host 重载。
+    val restoredBundles = remember { mutableSetOf<String>() }
     LaunchedEffect(Unit) {
         var ticks = 0
         while (true) {
@@ -992,6 +1048,19 @@ fun MainAppHost(
             // 后续批次继续推进，扫描完成后不再产生新条目，刷新也就变成一次廉价读。
             if (ticks % 4 == 0) {
                 runCatching { dshRepository.refreshBridgePluginCatalog() }
+                // 把用户打开过的实验性 bundle 补回 profile（清单会被启动重置）。
+                val catalog = dshRepository.bridgePluginCatalogFlow.value
+                val missing = savedEnabledBundles().filter { name ->
+                    name !in restoredBundles && catalog.bundles.none { it.name == name && it.enabled }
+                }
+                if (missing.isNotEmpty()) {
+                    missing.forEach { name -> restoredBundles += name }
+                    missing.forEach { name ->
+                        runCatching { dshRepository.setBundleEnabled(activeHostId, name, true) }
+                    }
+                    runCatching { dshRepository.refreshBridgePluginCatalog() }
+                    runCatching { dshRepository.refreshPluginInventory(activeHostId) }
+                }
             }
             // 插件界面的入口不能只依赖「Host 状态刚变成有端口」那一刻：Host 冷启动时
             // 首个 bridge 请求可能先于会话 cookie 就绪而失败，一次失败就会让设置里的
@@ -1630,7 +1699,10 @@ fun MainAppHost(
                                 },
                                 onToggleBundle = { packageName, enabled ->
                                     scope.launch {
-                                        dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                        val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                        // profile 的 bundle 清单在 Host 启动时会被重置成模板，
+                                        // 所以把用户明确拨动过的开关记一份，Host 起来后补回去。
+                                        if (result.isSuccess) rememberBundleSelection(packageName, enabled)
                                         // 双向同步：开关值以 Host 的实际状态为准。成功时
                                         // 这只是确认；失败时它会把开关拨回真实状态，而不是
                                         // 让界面停在用户按下的那个位置。
@@ -1699,6 +1771,16 @@ fun MainAppHost(
                                     activePage = ActivePage.CHAT
                                 },
                                 nativePluginItems = nativePluginItems,
+                                // 「发现」tab 的数据源：Host 的 pluginMarket Remote。
+                                marketBackend = MarketBackend(
+                                    loadIndexes = { dshRepository.marketIndexes(activeHostId) },
+                                    search = { url, query ->
+                                        dshRepository.marketSearch(activeHostId, url, query)
+                                    },
+                                    saveIndexes = { urls ->
+                                        dshRepository.marketSetIndexes(activeHostId, urls)
+                                    },
+                                ),
                                 onUninstallCompanion = { companion ->
                                     requestApkUninstall(companion.packageName)
                                 },
@@ -1829,6 +1911,9 @@ fun MainAppHost(
                                 hostPort = status?.port ?: dshApplication.localHostPort,
                                 hostToken = status?.token ?: dshApplication.localHostToken,
                                 hostPortProvider = { dshApplication.localHostPort.takeIf { it > 0 } ?: (status?.port ?: 0) },
+                                pluginRpc = { method, payload ->
+                                    dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                                },
                                 loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
                                 savePluginSettings = { ns, patch, revision ->
                                     dshRepository.updatePluginSettings(ns, patch, revision)
@@ -2678,4 +2763,9 @@ private fun parseWorkspaceId(raw: String?): String? {
     if (raw.isNullOrBlank()) return null
     return Regex("\"workspaceId\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.getOrNull(1)
 }
+
+
+/** App 侧记住的实验性 bundle 选择（profile 清单会被 Host 启动重置）。 */
+private const val PLUGIN_SELECTION_PREFS = "dsh_plugin_selection"
+private const val PLUGIN_SELECTION_KEY = "enabled_bundles"
 

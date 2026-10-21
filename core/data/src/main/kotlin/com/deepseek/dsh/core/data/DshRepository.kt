@@ -542,6 +542,72 @@ class DshRepository(
             is RemoteResult.Failure -> Result.failure(IllegalStateException("${res.code}: ${res.message}"))
         }
 
+    /** Call a plugin-owned Host route with its payload unchanged. */
+    suspend fun pluginRpc(hostId: String, method: String, payloadJson: String): Result<String> =
+        when (val res = client.pluginRpc(hostId, method, payloadJson)) {
+            is RemoteResult.Success -> Result.success(res.data)
+            is RemoteResult.Failure -> Result.failure(IllegalStateException("${res.code}: ${res.message}"))
+        }
+
+    // ── 插件市场（pluginMarket Remote）─────────────────────────────────────────
+    //
+    // 「发现」页的数据来自 Host 的 `pluginMarket` Remote，与网页版读同一份索引。
+    // Host 没有挂载这个服务（bundle 关闭）时，这些方法都会返回失败，页面据此
+    // 显示官方的「无法读取索引源」。
+
+    /** 已配置的索引源摘要。 */
+    suspend fun marketIndexes(hostId: String): Result<List<MarketIndexSummary>> =
+        rpcRaw(hostId, "pluginMarket/listIndexes", "{}").mapCatching { raw ->
+            parseMarketIndexes(remoteValueOrThrow(raw))
+        }
+
+    /**
+     * 在某个索引里搜索插件。
+     *
+     * @param hostId Host 标识。
+     * @param url 索引源 URL。
+     * @param queryJson 官方 `MarketQuery` 的 JSON（text/category/labels/sort/offset/limit…）。
+     * @returns 结果；索引尚未读取成功时 Host 返回 null，这里也返回 null。
+     */
+    suspend fun marketSearch(hostId: String, url: String, queryJson: String): Result<MarketListing?> {
+        val args = buildJsonObject {
+            put("url", url)
+            put(
+                "query",
+                runCatching { credentialJson.parseToJsonElement(queryJson) }.getOrNull()
+                    ?: JsonObject(emptyMap()),
+            )
+        }
+        return rpcRaw(hostId, "pluginMarket/search", args.toString()).mapCatching { raw ->
+            parseMarketSearch(remoteValueOrThrow(raw))
+        }
+    }
+
+    /** 覆盖式保存索引源列表。 */
+    suspend fun marketSetIndexes(hostId: String, urls: List<String>): Result<Boolean> {
+        val args = buildJsonObject {
+            put(
+                "urls",
+                kotlinx.serialization.json.buildJsonArray { urls.forEach { add(JsonPrimitive(it)) } },
+            )
+        }
+        return rpcRaw(hostId, "pluginMarket/setIndexes", args.toString()).map { true }
+    }
+
+    /** 取出 Remote 响应信封里的 `result.value`；`ok=false` 时抛出 Host 的错误码。 */
+    private fun remoteValueOrThrow(raw: String): JsonElement? {
+        val root = credentialJson.parseToJsonElement(raw) as? JsonObject
+            ?: error("无法解析 Host 响应")
+        val result = root["result"] as? JsonObject ?: error("Host 响应缺少 result")
+        val ok = (result["ok"] as? JsonPrimitive)?.booleanOrNull == true
+        if (!ok) {
+            val error = result["error"] as? JsonObject
+            error((error?.get("code") as? JsonPrimitive)?.contentOrNull ?: "Host 拒绝了这次请求")
+        }
+        val value = result["value"]
+        return if (value == null || value is kotlinx.serialization.json.JsonNull) null else value
+    }
+
     suspend fun installPlugin(hostId: String, packageName: String): Result<Boolean> {
         return when (val res = client.installPlugin(hostId, packageName)) {
             is RemoteResult.Success -> {
