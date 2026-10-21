@@ -50,3 +50,26 @@ fun NativeSlot(
     val theme = NativeHost.LocalTheme.current ?: return
     NativeSlotHost(slot = slot, spec = spec, theme = theme, host = host, modifier = modifier)
 }
+
+/**
+ * 同一落点的一行紧凑版本：用于 composer 底部状态行这类横向空间。
+ *
+ * 贡献按 Row 项排列，不占满整行；没有插件注册时同样不占空间。
+ */
+@Composable
+fun NativeSlotInline(
+    slot: com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot,
+    spec: kotlinx.serialization.json.JsonObject,
+    modifier: Modifier = Modifier,
+) {
+    val host = NativeHost.LocalHost.current ?: return
+    val theme = NativeHost.LocalTheme.current ?: return
+    NativeSlotHost(
+        slot = slot,
+        spec = spec,
+        theme = theme,
+        host = host,
+        modifier = modifier,
+        inline = true,
+    )
+}

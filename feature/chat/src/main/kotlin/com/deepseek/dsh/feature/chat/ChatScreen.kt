@@ -2227,14 +2227,8 @@ fun BottomInputBar(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // conversation.composer.dock：原生插件在此落点显示内容（用量胶囊、状态卡等）。
-        // 通用容器从 NativeHost 读能力桥与主题；没有插件注册该落点时不占空间。
-        com.deepseek.dsh.plugin.nativehost.NativeSlot(
-            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK,
-            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-
+        // conversation.composer.dock 的官方位置是输入框底部状态行（tok/s、缓存命中、
+        // 上下文旁），由 ComposerDockBar 以行内方式承载，不在输入框上方。
         // conversation.input.dock：Claude Code 模组横幅（Host 下发的动态树）。
         ClaudeCodeModsPluginUi.BandView(
             snapshot = bandSnapshot,

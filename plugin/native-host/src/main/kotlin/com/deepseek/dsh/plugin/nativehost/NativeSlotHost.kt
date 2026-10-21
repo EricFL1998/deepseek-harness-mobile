@@ -109,12 +109,28 @@ fun NativeSlotHost(
     theme: PluginTheme,
     host: PluginHostApi,
     modifier: Modifier = Modifier,
+    /** true 时作为一行内的紧凑项渲染（composer 底部状态行），而不是整块纵向卡片。 */
+    inline: Boolean = false,
 ) {
     val contributions = SlotRegistry.resolve(slot)
     if (contributions.isEmpty()) return
     // slot 贡献与整页原生页面共用同一套 Host RPC：把基础能力桥升级成
     // PluginRpcHost，插件才能读取自己既有的状态（额度/账号等）。
     val slotHost = androidx.compose.runtime.remember(host) { SlotBridgeHost(host) }
+    if (inline) {
+        Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            for (contribution in contributions) {
+                NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
+                    contribution.Render(spec, theme, slotHost)
+                }
+            }
+        }
+        return
+    }
     Column(modifier = modifier.fillMaxWidth()) {
         for (contribution in contributions) {
             NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {

@@ -92,6 +92,12 @@ fun ComposerDockBar(
                 color = MaterialTheme.colorScheme.outline,
             )
         }
+
+        // 官方 composer.dock 的插件扩展：紧跟在上下文计量之后，同一条状态行内。
+        com.deepseek.dsh.plugin.nativehost.NativeSlotInline(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK,
+            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+        )
     }
 }
 

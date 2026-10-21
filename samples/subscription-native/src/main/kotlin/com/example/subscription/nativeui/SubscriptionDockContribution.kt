@@ -1,8 +1,6 @@
 package com.example.subscription.nativeui
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,20 +66,14 @@ class SubscriptionDockContribution : SlotContribution() {
             }
         }
         if (label.isBlank()) return
-        Card(
-            shape = theme.shapeChip,
-            colors = CardDefaults.cardColors(containerColor = theme.colorSurfaceVariant),
-        ) {
-            Text(
-                text = label,
-                style = theme.textCaption,
-                color = theme.colorOnSurfaceVariant,
-                modifier = Modifier.padding(
-                    horizontal = theme.spacingUnit,
-                    vertical = theme.spacingUnit / 2,
-                ),
-            )
-        }
+        // 与 composer 底部状态行的 tok/s、缓存命中、上下文读数同款：
+        // 无底色、无边框、labelSmall + outline 色，紧随上下文计量之后。
+        Text(
+            text = label,
+            style = theme.textCaption.copy(fontFeatureSettings = "tnum"),
+            color = theme.colorOutline,
+            modifier = Modifier.padding(horizontal = theme.spacingUnit / 2),
+        )
     }
 }
 
