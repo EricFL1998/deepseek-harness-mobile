@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,7 +64,7 @@ internal object VoiceInputPluginUi : PluginUi {
     override fun Section(hooks: PluginUiHooks) {
         val speech = hooks.speech
         if (speech == null) {
-            Text("语音设置暂不可用。", color = LocalDshPanelColors.current.labelTertiary, fontSize = 13.sp)
+            Text(stringResource(R.string.voice_unavailable), color = LocalDshPanelColors.current.labelTertiary, fontSize = 13.sp)
             return
         }
         VoicePreparationSection(speech)
@@ -71,39 +72,58 @@ internal object VoiceInputPluginUi : PluginUi {
 }
 
 /** 语言代码 → 官方显示名。 */
-private val SPEECH_LANGUAGE_NAMES = mapOf(
-    "auto" to "自动识别",
-    "zh" to "中文",
-    "en" to "英语",
-    "yue" to "粤语",
-    "ja" to "日语",
-    "ko" to "韩语",
-)
-
-/** 下载来源 → 官方显示名。 */
-private fun sourceLabel(source: String): String = when (source) {
-    "https://huggingface.co" -> "Hugging Face"
-    "https://hf-mirror.com" -> "HF-Mirror（国内镜像）"
-    else -> source
+@Composable
+private fun speechLanguageName(code: String): String = when (code) {
+    "auto" -> stringResource(R.string.voice_lang_auto)
+    "zh" -> stringResource(R.string.voice_lang_zh)
+    "en" -> stringResource(R.string.voice_lang_en)
+    "yue" -> stringResource(R.string.voice_lang_yue)
+    "ja" -> stringResource(R.string.voice_lang_ja)
+    "ko" -> stringResource(R.string.voice_lang_ko)
+    else -> code
 }
 
-/** 步骤 kind → 官方显示名。 */
-private val SPEECH_STEP_NAMES = mapOf(
-    "check" to "模型检查",
-    "model" to "下载模型",
-    "vad" to "VAD 模型",
-    "verify" to "校验文件",
-    "load" to "加载模型",
-)
+@Composable
+private fun speechStepName(kind: String): String = when (kind) {
+    "check" -> stringResource(R.string.voice_step_check)
+    "model" -> stringResource(R.string.voice_step_model)
+    "vad" -> stringResource(R.string.voice_step_vad)
+    "verify" -> stringResource(R.string.voice_step_verify)
+    "load" -> stringResource(R.string.voice_step_load)
+    else -> kind
+}
 
-/** 步骤状态 → 官方显示名。 */
-private val SPEECH_STEP_STATUS = mapOf(
-    "pending" to "未开始",
-    "running" to "进行中",
-    "done" to "已完成",
-    "failed" to "失败",
-    "cancelled" to "已取消",
-)
+@Composable
+private fun speechStepStatus(status: String): String = when (status) {
+    "pending" -> stringResource(R.string.voice_status_pending)
+    "running" -> stringResource(R.string.voice_status_running)
+    "done" -> stringResource(R.string.voice_status_done)
+    "failed" -> stringResource(R.string.voice_status_failed)
+    "cancelled" -> stringResource(R.string.voice_status_cancelled)
+    else -> status
+}
+
+@Composable
+private fun speechPhaseLabel(phase: String): String = when (phase) {
+    "ready" -> stringResource(R.string.voice_phase_ready)
+    "checking" -> stringResource(R.string.voice_phase_checking)
+    "downloading" -> stringResource(R.string.voice_phase_downloading)
+    "verifying" -> stringResource(R.string.voice_phase_verifying)
+    "loading" -> stringResource(R.string.voice_phase_loading)
+    "waking" -> stringResource(R.string.voice_phase_waking)
+    "cancelling" -> stringResource(R.string.voice_phase_cancelling)
+    "cancelled" -> stringResource(R.string.voice_phase_cancelled)
+    "failed" -> stringResource(R.string.voice_phase_failed)
+    else -> stringResource(R.string.voice_phase_unprepared)
+}
+
+/** 下载来源 → 官方显示名。 */
+@Composable
+private fun sourceLabel(source: String): String = when (source) {
+    "https://huggingface.co" -> "Hugging Face"
+    "https://hf-mirror.com" -> stringResource(R.string.voice_source_hf_mirror)
+    else -> source
+}
 
 /** 这些阶段的准备还在推进，需要轮询目录刷新进度。 */
 private val SPEECH_ACTIVE_PHASES = setOf(
@@ -113,6 +133,7 @@ private val SPEECH_ACTIVE_PHASES = setOf(
 @Composable
 private fun VoicePreparationSection(speech: SpeechHooks) {
     val colors = LocalDshPanelColors.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var catalog by remember { mutableStateOf<SpeechCatalog?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -123,7 +144,7 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
     LaunchedEffect(reload) {
         speech.catalog().fold(
             onSuccess = { catalog = it; loadError = null },
-            onFailure = { loadError = "语音设置暂不可用" },
+            onFailure = { loadError = context.getString(R.string.voice_unavailable) },
         )
     }
     // 准备过程中轮询：官方是流式状态，这里用目录轮询替代（同一份 Host 状态）。
@@ -141,17 +162,17 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
         return
     }
     if (current == null) {
-        Text("正在读取语音设置…", color = colors.labelTertiary, fontSize = 13.sp)
+        Text(stringResource(R.string.voice_reading), color = colors.labelTertiary, fontSize = 13.sp)
         return
     }
     val provider = current.selected
     if (provider == null) {
-        Text("语音设置暂不可用", color = colors.labelTertiary, fontSize = 13.sp)
+        Text(stringResource(R.string.voice_unavailable), color = colors.labelTertiary, fontSize = 13.sp)
         return
     }
 
     // 识别服务
-    Text("识别服务", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    Text(stringResource(R.string.voice_service), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(6.dp))
     ChoiceChipFlow(
         options = current.providers.map { item -> item.id to item.name },
@@ -168,9 +189,9 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
     Spacer(Modifier.height(4.dp))
     Text(
         text = if (provider.location == "host-local") {
-            "音频在运行 DSH 的机器上识别。"
+            stringResource(R.string.voice_audio_local)
         } else {
-            "音频将发送至所选云端服务。"
+            stringResource(R.string.voice_audio_cloud)
         },
         color = colors.labelTertiary,
         fontSize = 11.5.sp,
@@ -179,10 +200,10 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
 
     // 识别语言
     Spacer(Modifier.height(14.dp))
-    Text("识别语言", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    Text(stringResource(R.string.voice_language), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(6.dp))
     ChoiceChipFlow(
-        options = provider.languages.map { language -> language to (SPEECH_LANGUAGE_NAMES[language] ?: language) },
+        options = provider.languages.map { language -> language to (speechLanguageName(language)) },
         selected = current.language,
         enabled = !busy,
         onSelect = { language ->
@@ -208,18 +229,7 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
         val phase = preparation?.phase ?: "unprepared"
         Spacer(Modifier.height(4.dp))
         Text(
-            text = when (phase) {
-                "ready" -> "已就绪"
-                "checking" -> "检查中…"
-                "downloading" -> "下载中"
-                "verifying" -> "校验中…"
-                "loading" -> "加载中…"
-                "waking" -> "唤醒中…"
-                "cancelling" -> "正在取消…"
-                "cancelled" -> "准备已取消"
-                "failed" -> "准备失败"
-                else -> "未准备"
-            },
+            text = speechPhaseLabel(phase),
             color = when (phase) {
                 "failed" -> colors.stateErrorPrimary
                 "ready" -> androidx.compose.material3.MaterialTheme.colorScheme.primary
@@ -231,9 +241,13 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
             provider.setupEstimate?.let { estimate ->
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "硬盘空间约 ${estimate.recommendedDiskBytes / 1_000_000_000} GB · " +
-                        "运行内存约 ${estimate.expectedMemoryBytes / 1_000_000_000} GB · " +
-                        "首次准备 ${estimate.minimumMinutes}–${estimate.maximumMinutes} 分钟",
+                    text = stringResource(
+                        R.string.voice_estimate,
+                        estimate.recommendedDiskBytes / 1_000_000_000,
+                        estimate.expectedMemoryBytes / 1_000_000_000,
+                        estimate.minimumMinutes,
+                        estimate.maximumMinutes,
+                    ),
                     color = colors.labelTertiary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -251,8 +265,12 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "下载：${completed / 1_000_000} / ${total / 1_000_000} MB，" +
-                        "${(fraction * 100).toInt()}%",
+                    text = stringResource(
+                        R.string.voice_progress,
+                        completed / 1_000_000,
+                        total / 1_000_000,
+                        (fraction * 100).toInt(),
+                    ),
                     color = colors.labelTertiary,
                     fontSize = 11.sp,
                 )
@@ -262,8 +280,8 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
             Spacer(Modifier.height(8.dp))
             preparation.steps.forEach { step ->
                 Text(
-                    text = "${SPEECH_STEP_NAMES[step.kind] ?: step.kind} · " +
-                        (SPEECH_STEP_STATUS[step.status] ?: step.status),
+                    text = "${speechStepName(step.kind)} · " +
+                        (speechStepStatus(step.status)),
                     color = if (step.status == "failed") colors.stateErrorPrimary else colors.labelTertiary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -273,30 +291,30 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
         if (phase == "failed" && preparation?.message != null) {
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "准备失败：${preparation.message}",
+                text = stringResource(R.string.voice_prepare_failed, preparation.message.orEmpty()),
                 color = colors.stateErrorPrimary,
                 fontSize = 11.5.sp,
                 lineHeight = 16.sp,
             )
             Text(
-                text = "请检查运行 DSH 的机器的网络、磁盘空间和模型目录权限后重试。",
+                text = stringResource(R.string.voice_prepare_hint),
                 color = colors.labelTertiary,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
             )
             preparation.source?.let { source ->
-                Text("下载来源：$source", color = colors.labelTertiary, fontSize = 11.sp)
+                Text(stringResource(R.string.voice_download_origin, source), color = colors.labelTertiary, fontSize = 11.sp)
             }
         }
 
         // 下载来源
         if (provider.downloadSources.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
-            Text("模型下载源", color = colors.labelPrimary, fontSize = 12.sp)
+            Text(stringResource(R.string.voice_model_source), color = colors.labelPrimary, fontSize = 12.sp)
             Spacer(Modifier.height(4.dp))
             ChoiceChipFlow(
                 options = buildList {
-                    if (provider.downloadSources.size > 1) add("" to "自动选择（推荐）")
+                    if (provider.downloadSources.size > 1) add("" to stringResource(R.string.voice_auto_source))
                     provider.downloadSources.forEach { source -> add(source to sourceLabel(source)) }
                 },
                 selected = downloadSource,
@@ -309,7 +327,7 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (phase == "unprepared" || phase == "failed" || phase == "cancelled") {
                 ActionChip(
-                    text = if (phase == "unprepared") "下载并准备" else "重试准备",
+                    text = if (phase == "unprepared") stringResource(R.string.voice_download_prepare) else stringResource(R.string.voice_retry_prepare),
                     enabled = !busy,
                     onClick = {
                         scope.launch {
@@ -323,7 +341,7 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
             }
             if (phase in SPEECH_ACTIVE_PHASES) {
                 ActionChip(
-                    text = "取消准备",
+                    text = stringResource(R.string.voice_cancel_prepare),
                     enabled = !busy,
                     onClick = {
                         scope.launch {
