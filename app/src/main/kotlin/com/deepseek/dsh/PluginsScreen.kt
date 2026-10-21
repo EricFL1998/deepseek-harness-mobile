@@ -146,6 +146,8 @@ fun PluginsScreen(
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
     var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
+    // 「更多插件」页面：从实验性分组头部的「更多 ›」进入。
+    var showMorePlugins by remember { mutableStateOf(false) }
     // 原生伴侣：详情页 + 停用集合 + 已装列表（merge 进已安装分组）。
     var selectedNativePlugin by remember {
         mutableStateOf<com.deepseek.dsh.plugin.nativehost.NativePluginItem?>(null)
@@ -251,6 +253,14 @@ fun PluginsScreen(
                     onBack = { selectedNativePlugin = null },
                     onUninstall = { selectedNativePlugin = null },
                 )
+            } else if (showMorePlugins) {
+                // 「更多插件」单独页面：实验性分组头部的「更多 ›」进入。
+                MorePluginsScreen(
+                    bundles = derivedMoreBundles,
+                    onBack = { showMorePlugins = false },
+                    onOpen = { selectedBundle = it },
+                    onToggle = { bundle, enabled -> onToggleBundle(bundle.packageName, enabled) },
+                )
             } else if (detail != null) {
                 PluginDetailContent(
                     item = detail,
@@ -337,13 +347,33 @@ fun PluginsScreen(
                     val experimentalBundles = derivedExperimentalBundles
                     if (experimentalBundles.isNotEmpty()) {
                         item(key = "experimental_group_head") {
-                            PluginsGroupTitle(
-                                text = "实验性插件",
-                                modifier = Modifier.padding(
-                                    top = PluginsDimens.SectionGap,
-                                    bottom = PluginsDimens.GroupTitleGap,
-                                ),
-                            )
+                            // 实验性分组头部：左标题，右「更多 ›」（官方页面一致——更多插件从这里进）。
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        top = PluginsDimens.SectionGap,
+                                        bottom = PluginsDimens.GroupTitleGap,
+                                    ),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "实验性插件",
+                                    color = colors.labelPrimary,
+                                    fontSize = 14.sp,
+                                    lineHeight = 22.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                if (derivedMoreBundles.isNotEmpty()) {
+                                    Text(
+                                        text = "更多 ›",
+                                        color = colors.labelTertiary,
+                                        fontSize = 12.5.sp,
+                                        modifier = Modifier.clickable { showMorePlugins = true },
+                                    )
+                                }
+                            }
                         }
                         itemsIndexed(experimentalBundles, key = { index, bundle -> "experimental_${index}_${bundle.packageName}" }) { index, bundle ->
                             InstalledHostBundleRow(
@@ -357,31 +387,9 @@ fun PluginsScreen(
                         }
                     }
 
-                    // 默认收起的实验性插件：与官方页面一致，放在主列表之外的「更多插件」。
-                    if (derivedMoreBundles.isNotEmpty()) {
-                        item(key = "more_group_head") {
-                            PluginsGroupTitle(
-                                text = "更多插件",
-                                modifier = Modifier.padding(
-                                    top = PluginsDimens.SectionGap,
-                                    bottom = PluginsDimens.GroupTitleGap,
-                                ),
-                            )
-                        }
-                        itemsIndexed(
-                            items = derivedMoreBundles,
-                            key = { index, bundle -> "more_${index}_${bundle.packageName}" },
-                        ) { index, bundle ->
-                            InstalledHostBundleRow(
-                                bundle = bundle,
-                                showDivider = index != derivedMoreBundles.lastIndex,
-                                onOpen = { selectedBundle = bundle },
-                                onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
-                                onUninstall = { },
-                                locked = isLockedBundle(bundle.packageName),
-                            )
-                        }
-                    }
+                    // 默认收起的实验性插件：与官方页面一致，从实验性分组头部的「更多 ›」
+                    // 进入单独页面，不再在主列表里占一节。
+                    // （原「更多插件」整组已移除，见 MorePluginsScreen。）
 
                     // 插件声明的行级配置入口：与设置页同一套机制，按 slot 分派到插件页。
                     if (rowConfigSurfaces.isNotEmpty()) {
@@ -2063,6 +2071,63 @@ private fun PluginsInstallDialog(
             )
         },
     )
+}
+
+/**
+ * 「更多插件」页面：实验性分组头部的「更多 ›」进入，列全部默认收起的实验性插件。
+ * 与主列表同一套行样式。
+ */
+@Composable
+private fun MorePluginsScreen(
+    bundles: List<PluginBundleItem>,
+    onBack: () -> Unit,
+    onOpen: (PluginBundleItem) -> Unit,
+    onToggle: (PluginBundleItem, Boolean) -> Unit,
+) {
+    val colors = LocalDshPanelColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.bgBase),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "‹ 实验性插件",
+                color = colors.labelPrimary,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clickable(onClick = onBack)
+                    .padding(8.dp),
+            )
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = PluginsDimens.PageHorizontal,
+                end = PluginsDimens.PageHorizontal,
+                bottom = PluginsDimens.PageBottom,
+            ),
+        ) {
+            itemsIndexed(
+                items = bundles,
+                key = { index, bundle -> "more_page_${index}_${bundle.packageName}" },
+            ) { index, bundle ->
+                InstalledHostBundleRow(
+                    bundle = bundle,
+                    showDivider = index != bundles.lastIndex,
+                    onOpen = { onOpen(bundle) },
+                    onToggle = { enabled -> onToggle(bundle, enabled) },
+                    onUninstall = { },
+                    locked = isLockedBundle(bundle.packageName),
+                )
+            }
+        }
+    }
 }
 
 
