@@ -370,7 +370,7 @@ fun PluginsScreen(
         val normalized = normalizeModuleName(declared)
         val installed = installedJsPluginNames.contains(normalized) ||
             installedJsPluginNames.contains(declared)
-        return if (installed) null else "插件未安装"
+        return if (installed) null else context.getString(R.string.plugin_not_installed)
     }
 
     fun keyOf(item: SurfaceItem): String = "${item.pluginId}::${item.slot}"
@@ -609,7 +609,7 @@ fun PluginsScreen(
                         }
                         if (hooks == null) {
                             Text(
-                                text = "插件市场暂不可用。",
+                                text = stringResource(R.string.market_no_market),
                                 color = colors.labelTertiary,
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(PluginsDimens.PageHorizontal, 16.dp),
@@ -654,7 +654,7 @@ fun PluginsScreen(
                     if (bridgeWarnings.isNotEmpty()) {
                         item(key = "bridge_warnings") {
                             Text(
-                                text = "Host 兼容层提示：" + bridgeWarnings.joinToString("；"),
+                                text = stringResource(R.string.plugin_bridge_warning, bridgeWarnings.joinToString("; ")),
                                 color = colors.labelTertiary,
                                 fontSize = 11.5.sp,
                                 lineHeight = 16.sp,
@@ -855,7 +855,7 @@ fun PluginsScreen(
                             val result = runCatching { onInstallPlugin(spec) }
                             installStatusMessage = result.fold(
                                 onSuccess = { "OK: $spec" },
-                                onFailure = { "失败：${it.message ?: "未知错误"}" },
+                                onFailure = { context.getString(R.string.plugin_operation_failed, it.message ?: it.toString()) },
                             )
                             if (result.isSuccess) pluginPackageInput = ""
                         }
@@ -1206,7 +1206,7 @@ private fun PluginsPageHead(
 @Composable
 private fun PluginsSplitAddButton(
     expanded: Boolean,
-    primaryLabel: String = "添加插件",
+    primaryLabel: String = "",
     onPrimaryClick: () -> Unit,
     onChevronClick: () -> Unit,
 ) {
@@ -1268,7 +1268,7 @@ private fun PluginsSplitAddButton(
         ) {
             Icon(
                 painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_down),
-                contentDescription = "添加插件方式",
+                contentDescription = stringResource(R.string.plugin_add_method),
                 tint = colors.labelPrimaryForeground,
                 modifier = Modifier.size(12.dp),
             )
@@ -1376,7 +1376,7 @@ private fun SduiFeatureCard(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = "SDUI 声明式原生插件",
+                text = stringResource(R.string.plugin_sdui_title),
                 color = colors.labelPrimary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -1385,7 +1385,7 @@ private fun SduiFeatureCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "JSON layout 声明 -> 客户端纯原生 Compose 渲染",
+                text = stringResource(R.string.plugin_sdui_desc),
                 color = colors.labelTertiary,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
@@ -1394,7 +1394,7 @@ private fun SduiFeatureCard(
             )
         }
         PluginsButton(
-            text = "体验",
+            text = stringResource(R.string.plugin_try),
             onClick = onOpenSdui,
             height = 28.dp,
             horizontalPadding = 10.dp,
@@ -1456,7 +1456,7 @@ private fun BundleDetailContent(
                 }
                 if (bundle.isExperimental) {
                     Spacer(Modifier.height(3.dp))
-                    Text("实验性", color = colors.labelSecondary, fontSize = 11.sp)
+                    Text(stringResource(R.string.plugin_experimental_tag), color = colors.labelSecondary, fontSize = 11.sp)
                 }
                 // 标题就是包名时不再重复一遍。
                 if (bundle.title != bundle.packageName) {
@@ -1481,7 +1481,7 @@ private fun BundleDetailContent(
                 }
                 if (bundle.error != null) {
                     Spacer(Modifier.height(6.dp))
-                    Text("异常：${bundle.error}", color = colors.stateErrorPrimary, fontSize = 12.sp)
+                    Text(stringResource(R.string.plugin_error_prefix, bundle.error ?: ""), color = colors.stateErrorPrimary, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.width(10.dp))
@@ -1493,7 +1493,7 @@ private fun BundleDetailContent(
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
                     Text(
-                        text = if (bundle.enabled) "必需 · 已启用" else "必需",
+                        text = if (bundle.enabled) stringResource(R.string.plugin_required_enabled) else stringResource(R.string.plugin_required),
                         color = colors.labelTertiary,
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
@@ -1524,8 +1524,11 @@ private fun BundleDetailContent(
         // 立刻刷新（否则会出现「总开关关着、子组件还显示运行中」的错觉）。
         val bundleOn = enabledLocal
         Text(
-            text = "包含的组件 共 ${bundle.rows.size + companions.size} 个 · " +
-                "${if (bundleOn) bundle.rows.count { it.enabled } else 0} 运行中",
+            text = stringResource(
+                R.string.plugin_components_summary,
+                bundle.rows.size + companions.size,
+                if (bundleOn) bundle.rows.count { it.enabled } else 0,
+            ),
             color = colors.labelPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
@@ -1550,7 +1553,7 @@ private fun BundleDetailContent(
                 // 由 Host 只重载这一行；Host 没把这一行解析成 Loader 入口或总开关
                 // 关着时没有可拨的目标，开关保持禁用而不是假装能开。
                 Text(
-                    text = if (componentRunning) "运行中" else "已停用",
+                    text = if (componentRunning) stringResource(R.string.plugins_status_running) else stringResource(R.string.plugins_status_stopped),
                     color = if (componentRunning) colors.labelSecondary else colors.labelTertiary,
                     fontSize = 11.sp,
                 )
@@ -1586,7 +1589,7 @@ private fun BundleDetailContent(
                                 .border(0.5.dp, colors.borderL2, RoundedCornerShape(9.dp))
                                 .padding(horizontal = 7.dp, vertical = 2.dp),
                         ) {
-                            Text("原生", color = colors.labelSecondary, fontSize = 10.sp, lineHeight = 12.sp)
+                            Text(stringResource(R.string.plugins_native_badge), color = colors.labelSecondary, fontSize = 10.sp, lineHeight = 12.sp)
                         }
                     }
                     Text(companion.description, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -1605,7 +1608,7 @@ private fun BundleDetailContent(
                 ) {
                     Icon(
                         painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
-                        contentDescription = "卸载原生伴侣",
+                        contentDescription = stringResource(R.string.plugins_uninstall_companion),
                         tint = colors.stateErrorPrimary,
                         modifier = Modifier.size(14.dp),
                     )
@@ -1613,17 +1616,17 @@ private fun BundleDetailContent(
             }
         }
         Spacer(Modifier.height(28.dp))
-        Text("来源信息", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.plugins_source_info), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
         // 代码来源：DSH 自己的包（含 `@deepseek-ai/dsh-experimental-*` 这些可选实验
         // 包）都随安装提供，标「内置」；第三方包才显示包名，用户据此判断来源。
         val builtIn = isBuiltInBundle(bundle.packageName)
         DetailFactRow(
-            label = "代码来源",
-            value = if (builtIn) "内置" else bundle.packageName,
+            label = stringResource(R.string.plugins_code_source),
+            value = if (builtIn) stringResource(R.string.plugin_builtin) else bundle.packageName,
             monospace = !builtIn,
         )
-        DetailFactRow(label = "当前版本", value = bundle.version ?: "—")
+        DetailFactRow(label = stringResource(R.string.plugin_current_version), value = bundle.version ?: "—")
         if (bundle.removable && !isLockedBundle(bundle.packageName)) {
             Spacer(Modifier.height(16.dp))
             UninstallButton(onClick = onUninstall)
@@ -1858,7 +1861,7 @@ private fun InstalledPluginRowItem(
             ) {
                 Icon(
                     painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
-                    contentDescription = "卸载",
+                    contentDescription = stringResource(R.string.plugins_uninstall),
                     tint = colors.stateErrorPrimary,
                     modifier = Modifier.size(14.dp),
                 )
@@ -1950,7 +1953,7 @@ private fun InstalledHostBundleRow(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "未安装",
+                                text = stringResource(R.string.plugin_not_installed),
                                 color = colors.labelSecondary,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -1977,7 +1980,7 @@ private fun InstalledHostBundleRow(
                         .padding(horizontal = 7.dp, vertical = 2.dp),
                 ) {
                     Text(
-                        text = "必需",
+                        text = stringResource(R.string.plugin_required),
                         color = colors.labelTertiary,
                         fontSize = 10.sp,
                         lineHeight = 14.sp,
@@ -1998,7 +2001,7 @@ private fun InstalledHostBundleRow(
                 ) {
                     Icon(
                         painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
-                        contentDescription = "卸载",
+                        contentDescription = stringResource(R.string.plugins_uninstall),
                         tint = colors.stateErrorPrimary,
                         modifier = Modifier.size(14.dp),
                     )
@@ -2078,7 +2081,7 @@ private fun InstalledSurfaceRow(
                 )
             }
             PluginsButton(
-                text = if (isOverlay) "浮层打开" else "打开",
+                text = if (isOverlay) stringResource(R.string.plugin_open_overlay) else stringResource(R.string.plugin_open),
                 onClick = onOpen,
                 primary = false,
                 height = 28.dp,
@@ -2089,7 +2092,7 @@ private fun InstalledSurfaceRow(
             )
             Icon(
                 painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_chevron_right),
-                contentDescription = "查看插件详情",
+                contentDescription = stringResource(R.string.plugin_view_details),
                 tint = colors.labelTertiary,
                 modifier = Modifier.size(12.dp),
             )
@@ -2186,14 +2189,14 @@ private fun PluginDetailContent(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "包含的组件",
+                text = stringResource(R.string.plugin_components),
                 color = colors.labelPrimary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = "共 1 个",
+                text = stringResource(R.string.plugin_one_component),
                 color = colors.labelSecondary,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
@@ -2209,7 +2212,7 @@ private fun PluginDetailContent(
         Spacer(Modifier.height(32.dp))
 
         Text(
-            text = "来源信息",
+            text = stringResource(R.string.plugins_source_info),
             color = colors.labelPrimary,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -2217,11 +2220,11 @@ private fun PluginDetailContent(
         )
         Spacer(Modifier.height(12.dp))
         DetailFactRow(
-            label = "插件 ID",
+            label = stringResource(R.string.plugin_id),
             value = item.pluginId,
             monospace = true,
         )
-        DetailFactRow(label = "挂载位置", value = item.slot)
+        DetailFactRow(label = stringResource(R.string.plugin_mount_slot), value = item.slot)
     }
 }
 
@@ -2284,7 +2287,7 @@ private fun PluginComponentRow(
                         .background(colors.labelTertiary),
                 )
                 Text(
-                    text = "等待依赖",
+                    text = stringResource(R.string.plugin_waiting_dependencies),
                     color = colors.labelSecondary,
                     fontSize = 12.5.sp,
                     lineHeight = 18.sp,
@@ -2398,7 +2401,7 @@ private fun UninstallButton(onClick: () -> Unit) {
             modifier = Modifier.size(14.dp),
         )
         Text(
-            text = "卸载",
+            text = stringResource(R.string.plugins_uninstall),
             color = colors.stateErrorPrimary,
             fontSize = 12.sp,
             lineHeight = 18.sp,
@@ -2518,15 +2521,15 @@ private fun PluginsInstallDialog(
     val colors = LocalDshPanelColors.current
     DshDialog(
         onDismiss = onDismiss,
-        title = "添加插件",
-        closeLabel = "关闭",
-        description = "输入插件的包名、GitHub 仓库地址或本地目录路径。",
+        title = stringResource(R.string.action_add_plugin),
+        closeLabel = stringResource(R.string.action_close),
+        description = stringResource(R.string.plugin_add_desc),
         width = 560.dp,
         content = {
             DshTextInput(
                 value = packageInput,
                 onValueChange = onPackageInputChange,
-                placeholder = "npm 包名 / Git 地址 / 本地目录",
+                placeholder = stringResource(R.string.plugin_add_placeholder),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(10.dp))
@@ -2536,7 +2539,7 @@ private fun PluginsInstallDialog(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "来源: 官方 npm / 国内镜像",
+                    text = stringResource(R.string.plugin_source_note),
                     color = colors.labelTertiary,
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
@@ -2554,7 +2557,7 @@ private fun PluginsInstallDialog(
         },
         footer = {
             DshDialogButton(
-                text = "安装",
+                text = stringResource(R.string.plugins_store_install),
                 primary = true,
                 enabled = true,
                 onClick = onInstall,
