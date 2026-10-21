@@ -59,9 +59,67 @@ settings.section                SubscriptionsSection  SETTINGS_SHEET    已实�
 | 信息型卡片、列表、指标 | `SpecSlotContribution` + dsh-ui spec |
 | 数据 | `PluginRpcHost.callRpc`，调用插件既有 RPC |
 | 需要切换模型/推理档位 | `PluginModelHost.selectModel` |
+| 锚定浮层 / popover / 点击展开面板 | SDK `PluginPopover`（贴着锚点），不要用居中 `Dialog` |
 | 暂时没有宿主 | 显式 Web 回退，不允许静默丢失 |
 
-## 4. 数据契约
+## 4. 定位与样式：Popup 要贴着锚点，并使用宿主材质
+
+这一步是“结构扫对了，位置/样式不对”的常见来源。扫描器现在会从源码提取
+定位线索：`useAnchoredPosition`、`createPortal`、`anchorRef`、`role="dialog"`、
+`position: fixed/absolute`、`side: 'top'`、`align: 'end'` 等；如果插件使用锚定
+浮层而伴侣源码里没有 `Popup` / `PopupPositionProvider`，`--check` 会给出警告。
+
+### 4.1 定位规则
+
+- Web 版用 anchored popover（`side: top` / `align: end`）时，原生必须贴锚点：
+  用 SDK 的 `PluginPopover`，把它和触发元素放在同一个 `Box`；
+- 只有真正的模态流程（确认框、全屏选择器）才用 `Dialog`；
+- 浮层右对齐到触发元素的右边，上方留 6dp 间距，并夹在窗口内；
+- 不要自己写 `PopupPositionProvider`；SDK 已提供统一实现。
+
+```kotlin
+Box {
+    Text(
+        text = "DeepSeek ¥24.80",
+        modifier = Modifier.clickable { open = !open },
+    )
+    if (open) {
+        PluginPopover(theme = theme, onDismiss = { open = false }) {
+            Text("DeepSeek Account 额度", style = theme.textPopupTitle)
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                Text("CNY", style = theme.textPopupBody)
+                Text("¥24.80", style = theme.textPopupBody)
+            }
+        }
+    }
+}
+```
+
+### 4.2 样式规则
+
+浮层必须使用 App 菜单系统（`DshMenuCard`）的材质，不能自己造一张 Material `Card`：
+
+- 背景：`theme.colorPopupSurface`（App 把 `menuSurfaceFill` 合成到 `bgBase`）；
+- 描边：`theme.colorPopupBorder`（深色 `borderL3` / 浅色 `borderL1`）；
+- 圆角：`theme.cornerPopup` / `theme.shapePopup`（16dp）；
+- 内边距：`theme.spacingUnit * 1.75f`；
+- 文字：标题 `theme.textPopupTitle`，正文 `theme.textPopupBody`；
+- 阴影由 `PluginPopover` 统一处理，插件不传 elevation。
+
+`PluginTheme` 的 popup 字段由 App `rememberPluginTheme()` 从
+`DshPanelColors` / `DshPanelDefaults` 映射，因此模型菜单、权限菜单、插件浮层
+看起来是同一套设计。
+
+### 4.3 检查清单
+
+- [ ] 插件源码里出现 `useAnchoredPosition` / `createPortal` / `side: top`；
+- [ ] 伴侣使用 `PluginPopover`，不是 `Dialog`；
+- [ ] 浮层宽度 `220–320dp`，内容过长时换行/滚动；
+- [ ] 使用 `theme` 的 popup 字段，无硬编码颜色/圆角/阴影；
+- [ ] `--check` 没有“插件使用锚定浮层，而伴侣没有 Popup”警告；
+- [ ] 真机点按后，浮层紧贴 pill，不遮挡输入框的发送按钮。
+
+## 5. 数据契约
 
 - 原生端不建网络连接、不持有 token；所有数据经 RPC 从 Host 插件取。
 - slot spec 只放展示数据；当前 provider/model 等选择状态由 App 通过 spec 下发
@@ -70,7 +128,7 @@ settings.section                SubscriptionsSection  SETTINGS_SHEET    已实�
 - 能力缺失时降级：`host as? PluginRpcHost ?: return` 是允许的，但要在扫描器里明确
   “需要哪个宿主能力”。
 
-## 5. 新增一个 UI 的完整顺序
+## 6. 新增一个 UI 的完整顺序
 
 1. 跑扫描器，确认 slot/entry/component 与数据依赖；
 2. 在 App 侧确认 `NativeSlot` 映射与宿主容器；没有就补（映射表 + `NativeSlotHost`/`OfficialSlot`）；
@@ -81,7 +139,7 @@ settings.section                SubscriptionsSection  SETTINGS_SHEET    已实�
 6. 跑 `SlotCoverageTest` / `slot_inventory.py`，官方落点不允许回退；
 7. 截图只做视觉验收，不作为发现 UI 的来源。
 
-## 6. 订阅插件的实际补齐记录
+## 7. 订阅插件的实际补齐记录
 
 扫描报告最初标出 2 个完全未实现、1 个部分实现；补齐后：
 

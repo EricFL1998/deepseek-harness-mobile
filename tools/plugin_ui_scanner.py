@@ -44,6 +44,11 @@ HOOK_RE = re.compile(r"\b(useChat|useSession|useProjection|usePerformanceUsage)\
 RPC_SUFFIX_RE = re.compile(r"RPC_PREFIX\}\s*([A-Za-z0-9_\-]+)")
 RPC_CALL_RE = re.compile(r"\bcall\(\s*['\"]([A-Za-z0-9_\-]+)['\"]")
 T_CALL_RE = re.compile(r"\bt\(\s*['\"]([^'\"]+)['\"]")
+POSITION_RE = re.compile(
+    r"useAnchoredPosition|createPortal|anchorRef|getBoundingClientRect|"
+    r"role\s*=\s*['\"]dialog['\"]|Popover|popover|position\s*:\s*['\"](?:fixed|absolute)['\"]|"
+    r"side\s*:\s*['\"]top['\"]|align\s*:\s*['\"]end['\"]"
+)
 TEXT_RE = re.compile(r">([^<>{}]{2,80})<")
 JSX_TAG_RE = re.compile(r"<\s*(/?)\s*([A-Za-z][\w.]*)([^>]*)>", re.S)
 JSX_ATTR_RE = re.compile(r"([A-Za-z_][\w-]*)\s*=\s*\"([^\"]*)\"|([A-Za-z_][\w-]*)\s*=\s*'([^']*)'")
@@ -65,6 +70,7 @@ class PluginSlot:
     data: list[str] = field(default_factory=list)
     texts: list[str] = field(default_factory=list)
     buttons: list[str] = field(default_factory=list)
+    placement: list[str] = field(default_factory=list)
     tree: list[dict] = field(default_factory=list)
 
 
@@ -289,17 +295,21 @@ def locale_tables(plugin: Path) -> dict[str, dict[str, str]]:
     return result
 
 
-def scan_companion(path: Path) -> tuple[set[str], bool]:
-    """Find NativeSlot contributions and PageContent pages registered by a companion APK."""
+def scan_companion(path: Path) -> tuple[set[str], bool, bool, bool]:
+    """Find NativeSlot contributions, PageContent pages, and popup/anchoring primitives."""
     slots: set[str] = set()
     pages = False
+    has_popup = False
+    has_dialog = False
     files = [path] if path.is_file() else list(path.rglob("*.kt"))
     for file in files:
         text = file.read_text(encoding="utf-8", errors="ignore")
         slots.update(re.findall(r"NativeSlot\.([A-Z_]+)", text))
         if "PageRegistry.register" in text or ": PageContent" in text:
             pages = True
-    return slots, pages
+        has_popup = has_popup or "Popup(" in text or "PopupPositionProvider" in text or "PluginPopover(" in text
+        has_dialog = has_dialog or "Dialog(" in text
+    return slots, pages, has_popup, has_dialog
 
 
 def scan(plugin: Path, root: Path, companion: Path | None = None) -> PluginUI:
@@ -307,7 +317,10 @@ def scan(plugin: Path, root: Path, companion: Path | None = None) -> PluginUI:
     mapping = parse_mapping(root)
     official = parse_registry(root)
     hosts = scan_hosts(root)
-    companion_slots, companion_pages = scan_companion(companion) if companion else (set(), False)
+    if companion:
+        companion_slots, companion_pages, companion_popup, companion_dialog = scan_companion(companion)
+    else:
+        companion_slots, companion_pages, companion_popup, companion_dialog = set(), False, False, False
     warnings: list[str] = []
     slot_items: list[PluginSlot] = []
     rpc_methods: set[str] = set()
@@ -326,6 +339,7 @@ def scan(plugin: Path, root: Path, companion: Path | None = None) -> PluginUI:
             mode = MODE_RE.search(body)
             component_path, component_text = component_source(sources, component)
             tree, texts, buttons = jsx_tree(component_text or text)
+            placement = sorted(set(POSITION_RE.findall(component_text or text)))
             native = mapping.get(slot, "")
             if slot == "conversation.composer.dock" and entry:
                 candidate = "COMPOSER_DOCK_" + re.sub(r"[^A-Za-z0-9]", "_", entry.group(1)).upper()
@@ -346,6 +360,14 @@ def scan(plugin: Path, root: Path, companion: Path | None = None) -> PluginUI:
                 warnings.append(f"NativeSlot 已映射但没有宿主: {native} ({slot})")
             if companion is not None and not implemented:
                 warnings.append(f"插件有 UI，原生伴侣未实现: {slot} / {component}")
+            anchored = any(
+                hint in placement
+                for hint in ("useAnchoredPosition", "createPortal", "Popover", "popover")
+            )
+            if companion is not None and anchored and not companion_popup:
+                warnings.append(
+                    f"插件使用锚定浮层，但伴侣没有 Popup/PopupPositionProvider: {slot} / {component}"
+                )
             slot_items.append(
                 PluginSlot(
                     slot=slot,
@@ -360,6 +382,7 @@ def scan(plugin: Path, root: Path, companion: Path | None = None) -> PluginUI:
                     data=data,
                     texts=texts,
                     buttons=buttons,
+                    placement=placement,
                     tree=tree,
                 )
             )
@@ -414,6 +437,8 @@ def report(ui: PluginUI) -> str:
             lines.append("- 文案：" + "、".join(f"`{text}`" for text in item.texts))
         if item.buttons:
             lines.append("- 动作：" + "、".join(f"`{button}`" for button in item.buttons))
+        if item.placement:
+            lines.append("- 定位/交互：" + "、".join(f"`{hint}`" for hint in item.placement))
         if item.tree:
             lines.append("")
             lines.append("```json")

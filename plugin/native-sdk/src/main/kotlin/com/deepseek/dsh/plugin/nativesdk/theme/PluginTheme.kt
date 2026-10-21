@@ -26,10 +26,16 @@ data class PluginTheme(
     val colorError: Color,
     val colorOnError: Color,
     val colorOutline: Color,
+    // 浮层（与 App 的 DshMenuCard 同一套材质：表面色 + 发丝边 + 大圆角）
+    val colorPopupSurface: Color = colorSurface,
+    val colorPopupBorder: Color = colorOutline.copy(alpha = 0.35f),
+    val cornerPopup: Dp = 16.dp,
     // 文字
     val textTitle: TextStyle,
     val textBody: TextStyle,
     val textCaption: TextStyle,
+    val textPopupTitle: TextStyle = textCaption,
+    val textPopupBody: TextStyle = textBody,
     // 形状与间距
     val cornerCard: Dp = 16.dp,
     val cornerChip: Dp = 8.dp,
@@ -41,4 +47,7 @@ data class PluginTheme(
 
     /** 胶囊/标签圆角形状。 */
     val shapeChip get() = RoundedCornerShape(cornerChip)
+
+    /** 浮层圆角形状（与 App 菜单一致）。 */
+    val shapePopup get() = RoundedCornerShape(cornerPopup)
 }

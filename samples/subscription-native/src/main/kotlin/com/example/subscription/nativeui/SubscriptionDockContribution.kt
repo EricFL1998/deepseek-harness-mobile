@@ -1,14 +1,12 @@
 package com.example.subscription.nativeui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.window.Dialog
 import com.deepseek.dsh.plugin.nativesdk.host.PluginHostApi
 import com.deepseek.dsh.plugin.nativesdk.host.PluginRpcHost
 import com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot
@@ -83,35 +80,35 @@ class SubscriptionDockContribution : SlotContribution() {
         }
 
         val current = data ?: return
-        Text(
-            text = current.compact,
-            style = theme.textCaption.copy(fontFeatureSettings = "tnum"),
-            color = theme.colorOutline,
-            modifier = Modifier
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { panelOpen = true },
-                        onLongPress = { panelOpen = true },
-                    )
-                }
-                .padding(horizontal = theme.spacingUnit / 2),
-        )
+        Box {
+            Text(
+                text = current.compact,
+                style = theme.textCaption.copy(fontFeatureSettings = "tnum"),
+                color = theme.colorOutline,
+                modifier = Modifier
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { panelOpen = !panelOpen },
+                            onLongPress = { panelOpen = true },
+                        )
+                    }
+                    .padding(horizontal = theme.spacingUnit / 2),
+            )
 
-        if (panelOpen) {
-            Dialog(onDismissRequest = { panelOpen = false }) {
-                Card(
-                    shape = theme.shapeCard,
-                    colors = CardDefaults.cardColors(containerColor = theme.colorSurface),
-                    modifier = Modifier.fillMaxWidth(),
+            // 贴着 pill 的锚定浮层；材质/圆角/描边/阴影来自 App 的 DshMenuCard 映射，
+            // 与模型菜单、权限菜单同一套样式，不是插件自造 Card。
+            if (panelOpen) {
+                com.deepseek.dsh.plugin.nativesdk.render.PluginPopover(
+                    theme = theme,
+                    onDismiss = { panelOpen = false },
                 ) {
                     Column(
-                        modifier = Modifier.padding(theme.spacingUnit * 2),
                         verticalArrangement = Arrangement.spacedBy(theme.spacingUnit),
                     ) {
                         Text(
                             text = current.title,
-                            style = theme.textTitle,
-                            color = theme.colorOnSurface,
+                            style = theme.textPopupTitle,
+                            color = theme.colorOnSurfaceVariant,
                         )
                         current.rows.forEach { (label, value) ->
                             Row(
@@ -121,25 +118,16 @@ class SubscriptionDockContribution : SlotContribution() {
                             ) {
                                 Text(
                                     text = label,
-                                    style = theme.textCaption,
+                                    style = theme.textPopupBody,
                                     color = theme.colorOnSurfaceVariant,
                                 )
                                 Text(
                                     text = value,
-                                    style = theme.textBody.copy(fontWeight = FontWeight.Medium),
+                                    style = theme.textPopupBody.copy(fontWeight = FontWeight.Medium),
                                     color = theme.colorOnSurface,
                                 )
                             }
                         }
-                        Text(
-                            text = "点击空白处关闭",
-                            style = theme.textCaption,
-                            color = theme.colorOutline,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = theme.spacingUnit)
-                                .clickable { panelOpen = false },
-                        )
                     }
                 }
             }

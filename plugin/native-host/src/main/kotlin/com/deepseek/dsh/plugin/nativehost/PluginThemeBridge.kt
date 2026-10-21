@@ -2,6 +2,11 @@ package com.deepseek.dsh.plugin.nativehost
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.deepseek.dsh.core.designsystem.dshPanelColors
 import com.deepseek.dsh.plugin.nativesdk.theme.PluginTheme
 
 /**
@@ -9,11 +14,16 @@ import com.deepseek.dsh.plugin.nativesdk.theme.PluginTheme
  *
  * 深色模式 / 系统字体缩放由 MaterialTheme 统一处理，快照随之更新并触发宿主
  * 容器重组。插件拿到的永远是当前正确取值，不写自己的深浅色分支。
+ *
+ * 浮层字段直接取 App 菜单系统（DshMenuCard）的材质：半透明菜单底色合成到
+ * 基础背景、发丝边、16dp 大圆角，因此插件 popover 和模型/权限菜单是同一套
+ * 视觉，而不是另一张 Material Card。
  */
 @Composable
 fun rememberPluginTheme(): PluginTheme {
     val c = MaterialTheme.colorScheme
     val t = MaterialTheme.typography
+    val panel = dshPanelColors()
     return PluginTheme(
         colorPrimary = c.primary,
         colorOnPrimary = c.onPrimary,
@@ -24,9 +34,14 @@ fun rememberPluginTheme(): PluginTheme {
         colorError = c.error,
         colorOnError = c.onError,
         colorOutline = c.outline,
+        colorPopupSurface = panel.menuSurfaceFill.compositeOver(panel.bgBase),
+        colorPopupBorder = if (panel.isDark) panel.borderL3 else panel.borderL1,
+        cornerPopup = 16.dp,
         textTitle = t.titleMedium,
         textBody = t.bodyMedium,
         textCaption = t.bodySmall,
+        textPopupTitle = t.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+        textPopupBody = t.bodyMedium.copy(fontSize = 13.sp, lineHeight = 20.sp),
         isDark = androidx.compose.foundation.isSystemInDarkTheme(),
     )
 }

@@ -425,6 +425,9 @@
         <code>inject</code> face、插件 RPC 方法名。</p></div>
         <div class="card"><h3>UI 结构</h3><p>组件 JSX 树、可见文案、按钮动作、locale key；
         用于确认空态、表单、错误提示等是否都接。</p></div>
+        <div class="card"><h3>定位 / 交互</h3><p><code>useAnchoredPosition</code>、<code>createPortal</code>、
+        <code>anchorRef</code>、<code>role="dialog"</code>、<code>side/align</code> 等锚定线索；
+        伴侣若用居中 Dialog 会提示与 anchored popover 不一致。</p></div>
         <div class="card"><h3>缺口</h3><p>未映射 slot、无宿主 NativeSlot、传入 <code>--companion</code>
         但伴侣未注册对应贡献，三类都会报。</p></div>
       </div>
@@ -457,6 +460,7 @@
             <tr><td><code>宿主</code></td><td>App 是否有 NativeSlot 容器</td><td>否 = 即使有映射也不会显示</td></tr>
             <tr><td><code>原生实现</code></td><td>伴侣是否注册贡献/页面</td><td>否 = 插件有 UI、伴侣没写</td></tr>
             <tr><td><code>数据依赖</code></td><td>projection / RPC / inject</td><td>决定原生用 <code>PluginRpcHost</code> 还是 spec 下发</td></tr>
+            <tr><td><code>定位/交互</code></td><td>anchored popover / portal / dialog 等线索</td><td>决定用锚定 Popup 还是 Dialog，避免“结构对、位置不对”</td></tr>
           </tbody>
         </table>
       </div>
@@ -567,6 +571,28 @@ OfficialSlot(
 ) {
   StatReading(label = <span class="str">"Cache hit ${stats.cacheHitPercent}%"</span>) { ... }
 }</pre>
+      </div>
+      <h3>Popup 定位与材质（扫描器新增）</h3>
+      <p>Web 版 <code>useAnchoredPosition</code> / <code>createPortal</code> 的浮层不是居中
+      Dialog。原生统一用 SDK 的 <code>PluginPopover</code>：贴着触发元素上方、右对齐，
+      材质取 App 的 <code>DshMenuCard</code> 映射（表面色、发丝边、16dp 圆角、菜单阴影），
+      不使用 Material Card 或硬编码颜色。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Web 线索</th><th>原生实现</th></tr></thead>
+          <tbody>
+            <tr><td><code>useAnchoredPosition</code> / <code>anchorRef</code></td><td><code>PluginPopover</code>，与触发元素同 Box</td></tr>
+            <tr><td><code>createPortal</code> / <code>role="dialog"</code></td><td><code>Popup</code> + <code>PopupPositionProvider</code></td></tr>
+            <tr><td><code>side: 'top'</code> / <code>align: 'end'</code></td><td>上方 6dp、右对齐、窗口内夹取</td></tr>
+            <tr><td>App 菜单材质</td><td><code>colorPopupSurface</code> / <code>colorPopupBorder</code> / <code>cornerPopup</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <strong>为什么第一次没扫出来</strong>
+        <p>旧版扫描器只提取结构/文案/RPC，没有几何与定位。现在会提取
+        <code>useAnchoredPosition</code>、<code>createPortal</code>、<code>side/align</code> 等
+        placement 线索；伴侣若用 Dialog 而插件是 anchored popover，会直接告警。</p>
       </div>
     </section>
 
