@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置：Agent 预设面板 + 更新面板（中文，values-zh）。所有 key 统一使用 agent_update_ 前缀。 -->
+<resources>
+
+    <!-- ── Agent 预设面板 ─────────────────────────────────────────────── -->
+    <string name="agent_update_group_builtin">内置</string>
+    <string name="agent_update_tag_new_task_default">新任务默认</string>
+    <string name="agent_update_presets_empty">暂无 Agent 预设。</string>
+    <string name="agent_update_action_explanation">模式说明</string>
+    <string name="agent_update_action_usage">如何使用</string>
+    <string name="agent_update_action_view_config">查看配置</string>
+    <string name="agent_update_dialog_title_explanation">模式说明 · %1$s</string>
+    <string name="agent_update_dialog_title_usage">如何使用 · %1$s</string>
+    <string name="agent_update_dialog_title_config">查看配置 · %1$s</string>
+    <string name="agent_update_config_id">id: %1$s</string>
+    <string name="agent_update_config_name">名称: %1$s</string>
+    <string name="agent_update_config_group">分组: %1$s</string>
+    <string name="agent_update_config_default">新任务默认: %1$s</string>
+    <string name="agent_update_yes">是</string>
+    <string name="agent_update_no">否</string>
+    <string name="agent_update_dialog_close">关闭</string>
+
+    <!-- 内置预设：标准模式 -->
+    <string name="agent_update_preset_standard_name">标准模式</string>
+    <string name="agent_update_preset_standard_desc">处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。</string>
+    <string name="agent_update_preset_standard_explanation">### 工作方式\n\nAgent 直接调用工具来读写文件、检索资料和执行终端命令。包含 Skills、计划、目标、子 Agent、工作流和上下文压缩等能力。\n\n### 什么时候选\n\n日常编程、文件处理和资料整理可以从这里开始。标准模式也能编写脚本、批量处理文件；PTC 改变的是工具调用方式，批量任务并不必须使用 PTC。</string>
+    <string name="agent_update_preset_standard_usage">### 修复一个问题\n\n> 搜索表单连续提交两次后，结果会消失。请定位原因、修复问题并运行相关测试，最后说明原因和修改内容。\n\n预期产出：代码修改、相关测试结果，以及问题原因说明。\n\n### 整理项目资料\n\n> 阅读项目中的 Markdown 记录，整理已经达成的结论和仍待确认的问题，并附上对应文件链接。\n\n预期产出：一份带来源引用的总结，方便回到原文核对。</string>
+
+    <!-- 内置预设：PTC 模式 -->
+    <string name="agent_update_preset_ptc_name">PTC 模式</string>
+    <string name="agent_update_preset_ptc_desc">包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。</string>
+    <string name="agent_update_preset_ptc_explanation">### 怎样调用工具\n\nPTC 是 Programmatic Tool Calling，即通过程序调用工具。当前内置预设让 Agent 通过 run_code 编写 TypeScript 程序，使用生成的工具 SDK 发起调用。程序可以组织循环、条件判断、错误处理，以及适合并发执行的调用。\n\n### 哪些结果交给模型\n\n工具返回的数据先交给程序，经过筛选、计算或合并，再通过输出或返回值交给模型；图片结果会另行附加。程序中的工具调用仍会被记录，也仍受工具权限约束。\n\n### 与标准模式的区别\n\n两种模式都能编程、批量处理文件。标准模式直接向模型提供各个工具；PTC 让模型用代码组织工具调用。当前 PTC 预设未启用 workflow 工具。速度和 token 用量取决于具体任务与结果处理方式。</string>
+    <string name="agent_update_preset_ptc_usage">### 批量检查配置文件\n\n> 检查 configs/ 下所有 JSON 文件，按照 schema.json 找出缺失字段和不合法的值。每个问题写成 CSV 中的一行；读取失败的文件也记入报告，继续检查其余文件。保留原文件。\n\n预期产出：问题汇总和一份 CSV 报告。程序可以对多份文件执行相同检查，处理单个文件的失败，再汇总结果。\n\n### 汇总错误日志\n\n> 分析 logs/ 下的日志，按服务和错误类型统计次数，列出出现最多的十类错误，每类保留一条示例。完整统计另存为 CSV。\n\n预期产出：高频错误摘要和完整统计表。中间数据可以先在程序中聚合，再把汇总交给模型。</string>
+
+    <!-- 内置预设：极简模式 -->
+    <string name="agent_update_preset_minimal_name">极简模式</string>
+    <string name="agent_update_preset_minimal_desc">Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。</string>
+    <string name="agent_update_preset_minimal_explanation">### 保留哪些能力\n\n提供持久 Shell 和 read_image 工具，并使用固定系统提示词。读取图片需要支持图片输入的模型。上下文压力达到阈值时自动压缩较早历史；Agent 空闲时可输入 /compact 手动压缩。内置预设不加载 Skills、计划，也不注入标准运行时上下文。\n\n### 什么时候选\n\n适合作为实验和对照测试的基线。Agent 仍能通过终端命令读写文件、运行脚本，但缺少管理长任务的内置辅助能力。工具少，不代表对新手更容易。</string>
+    <string name="agent_update_preset_minimal_usage">### 对比基础修复表现\n\n> 运行这个项目的测试，找出失败原因，做最小修复，再运行相关测试并报告结果。\n\n分别用标准模式和极简模式，从相同的工作区状态执行这条任务，对比完成情况、工具调用和最终修改。极简模式会通过终端命令完成这些操作。</string>
+
+    <!-- 内置预设：创造模式 -->
+    <string name="agent_update_preset_cordis_name">创造模式</string>
+    <string name="agent_update_preset_cordis_desc">用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。</string>
+    <string name="agent_update_preset_cordis_explanation">### 可以创造什么\n\n创造模式具备标准任务工具，并增加运行时检查、持久化插件管理，以及 Cordis 插件和 Agent 预设的开发指引。可以编写插件来添加功能或界面，也可以组合工具和提示词，创建适合特定任务的模式。\n\n### 插件与模式的关系\n\n插件为 DSH 增加能力，例如工具、服务连接或界面入口。模式是一份 Agent 预设，用来选择任务可用的工具，并约定 Agent 的工作方式。自定义模式中也可以使用自己开发的插件。\n\n### 怎样让成果生效\n\n可以要求 Agent 完成安装并验证实际效果。插件可能即时加载，也可能需要重启，取决于修改内容；新建的模式在创建新任务时选择。</string>
+    <string name="agent_update_preset_cordis_usage">### 添加一个界面\n\n> 帮我写一个 DSH 插件，在侧栏增加「项目笔记」入口，列出当前工作区的 Markdown 文件，点击后能预览内容。完成安装并验证页面能打开。\n\n预期产出：带侧栏入口和预览页的插件，以及仍需完成的生效步骤。\n\n### 添加一个工具\n\n> 写一个插件，提供读取项目测试报告、汇总失败用例的工具。注册工具，并用一份示例报告验证调用结果。\n\n预期产出：可调用的新工具，以及一次示例调用的验证结果。\n\n### 创建自己的模式\n\n> 基于标准模式创建「代码审查」模式，优先检查潜在错误和测试缺口，指出文件与行号，修改文件前先询问我。保存成可选择的预设。\n\n预期产出：可在新任务中选择的自定义模式。审查要求用于指导 Agent，实际可执行的操作仍由权限设置决定。</string>
+
+    <!-- ── 更新面板：版本信息 ─────────────────────────────────────────── -->
+    <string name="agent_update_section_version_info">版本信息</string>
+    <string name="agent_update_label_apk_version">APK 客户端版本</string>
+    <string name="agent_update_label_bridge_version">Bridge 插件版本</string>
+    <string name="agent_update_label_rootfs_version">Rootfs 镜像版本</string>
+    <string name="agent_update_label_engine_version">官方 DSH 引擎</string>
+    <string name="agent_update_label_packaged_plugin">镜像内打包插件</string>
+    <string name="agent_update_unknown">未知</string>
+    <string name="agent_update_not_installed">未安装</string>
+    <string name="agent_update_unknown_reason">未知原因</string>
+    <string name="agent_update_error_runtime_not_initialized">本地运行时尚未初始化，启动完成后可再次检查</string>
+    <string name="agent_update_error_read_version_failed">读取版本信息失败</string>
+
+    <!-- ── 更新面板：bridge 插件（必需更新） ─────────────────────────── -->
+    <string name="agent_update_section_bridge_plugin">Bridge 兼容层插件</string>
+    <string name="agent_update_badge_required">必需更新</string>
+    <string name="agent_update_loading_plugin_version">正在检查插件版本…</string>
+    <string name="agent_update_bridge_required_desc">客户端与 Host 通过 bridge/v1 通信，两者必须说同一个协议版本。插件更新只需在运行时内安装，不会重新下载镜像；完成后会自动重启 Host。</string>
+    <string name="agent_update_plugin_versions">已安装 %1$s → 最新 %2$s</string>
+    <string name="agent_update_plugin_latest_unavailable">无法读取插件最新版本（网络不可用或 GitHub 限流）。已安装 %1$s。</string>
+    <string name="agent_update_plugin_ahead">已安装 %1$s，比最新发布 %2$s 更新，无需更新。</string>
+    <string name="agent_update_plugin_up_to_date">已是最新版本 %1$s。</string>
+    <string name="agent_update_error_runtime_unavailable">运行时不可用</string>
+    <string name="agent_update_error_plugin_latest_missing">无法读取插件最新版本，请检查网络后重新检查</string>
+    <string name="agent_update_plugin_prepare_update">准备更新到 %1$s…</string>
+    <string name="agent_update_plugin_installed_restarting">插件 %1$s 已安装，正在重启 Host…</string>
+    <string name="agent_update_plugin_installed_restart_needed">插件 %1$s 已安装；重启 Host 后生效</string>
+    <string name="agent_update_plugin_written">插件 %1$s 已写入</string>
+    <string name="agent_update_error_host_restart_failed">Host 重启失败：%1$s</string>
+    <string name="agent_update_error_plugin_not_loaded">Host 没有加载 bridge 插件；请点「重启 Host」重试，仍失败时更新 Rootfs 镜像</string>
+    <string name="agent_update_error_host_version_mismatch">Host 正在运行 %1$s，不是 %2$s；请点「重启 Host」重试</string>
+    <string name="agent_update_plugin_updated_restarted">插件已更新到 %1$s，Host 已重启</string>
+    <string name="agent_update_error_plugin_update_failed">插件更新失败</string>
+    <string name="agent_update_action_updating">正在更新…</string>
+    <string name="agent_update_action_update_plugin">更新插件</string>
+    <string name="agent_update_action_recheck">重新检查</string>
+    <string name="agent_update_status_restarting_host">正在重启 Host…</string>
+    <string name="agent_update_status_host_restarted">Host 已重启</string>
+    <string name="agent_update_action_restart_host">重启 Host</string>
+
+    <!-- ── 更新面板：rootfs 镜像（可选更新） ─────────────────────────── -->
+    <string name="agent_update_section_rootfs">Rootfs 运行时镜像</string>
+    <string name="agent_update_badge_optional">可选更新</string>
+    <string name="agent_update_loading_rootfs_version">正在检查镜像版本…</string>
+    <string name="agent_update_rootfs_optional_desc">镜像重建只为跟随新的 DSH 引擎。当前镜像仍然可用；更新会重新下载运行时，并保留你的账号、会话与工作区。</string>
+    <string name="agent_update_rootfs_up_to_date">镜像与当前发布一致。</string>
+    <string name="agent_update_rootfs_versions">已安装 %1$s → 可用 %2$s</string>
+    <string name="agent_update_rootfs_prepare_reinstall">准备重新安装镜像…</string>
+    <string name="agent_update_rootfs_updated_start_host">镜像已更新；请启动 Host</string>
+    <string name="agent_update_rootfs_updated_restarted">镜像已更新，Host 已重启</string>
+    <string name="agent_update_rootfs_updated_host_failed">镜像已更新，但 Host 启动失败：%1$s</string>
+    <string name="agent_update_error_rootfs_update_failed">镜像更新失败：%1$s</string>
+    <string name="agent_update_action_installing">正在安装…</string>
+    <string name="agent_update_action_update_rootfs">更新镜像（可选）</string>
+
+    <!-- ── 更新面板：APK 客户端 ───────────────────────────────────────── -->
+    <string name="agent_update_section_apk">APK 客户端</string>
+    <string name="agent_update_loading_apk_update">正在检查更新…</string>
+    <string name="agent_update_apk_new_version">新版本 %1$s</string>
+    <string name="agent_update_action_download">前往下载</string>
+    <string name="agent_update_action_all_versions">全部版本</string>
+    <string name="agent_update_error_check_update_failed">检查更新失败</string>
+    <string name="agent_update_apk_up_to_date">已是最新版本</string>
+    <string name="agent_update_link_client_project">在 GitHub 查看客户端项目</string>
+    <string name="agent_update_link_rootfs_project">在 GitHub 查看 Rootfs 项目</string>
+    <string name="agent_update_link_bridge_project">在 GitHub 查看 Bridge 插件项目</string>
+    <string name="agent_update_source_footer">更新来源：github.com/%1$s</string>
+
+</resources>

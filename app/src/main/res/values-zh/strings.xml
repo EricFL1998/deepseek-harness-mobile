@@ -214,4 +214,11 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
-</resources>
+    <string name="automation_tab_active">已启用</string>
+    <string name="automation_tab_ended">已结束</string>
+    <string name="automation_banner">在会话中创建的自动化任务会显示在这里</string>
+    <string name="automation_search_placeholder">搜索自动化任务</string>
+    <string name="automation_empty_ended">没有已结束的自动化任务</string>
+    <string name="automation_empty_all">还没有自动化任务，在会话中创建的任务会显示在这里</string>
+    <string name="automation_empty_none">没有匹配的自动化任务</string>
+    <string name="automation_new">新建自动化任务</string></resources>

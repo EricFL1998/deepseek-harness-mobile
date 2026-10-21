@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -62,11 +63,11 @@ internal fun SettingsGeneralPane(
     ) {
         item(key = "general_permission") {
             PreferenceSelectorRow(
-                title = "权限",
-                description = "选择新会话的默认权限模式",
+                title = stringResource(R.string.settings_pane_general_permission_title),
+                description = stringResource(R.string.settings_pane_general_permission_desc),
                 value = when (settings.highRiskConfirm) {
-                    true -> "工作区内修改"
-                    false -> "完全权限"
+                    true -> stringResource(R.string.settings_pane_general_permission_workspace)
+                    false -> stringResource(R.string.settings_pane_general_permission_full)
                 },
                 onClick = {
                     onUpdateSettings(settings.copy(highRiskConfirm = !settings.highRiskConfirm))
@@ -76,9 +77,9 @@ internal fun SettingsGeneralPane(
         }
         item(key = "general_language") {
             PreferenceSelectorRow(
-                title = "语言",
+                title = stringResource(R.string.settings_pane_general_language_title),
                 description = "",
-                value = "中文",
+                value = stringResource(R.string.settings_pane_general_language_value),
                 onClick = {}
             )
             GeneralRowDivider()
@@ -93,8 +94,8 @@ internal fun SettingsGeneralPane(
         }
         item(key = "general_transcript") {
             PreferenceSelectorRow(
-                title = "工作步骤展示",
-                description = "选择希望看到多少工具调用细节",
+                title = stringResource(R.string.settings_pane_general_steps_title),
+                description = stringResource(R.string.settings_pane_general_steps_desc),
                 value = transcriptViewLabel(settings.transcriptView),
                 onClick = {
                     val next = when (settings.transcriptView) {
@@ -110,9 +111,9 @@ internal fun SettingsGeneralPane(
         // 最后一行不画分隔线（GeneralSection 会移除末尾 separator）。
         item(key = "general_collapse") {
             PreferenceSelectorRow(
-                title = "工作步骤收起时机",
-                description = "选择何时自动收起工作步骤",
-                value = "回答结束后",
+                title = stringResource(R.string.settings_pane_general_collapse_title),
+                description = stringResource(R.string.settings_pane_general_collapse_desc),
+                value = stringResource(R.string.settings_pane_general_collapse_value),
                 onClick = {}
             )
             GeneralRowDivider()
@@ -138,10 +139,11 @@ private fun GeneralRowDivider() {
 }
 
 /** 首次引导写入的 transcriptView 模式映射为展示文案。 */
+@Composable
 private fun transcriptViewLabel(value: String): String = when (value) {
-    "compact" -> "聚焦结果"
-    "detailed" -> "完整过程"
-    else -> "标准"
+    "compact" -> stringResource(R.string.settings_pane_transcript_compact)
+    "detailed" -> stringResource(R.string.settings_pane_transcript_detailed)
+    else -> stringResource(R.string.settings_pane_transcript_standard)
 }
 
 /** 偏好行：标题/说明 14/22 + 12/18，右侧 36dp 胶囊选择器。 */
@@ -226,7 +228,7 @@ private fun AppearanceRow() {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "外观",
+            text = stringResource(R.string.settings_pane_general_appearance_title),
             style = SettingsText.RowTitle,
             color = palette.labelPrimary,
         )
@@ -235,17 +237,17 @@ private fun AppearanceRow() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AppearanceCube(
-                label = "浅色",
+                label = stringResource(R.string.settings_pane_general_appearance_light),
                 icon = Icons.Outlined.LightMode,
                 selected = false,
             )
             AppearanceCube(
-                label = "深色",
+                label = stringResource(R.string.settings_pane_general_appearance_dark),
                 icon = Icons.Outlined.DarkMode,
                 selected = false,
             )
             AppearanceCube(
-                label = "跟随系统",
+                label = stringResource(R.string.settings_pane_general_appearance_system),
                 icon = Icons.Outlined.Monitor,
                 selected = true,
             )
@@ -313,12 +315,12 @@ private fun FontSizeRow() {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = "字号大小",
+                text = stringResource(R.string.settings_pane_general_font_size_title),
                 style = SettingsText.RowTitle,
                 color = palette.labelPrimary,
             )
             Text(
-                text = "仅影响会话内容的字号",
+                text = stringResource(R.string.settings_pane_general_font_size_desc),
                 style = SettingsText.RowDesc,
                 color = palette.labelTertiary,
             )
@@ -374,12 +376,12 @@ private fun DeveloperToolsRow(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = "显示代码工作视图",
+                text = stringResource(R.string.settings_pane_general_developer_title),
                 style = SettingsText.RowTitle,
                 color = palette.labelPrimary,
             )
             Text(
-                text = "开启后，显示轨迹、本轮代码差异，可选择完整的 Agent 预设切换",
+                text = stringResource(R.string.settings_pane_general_developer_desc),
                 style = SettingsText.RowDesc,
                 color = palette.labelSecondary,
             )

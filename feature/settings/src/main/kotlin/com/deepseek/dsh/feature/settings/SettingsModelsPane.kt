@@ -78,7 +78,7 @@ internal fun SettingsModelsPane(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "DeepSeek 账号",
+                            text = stringResource(R.string.settings_pane_models_account_title),
                             style = SettingsText.RowTitleMedium,
                             color = palette.labelPrimary,
                         )
@@ -86,7 +86,11 @@ internal fun SettingsModelsPane(
                         SettingsStatusDot(color = if (accountSignedIn) palette.success else palette.error)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (accountSignedIn) "已登录" else "未登录",
+                            text = if (accountSignedIn) {
+                                stringResource(R.string.settings_pane_models_signed_in)
+                            } else {
+                                stringResource(R.string.settings_pane_models_signed_out)
+                            },
                             style = SettingsText.AccountBody,
                             color = if (accountSignedIn) palette.success else palette.error,
                         )
@@ -121,7 +125,7 @@ internal fun SettingsModelsPane(
                             Spacer(modifier = Modifier.width(8.dp))
                             SettingsStatusDot(color = if (provider.keyConfigured) palette.success else palette.error)
                             Spacer(modifier = Modifier.weight(1f))
-                            SettingsSmallButton(text = "编辑", onClick = { editingId = provider.id })
+                            SettingsSmallButton(text = stringResource(R.string.settings_pane_models_edit), onClick = { editingId = provider.id })
                         }
                     }
                 }
@@ -129,7 +133,7 @@ internal fun SettingsModelsPane(
         }
         item(key = "models_add") {
             SettingsDashedButton(
-                text = "添加模型提供商",
+                text = stringResource(R.string.settings_pane_models_add_provider),
                 onClick = onOpenConfigFile,
             )
         }
@@ -158,7 +162,7 @@ private fun ModelProviderEditor(
             Spacer(modifier = Modifier.width(8.dp))
             SettingsStatusDot(color = if (provider.keyConfigured) palette.success else palette.error)
             Spacer(modifier = Modifier.weight(1f))
-            SettingsSmallButton(text = "编辑", onClick = {})
+            SettingsSmallButton(text = stringResource(R.string.settings_pane_models_edit), onClick = {})
         }
         Spacer(modifier = Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -167,17 +171,17 @@ private fun ModelProviderEditor(
             Text(provider.id, fontSize = 12.sp, color = palette.labelTertiary)
         }
         Spacer(modifier = Modifier.height(14.dp))
-        Text("API 密钥", style = SettingsText.RowTitle, color = palette.labelPrimary)
+        Text(stringResource(R.string.settings_pane_models_api_key), style = SettingsText.RowTitle, color = palette.labelPrimary)
         Spacer(modifier = Modifier.height(6.dp))
         com.deepseek.dsh.core.designsystem.DshTextInput(
             value = keyInput,
             onValueChange = { keyInput = it },
-            placeholder = "留空使用环境认证 (${provider.keyRef})",
+            placeholder = stringResource(R.string.settings_pane_models_key_placeholder, provider.keyRef),
         )
         if (!provider.keyConfigured) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "未检测到环境变量。请填写 API 密钥，或设置环境变量 ${provider.keyRef}。",
+                stringResource(R.string.settings_pane_models_key_missing, provider.keyRef),
                 fontSize = 12.sp,
                 color = palette.warning,
             )
@@ -191,29 +195,32 @@ private fun ModelProviderEditor(
         ) {
             SettingsChevronDown(expanded = customOpen, size = 12.dp)
             Spacer(modifier = Modifier.width(6.dp))
-            Text("自定义设置", style = SettingsText.RowTitle, color = palette.labelSecondary)
+            Text(stringResource(R.string.settings_pane_models_custom_settings), style = SettingsText.RowTitle, color = palette.labelSecondary)
         }
         if (customOpen) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text("API 地址", style = SettingsText.RowTitle, color = palette.labelPrimary)
+            Text(stringResource(R.string.settings_pane_models_api_base_url), style = SettingsText.RowTitle, color = palette.labelPrimary)
             Spacer(modifier = Modifier.height(6.dp))
             com.deepseek.dsh.core.designsystem.DshTextInput(
                 value = baseUrlInput,
                 onValueChange = { baseUrlInput = it },
-                placeholder = "https://api.deepseek.com/anthropic（默认使用环境 ${provider.keyRef.replace("_API_KEY", "_BASE_URL")}）",
+                placeholder = stringResource(
+                    R.string.settings_pane_models_base_url_placeholder,
+                    provider.keyRef.replace("_API_KEY", "_BASE_URL"),
+                ),
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "请填写兼容 Anthropic Messages 协议的 API 地址。",
+                stringResource(R.string.settings_pane_models_base_url_hint),
                 fontSize = 12.sp,
                 color = palette.labelTertiary,
             )
             Spacer(modifier = Modifier.height(14.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("模型目录", style = SettingsText.RowTitle, color = palette.labelPrimary)
+                Text(stringResource(R.string.settings_pane_models_catalog), style = SettingsText.RowTitle, color = palette.labelPrimary)
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    "恢复默认模型",
+                    stringResource(R.string.settings_pane_models_reset_defaults),
                     fontSize = 12.sp,
                     color = palette.labelSecondary,
                     modifier = Modifier.clickable { models = provider.models },
@@ -221,7 +228,11 @@ private fun ModelProviderEditor(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                if (models.isEmpty()) "模型选择器中暂不显示任何模型；目录外 ID 仍可直接发送。" else "自定义模型：${models.joinToString(", ")}",
+                if (models.isEmpty()) {
+                    stringResource(R.string.settings_pane_models_empty)
+                } else {
+                    stringResource(R.string.settings_pane_models_custom_list, models.joinToString(", "))
+                },
                 fontSize = 12.sp,
                 color = palette.labelTertiary,
             )
@@ -229,10 +240,10 @@ private fun ModelProviderEditor(
             com.deepseek.dsh.core.designsystem.DshTextInput(
                 value = newModel,
                 onValueChange = { newModel = it },
-                placeholder = "添加模型 ID",
+                placeholder = stringResource(R.string.settings_pane_models_add_id_placeholder),
             )
             Spacer(modifier = Modifier.height(8.dp))
-            SettingsDashedButton(text = "添加模型", onClick = {
+            SettingsDashedButton(text = stringResource(R.string.settings_pane_models_add_model), onClick = {
                 val value = newModel.trim()
                 if (value.isNotEmpty()) {
                     models = (models + value).distinct()
@@ -242,9 +253,13 @@ private fun ModelProviderEditor(
         }
         Spacer(modifier = Modifier.height(16.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            SettingsSmallButton(text = "取消", onClick = onCancel)
+            SettingsSmallButton(text = stringResource(R.string.settings_pane_models_cancel), onClick = onCancel)
             Spacer(modifier = Modifier.width(8.dp))
-            SettingsSmallButton(text = "保存", primary = true, onClick = { onSave(keyInput.trim(), baseUrlInput.trim(), models) })
+            SettingsSmallButton(
+                text = stringResource(R.string.settings_pane_models_save),
+                primary = true,
+                onClick = { onSave(keyInput.trim(), baseUrlInput.trim(), models) },
+            )
         }
     }
 }

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_misc_account_signed_out_title">当前未登录 DeepSeek Harness 账号</string>
+    <string name="settings_misc_account_signed_out_desc">登录 DeepSeek Harness 账号获取专属 API Key</string>
+    <string name="settings_misc_login">登录</string>
+    <string name="settings_misc_more_account_info">更多账号信息</string>
+    <string name="settings_misc_balance_recharge">充值余额</string>
+    <string name="settings_misc_balance_bonus">赠金余额</string>
+    <string name="settings_misc_more">更多</string>
+    <string name="settings_misc_usage">查询用量</string>
+    <string name="settings_misc_top_up">充值</string>
+    <string name="settings_misc_back">返回设置</string>
+    <string name="settings_misc_plugin_settings">插件设置</string>
+    <string name="settings_misc_plugin_pages">插件界面</string>
+    <string name="settings_misc_phone_unbound">未绑定手机</string>
+    <string name="settings_misc_page_not_ready">该插件的设置界面尚未接入，条目已按 Host 声明生成。</string>
+    <string name="settings_misc_load_failed">暂时读不到这个插件的设置</string>
+    <string name="settings_misc_loading">正在读取设置…</string>
+    <string name="settings_misc_no_fields">这个插件没有可视化配置项。</string>
+    <string name="settings_misc_saving">保存中…</string>
+    <string name="settings_misc_save">保存</string>
+    <string name="settings_misc_saved">已保存</string>
+    <string name="settings_misc_unsaved">有未保存的修改</string>
+    <string name="settings_misc_unsupported_field">%1$s：这类字段暂时还不能在这里编辑（%2$s）</string>
+    <string name="settings_misc_complex_type">复杂类型</string>
+</resources>

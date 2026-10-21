@@ -2325,7 +2325,7 @@ fun MainAppHost(
                                         dshRepository.openSettingsDocument(activeHostId)
                                     }
                                 },
-                                accountName = accountState.profile?.name ?: "DeepSeek 用户",
+                                accountName = accountState.profile?.name ?: stringResource(R.string.drawer_default_user),
                                 accountBalance = accountState.wallets.firstOrNull()?.let { formatAmount(it.balance) } ?: "¥0.00",
                                 accountPhone = accountState.profile?.contact ?: "",
                                 isSignedIn = accountState.isSignedIn,

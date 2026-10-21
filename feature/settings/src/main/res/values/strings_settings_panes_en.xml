@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mobile runtime pane -->
+    <string name="settings_pane_runtime_status_title">Container status</string>
+    <string name="settings_pane_runtime_port">Port: %1$d</string>
+    <string name="settings_pane_runtime_pid">PID: %1$d</string>
+    <string name="settings_pane_runtime_last_error">Error: %1$s</string>
+    <string name="settings_pane_runtime_stop">Stop</string>
+    <string name="settings_pane_runtime_start">Start</string>
+    <string name="settings_pane_runtime_starting">Starting...</string>
+    <string name="settings_pane_idle_sleep_title">Auto-sleep when idle</string>
+    <string name="settings_pane_idle_sleep_desc">Stop the container process after 5 minutes without interaction, greatly reducing battery drain and heat</string>
+    <string name="settings_pane_keep_alive_title">Background long-task guard</string>
+    <string name="settings_pane_keep_alive_desc">Enable a foreground service and system wake lock (WakeLock) while tasks run</string>
+    <string name="settings_pane_high_risk_title">High-risk tool confirmation</string>
+    <string name="settings_pane_high_risk_desc">Require popup approval before overwriting files, running shell commands, or accessing system hardware</string>
+    <string name="settings_pane_backup_title">Create user data snapshot</string>
+    <string name="settings_pane_backup_desc">Back up $DSH_HOME (sessions, config, credentials, and plugins)</string>
+    <string name="settings_pane_diagnostics_title">Export scrubbed diagnostics log</string>
+    <string name="settings_pane_diagnostics_desc">Automatically redact tokens and keys and export a ZIP for troubleshooting</string>
+
+    <!-- Notifications pane -->
+    <string name="settings_pane_notifications_enable_title">Enable notifications</string>
+    <string name="settings_pane_notifications_enable_desc">Allow DSH to alert you in the system notification shade</string>
+    <string name="settings_pane_notifications_turn_title">Session completion notifications</string>
+    <string name="settings_pane_notifications_turn_desc">Send a notification after the Agent finishes a reply</string>
+    <string name="settings_pane_notifications_error_title">Error notifications</string>
+    <string name="settings_pane_notifications_error_desc">Alert when a session or tool run fails</string>
+    <string name="settings_pane_notifications_permission_title">Open system notification permission</string>
+    <string name="settings_pane_notifications_permission_desc">If system notifications are off, allow DSH notifications in Android settings</string>
+
+    <!-- Remote connection pane -->
+    <string name="settings_pane_remote_host_label">Host address</string>
+    <string name="settings_pane_remote_token_label">Access token (optional)</string>
+    <string name="settings_pane_remote_connect">Save and connect</string>
+    <string name="settings_pane_remote_disconnect">Disconnect</string>
+    <string name="settings_pane_remote_local_host">Currently using the local Host</string>
+    <string name="settings_pane_remote_active_host">Remote Host configured: %1$s</string>
+
+    <!-- General pane -->
+    <string name="settings_pane_general_permission_title">Permission</string>
+    <string name="settings_pane_general_permission_desc">Choose the default permission mode for new sessions</string>
+    <string name="settings_pane_general_permission_workspace">Workspace write</string>
+    <string name="settings_pane_general_permission_full">Full access</string>
+    <string name="settings_pane_general_language_title">Language</string>
+    <string name="settings_pane_general_language_value">Chinese</string>
+    <string name="settings_pane_general_steps_title">Work step display</string>
+    <string name="settings_pane_general_steps_desc">Choose how much tool call detail to see</string>
+    <string name="settings_pane_general_collapse_title">When to collapse work steps</string>
+    <string name="settings_pane_general_collapse_desc">Choose when work steps collapse automatically</string>
+    <string name="settings_pane_general_collapse_value">After the reply</string>
+    <string name="settings_pane_transcript_compact">Focus on results</string>
+    <string name="settings_pane_transcript_detailed">Full process</string>
+    <string name="settings_pane_transcript_standard">Standard</string>
+    <string name="settings_pane_general_appearance_title">Appearance</string>
+    <string name="settings_pane_general_appearance_light">Light</string>
+    <string name="settings_pane_general_appearance_dark">Dark</string>
+    <string name="settings_pane_general_appearance_system">Follow system</string>
+    <string name="settings_pane_general_font_size_title">Font size</string>
+    <string name="settings_pane_general_font_size_desc">Only affects conversation content font size</string>
+    <string name="settings_pane_general_developer_title">Show coding work view</string>
+    <string name="settings_pane_general_developer_desc">When on, shows traces, this turn\'s code diff, and full Agent preset switching</string>
+
+    <!-- Models pane -->
+    <string name="settings_pane_models_account_title">DeepSeek account</string>
+    <string name="settings_pane_models_signed_in">Signed in</string>
+    <string name="settings_pane_models_signed_out">Not signed in</string>
+    <string name="settings_pane_models_edit">Edit</string>
+    <string name="settings_pane_models_add_provider">Add model provider</string>
+    <string name="settings_pane_models_api_key">API key</string>
+    <string name="settings_pane_models_key_placeholder">Leave blank to use environment credentials (%1$s)</string>
+    <string name="settings_pane_models_key_missing">No environment variable detected. Enter an API key or set the %1$s environment variable.</string>
+    <string name="settings_pane_models_custom_settings">Custom settings</string>
+    <string name="settings_pane_models_api_base_url">API base URL</string>
+    <string name="settings_pane_models_base_url_placeholder">https://api.deepseek.com/anthropic (defaults to environment %1$s)</string>
+    <string name="settings_pane_models_base_url_hint">Enter an API base URL compatible with the Anthropic Messages protocol.</string>
+    <string name="settings_pane_models_catalog">Model catalog</string>
+    <string name="settings_pane_models_reset_defaults">Reset to default models</string>
+    <string name="settings_pane_models_empty">No models are shown in the model selector; IDs outside the catalog can still be sent.</string>
+    <string name="settings_pane_models_custom_list">Custom models: %1$s</string>
+    <string name="settings_pane_models_add_id_placeholder">Add model ID</string>
+    <string name="settings_pane_models_add_model">Add model</string>
+    <string name="settings_pane_models_cancel">Cancel</string>
+    <string name="settings_pane_models_save">Save</string>
+
+    <!-- Built-in plugins pane -->
+    <string name="settings_pane_plugins_search_placeholder">Search plugins</string>
+    <string name="settings_pane_plugins_session_group">Session plugins</string>
+    <string name="settings_pane_plugins_preset_default">Standard mode (default)</string>
+    <string name="settings_pane_plugins_preset_named">%1$s mode</string>
+    <string name="settings_pane_plugins_preset_desc">Composed per session by the Agent preset</string>
+    <string name="settings_pane_plugins_empty_search">No matching plugins.</string>
+    <string name="settings_pane_plugins_empty">No plugins yet.</string>
+    <string name="settings_pane_plugins_disabled">Disabled</string>
+    <string name="settings_pane_plugins_fact_package">Full package name</string>
+    <string name="settings_pane_plugins_fact_enabled">Status</string>
+    <string name="settings_pane_plugins_enabled">Enabled</string>
+    <string name="settings_pane_plugins_fact_condition">Disable condition</string>
+    <string name="settings_pane_plugins_fact_runtime">Runtime status</string>
+    <string name="settings_pane_plugins_running">Running</string>
+    <string name="settings_pane_plugins_fact_source">From</string>
+    <string name="settings_pane_plugins_source_preset">Agent preset</string>
+</resources>

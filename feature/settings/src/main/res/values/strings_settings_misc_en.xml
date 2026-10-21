@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_misc_account_signed_out_title">Not signed in to DeepSeek Harness</string>
+    <string name="settings_misc_account_signed_out_desc">Sign in to get your dedicated API key</string>
+    <string name="settings_misc_login">Log In</string>
+    <string name="settings_misc_more_account_info">More account info</string>
+    <string name="settings_misc_balance_recharge">Recharge balance</string>
+    <string name="settings_misc_balance_bonus">Bonus balance</string>
+    <string name="settings_misc_more">More</string>
+    <string name="settings_misc_usage">Usage</string>
+    <string name="settings_misc_top_up">Top Up</string>
+    <string name="settings_misc_back">Back to settings</string>
+    <string name="settings_misc_plugin_settings">Plugin settings</string>
+    <string name="settings_misc_plugin_pages">Plugin pages</string>
+    <string name="settings_misc_phone_unbound">No phone bound</string>
+    <string name="settings_misc_page_not_ready">This plugin settings page is not implemented yet; the entry comes from the Host declaration.</string>
+    <string name="settings_misc_load_failed">Unable to load this plugin settings</string>
+    <string name="settings_misc_loading">Loading settings…</string>
+    <string name="settings_misc_no_fields">This plugin has no visual settings.</string>
+    <string name="settings_misc_saving">Saving…</string>
+    <string name="settings_misc_save">Save</string>
+    <string name="settings_misc_saved">Saved</string>
+    <string name="settings_misc_unsaved">Unsaved changes</string>
+    <string name="settings_misc_unsupported_field">%1$s: this field type cannot be edited here yet (%2$s)</string>
+    <string name="settings_misc_complex_type">complex type</string>
+</resources>

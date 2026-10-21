@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 移动运行时面板 -->
+    <string name="settings_pane_runtime_status_title">容器运行状态</string>
+    <string name="settings_pane_runtime_port">端口: %1$d</string>
+    <string name="settings_pane_runtime_pid">PID: %1$d</string>
+    <string name="settings_pane_runtime_last_error">异常: %1$s</string>
+    <string name="settings_pane_runtime_stop">停止</string>
+    <string name="settings_pane_runtime_start">启动</string>
+    <string name="settings_pane_runtime_starting">启动中...</string>
+    <string name="settings_pane_idle_sleep_title">空闲自动休眠</string>
+    <string name="settings_pane_idle_sleep_desc">无交互 5 分钟后停止容器进程，极大降低手机功耗与发热</string>
+    <string name="settings_pane_keep_alive_title">后台长任务守护</string>
+    <string name="settings_pane_keep_alive_desc">任务执行期间启用前台服务与系统唤醒锁 (WakeLock)</string>
+    <string name="settings_pane_high_risk_title">高危工具二次确认</string>
+    <string name="settings_pane_high_risk_desc">执行覆盖文件、Shell、系统硬件等动作前强制弹窗审批</string>
+    <string name="settings_pane_backup_title">创建用户数据快照</string>
+    <string name="settings_pane_backup_desc">备份 $DSH_HOME (会话、配置、凭据与插件)</string>
+    <string name="settings_pane_diagnostics_title">导出脱敏诊断日志包</string>
+    <string name="settings_pane_diagnostics_desc">自动对 token 和密钥脱敏，导出 ZIP 便于排障</string>
+
+    <!-- 通知面板 -->
+    <string name="settings_pane_notifications_enable_title">开启通知</string>
+    <string name="settings_pane_notifications_enable_desc">允许 DSH 在系统通知栏提醒你</string>
+    <string name="settings_pane_notifications_turn_title">会话完成通知</string>
+    <string name="settings_pane_notifications_turn_desc">Agent 完成一轮回复后发送通知</string>
+    <string name="settings_pane_notifications_error_title">错误通知</string>
+    <string name="settings_pane_notifications_error_desc">会话或工具执行失败时提醒</string>
+    <string name="settings_pane_notifications_permission_title">打开系统通知权限</string>
+    <string name="settings_pane_notifications_permission_desc">若系统通知被关闭，请在 Android 设置中允许 DSH 通知</string>
+
+    <!-- 远程连接面板 -->
+    <string name="settings_pane_remote_host_label">Host 地址</string>
+    <string name="settings_pane_remote_token_label">访问令牌（可选）</string>
+    <string name="settings_pane_remote_connect">保存并连接</string>
+    <string name="settings_pane_remote_disconnect">断开</string>
+    <string name="settings_pane_remote_local_host">当前使用本机 Host</string>
+    <string name="settings_pane_remote_active_host">当前已配置远程 Host：%1$s</string>
+
+    <!-- 通用设置面板 -->
+    <string name="settings_pane_general_permission_title">权限</string>
+    <string name="settings_pane_general_permission_desc">选择新会话的默认权限模式</string>
+    <string name="settings_pane_general_permission_workspace">工作区内修改</string>
+    <string name="settings_pane_general_permission_full">完全权限</string>
+    <string name="settings_pane_general_language_title">语言</string>
+    <string name="settings_pane_general_language_value">中文</string>
+    <string name="settings_pane_general_steps_title">工作步骤展示</string>
+    <string name="settings_pane_general_steps_desc">选择希望看到多少工具调用细节</string>
+    <string name="settings_pane_general_collapse_title">工作步骤收起时机</string>
+    <string name="settings_pane_general_collapse_desc">选择何时自动收起工作步骤</string>
+    <string name="settings_pane_general_collapse_value">回答结束后</string>
+    <string name="settings_pane_transcript_compact">聚焦结果</string>
+    <string name="settings_pane_transcript_detailed">完整过程</string>
+    <string name="settings_pane_transcript_standard">标准</string>
+    <string name="settings_pane_general_appearance_title">外观</string>
+    <string name="settings_pane_general_appearance_light">浅色</string>
+    <string name="settings_pane_general_appearance_dark">深色</string>
+    <string name="settings_pane_general_appearance_system">跟随系统</string>
+    <string name="settings_pane_general_font_size_title">字号大小</string>
+    <string name="settings_pane_general_font_size_desc">仅影响会话内容的字号</string>
+    <string name="settings_pane_general_developer_title">显示代码工作视图</string>
+    <string name="settings_pane_general_developer_desc">开启后，显示轨迹、本轮代码差异，可选择完整的 Agent 预设切换</string>
+
+    <!-- 模型设置面板 -->
+    <string name="settings_pane_models_account_title">DeepSeek 账号</string>
+    <string name="settings_pane_models_signed_in">已登录</string>
+    <string name="settings_pane_models_signed_out">未登录</string>
+    <string name="settings_pane_models_edit">编辑</string>
+    <string name="settings_pane_models_add_provider">添加模型提供商</string>
+    <string name="settings_pane_models_api_key">API 密钥</string>
+    <string name="settings_pane_models_key_placeholder">留空使用环境认证 (%1$s)</string>
+    <string name="settings_pane_models_key_missing">未检测到环境变量。请填写 API 密钥，或设置环境变量 %1$s。</string>
+    <string name="settings_pane_models_custom_settings">自定义设置</string>
+    <string name="settings_pane_models_api_base_url">API 地址</string>
+    <string name="settings_pane_models_base_url_placeholder">https://api.deepseek.com/anthropic（默认使用环境 %1$s）</string>
+    <string name="settings_pane_models_base_url_hint">请填写兼容 Anthropic Messages 协议的 API 地址。</string>
+    <string name="settings_pane_models_catalog">模型目录</string>
+    <string name="settings_pane_models_reset_defaults">恢复默认模型</string>
+    <string name="settings_pane_models_empty">模型选择器中暂不显示任何模型；目录外 ID 仍可直接发送。</string>
+    <string name="settings_pane_models_custom_list">自定义模型：%1$s</string>
+    <string name="settings_pane_models_add_id_placeholder">添加模型 ID</string>
+    <string name="settings_pane_models_add_model">添加模型</string>
+    <string name="settings_pane_models_cancel">取消</string>
+    <string name="settings_pane_models_save">保存</string>
+
+    <!-- 内置插件面板 -->
+    <string name="settings_pane_plugins_search_placeholder">搜索插件</string>
+    <string name="settings_pane_plugins_session_group">会话插件</string>
+    <string name="settings_pane_plugins_preset_default">标准模式（默认）</string>
+    <string name="settings_pane_plugins_preset_named">%1$s模式</string>
+    <string name="settings_pane_plugins_preset_desc">由 Agent 预设按会话组成</string>
+    <string name="settings_pane_plugins_empty_search">没有匹配的插件。</string>
+    <string name="settings_pane_plugins_empty">暂无插件。</string>
+    <string name="settings_pane_plugins_disabled">已停用</string>
+    <string name="settings_pane_plugins_fact_package">完整名称</string>
+    <string name="settings_pane_plugins_fact_enabled">启用状态</string>
+    <string name="settings_pane_plugins_enabled">已启用</string>
+    <string name="settings_pane_plugins_fact_condition">禁用条件</string>
+    <string name="settings_pane_plugins_fact_runtime">运行状态</string>
+    <string name="settings_pane_plugins_running">运行中</string>
+    <string name="settings_pane_plugins_fact_source">来自</string>
+    <string name="settings_pane_plugins_source_preset">Agent 预设</string>
+</resources>

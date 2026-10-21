@@ -58,7 +58,7 @@ typealias AutomationTaskUi = AutomationTaskItem
 private const val TAB_ACTIVE = 0
 private const val TAB_INACTIVE = 1
 
-private val AutomationFilterLabels = listOf("已启用", "已结束")
+private val AutomationFilterLabels = listOf(R.string.automation_tab_active, R.string.automation_tab_ended)
 
 /**
  * 「自动化任务」页面（Automation tasks）。
@@ -121,14 +121,14 @@ internal fun AutomationTasksPage(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "在会话中创建的自动化任务会显示在这里",
+                text = stringResource(R.string.automation_banner),
                 color = colors.labelSecondary,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
             )
             Spacer(Modifier.height(24.dp))
             AutomationSegmentedTabs(
-                labels = AutomationFilterLabels,
+                labels = AutomationFilterLabels.map { stringResource(it) },
                 selectedIndex = selectedTab,
                 onSelect = { selectedTab = it },
             )
@@ -136,7 +136,7 @@ internal fun AutomationTasksPage(
             DshTextInput(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = "搜索自动化任务",
+                placeholder = stringResource(R.string.automation_search_placeholder),
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(24.dp))
@@ -157,9 +157,9 @@ internal fun AutomationTasksPage(
                     // 无筛选空态是「没有已结束的自动化任务」，目录为空时是首次空态。
                     text = when {
                         selectedTab == TAB_INACTIVE && normalizedQuery.isEmpty() ->
-                            "没有已结束的自动化任务"
-                        tasks.isEmpty() -> "还没有自动化任务，在会话中创建的任务会显示在这里"
-                        else -> "没有匹配的自动化任务"
+                            stringResource(R.string.automation_empty_ended)
+                        tasks.isEmpty() -> stringResource(R.string.automation_empty_all)
+                        else -> stringResource(R.string.automation_empty_none)
                     },
                     onCreateTask = onCreateTask,
                 )
@@ -284,7 +284,7 @@ private fun AutomationEmptyState(
         )
         Spacer(Modifier.height(16.dp))
         AutomationPrimaryAction(
-            text = "新建自动化任务",
+            text = stringResource(R.string.automation_new),
             onClick = onCreateTask,
         )
     }

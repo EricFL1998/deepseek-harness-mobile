@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 /**
@@ -64,19 +65,19 @@ internal fun SettingsAccountPane(
                 SettingsCard(horizontalPadding = 18.dp, verticalPadding = 16.dp) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "当前未登录 DeepSeek Harness 账号",
+                            text = stringResource(R.string.settings_misc_account_signed_out_title),
                             style = SettingsText.RowTitleMedium,
                             color = palette.labelPrimary,
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "登录 DeepSeek Harness 账号获取专属 API Key",
+                            text = stringResource(R.string.settings_misc_account_signed_out_desc),
                             style = SettingsText.AccountBody,
                             color = palette.labelTertiary,
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                         SettingsButton(
-                            text = "登录",
+                            text = stringResource(R.string.settings_misc_login),
                             onClick = onSignIn,
                             variant = SettingsButtonVariant.Primary,
                         )
@@ -108,7 +109,7 @@ internal fun SettingsAccountPane(
                             )
                         }
                         Spacer(modifier = Modifier.width(16.dp))
-                        SettingsTextLink(text = "更多账号信息", onClick = onManageAccount) {
+                        SettingsTextLink(text = stringResource(R.string.settings_misc_more_account_info), onClick = onManageAccount) {
                             Icon(
                                 imageVector = Icons.Filled.NorthEast,
                                 contentDescription = null,
@@ -124,9 +125,9 @@ internal fun SettingsAccountPane(
             item(key = "account_balance") {
                 SettingsCard(horizontalPadding = 18.dp, verticalPadding = 14.dp) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        BalanceRow(label = "充值余额", amount = accountBalance)
+                        BalanceRow(label = stringResource(R.string.settings_misc_balance_recharge), amount = accountBalance)
                         SettingsCardDivider()
-                        BalanceRow(label = "赠金余额", amount = "¥0.00")
+                        BalanceRow(label = stringResource(R.string.settings_misc_balance_bonus), amount = "¥0.00")
                         SettingsCardDivider()
                         Row(
                             modifier = Modifier
@@ -136,19 +137,19 @@ internal fun SettingsAccountPane(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "更多",
+                                text = stringResource(R.string.settings_misc_more),
                                 style = SettingsText.AccountBody,
                                 color = palette.labelTertiary,
                                 modifier = Modifier.weight(1f),
                             )
                             SettingsButton(
-                                text = "查询用量",
+                                text = stringResource(R.string.settings_misc_usage),
                                 onClick = onManageAccount,
                                 variant = SettingsButtonVariant.Outline,
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             SettingsButton(
-                                text = "充值",
+                                text = stringResource(R.string.settings_misc_top_up),
                                 onClick = onManageAccount,
                                 variant = SettingsButtonVariant.Primary,
                             )

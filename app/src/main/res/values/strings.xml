@@ -214,4 +214,11 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
-</resources>
+    <string name="automation_tab_active">Enabled</string>
+    <string name="automation_tab_ended">Ended</string>
+    <string name="automation_banner">Tasks created in a session will appear here</string>
+    <string name="automation_search_placeholder">Search scheduled tasks</string>
+    <string name="automation_empty_ended">No ended scheduled tasks</string>
+    <string name="automation_empty_all">No scheduled tasks yet. Tasks created in a session will appear here</string>
+    <string name="automation_empty_none">No matching scheduled tasks</string>
+    <string name="automation_new">New Scheduled Task</string></resources>

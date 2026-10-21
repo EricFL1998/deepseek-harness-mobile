@@ -150,7 +150,7 @@ internal fun SettingsPluginsPane(
                         Box(modifier = Modifier.fillMaxWidth()) {
                             if (searchQuery.isEmpty()) {
                                 Text(
-                                    text = "搜索插件",
+                                    text = stringResource(R.string.settings_pane_plugins_search_placeholder),
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp,
                                     color = palette.labelTertiary,
@@ -190,7 +190,7 @@ internal fun SettingsPluginsPane(
                             SettingsChevronDown(expanded = isPresetSectionOpen, size = 12.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "会话插件",
+                                text = stringResource(R.string.settings_pane_plugins_session_group),
                                 style = SettingsText.RowTitle,
                                 color = palette.labelPrimary
                             )
@@ -213,7 +213,14 @@ internal fun SettingsPluginsPane(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (currentPresetGroup.id == "standard") "标准模式（默认）" else "${currentPresetGroup.name}模式",
+                                        text = if (currentPresetGroup.id == "standard") {
+                                            stringResource(R.string.settings_pane_plugins_preset_default)
+                                        } else {
+                                            stringResource(
+                                                R.string.settings_pane_plugins_preset_named,
+                                                currentPresetGroup.name,
+                                            )
+                                        },
                                         fontSize = 13.sp,
                                         lineHeight = 20.sp,
                                         color = palette.labelPrimary
@@ -225,7 +232,7 @@ internal fun SettingsPluginsPane(
                         }
                     }
                     Text(
-                        text = "由 Agent 预设按会话组成",
+                        text = stringResource(R.string.settings_pane_plugins_preset_desc),
                         style = SettingsText.RowDesc,
                         color = palette.labelTertiary,
                         modifier = Modifier.padding(start = 20.dp, top = 2.dp, bottom = 6.dp)
@@ -244,7 +251,11 @@ internal fun SettingsPluginsPane(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (searchQuery.isNotBlank()) "没有匹配的插件。" else "暂无插件。",
+                                text = if (searchQuery.isNotBlank()) {
+                                    stringResource(R.string.settings_pane_plugins_empty_search)
+                                } else {
+                                    stringResource(R.string.settings_pane_plugins_empty)
+                                },
                                 style = SettingsText.RowDesc,
                                 color = palette.labelTertiary
                             )
@@ -309,7 +320,7 @@ private fun PluginCard(
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
                             Text(
-                                text = "已停用",
+                                text = stringResource(R.string.settings_pane_plugins_disabled),
                                 fontSize = 11.sp,
                                 color = palette.labelTertiary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -340,14 +351,37 @@ private fun PluginCard(
                         .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    PluginFactRow(label = "完整名称", value = plugin.packageName)
-                    PluginFactRow(label = "启用状态", value = if (plugin.enabled) "已启用" else "已停用")
+                    PluginFactRow(
+                        label = stringResource(R.string.settings_pane_plugins_fact_package),
+                        value = plugin.packageName,
+                    )
+                    PluginFactRow(
+                        label = stringResource(R.string.settings_pane_plugins_fact_enabled),
+                        value = if (plugin.enabled) {
+                            stringResource(R.string.settings_pane_plugins_enabled)
+                        } else {
+                            stringResource(R.string.settings_pane_plugins_disabled)
+                        },
+                    )
                     val cond = plugin.condition
                     if (cond != null) {
-                        PluginFactRow(label = "禁用条件", value = cond)
+                        PluginFactRow(
+                            label = stringResource(R.string.settings_pane_plugins_fact_condition),
+                            value = cond,
+                        )
                     }
-                    PluginFactRow(label = "运行状态", value = if (plugin.phase == "active") "运行中" else plugin.phase)
-                    PluginFactRow(label = "来自", value = "Agent 预设")
+                    PluginFactRow(
+                        label = stringResource(R.string.settings_pane_plugins_fact_runtime),
+                        value = if (plugin.phase == "active") {
+                            stringResource(R.string.settings_pane_plugins_running)
+                        } else {
+                            plugin.phase
+                        },
+                    )
+                    PluginFactRow(
+                        label = stringResource(R.string.settings_pane_plugins_fact_source),
+                        value = stringResource(R.string.settings_pane_plugins_source_preset),
+                    )
                 }
             }
         }

@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -84,7 +85,7 @@ fun PluginSettingsPage(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回设置",
+                contentDescription = stringResource(R.string.settings_misc_back),
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(20.dp),
             )
@@ -140,7 +141,6 @@ fun PluginSettingsForm(
         failure = null
         document = runCatching { loadDocument(ns) }.getOrNull()
         loading = false
-        if (document == null) failure = "暂时读不到这个插件的设置"
     }
 
     Column(modifier = modifier) {
@@ -151,11 +151,11 @@ fun PluginSettingsForm(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Text("正在读取设置…", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_misc_loading), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             document == null -> Text(
-                text = failure ?: "暂时读不到这个插件的设置",
+                text = failure ?: stringResource(R.string.settings_misc_load_failed),
                 modifier = Modifier.padding(20.dp),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -174,7 +174,7 @@ fun PluginSettingsForm(
                     }
                     if (fields.isEmpty()) {
                         Text(
-                            text = "这个插件没有可视化配置项。",
+                            text = stringResource(R.string.settings_misc_no_fields),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -211,16 +211,16 @@ fun PluginSettingsForm(
                                 },
                             ) {
                                 Text(
-                                    text = if (saving) "保存中…" else "保存",
+                                    text = if (saving) stringResource(R.string.settings_misc_saving) else stringResource(R.string.settings_misc_save),
                                     color = MaterialTheme.colorScheme.onPrimary,
                                     fontSize = 14.sp,
                                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                                 )
                             }
                             if (saved) {
-                                Text("已保存", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(stringResource(R.string.settings_misc_saved), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                             } else if (edits.isNotEmpty()) {
-                                Text("有未保存的修改", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.settings_misc_unsaved), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -397,7 +397,11 @@ private fun SettingField(
                 .padding(10.dp),
         ) {
             Text(
-                text = "${field.name}：这类字段暂时还不能在这里编辑（${field.description ?: "复杂类型"}）",
+                text = stringResource(
+                    R.string.settings_misc_unsupported_field,
+                    field.name,
+                    field.description ?: stringResource(R.string.settings_misc_complex_type),
+                ),
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontFamily = FontFamily.Default,

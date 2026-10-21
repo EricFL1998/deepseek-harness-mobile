@@ -97,7 +97,7 @@ internal fun SettingsMobileRuntimePane(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "容器运行状态",
+                                text = stringResource(R.string.settings_pane_runtime_status_title),
                                 style = SettingsText.RowTitleMedium,
                                 color = palette.labelPrimary,
                             )
@@ -125,10 +125,29 @@ internal fun SettingsMobileRuntimePane(
                                 )
                             }
                         }
+                        val status = runtimeStatus
+                        val port = status?.port
+                        val portText = if (port != null) {
+                            stringResource(R.string.settings_pane_runtime_port, port)
+                        } else {
+                            null
+                        }
+                        val pid = status?.pid
+                        val pidText = if (pid != null) {
+                            stringResource(R.string.settings_pane_runtime_pid, pid)
+                        } else {
+                            null
+                        }
+                        val lastError = status?.lastError
+                        val errorText = if (lastError != null) {
+                            stringResource(R.string.settings_pane_runtime_last_error, lastError)
+                        } else {
+                            null
+                        }
                         val detail = buildString {
-                            runtimeStatus?.port?.let { append("端口: $it  ") }
-                            runtimeStatus?.pid?.let { append("PID: $it  ") }
-                            runtimeStatus?.lastError?.let { append("\n异常: $it") }
+                            if (portText != null) append(portText).append("  ")
+                            if (pidText != null) append(pidText).append("  ")
+                            if (errorText != null) append("\n").append(errorText)
                         }
                         if (detail.isNotEmpty()) {
                             Text(
@@ -145,7 +164,7 @@ internal fun SettingsMobileRuntimePane(
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
-                            Text("停止", fontSize = 12.sp)
+                            Text(stringResource(R.string.settings_pane_runtime_stop), fontSize = 12.sp)
                         }
                     } else {
                         androidx.compose.material3.Button(
@@ -154,7 +173,14 @@ internal fun SettingsMobileRuntimePane(
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
-                            Text(if (isStarting) "启动中..." else "启动", fontSize = 12.sp)
+                            Text(
+                                if (isStarting) {
+                                    stringResource(R.string.settings_pane_runtime_starting)
+                                } else {
+                                    stringResource(R.string.settings_pane_runtime_start)
+                                },
+                                fontSize = 12.sp,
+                            )
                         }
                     }
                 }
@@ -165,8 +191,8 @@ internal fun SettingsMobileRuntimePane(
             SettingsCard {
                 RuntimeSwitchRow(
                     icon = Icons.Filled.PowerSettingsNew,
-                    title = "空闲自动休眠",
-                    subtitle = "无交互 5 分钟后停止容器进程，极大降低手机功耗与发热",
+                    title = stringResource(R.string.settings_pane_idle_sleep_title),
+                    subtitle = stringResource(R.string.settings_pane_idle_sleep_desc),
                     checked = currentSettings.idleStopMinutes > 0,
                     onCheckedChange = { checked ->
                         currentSettings = currentSettings.copy(idleStopMinutes = if (checked) 5 else 0)
@@ -176,8 +202,8 @@ internal fun SettingsMobileRuntimePane(
                 SettingsCardDivider()
                 RuntimeSwitchRow(
                     icon = Icons.Filled.Memory,
-                    title = "后台长任务守护",
-                    subtitle = "任务执行期间启用前台服务与系统唤醒锁 (WakeLock)",
+                    title = stringResource(R.string.settings_pane_keep_alive_title),
+                    subtitle = stringResource(R.string.settings_pane_keep_alive_desc),
                     checked = currentSettings.keepAliveOnTask,
                     onCheckedChange = { checked ->
                         currentSettings = currentSettings.copy(keepAliveOnTask = checked)
@@ -187,8 +213,8 @@ internal fun SettingsMobileRuntimePane(
                 SettingsCardDivider()
                 RuntimeSwitchRow(
                     icon = Icons.Filled.Lock,
-                    title = "高危工具二次确认",
-                    subtitle = "执行覆盖文件、Shell、系统硬件等动作前强制弹窗审批",
+                    title = stringResource(R.string.settings_pane_high_risk_title),
+                    subtitle = stringResource(R.string.settings_pane_high_risk_desc),
                     checked = currentSettings.highRiskConfirm,
                     onCheckedChange = { checked ->
                         currentSettings = currentSettings.copy(highRiskConfirm = checked)
@@ -201,15 +227,15 @@ internal fun SettingsMobileRuntimePane(
             SettingsCard {
                 RuntimeActionRow(
                     icon = Icons.Filled.Archive,
-                    title = "创建用户数据快照",
-                    subtitle = "备份 \$DSH_HOME (会话、配置、凭据与插件)",
+                    title = stringResource(R.string.settings_pane_backup_title),
+                    subtitle = stringResource(R.string.settings_pane_backup_desc),
                     onClick = onCreateBackup,
                 )
                 SettingsCardDivider()
                 RuntimeActionRow(
                     icon = Icons.Filled.BugReport,
-                    title = "导出脱敏诊断日志包",
-                    subtitle = "自动对 token 和密钥脱敏，导出 ZIP 便于排障",
+                    title = stringResource(R.string.settings_pane_diagnostics_title),
+                    subtitle = stringResource(R.string.settings_pane_diagnostics_desc),
                     onClick = onExportDiagnostics,
                 )
             }
@@ -323,8 +349,8 @@ internal fun SettingsNotificationsPane(
         item {
             SettingsCard {
                 NotificationSwitchRow(
-                    title = "开启通知",
-                    subtitle = "允许 DSH 在系统通知栏提醒你",
+                    title = stringResource(R.string.settings_pane_notifications_enable_title),
+                    subtitle = stringResource(R.string.settings_pane_notifications_enable_desc),
                     checked = current.notificationsEnabled,
                 ) {
                     current = current.copy(notificationsEnabled = it)
@@ -332,8 +358,8 @@ internal fun SettingsNotificationsPane(
                 }
                 SettingsCardDivider()
                 NotificationSwitchRow(
-                    title = "会话完成通知",
-                    subtitle = "Agent 完成一轮回复后发送通知",
+                    title = stringResource(R.string.settings_pane_notifications_turn_title),
+                    subtitle = stringResource(R.string.settings_pane_notifications_turn_desc),
                     checked = current.notifyOnTurnComplete,
                 ) {
                     current = current.copy(notifyOnTurnComplete = it)
@@ -341,8 +367,8 @@ internal fun SettingsNotificationsPane(
                 }
                 SettingsCardDivider()
                 NotificationSwitchRow(
-                    title = "错误通知",
-                    subtitle = "会话或工具执行失败时提醒",
+                    title = stringResource(R.string.settings_pane_notifications_error_title),
+                    subtitle = stringResource(R.string.settings_pane_notifications_error_desc),
                     checked = current.notifyOnError,
                 ) {
                     current = current.copy(notifyOnError = it)
@@ -353,12 +379,12 @@ internal fun SettingsNotificationsPane(
         item {
             SettingsCard(onClick = onRequestNotificationPermission) {
                 Text(
-                    text = "打开系统通知权限",
+                    text = stringResource(R.string.settings_pane_notifications_permission_title),
                     style = SettingsText.RowTitle,
                     color = LocalSettingsPalette.current.labelPrimary,
                 )
                 Text(
-                    text = "若系统通知被关闭，请在 Android 设置中允许 DSH 通知",
+                    text = stringResource(R.string.settings_pane_notifications_permission_desc),
                     style = SettingsText.RowDesc,
                     color = LocalSettingsPalette.current.labelTertiary,
                 )
@@ -410,7 +436,7 @@ internal fun SettingsRemotePane(
         item { SettingsPaneTitle(stringResource(R.string.settings_section_remote)) }
         item {
             SettingsCard {
-                Text("Host 地址", style = SettingsText.RowTitle, color = palette.labelPrimary)
+                Text(stringResource(R.string.settings_pane_remote_host_label), style = SettingsText.RowTitle, color = palette.labelPrimary)
                 androidx.compose.material3.OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
@@ -418,7 +444,7 @@ internal fun SettingsRemotePane(
                     placeholder = { Text("http://192.168.1.10:45153") },
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 )
-                Text("访问令牌（可选）", style = SettingsText.RowTitle, color = palette.labelPrimary, modifier = Modifier.padding(top = 12.dp))
+                Text(stringResource(R.string.settings_pane_remote_token_label), style = SettingsText.RowTitle, color = palette.labelPrimary, modifier = Modifier.padding(top = 12.dp))
                 androidx.compose.material3.OutlinedTextField(
                     value = token,
                     onValueChange = { token = it },
@@ -436,16 +462,20 @@ internal fun SettingsRemotePane(
                             onConnectRemote(url.trim(), token.trim())
                         },
                         enabled = url.isNotBlank(),
-                    ) { Text("保存并连接") }
+                    ) { Text(stringResource(R.string.settings_pane_remote_connect)) }
                     androidx.compose.material3.OutlinedButton(
                         onClick = {
                             onUpdateSettings(settings.copy(remoteHostUrl = "", remoteHostToken = ""))
                             onDisconnectRemote()
                         },
-                    ) { Text("断开") }
+                    ) { Text(stringResource(R.string.settings_pane_remote_disconnect)) }
                 }
                 Text(
-                    text = if (url.isBlank()) "当前使用本机 Host" else "当前已配置远程 Host：$url",
+                    text = if (url.isBlank()) {
+                        stringResource(R.string.settings_pane_remote_local_host)
+                    } else {
+                        stringResource(R.string.settings_pane_remote_active_host, url)
+                    },
                     style = SettingsText.RowDesc,
                     color = palette.labelTertiary,
                     modifier = Modifier.padding(top = 10.dp),

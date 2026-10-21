@@ -76,6 +76,43 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
     var rootfsBusy by remember { mutableStateOf(false) }
     var rootfsStatus by remember { mutableStateOf<String?>(null) }
 
+    // stringResource 只能在 @Composable 中调用，而下面这些文案还要在协程 / suspend 回调
+    // 里更新状态时使用，因此在组合作用域内先读出来（带占位符的保留模板，用 format 填充）。
+    val textUnknown = stringResource(R.string.agent_update_unknown)
+    val textNotInstalled = stringResource(R.string.agent_update_not_installed)
+    val textUnknownReason = stringResource(R.string.agent_update_unknown_reason)
+    val errorRuntimeUnavailable = stringResource(R.string.agent_update_error_runtime_unavailable)
+    val errorRuntimeNotInitialized =
+        stringResource(R.string.agent_update_error_runtime_not_initialized)
+    val errorReadVersionFailed = stringResource(R.string.agent_update_error_read_version_failed)
+    val errorPluginLatestMissing = stringResource(R.string.agent_update_error_plugin_latest_missing)
+    val errorPluginUpdateFailed = stringResource(R.string.agent_update_error_plugin_update_failed)
+    val errorHostRestartFailedTpl =
+        stringResource(R.string.agent_update_error_host_restart_failed)
+    val errorPluginNotLoaded = stringResource(R.string.agent_update_error_plugin_not_loaded)
+    val errorHostVersionMismatchTpl =
+        stringResource(R.string.agent_update_error_host_version_mismatch)
+    val errorCheckUpdateFailed = stringResource(R.string.agent_update_error_check_update_failed)
+    val statusRestartingHost = stringResource(R.string.agent_update_status_restarting_host)
+    val statusHostRestarted = stringResource(R.string.agent_update_status_host_restarted)
+    val statusPluginPrepareUpdateTpl = stringResource(R.string.agent_update_plugin_prepare_update)
+    val statusPluginInstalledRestartingTpl =
+        stringResource(R.string.agent_update_plugin_installed_restarting)
+    val statusPluginInstalledRestartNeededTpl =
+        stringResource(R.string.agent_update_plugin_installed_restart_needed)
+    val statusPluginWrittenTpl = stringResource(R.string.agent_update_plugin_written)
+    val statusPluginUpdatedRestartedTpl =
+        stringResource(R.string.agent_update_plugin_updated_restarted)
+    val statusRootfsPrepareReinstall = stringResource(R.string.agent_update_rootfs_prepare_reinstall)
+    val statusRootfsUpdatedStartHost =
+        stringResource(R.string.agent_update_rootfs_updated_start_host)
+    val statusRootfsUpdatedRestarted =
+        stringResource(R.string.agent_update_rootfs_updated_restarted)
+    val statusRootfsUpdatedHostFailedTpl =
+        stringResource(R.string.agent_update_rootfs_updated_host_failed)
+    val statusRootfsUpdateFailedTpl =
+        stringResource(R.string.agent_update_error_rootfs_update_failed)
+
     /**
      * 重新读一次版本与更新结论。
      *
@@ -89,12 +126,12 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
             if (manager == null) {
                 // 运行时尚未创建（例如首次启动还没走到初始化）：这不是错误，
                 // 但必须说明，否则用户只看到一片「未知」。
-                assessmentError = "本地运行时尚未初始化，启动完成后可再次检查"
+                assessmentError = errorRuntimeNotInitialized
                 return
             }
             assessment = manager.assessUpdates()
         } catch (error: Throwable) {
-            assessmentError = error.message ?: "读取版本信息失败"
+            assessmentError = error.message ?: errorReadVersionFailed
         } finally {
             assessmentLoaded = true
         }
@@ -150,27 +187,34 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
         item {
             UpdateCard {
                 Text(
-                    "版本信息",
+                    stringResource(R.string.agent_update_section_version_info),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
                 )
-                VersionItemRow("APK 客户端版本", "v$apkVersion")
                 VersionItemRow(
-                    "Bridge 插件版本",
-                    assessment.installedPlugin?.let { "v$it" } ?: "未知",
+                    stringResource(R.string.agent_update_label_apk_version),
+                    "v$apkVersion",
                 )
                 VersionItemRow(
-                    "Rootfs 镜像版本",
-                    installed?.rootfs?.let { "v$it" } ?: if (assessment.installed == null) "未知" else "未安装",
+                    stringResource(R.string.agent_update_label_bridge_version),
+                    assessment.installedPlugin?.let { "v$it" } ?: textUnknown,
                 )
                 VersionItemRow(
-                    "官方 DSH 引擎",
-                    installed?.dsh ?: "未知",
+                    stringResource(R.string.agent_update_label_rootfs_version),
+                    installed?.rootfs?.let { "v$it" }
+                        ?: if (assessment.installed == null) textUnknown else textNotInstalled,
+                )
+                VersionItemRow(
+                    stringResource(R.string.agent_update_label_engine_version),
+                    installed?.dsh ?: textUnknown,
                 )
                 // 打包版本只在它与已装版本不同时才有信息量，避免噪声。
                 packaged?.bridge?.takeIf { it != assessment.installedPlugin }?.let { packagedBridge ->
-                    VersionItemRow("镜像内打包插件", "v$packagedBridge")
+                    VersionItemRow(
+                        stringResource(R.string.agent_update_label_packaged_plugin),
+                        "v$packagedBridge",
+                    )
                 }
                 assessmentError?.let { message ->
                     Spacer(Modifier.height(6.dp))
@@ -187,39 +231,57 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
         item {
             UpdateCard {
                 SectionTitle(
-                    "Bridge 兼容层插件",
-                    badge = if (assessment.need == UpdateNeed.PLUGIN_REQUIRED) "必需更新" else null,
+                    stringResource(R.string.agent_update_section_bridge_plugin),
+                    badge = if (assessment.need == UpdateNeed.PLUGIN_REQUIRED) {
+                        stringResource(R.string.agent_update_badge_required)
+                    } else {
+                        null
+                    },
                     badgeUrgent = true,
                 )
                 when {
-                    !assessmentLoaded -> LoadingRow("正在检查插件版本…")
+                    !assessmentLoaded -> LoadingRow(
+                        stringResource(R.string.agent_update_loading_plugin_version),
+                    )
                     assessment.need == UpdateNeed.PLUGIN_REQUIRED -> {
                         Text(
-                            "客户端与 Host 通过 bridge/v1 通信，两者必须说同一个协议版本。" +
-                                "插件更新只需在运行时内安装，不会重新下载镜像；完成后会自动重启 Host。",
+                            stringResource(R.string.agent_update_bridge_required_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "已安装 ${assessment.installedPlugin ?: "未知"} → 最新 ${assessment.latestPlugin ?: "未知"}",
+                            stringResource(
+                                R.string.agent_update_plugin_versions,
+                                assessment.installedPlugin ?: textUnknown,
+                                assessment.latestPlugin ?: textUnknown,
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             fontFamily = FontFamily.Monospace,
                         )
                     }
                     assessment.latestPlugin == null -> Text(
-                        "无法读取插件最新版本（网络不可用或 GitHub 限流）。" +
-                            "已安装 ${assessment.installedPlugin ?: "未知"}。",
+                        stringResource(
+                            R.string.agent_update_plugin_latest_unavailable,
+                            assessment.installedPlugin ?: textUnknown,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline,
                     )
                     pluginComparison != null && pluginComparison > 0 -> Text(
-                        "已安装 ${assessment.installedPlugin}，比最新发布 ${assessment.latestPlugin} 更新，无需更新。",
+                        stringResource(
+                            R.string.agent_update_plugin_ahead,
+                            assessment.installedPlugin ?: textUnknown,
+                            assessment.latestPlugin ?: textUnknown,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     else -> Text(
-                        "已是最新版本 ${assessment.installedPlugin}。",
+                        stringResource(
+                            R.string.agent_update_plugin_up_to_date,
+                            assessment.installedPlugin ?: textUnknown,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -245,16 +307,16 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                                 val manager = HostRuntimeHolder.manager
                                 val target = assessment.latestPlugin
                                 if (manager == null) {
-                                    pluginError = "运行时不可用"
+                                    pluginError = errorRuntimeUnavailable
                                     pluginBusy = false
                                     return@launch
                                 }
                                 if (target == null) {
-                                    pluginError = "无法读取插件最新版本，请检查网络后重新检查"
+                                    pluginError = errorPluginLatestMissing
                                     pluginBusy = false
                                     return@launch
                                 }
-                                pluginStatus = "准备更新到 $target…"
+                                pluginStatus = statusPluginPrepareUpdateTpl.format(target)
                                 // 下载与解压都在 App 进程完成：Host 跑在 proot 里，
                                 // 解析不到 github.com，无法在那里跑 git/pnpm。
                                 val result = manager.updateBridgePlugin(target) { _, step ->
@@ -262,36 +324,37 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                                 }
                                 result.fold(
                                     onSuccess = { version ->
-                                        pluginStatus = "插件 $version 已安装，正在重启 Host…"
+                                        pluginStatus = statusPluginInstalledRestartingTpl.format(version)
                                         val restart = HostRuntimeHolder.restartHost
                                         val restartFailure = restart?.invoke()?.exceptionOrNull()
                                         if (restart == null) {
-                                            pluginStatus = "插件 $version 已安装；重启 Host 后生效"
+                                            pluginStatus =
+                                                statusPluginInstalledRestartNeededTpl.format(version)
                                         }
                                         // 装完必须以「运行中的插件版本」收尾：文件对了但
                                         // Host 没加载（依赖缺失、启动失败）时，界面不能
                                         // 假装更新成功。
                                         delay(1_200)
                                         val running = awaitRunningPluginVersion()
-                                        pluginStatus = "插件 $version 已写入"
+                                        pluginStatus = statusPluginWrittenTpl.format(version)
                                         pluginError = when {
                                             restartFailure != null ->
-                                                "Host 重启失败：" + (restartFailure.message ?: "未知原因")
-                                            running == null ->
-                                                "Host 没有加载 bridge 插件；请点「重启 Host」重试，" +
-                                                    "仍失败时更新 Rootfs 镜像"
+                                                errorHostRestartFailedTpl.format(
+                                                    restartFailure.message ?: textUnknownReason,
+                                                )
+                                            running == null -> errorPluginNotLoaded
                                             running != version ->
-                                                "Host 正在运行 $running，不是 $version；" +
-                                                    "请点「重启 Host」重试"
+                                                errorHostVersionMismatchTpl.format(running, version)
                                             else -> {
-                                                pluginStatus = "插件已更新到 $version，Host 已重启"
+                                                pluginStatus =
+                                                    statusPluginUpdatedRestartedTpl.format(version)
                                                 null
                                             }
                                         }
                                         refreshAssessment()
                                     },
                                     onFailure = { failure ->
-                                        pluginError = failure.message ?: "插件更新失败"
+                                        pluginError = failure.message ?: errorPluginUpdateFailed
                                     },
                                 )
                                 pluginBusy = false
@@ -305,29 +368,36 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                             )
                             Spacer(Modifier.width(8.dp))
                         }
-                        Text(if (pluginBusy) "正在更新…" else "更新插件")
+                        Text(
+                            if (pluginBusy) {
+                                stringResource(R.string.agent_update_action_updating)
+                            } else {
+                                stringResource(R.string.agent_update_action_update_plugin)
+                            },
+                        )
                     }
                     OutlinedButton(
                         enabled = !pluginBusy && !rootfsBusy,
                         onClick = { scope.launch { refreshAssessment() } },
-                    ) { Text("重新检查") }
+                    ) { Text(stringResource(R.string.agent_update_action_recheck)) }
                     OutlinedButton(
                         enabled = !pluginBusy && !rootfsBusy,
                         onClick = {
                             scope.launch {
                                 pluginBusy = true
                                 pluginError = null
-                                pluginStatus = "正在重启 Host…"
+                                pluginStatus = statusRestartingHost
                                 val restart = HostRuntimeHolder.restartHost
                                 if (restart == null) {
-                                    pluginError = "运行时不可用"
+                                    pluginError = errorRuntimeUnavailable
                                 } else {
                                     val restarted = restart()
                                     if (restarted.isFailure) {
-                                        pluginError = "Host 重启失败：" +
-                                            (restarted.exceptionOrNull()?.message ?: "未知原因")
+                                        pluginError = errorHostRestartFailedTpl.format(
+                                            restarted.exceptionOrNull()?.message ?: textUnknownReason,
+                                        )
                                     } else {
-                                        pluginStatus = "Host 已重启"
+                                        pluginStatus = statusHostRestarted
                                     }
                                 }
                                 delay(1_200)
@@ -335,7 +405,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                                 pluginBusy = false
                             }
                         },
-                    ) { Text("重启 Host") }
+                    ) { Text(stringResource(R.string.agent_update_action_restart_host)) }
                 }
             }
         }
@@ -344,20 +414,25 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
         item {
             UpdateCard {
                 SectionTitle(
-                    "Rootfs 运行时镜像",
-                    badge = if (assessment.need == UpdateNeed.ROOTFS_OPTIONAL) "可选更新" else null,
+                    stringResource(R.string.agent_update_section_rootfs),
+                    badge = if (assessment.need == UpdateNeed.ROOTFS_OPTIONAL) {
+                        stringResource(R.string.agent_update_badge_optional)
+                    } else {
+                        null
+                    },
                     badgeUrgent = false,
                 )
                 when {
-                    !assessmentLoaded -> LoadingRow("正在检查镜像版本…")
+                    !assessmentLoaded -> LoadingRow(
+                        stringResource(R.string.agent_update_loading_rootfs_version),
+                    )
                     assessment.need == UpdateNeed.ROOTFS_OPTIONAL -> Text(
-                        "镜像重建只为跟随新的 DSH 引擎。当前镜像仍然可用；" +
-                            "更新会重新下载运行时，并保留你的账号、会话与工作区。",
+                        stringResource(R.string.agent_update_rootfs_optional_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     else -> Text(
-                        "镜像与当前发布一致。",
+                        stringResource(R.string.agent_update_rootfs_up_to_date),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -365,7 +440,11 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                 assessment.available?.takeIf { assessment.need == UpdateNeed.ROOTFS_OPTIONAL }?.let { target ->
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "已安装 ${assessment.installed ?: "未安装"} → 可用 $target",
+                        stringResource(
+                            R.string.agent_update_rootfs_versions,
+                            assessment.installed ?: textNotInstalled,
+                            target,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                     )
@@ -380,10 +459,10 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                     onClick = {
                         scope.launch {
                             rootfsBusy = true
-                            rootfsStatus = "准备重新安装镜像…"
+                            rootfsStatus = statusRootfsPrepareReinstall
                             val manager = HostRuntimeHolder.manager
                             if (manager == null) {
-                                rootfsStatus = "运行时不可用"
+                                rootfsStatus = errorRuntimeUnavailable
                                 rootfsBusy = false
                                 return@launch
                             }
@@ -396,37 +475,52 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                                     // 否则整页会停在「已停止」，用户还得自己去运行页启动。
                                     val restart = HostRuntimeHolder.restartHost
                                     rootfsStatus = if (restart == null) {
-                                        "镜像已更新；请启动 Host"
+                                        statusRootfsUpdatedStartHost
                                     } else {
                                         val restarted = restart()
-                                        if (restarted.isSuccess) "镜像已更新，Host 已重启"
-                                        else "镜像已更新，但 Host 启动失败：" +
-                                            (restarted.exceptionOrNull()?.message ?: "未知原因")
+                                        if (restarted.isSuccess) statusRootfsUpdatedRestarted
+                                        else statusRootfsUpdatedHostFailedTpl.format(
+                                            restarted.exceptionOrNull()?.message ?: textUnknownReason,
+                                        )
                                     }
                                     rootfsBusy = false
                                     delay(1_200)
                                     refreshAssessment()
                                 },
                                 onFailure = { failure ->
-                                    rootfsStatus = "镜像更新失败：${failure.message}"
+                                    rootfsStatus = statusRootfsUpdateFailedTpl.format(failure.message)
                                 },
                             )
                             rootfsBusy = false
                         }
                     },
-                ) { Text(if (rootfsBusy) "正在安装…" else "更新镜像（可选）") }
+                ) {
+                    Text(
+                        if (rootfsBusy) {
+                            stringResource(R.string.agent_update_action_installing)
+                        } else {
+                            stringResource(R.string.agent_update_action_update_rootfs)
+                        },
+                    )
+                }
             }
         }
 
         // ── APK 自身 ─────────────────────────────────────────────────────────
         item {
             UpdateCard {
-                SectionTitle("APK 客户端", badge = null, badgeUrgent = false)
+                SectionTitle(
+                    stringResource(R.string.agent_update_section_apk),
+                    badge = null,
+                    badgeUrgent = false,
+                )
                 when {
-                    checking -> LoadingRow("正在检查更新…")
+                    checking -> LoadingRow(
+                        stringResource(R.string.agent_update_loading_apk_update),
+                    )
                     available != null -> {
                         Text(
-                            "新版本 ${available.tag}",
+                            stringResource(R.string.agent_update_apk_new_version, available.tag),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -442,17 +536,21 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                         }
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { openUrl(available.htmlUrl) }) { Text("前往下载") }
-                            OutlinedButton(onClick = { openUrl(DSH_RELEASES_PAGE) }) { Text("全部版本") }
+                            Button(onClick = { openUrl(available.htmlUrl) }) {
+                                Text(stringResource(R.string.agent_update_action_download))
+                            }
+                            OutlinedButton(onClick = { openUrl(DSH_RELEASES_PAGE) }) {
+                                Text(stringResource(R.string.agent_update_action_all_versions))
+                            }
                         }
                     }
                     error != null -> Text(
-                        error ?: "检查更新失败",
+                        error ?: errorCheckUpdateFailed,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
                     else -> Text(
-                        "已是最新版本",
+                        stringResource(R.string.agent_update_apk_up_to_date),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -464,23 +562,23 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
             OutlinedButton(
                 onClick = { openUrl("https://github.com/$DSH_GITHUB_REPO") },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("在 GitHub 查看客户端项目") }
+            ) { Text(stringResource(R.string.agent_update_link_client_project)) }
         }
         item {
             OutlinedButton(
                 onClick = { openUrl("https://github.com/EricFL1998/deepseek-harness-mobile-rootfs") },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("在 GitHub 查看 Rootfs 项目") }
+            ) { Text(stringResource(R.string.agent_update_link_rootfs_project)) }
         }
         item {
             OutlinedButton(
                 onClick = { openUrl("https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin") },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("在 GitHub 查看 Bridge 插件项目") }
+            ) { Text(stringResource(R.string.agent_update_link_bridge_project)) }
         }
         item {
             Text(
-                "更新来源：github.com/$DSH_GITHUB_REPO",
+                stringResource(R.string.agent_update_source_footer, DSH_GITHUB_REPO),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
             )

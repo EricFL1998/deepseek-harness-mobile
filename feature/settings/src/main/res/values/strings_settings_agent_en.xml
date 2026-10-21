@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings: Agent presets pane + Update pane (English, default locale). All keys use the agent_update_ prefix. -->
+<resources>
+
+    <!-- ── Agent presets pane ─────────────────────────────────────────── -->
+    <string name="agent_update_group_builtin">Built-in</string>
+    <string name="agent_update_tag_new_task_default">Default for new tasks</string>
+    <string name="agent_update_presets_empty">No agent presets yet.</string>
+    <string name="agent_update_action_explanation">Mode details</string>
+    <string name="agent_update_action_usage">How to use</string>
+    <string name="agent_update_action_view_config">View configuration</string>
+    <string name="agent_update_dialog_title_explanation">Mode details · %1$s</string>
+    <string name="agent_update_dialog_title_usage">How to use · %1$s</string>
+    <string name="agent_update_dialog_title_config">Configuration · %1$s</string>
+    <string name="agent_update_config_id">id: %1$s</string>
+    <string name="agent_update_config_name">Name: %1$s</string>
+    <string name="agent_update_config_group">Group: %1$s</string>
+    <string name="agent_update_config_default">Default for new tasks: %1$s</string>
+    <string name="agent_update_yes">Yes</string>
+    <string name="agent_update_no">No</string>
+    <string name="agent_update_dialog_close">Close</string>
+
+    <!-- Built-in preset: standard mode -->
+    <string name="agent_update_preset_standard_name">Standard mode</string>
+    <string name="agent_update_preset_standard_desc">Handles code, files, and documents and suits most tasks. The agent uses search, editing, and terminal tools as needed.</string>
+    <string name="agent_update_preset_standard_explanation">### How it works\n\nAgent calls tools directly to read and write files, search material, and run terminal commands. It includes Skills, plans, goals, sub-agents, workflows, and context compaction.\n\n### When to choose it\n\nEveryday coding, file work, and document organization can start here. Standard mode can also write scripts and batch-process files; PTC changes how tools are called, so batch tasks do not require PTC.</string>
+    <string name="agent_update_preset_standard_usage">### Fix a problem\n\n> After the search form was submitted twice in a row, the results disappeared. Find the cause, fix the problem, run the relevant tests, and explain the cause and the changes.\n\nExpected output: code changes, relevant test results, and an explanation of the cause.\n\n### Organize project notes\n\n> Read the Markdown notes in the project, summarize the conclusions already reached and the questions still open, and link the corresponding files.\n\nExpected output: a summary with source references that can be checked against the originals.</string>
+
+    <!-- Built-in preset: PTC mode -->
+    <string name="agent_update_preset_ptc_name">PTC mode</string>
+    <string name="agent_update_preset_ptc_desc">Includes every capability of standard mode and is better suited to tasks that call tools in bulk and then filter, organize, deduplicate, count, or summarize the results.</string>
+    <string name="agent_update_preset_ptc_explanation">### How tools are called\n\nPTC is Programmatic Tool Calling: tools are called from a program. The current built-in preset has the agent write TypeScript programs with run_code that call the generated tool SDK. Programs can organize loops, conditionals, error handling, and calls that benefit from concurrency.\n\n### What reaches the model\n\nTool results go to the program first, where they are filtered, computed, or merged, and then reach the model through output or return values; image results are attached separately. Tool calls in the program are still recorded and still bound by tool permissions.\n\n### Difference from standard mode\n\nBoth modes can program and batch-process files. Standard mode gives each tool to the model directly; PTC lets the model organize tool calls in code. The current PTC preset does not enable the workflow tool. Speed and token usage depend on the task and how results are handled.</string>
+    <string name="agent_update_preset_ptc_usage">### Batch-check configuration files\n\n> Check every JSON file under configs/ and use schema.json to find missing fields and invalid values. Write each issue as one row in a CSV; also record files that cannot be read in the report and continue with the remaining files. Keep the original files.\n\nExpected output: a list of issues and a CSV report. A program can run the same checks over many files, handle a failure on a single file, and then merge the results.\n\n### Summarize error logs\n\n> Analyze the logs under logs/, count occurrences by service and error type, list the ten most frequent error types, and keep one example for each. Save the complete statistics as a separate CSV.\n\nExpected output: a summary of frequent errors and the complete statistics table. Intermediate data can be aggregated in the program first, then the summary handed to the model.</string>
+
+    <!-- Built-in preset: minimal mode -->
+    <string name="agent_update_preset_minimal_name">Minimal mode</string>
+    <string name="agent_update_preset_minimal_desc">The agent uses a terminal and an image-reading tool with context compaction, which suits testing and comparing its baseline behavior.</string>
+    <string name="agent_update_preset_minimal_explanation">### What is kept\n\nProvides a persistent shell and the read_image tool with a fixed system prompt. Reading images requires a model that supports image input. Earlier history is compacted automatically when context pressure reaches a threshold; while the agent is idle you can enter /compact to compact manually. The built-in preset does not load Skills or plans and does not inject the standard runtime context.\n\n### When to choose it\n\nUseful as a baseline for experiments and comparison tests. The agent can still read and write files and run scripts through terminal commands, but it lacks built-in support for managing long tasks. Fewer tools do not make it easier for beginners.</string>
+    <string name="agent_update_preset_minimal_usage">### Compare basic repair behavior\n\n> Run the tests for this project, find the cause of the failures, make the smallest fix, then run the relevant tests again and report the results.\n\nRun this task in standard mode and in minimal mode from the same workspace state, and compare completion, tool calls, and the final changes. Minimal mode performs these operations through terminal commands.</string>
+
+    <!-- Built-in preset: creator mode -->
+    <string name="agent_update_preset_cordis_name">Creator mode</string>
+    <string name="agent_update_preset_cordis_desc">Customize DSH through conversation: have the agent write plugins that add features or UI, and combine tools and prompts to create your own modes.</string>
+    <string name="agent_update_preset_cordis_explanation">### What you can create\n\nCreator mode has the standard task tools plus runtime inspection, persistent plugin management, and development guidance for Cordis plugins and agent presets. You can write plugins to add features or UI, and combine tools and prompts to create modes for specific tasks.\n\n### How plugins and modes relate\n\nPlugins add capabilities to DSH, such as tools, service connections, or UI entry points. A mode is an agent preset that selects the tools available for a task and sets how the agent works. Custom modes can also use plugins that you develop.\n\n### How to make results take effect\n\nYou can ask the agent to complete the installation and verify the actual result. Plugins may load immediately or need a restart depending on what changed; a newly created mode is selected when a new task is created.</string>
+    <string name="agent_update_preset_cordis_usage">### Add a UI\n\n> Help me write a DSH plugin that adds a Project Notes entry to the sidebar, lists the Markdown files in the current workspace, and previews content when clicked. Complete the installation and verify that the page opens.\n\nExpected output: a plugin with a sidebar entry and a preview page, plus any effect steps still required.\n\n### Add a tool\n\n> Write a plugin that provides a tool to read the project test report and summarize failing cases. Register the tool and verify the call with a sample report.\n\nExpected output: a new callable tool and the verified result of one sample call.\n\n### Create your own mode\n\n> Create a Code Review mode based on standard mode that prioritizes potential bugs and test gaps, cites files and line numbers, and asks me before modifying files. Save it as a selectable preset.\n\nExpected output: a custom mode that can be selected for a new task. The review requirements guide the agent, while the operations actually allowed are still determined by permission settings.</string>
+
+    <!-- ── Update pane: version info ──────────────────────────────────── -->
+    <string name="agent_update_section_version_info">Version info</string>
+    <string name="agent_update_label_apk_version">APK client version</string>
+    <string name="agent_update_label_bridge_version">Bridge plugin version</string>
+    <string name="agent_update_label_rootfs_version">Rootfs image version</string>
+    <string name="agent_update_label_engine_version">Official DSH engine</string>
+    <string name="agent_update_label_packaged_plugin">Plugin packaged in image</string>
+    <string name="agent_update_unknown">Unknown</string>
+    <string name="agent_update_not_installed">Not installed</string>
+    <string name="agent_update_unknown_reason">unknown reason</string>
+    <string name="agent_update_error_runtime_not_initialized">The local runtime is not initialized yet. Check again after startup completes.</string>
+    <string name="agent_update_error_read_version_failed">Failed to read version information</string>
+
+    <!-- ── Update pane: bridge plugin (required update) ──────────────── -->
+    <string name="agent_update_section_bridge_plugin">Bridge compatibility plugin</string>
+    <string name="agent_update_badge_required">Update required</string>
+    <string name="agent_update_loading_plugin_version">Checking plugin version…</string>
+    <string name="agent_update_bridge_required_desc">The client and the Host communicate over bridge/v1, so both must speak the same protocol version. A plugin update only installs inside the runtime and does not download the image again; the Host restarts automatically when it finishes.</string>
+    <string name="agent_update_plugin_versions">Installed %1$s → latest %2$s</string>
+    <string name="agent_update_plugin_latest_unavailable">Cannot read the latest plugin version (network unavailable or GitHub rate limited). Installed %1$s.</string>
+    <string name="agent_update_plugin_ahead">Installed %1$s is newer than the latest release %2$s, so no update is needed.</string>
+    <string name="agent_update_plugin_up_to_date">Already up to date (%1$s).</string>
+    <string name="agent_update_error_runtime_unavailable">Runtime unavailable</string>
+    <string name="agent_update_error_plugin_latest_missing">Cannot read the latest plugin version. Check the network and check again.</string>
+    <string name="agent_update_plugin_prepare_update">Preparing to update to %1$s…</string>
+    <string name="agent_update_plugin_installed_restarting">Plugin %1$s installed. Restarting the Host…</string>
+    <string name="agent_update_plugin_installed_restart_needed">Plugin %1$s installed. It takes effect after the Host restarts.</string>
+    <string name="agent_update_plugin_written">Plugin %1$s written</string>
+    <string name="agent_update_error_host_restart_failed">Host restart failed: %1$s</string>
+    <string name="agent_update_error_plugin_not_loaded">The Host did not load the bridge plugin. Tap Restart Host to retry; if it still fails, update the Rootfs image.</string>
+    <string name="agent_update_error_host_version_mismatch">The Host is running %1$s, not %2$s. Tap Restart Host to retry.</string>
+    <string name="agent_update_plugin_updated_restarted">Plugin updated to %1$s and the Host restarted</string>
+    <string name="agent_update_error_plugin_update_failed">Plugin update failed</string>
+    <string name="agent_update_action_updating">Updating…</string>
+    <string name="agent_update_action_update_plugin">Update</string>
+    <string name="agent_update_action_recheck">Recheck</string>
+    <string name="agent_update_status_restarting_host">Restarting the Host…</string>
+    <string name="agent_update_status_host_restarted">Host restarted</string>
+    <string name="agent_update_action_restart_host">Restart Host</string>
+
+    <!-- ── Update pane: rootfs image (optional update) ───────────────── -->
+    <string name="agent_update_section_rootfs">Rootfs runtime image</string>
+    <string name="agent_update_badge_optional">Optional update</string>
+    <string name="agent_update_loading_rootfs_version">Checking image version…</string>
+    <string name="agent_update_rootfs_optional_desc">The image is rebuilt only to follow a new DSH engine. The current image still works; updating downloads the runtime again and keeps your account, sessions, and workspace.</string>
+    <string name="agent_update_rootfs_up_to_date">The image matches the current release.</string>
+    <string name="agent_update_rootfs_versions">Installed %1$s → available %2$s</string>
+    <string name="agent_update_rootfs_prepare_reinstall">Preparing to reinstall the image…</string>
+    <string name="agent_update_rootfs_updated_start_host">Image updated. Start the Host.</string>
+    <string name="agent_update_rootfs_updated_restarted">Image updated and the Host restarted</string>
+    <string name="agent_update_rootfs_updated_host_failed">Image updated, but the Host failed to start: %1$s</string>
+    <string name="agent_update_error_rootfs_update_failed">Image update failed: %1$s</string>
+    <string name="agent_update_action_installing">Installing…</string>
+    <string name="agent_update_action_update_rootfs">Update image (optional)</string>
+
+    <!-- ── Update pane: APK client ───────────────────────────────────── -->
+    <string name="agent_update_section_apk">APK client</string>
+    <string name="agent_update_loading_apk_update">Checking for updates…</string>
+    <string name="agent_update_apk_new_version">New version %1$s</string>
+    <string name="agent_update_action_download">Go to download</string>
+    <string name="agent_update_action_all_versions">All versions</string>
+    <string name="agent_update_error_check_update_failed">Failed to check for updates</string>
+    <string name="agent_update_apk_up_to_date">Already up to date</string>
+    <string name="agent_update_link_client_project">View the client project on GitHub</string>
+    <string name="agent_update_link_rootfs_project">View the Rootfs project on GitHub</string>
+    <string name="agent_update_link_bridge_project">View the Bridge plugin project on GitHub</string>
+    <string name="agent_update_source_footer">Update source: github.com/%1$s</string>
+
+</resources>

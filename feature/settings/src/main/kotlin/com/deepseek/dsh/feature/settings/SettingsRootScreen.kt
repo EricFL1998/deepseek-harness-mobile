@@ -314,7 +314,7 @@ fun SettingsRootScreen(
                         if (pluginSettingsPages.isNotEmpty()) {
                             item(key = "plugin_settings_card_head") {
                                 Text(
-                                    text = "插件设置",
+                                    text = stringResource(R.string.settings_misc_plugin_settings),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
@@ -357,7 +357,7 @@ fun SettingsRootScreen(
                         if (pluginComponents.isNotEmpty() && bridgeRegistry != null) {
                             item(key = "plugin_components_card_head") {
                                 Text(
-                                    text = "插件界面",
+                                    text = stringResource(R.string.settings_misc_plugin_pages),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
@@ -396,7 +396,7 @@ fun SettingsRootScreen(
                         SettingsSectionTab.ACCOUNT -> SettingsAccountPane(
                             accountName = accountName,
                             accountBalance = accountBalance,
-                            accountPhone = accountPhone.ifEmpty { "未绑定手机" },
+                            accountPhone = accountPhone.ifEmpty { stringResource(R.string.settings_misc_phone_unbound) },
                             isSignedIn = isSignedIn,
                         avatarUrl = avatarUrl,
                             onManageAccount = onManageAccount,
@@ -559,7 +559,7 @@ private fun PluginSettingsStub(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回设置",
+                contentDescription = stringResource(R.string.settings_misc_back),
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(20.dp),
             )
@@ -580,7 +580,7 @@ private fun PluginSettingsStub(
                 Spacer(modifier = Modifier.height(10.dp))
             }
             Text(
-                text = "该插件的设置界面尚未接入，条目已按 Host 声明生成。",
+                text = stringResource(R.string.settings_misc_page_not_ready),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
             )
