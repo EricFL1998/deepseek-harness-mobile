@@ -1925,13 +1925,36 @@ fun MainAppHost(
                                         val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
                                         // profile 的 bundle 清单在 Host 启动时会被重置成模板，
                                         // 所以把用户明确拨动过的开关记一份，Host 起来后补回去。
-                                        if (result.isSuccess) rememberBundleSelection(packageName, enabled)
+                                        if (result.isSuccess) {
+                                            rememberBundleSelection(packageName, enabled)
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
                                         // 双向同步：开关值以 Host 的实际状态为准。成功时
                                         // 这只是确认；失败时它会把开关拨回真实状态，而不是
                                         // 让界面停在用户按下的那个位置。
                                         dshRepository.refreshBridgePluginCatalog()
                                         dshRepository.refreshPluginInventory(activeHostId)
                                     }
+                                },
+                                onToggleBundleAwait = { packageName, enabled ->
+                                    val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                    if (result.isSuccess) {
+                                        rememberBundleSelection(packageName, enabled)
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            if (enabled) "启用失败：Host 无响应" else "关闭失败：Host 无响应",
+                                            android.widget.Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                    dshRepository.refreshBridgePluginCatalog()
+                                    dshRepository.refreshPluginInventory(activeHostId)
+                                    result.isSuccess
                                 },
                                 onTogglePluginRow = { entryId, enabled ->
                                     scope.launch {

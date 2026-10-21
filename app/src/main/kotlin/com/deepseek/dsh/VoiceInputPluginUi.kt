@@ -153,22 +153,18 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
     // 识别服务
     Text("识别服务", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(6.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        current.providers.forEach { item ->
-            ChoiceChip(
-                text = item.name,
-                selected = item.id == provider.id,
-                enabled = !busy,
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        speech.configure(item.id, current.language).onSuccess { reload += 1 }
-                        busy = false
-                    }
-                },
-            )
-        }
-    }
+    ChoiceChipFlow(
+        options = current.providers.map { item -> item.id to item.name },
+        selected = provider.id,
+        enabled = !busy,
+        onSelect = { providerId ->
+            scope.launch {
+                busy = true
+                speech.configure(providerId, current.language).onSuccess { reload += 1 }
+                busy = false
+            }
+        },
+    )
     Spacer(Modifier.height(4.dp))
     Text(
         text = if (provider.location == "host-local") {
@@ -185,22 +181,18 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
     Spacer(Modifier.height(14.dp))
     Text("识别语言", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     Spacer(Modifier.height(6.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        provider.languages.forEach { language ->
-            ChoiceChip(
-                text = SPEECH_LANGUAGE_NAMES[language] ?: language,
-                selected = language == current.language,
-                enabled = !busy,
-                onClick = {
-                    scope.launch {
-                        busy = true
-                        speech.configure(provider.id, language).onSuccess { reload += 1 }
-                        busy = false
-                    }
-                },
-            )
-        }
-    }
+    ChoiceChipFlow(
+        options = provider.languages.map { language -> language to (SPEECH_LANGUAGE_NAMES[language] ?: language) },
+        selected = current.language,
+        enabled = !busy,
+        onSelect = { language ->
+            scope.launch {
+                busy = true
+                speech.configure(provider.id, language).onSuccess { reload += 1 }
+                busy = false
+            }
+        },
+    )
 
     // 准备卡片
     val preparation = provider.preparation
@@ -302,24 +294,15 @@ private fun VoicePreparationSection(speech: SpeechHooks) {
             Spacer(Modifier.height(10.dp))
             Text("模型下载源", color = colors.labelPrimary, fontSize = 12.sp)
             Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (provider.downloadSources.size > 1) {
-                    ChoiceChip(
-                        text = "自动选择（推荐）",
-                        selected = downloadSource.isBlank(),
-                        enabled = !busy,
-                        onClick = { downloadSource = "" },
-                    )
-                }
-                provider.downloadSources.forEach { source ->
-                    ChoiceChip(
-                        text = sourceLabel(source),
-                        selected = downloadSource == source,
-                        enabled = !busy,
-                        onClick = { downloadSource = source },
-                    )
-                }
-            }
+            ChoiceChipFlow(
+                options = buildList {
+                    if (provider.downloadSources.size > 1) add("" to "自动选择（推荐）")
+                    provider.downloadSources.forEach { source -> add(source to sourceLabel(source)) }
+                },
+                selected = downloadSource,
+                enabled = !busy,
+                onSelect = { downloadSource = it },
+            )
         }
 
         Spacer(Modifier.height(10.dp))

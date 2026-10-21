@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -99,8 +100,16 @@ internal fun PluginSettingsSection(
     var reload by remember(namespace) { mutableStateOf(0) }
 
     LaunchedEffect(namespace, reload) {
-        document = runCatching { hooks.loadDocument(namespace) }.getOrNull()
-        loaded = true
+        loaded = false
+        // 插件刚启用时 Host 可能还没挂上它的设置命名空间（bridge 的 describe 会回
+        // "no configurable settings document"）。读不到就退避重试，避免停在官方的
+        //「暂不可用」文案上不再刷新。
+        repeat(20) {
+            document = runCatching { hooks.loadDocument(namespace) }.getOrNull()
+            loaded = true
+            if (document != null) return@LaunchedEffect
+            kotlinx.coroutines.delay(700)
+        }
     }
 
     fun valueOf(field: PluginField): String {
@@ -214,6 +223,57 @@ internal fun PluginSettingsSection(
     }
 }
 
+/**
+ * 选项胶囊组：按可用宽度自动换行。
+ *
+ * 官方设置页的下拉/单选在手机上换成胶囊；像「DeepSeek Flash · 官方 API（付费）」
+ * 这种长标签用单行 Row 会被压成竖排，所以这里用 FlowRow 让它们按整块宽度换行。
+ *
+ * @param options 值 → 显示文案。
+ * @param selected 当前值。
+ * @param enabled 是否可点。
+ * @param onSelect 选中回调。
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+internal fun ChoiceChipFlow(
+    options: List<Pair<String, String>>,
+    selected: String,
+    enabled: Boolean = true,
+    onSelect: (String) -> Unit,
+) {
+    val colors = LocalDshPanelColors.current
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { (value, label) ->
+            val active = value == selected
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (active) colors.buttonPrimaryFill else colors.bgModulePlatform)
+                    .border(
+                        0.5.dp,
+                        if (active) colors.buttonPrimaryFill else colors.borderL2,
+                        RoundedCornerShape(9.dp),
+                    )
+                    .clickable(enabled = enabled) { onSelect(value) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = label,
+                    color = if (active) colors.labelPrimaryForeground else colors.labelSecondary,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 /** 一个 CHOICE 字段：等宽选项条。 */
 @Composable
 private fun ChoiceField(field: PluginField, selected: String, onSelect: (String) -> Unit) {
@@ -225,29 +285,7 @@ private fun ChoiceField(field: PluginField, selected: String, onSelect: (String)
             Text(field.hint, color = colors.labelTertiary, fontSize = 11.5.sp, lineHeight = 16.sp)
         }
         Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            field.choices.forEach { (value, label) ->
-                val active = value == selected
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (active) colors.buttonPrimaryFill else colors.bgModulePlatform)
-                        .border(
-                            0.5.dp,
-                            if (active) colors.buttonPrimaryFill else colors.borderL2,
-                            RoundedCornerShape(9.dp),
-                        )
-                        .clickable { onSelect(value) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        text = label,
-                        color = if (active) colors.labelPrimaryForeground else colors.labelSecondary,
-                        fontSize = 12.sp,
-                    )
-                }
-            }
-        }
+        ChoiceChipFlow(options = field.choices, selected = selected, onSelect = onSelect)
     }
 }
 

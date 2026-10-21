@@ -111,6 +111,8 @@ fun PluginsScreen(
     /** 安装一个插件 spec（包名 / Git 地址 / 本地绝对路径）。挂起：Host 安装耗时以秒计。 */
     onInstallPlugin: suspend (String) -> Result<String>,
     onToggleBundle: (String, Boolean) -> Unit = { _, _ -> },
+    /** 拨动 bundle 总开关并等 Host 结果（详情页开关用；失败时界面回弹并 toast）。 */
+    onToggleBundleAwait: suspend (String, Boolean) -> Boolean = { _, _ -> false },
     /** 启停一条 Loader 行插件（第三方插件，非 bundle）：参数为 entryId 与目标状态。 */
     onTogglePluginRow: (String, Boolean) -> Unit = { _, _ -> },
     /** 启停 bundle 里的一个子组件（bundle patch 插进来的一行 Loader entry）。 */
@@ -157,7 +159,8 @@ fun PluginsScreen(
     var installStatusMessage by remember { mutableStateOf<String?>(null) }
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
-    var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
+    // 只记包名：详情每次从最新桥目录取对象，开关后状态才能立刻反映（否则会停留在打开时的快照，表现为「关不掉」）。
+    var selectedBundleName by remember { mutableStateOf<String?>(null) }
     // 「内置插件配置」的每一行后面都是 Host 的设置文档：点开就是可编辑的表单。
     var selectedConfig by remember { mutableStateOf<ConfigEntryRow?>(null) }
     // 已安装的第三方行插件详情（伴侣 APK 作为它的子组件出现在里面）。
@@ -376,7 +379,7 @@ fun PluginsScreen(
      * 打开子页面时报 `true`，顶栏的返回就只关子页面、不离开插件页；关完报 `false`，
      * 返回恢复成「离开插件页」。子页面自己不再画返回箭头 —— 否则一条返回会出现两次。
      */
-    val detailOpen = selectedBundle != null ||
+    val detailOpen = selectedBundleName != null ||
         selectedNativePlugin != null ||
         selectedRowPlugin != null ||
         selectedConfig != null ||
@@ -396,13 +399,17 @@ fun PluginsScreen(
             selectedConfig != null -> selectedConfig = null
             selectedNativePlugin != null -> selectedNativePlugin = null
             selectedRowPlugin != null -> selectedRowPlugin = null
-            selectedBundle != null -> selectedBundle = null
+            selectedBundleName != null -> selectedBundleName = null
             showMorePlugins -> showMorePlugins = false
             selectedPlugin != null -> selectedPlugin = null
         }
     }
 
-    val bundleDetail = selectedBundle
+    val bundleDetail = selectedBundleName?.let { name ->
+        derivedExperimentalBundles.firstOrNull { it.packageName == name }
+            ?: derivedInstalledBundles.firstOrNull { it.packageName == name }
+            ?: derivedMoreBundles.firstOrNull { it.packageName == name }
+    }
     // 从 bundle 详情点开伴侣 APK 详情时，先让伴侣详情占据整页；返回后回到 bundle
     // 详情（`selectedBundle` 仍保留）。
     if (bundleDetail != null && selectedNativePlugin == null) {
@@ -421,7 +428,7 @@ fun PluginsScreen(
                     },
                     onOpenCompanion = { companion -> selectedNativePlugin = companion },
                     onUninstallCompanion = onUninstallCompanion,
-                    onToggle = { enabled -> onToggleBundle(bundleDetail.packageName, enabled) },
+                    onToggle = { enabled -> onToggleBundleAwait(bundleDetail.packageName, enabled) },
                     onToggleComponent = onToggleComponent,
                     onUninstall = { onUninstall(SurfaceItem(pluginId = bundleDetail.packageName, slot = "host.bundle", title = bundleDetail.title)) },
                     pluginHooks = PluginUiHooks(
@@ -513,7 +520,7 @@ fun PluginsScreen(
                 // 返回由 App 顶栏承载（`backSignal`），页面内不再重复画箭头。
                 MorePluginsScreen(
                     bundles = derivedMoreBundles,
-                    onOpen = { selectedBundle = it },
+                    onOpen = { selectedBundleName = it.packageName },
                     onToggle = { bundle, enabled -> onToggleBundle(bundle.packageName, enabled) },
                 )
             } else if (detail != null) {
@@ -677,7 +684,7 @@ fun PluginsScreen(
                             InstalledHostBundleRow(
                                 bundle = bundle,
                                 showDivider = index != experimentalBundles.lastIndex,
-                                onOpen = { selectedBundle = bundle },
+                                onOpen = { selectedBundleName = bundle.packageName },
                                 onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
                                 onUninstall = { },
                                 locked = isLockedBundle(bundle.packageName),
@@ -729,7 +736,7 @@ fun PluginsScreen(
                                     bundle = bundle,
                                     showDivider = index != hostBundles.lastIndex ||
                                         surfaces.isNotEmpty() || hostRows.isNotEmpty(),
-                                    onOpen = { selectedBundle = bundle },
+                                    onOpen = { selectedBundleName = bundle.packageName },
                                     onToggle = { enabled ->
                                         onToggleBundle(bundle.packageName, enabled)
                                     },
@@ -1389,12 +1396,18 @@ private fun BundleDetailContent(
     onToggleCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem, Boolean) -> Unit,
     onOpenCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Unit,
     onUninstallCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Unit,
-    onToggle: (Boolean) -> Unit,
+    /** 拨动 bundle 总开关；返回 Host 是否接受（失败由调用方 toast，界面回弹）。 */
+    onToggle: suspend (Boolean) -> Boolean,
     onToggleComponent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
     pluginHooks: PluginUiHooks,
 ) {
     val colors = LocalDshPanelColors.current
+    // 开关双向：点下立刻反映在界面上；Host 确认后由最新的 bundle.enabled 纠正，
+    // 失败或 Host 重载期间也不会停留在旧快照上「看起来关不掉」。
+    var enabledLocal by remember(bundle.packageName) { mutableStateOf(bundle.enabled) }
+    LaunchedEffect(bundle.enabled) { enabledLocal = bundle.enabled }
+    val toggleScope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1470,18 +1483,33 @@ private fun BundleDetailContent(
                     )
                 }
             } else {
-                DshSwitch(checked = bundle.enabled, onCheckedChange = onToggle)
+                DshSwitch(
+                    checked = enabledLocal,
+                    onCheckedChange = { next ->
+                        // 先乐观更新；Host 拒绝就回弹，失败提示由调用方 toast。
+                        enabledLocal = next
+                        toggleScope.launch {
+                            val ok = onToggle(next)
+                            if (!ok) enabledLocal = bundle.enabled
+                        }
+                    },
+                )
             }
         }
         Spacer(Modifier.height(28.dp))
+        // 主 bundle 关掉时，它包含的行全部不运行：组件状态与开关都要跟着总开关
+        // 立刻刷新（否则会出现「总开关关着、子组件还显示运行中」的错觉）。
+        val bundleOn = enabledLocal
         Text(
-            text = "包含的组件 共 ${bundle.rows.size + companions.size} 个 · ${bundle.rows.count { it.enabled }} 运行中",
+            text = "包含的组件 共 ${bundle.rows.size + companions.size} 个 · " +
+                "${if (bundleOn) bundle.rows.count { it.enabled } else 0} 运行中",
             color = colors.labelPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(8.dp))
         bundle.rows.forEach { component ->
+            val componentRunning = bundleOn && component.enabled
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1496,16 +1524,16 @@ private fun BundleDetailContent(
                     Text(component.moduleName, color = colors.labelTertiary, fontFamily = FontFamily.Monospace, fontSize = 10.5.sp)
                 }
                 // 开关反映这一行的真实状态（Host 的 Loader inventory），拨动后
-                // 由 Host 只重载这一行；Host 没把这一行解析成 Loader 入口时没有
-                // 可拨的目标，开关保持禁用而不是假装能开。
+                // 由 Host 只重载这一行；Host 没把这一行解析成 Loader 入口或总开关
+                // 关着时没有可拨的目标，开关保持禁用而不是假装能开。
                 Text(
-                    text = if (component.enabled) "运行中" else "已停用",
-                    color = if (component.enabled) colors.labelSecondary else colors.labelTertiary,
+                    text = if (componentRunning) "运行中" else "已停用",
+                    color = if (componentRunning) colors.labelSecondary else colors.labelTertiary,
                     fontSize = 11.sp,
                 )
                 DshSwitch(
-                    checked = component.enabled,
-                    enabled = component.entryId != null,
+                    checked = componentRunning,
+                    enabled = bundleOn && component.entryId != null,
                     onCheckedChange = { enabled ->
                         component.entryId?.let { entryId ->
                             onToggleComponent(entryId, enabled)
