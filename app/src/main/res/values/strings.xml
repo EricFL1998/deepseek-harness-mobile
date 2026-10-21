@@ -159,6 +159,14 @@
     <string name="plugins_capabilities">Declared capabilities</string>
     <string name="plugins_signature">Signature fingerprint</string>
     <string name="plugins_uninstall">Uninstall</string>
+    <string name="plugins_components_count">Contains %1$d components</string>
+    <string name="plugins_no_companion">This plugin declares no native companion.</string>
+    <string name="plugins_uninstall_companion">Uninstall native companion</string>
+    <string name="plugins_source_info">Source information</string>
+    <string name="plugins_code_source">Code source</string>
+    <string name="plugins_status">Status</string>
+    <string name="plugins_status_running">Running</string>
+    <string name="plugins_status_stopped">Disabled</string>
     <string name="plugins_builtin_config">Built-in Plugins</string>
     <string name="plugins_experimental">Experimental Plugins</string>
     <string name="plugins_more">More</string>

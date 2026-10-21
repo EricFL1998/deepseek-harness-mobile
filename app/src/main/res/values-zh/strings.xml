@@ -159,6 +159,14 @@
     <string name="plugins_capabilities">声明的能力</string>
     <string name="plugins_signature">签名指纹</string>
     <string name="plugins_uninstall">卸载</string>
+    <string name="plugins_components_count">包含的组件 共 %1$d 个</string>
+    <string name="plugins_no_companion">这个插件没有声明原生伴侣。</string>
+    <string name="plugins_uninstall_companion">卸载原生伴侣</string>
+    <string name="plugins_source_info">来源信息</string>
+    <string name="plugins_code_source">代码来源</string>
+    <string name="plugins_status">运行状态</string>
+    <string name="plugins_status_running">运行中</string>
+    <string name="plugins_status_stopped">已停用</string>
     <string name="plugins_builtin_config">内置插件配置</string>
     <string name="plugins_experimental">实验性插件</string>
     <string name="plugins_more">更多</string>

@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -130,7 +131,7 @@ internal fun InstalledPluginDetailPage(
                 ) {
                     Icon(
                         painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
-                        contentDescription = "卸载",
+                        contentDescription = stringResource(R.string.plugins_uninstall),
                         tint = colors.stateErrorPrimary,
                         modifier = Modifier.size(14.dp),
                     )
@@ -140,7 +141,7 @@ internal fun InstalledPluginDetailPage(
 
         Spacer(Modifier.height(28.dp))
         Text(
-            text = "包含的组件 共 ${companions.size} 个",
+            text = stringResource(R.string.plugins_components_count, companions.size),
             color = colors.labelPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
@@ -148,7 +149,7 @@ internal fun InstalledPluginDetailPage(
         Spacer(Modifier.height(4.dp))
         if (companions.isEmpty()) {
             Text(
-                text = "这个插件没有声明原生伴侣。",
+                text = stringResource(R.string.plugins_no_companion),
                 color = colors.labelTertiary,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
@@ -200,7 +201,7 @@ internal fun InstalledPluginDetailPage(
                                     .border(0.5.dp, colors.borderL2, RoundedCornerShape(9.dp))
                                     .padding(horizontal = 7.dp, vertical = 2.dp),
                             ) {
-                                Text("原生", color = colors.labelSecondary, fontSize = 10.sp, lineHeight = 12.sp)
+                                Text(stringResource(R.string.plugins_native_badge), color = colors.labelSecondary, fontSize = 10.sp, lineHeight = 12.sp)
                             }
                         }
                         Text(
@@ -225,7 +226,7 @@ internal fun InstalledPluginDetailPage(
                     ) {
                         Icon(
                             painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_trash_outline),
-                            contentDescription = "卸载原生伴侣",
+                            contentDescription = stringResource(R.string.plugins_uninstall_companion),
                             tint = colors.stateErrorPrimary,
                             modifier = Modifier.size(14.dp),
                         )
@@ -240,9 +241,13 @@ internal fun InstalledPluginDetailPage(
             }
         }
         Spacer(Modifier.height(28.dp))
-        Text("来源信息", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.plugins_source_info), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
-        DetailFactRow(label = "代码来源", value = plugin.moduleName, monospace = true)
-        DetailFactRow(label = "运行状态", value = if (plugin.enabled) "运行中" else "已停用")
+        DetailFactRow(label = stringResource(R.string.plugins_code_source), value = plugin.moduleName, monospace = true)
+        DetailFactRow(
+            label = stringResource(R.string.plugins_status),
+            value = if (plugin.enabled) stringResource(R.string.plugins_status_running)
+            else stringResource(R.string.plugins_status_stopped),
+        )
     }
 }
