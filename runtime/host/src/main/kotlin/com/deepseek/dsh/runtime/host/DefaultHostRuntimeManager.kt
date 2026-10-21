@@ -210,7 +210,7 @@ class DefaultHostRuntimeManager(
     private fun applyBundledRuntimePatches() {
         // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
-        val patchRevision = "24"
+        val patchRevision = "30"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
@@ -473,6 +473,9 @@ class DefaultHostRuntimeManager(
     private companion object {
         /** bridge 插件在 cordis 树里的行 id；用于幂等判断。 */
         const val BRIDGE_BUNDLE_ID = "id: dsh-mobile-bridge-plugin"
+
+        /** 插件包中声明的 HTTPS 域名；用于通用 hosts 预解析。 */
+        val URL_HOST = Regex("""https://([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)""")
     }
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {
@@ -515,9 +518,8 @@ class DefaultHostRuntimeManager(
         // activates it. Create their parent directories on Android first so the loader
         // never depends on proot's recursive-mkdir behavior for a fresh storage root.
         File(layout.rootfsDir, "root/.dsh/genui/.designs").mkdirs()
-        // 订阅插件把 OAuth 凭据写到 ~/.dsh/plugins/<provider>/。proot 的
-        // 递归 mkdir 在缺父目录时会报 ENOENT，这里先建好 Kimi 的数据目录。
-        File(layout.rootfsDir, "root/.dsh/plugins/kimi-oauth").mkdirs()
+        // 通用插件存储根：插件自行创建子目录。只建根目录，不按插件名适配。
+        File(layout.rootfsDir, "root/.dsh/plugins").mkdirs()
         File(workspacePath).mkdirs()
         // proot 需要能 chdir 进 bind 目标；rootfs 内 /workspace 必须是可进入目录。
         File(layout.rootfsDir, "workspace").apply {
@@ -530,20 +532,29 @@ class DefaultHostRuntimeManager(
             File(layout.rootfsDir, "root/.dsh/tmp/$it").mkdirs()
         }
         File(layout.rootfsDir, "root/.dsh/tmp").mkdirs()
-        // rootfs 内没有 Android 的 DNS 配置，登录/模型请求会因解析失败报 network。
+        // 通用 DNS：优先使用 Android 当前网络的 DNS 服务器，任意域名都能解析；
+        // 公共 DNS 仅作兜底，不再为每个插件/域名单独写解析。
+        val dnsServers = runCatching {
+            val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
+            manager?.activeNetwork?.let { network ->
+                manager.getLinkProperties(network)?.dnsServers?.mapNotNull { it.hostAddress }
+            }.orEmpty()
+        }.getOrDefault(emptyList())
+        val resolvers = (dnsServers + listOf("8.8.8.8", "1.1.1.1"))
+            .filter { it.isNotBlank() && !it.contains(':') }
+            .distinct()
+            .take(3)
         File(layout.rootfsDir, "etc/resolv.conf").apply {
             parentFile?.mkdirs()
-            writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
+            writeText(resolvers.joinToString("") { "nameserver $it\n" })
         }
         // 把域名预先解析并写入 hosts，绕开 proot 内 glibc DNS 的 EAI_AGAIN。
         //
-        // 这里不只列平台域名：插件页「添加插件」会在 Host 内跑 git/pnpm，它们
-        // 同样只认 hosts。缺了 GitHub 与 npm registry 的条目，安装会停在
-        // 「Could not resolve host」——这也是插件页安装失败的根因。每次启动
-        // 重新解析，IP 变了也能跟上。
+        // 除了插件安装/平台自身需要的固定域名，还会扫描已安装插件包中声明的
+        // https 域名。这样任何插件（OAuth、API、CDN）都不需要单独适配 hosts。
         runCatching {
             val hosts = File(layout.rootfsDir, "etc/hosts")
-            val hostNames = listOf(
+            val infraHosts = listOf(
                 // 平台账号与模型
                 "platform.deepseek.com",
                 "api.deepseek.com",
@@ -555,15 +566,37 @@ class DefaultHostRuntimeManager(
                 // 依赖包：官方 npm 与国内镜像
                 "registry.npmjs.org",
                 "registry.npmmirror.com",
-                // 订阅 OAuth 插件：Kimi Code 登录与模型接口
-                "auth.kimi.com",
-                "api.kimi.com",
-                "www.kimi.com",
             )
-            val entries = hostNames.mapNotNull { host ->
-                runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
-                    ?.let { "$it $host" }
-            }
+            val declaredHosts = runCatching {
+                val modules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules")
+                if (!modules.isDirectory) {
+                    emptyList()
+                } else {
+                    modules.walkTopDown()
+                        .maxDepth(3)
+                        .filter { file ->
+                            file.isFile && file.length() in 1..2_000_000 &&
+                                file.extension.lowercase() in setOf("js", "mjs", "cjs")
+                        }
+                        .take(240)
+                        .flatMap { file ->
+                            runCatching {
+                                URL_HOST.findAll(file.readText().take(400_000))
+                                    .map { it.groupValues[1] }
+                                    .toList()
+                            }.getOrDefault(emptyList())
+                        }
+                        .filter { host -> host.contains('.') }
+                        .toList()
+                }
+            }.getOrDefault(emptyList())
+            val entries = (infraHosts + declaredHosts)
+                .distinct()
+                .take(160)
+                .mapNotNull { host ->
+                    runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
+                        ?.let { "$it $host" }
+                }
             if (entries.isNotEmpty()) {
                 hosts.writeText(entries.joinToString("\n", postfix = "\n"))
             }
@@ -612,7 +645,7 @@ class DefaultHostRuntimeManager(
         val endpointDeferred = CompletableDeferred<ProcessOutputParser.ParsedEndpoint>()
 
         val launchResult = runner.launchProcess(
-            command = cmd,
+            command = launchCmd,
             workingDir = layout.baseDir,
             logFile = logFile,
             environment = mapOf(

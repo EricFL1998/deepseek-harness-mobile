@@ -2303,7 +2303,13 @@ fun MainAppHost(
                                 hostToken = status?.token ?: dshApplication.localHostToken,
                                 hostPortProvider = { dshApplication.localHostPort.takeIf { it > 0 } ?: (status?.port ?: 0) },
                                 pluginRpc = { method, payload ->
-                                    dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                                    val first = dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                                    val firstText = first.getOrNull() ?: first.exceptionOrNull()?.message
+                                    if (ensureMissingPluginDir(context, firstText)) {
+                                        dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                                    } else {
+                                        first
+                                    }
                                 },
                                 loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
                                 savePluginSettings = { ns, patch, revision ->
@@ -3223,6 +3229,21 @@ private fun formatAmount(raw: String): String {
 private fun parseWorkspaceId(raw: String?): String? {
     if (raw.isNullOrBlank()) return null
     return Regex("\"workspaceId\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.getOrNull(1)
+}
+
+/**
+ * 通用插件目录自愈：插件在 proot 里第一次 mkdir 可能失败（ENOENT/ENOSYS），
+ * 从错误里取出它要创建的目录，用 App 进程创建后重试一次。
+ *
+ * 不按插件名适配：只接受 rootfs 内的 `.dsh/` 路径，任何插件都适用。
+ */
+private fun ensureMissingPluginDir(context: android.content.Context, message: String?): Boolean {
+    if (message.isNullOrBlank()) return false
+    val guestPath = Regex("mkdir '([^']+)'").find(message)?.groupValues?.getOrNull(1) ?: return false
+    if (!guestPath.startsWith("/root/.dsh/")) return false
+    val relative = guestPath.removePrefix("/")
+    val target = File(context.filesDir, "rootfs/$relative")
+    return runCatching { target.mkdirs() || target.isDirectory }.getOrDefault(false)
 }
 
 
