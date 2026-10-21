@@ -9,7 +9,7 @@
     <string name="nav_chat">对话</string>
     <string name="nav_sessions">会话</string>
     <string name="nav_files">工作区文件</string>
-    <string name="nav_plugins">插件生态</string>
+    <string name="nav_plugins">插件</string>
     <string name="nav_hosts">主机与连接中心</string>
     <string name="nav_approval">系统审批中心</string>
     <string name="nav_settings">设置与偏好</string>
@@ -121,7 +121,7 @@
     <string name="drawer_account_signin">登录官方账号</string>
     <string name="drawer_account_login">登录</string>
     <string name="drawer_workspaces">工作区</string>
-    <string name="drawer_nav_plugins">插件发现与生态</string>
+    <string name="drawer_nav_plugins">插件</string>
     <string name="drawer_nav_schedule">定时自动化任务</string>
     <string name="drawer_nav_hosts">远程主机控制</string>
     <string name="drawer_nav_surface">内置 Surface 适配</string>
@@ -132,8 +132,8 @@
     <string name="action_search">搜索会话</string>
 
     <!-- 插件管理 -->
-    <string name="plugins_title">插件生态与适配</string>
-    <string name="plugins_subtitle">现有插件零改动（Web 岛）+ 未来插件原生（SDUI）</string>
+    <string name="plugins_title">插件</string>
+    <string name="plugins_subtitle">安装、启用和配置插件</string>
     <string name="action_add_plugin">添加插件</string>
     <string name="plugin_dialog_title">添加插件 (官方安装规范)</string>
     <string name="plugin_dialog_desc">输入插件 npm 包名（如 dsh-subscription-oauth），即 README 安装命令中 dsh plugin add 之后的部分。</string>

@@ -133,7 +133,7 @@
     <string name="drawer_account_feedback">Feedback</string>
     <string name="drawer_account_signout">Sign Out</string>
     <string name="drawer_account_signin">Sign In with Official Account</string>
-    <string name="drawer_nav_plugins">Plugin Market &amp; Ecosystem</string>
+    <string name="drawer_nav_plugins">Plugins</string>
     <string name="drawer_nav_schedule">Scheduled Automation</string>
     <string name="drawer_nav_hosts">Remote Host Control</string>
     <string name="drawer_nav_surface">Built-in Surface Adapter</string>
@@ -144,8 +144,8 @@
     <string name="action_search">Search sessions</string>
 
     <!-- Plugins Screen -->
-    <string name="plugins_title">Plugins &amp; Extensions</string>
-    <string name="plugins_subtitle">Zero modification (Web Island) + Native SDUI</string>
+    <string name="plugins_title">Plugins</string>
+    <string name="plugins_subtitle">Install, enable and configure plugins</string>
     <string name="action_add_plugin">Add Plugin</string>
     <string name="plugin_dialog_title">Add Plugin (Official Specification)</string>
     <string name="plugin_dialog_desc">Enter plugin npm package name (e.g. dsh-subscription-oauth), as following dsh plugin add in documentation.</string>
