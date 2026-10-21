@@ -373,6 +373,102 @@ fun MainAppHost(
         initial = com.deepseek.dsh.core.model.ComposerStats()
     )
 
+    // 录音输入：权限、录音与转写由 App 负责；草稿在 ChatScreen 里，转写结果
+    // 作为一次性事件传下去（官方 composer activity 的同样职责划分）。
+    val voiceRecorder = remember { com.deepseek.dsh.voice.VoiceRecorder() }
+    var voiceRecording by remember { mutableStateOf(false) }
+    var voiceSeconds by remember { mutableStateOf(0) }
+    var voiceLevel by remember { mutableStateOf(0f) }
+    var voiceBusy by remember { mutableStateOf(false) }
+    var voiceError by remember { mutableStateOf<String?>(null) }
+    var voiceTranscript by remember { mutableStateOf<String?>(null) }
+    val voiceEnabled = remember(dshRepository.bridgePluginCatalogFlow.value) {
+        dshRepository.bridgePluginCatalogFlow.value.bundles.any {
+            it.name == VoiceInputPluginUi.bundle && it.enabled
+        }
+    }
+    val voicePermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            voiceError = null
+            voiceSeconds = 0
+            voiceRecording = voiceRecorder.start()
+            if (!voiceRecording) voiceError = "当前设备不支持录音，请检查麦克风。"
+        } else {
+            voiceError = "麦克风权限未开启，请在系统设置中允许访问。"
+        }
+    }
+    fun startVoice() {
+        val granted = context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            voiceError = null
+            voiceSeconds = 0
+            voiceRecording = voiceRecorder.start()
+            if (!voiceRecording) voiceError = "当前设备不支持录音，请检查麦克风。"
+        } else {
+            voicePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+        }
+    }
+    fun stopVoice() {
+        val wav = voiceRecorder.stop()
+        voiceRecording = false
+        voiceLevel = 0f
+        if (wav == null) {
+            voiceError = "未识别到语音"
+            return
+        }
+        voiceBusy = true
+        scope.launch {
+            val catalog = dshRepository.speechCatalog(activeHostId).getOrNull()
+            val provider = catalog?.selected
+            if (catalog == null || provider == null) {
+                voiceBusy = false
+                voiceError = "语音识别失败：语音服务暂不可用"
+                return@launch
+            }
+            val encoded = android.util.Base64.encodeToString(wav, android.util.Base64.NO_WRAP)
+            dshRepository.speechTranscribe(activeHostId, provider.id, catalog.language, encoded).fold(
+                onSuccess = { text ->
+                    if (text.isBlank()) {
+                        voiceError = "未识别到语音"
+                    } else {
+                        voiceTranscript = text
+                        voiceError = null
+                    }
+                },
+                onFailure = { error ->
+                    voiceError = "语音识别失败：${error.message ?: "未知错误"}"
+                },
+            )
+            voiceBusy = false
+        }
+    }
+    fun cancelVoice() {
+        voiceRecorder.cancel()
+        voiceRecording = false
+        voiceLevel = 0f
+    }
+    DisposableEffect(voiceRecorder) {
+        voiceRecorder.onLevel = { level -> voiceLevel = level }
+        onDispose {
+            voiceRecorder.onLevel = null
+            voiceRecorder.cancel()
+        }
+    }
+    LaunchedEffect(voiceRecording) {
+        while (voiceRecording) {
+            kotlinx.coroutines.delay(1_000)
+            voiceSeconds += 1
+            // Host 的录音上限是 120 秒（catalog.maxDurationSeconds），到点自动停止。
+            if (voiceSeconds >= 120) {
+                stopVoice()
+                break
+            }
+        }
+    }
+
     val builtInPluginsList by dshRepository.builtInPluginsFlow.collectAsState()
     val pluginSnapshot by dshRepository.pluginSnapshotFlow.collectAsState()
     val pluginManagerSnapshot by dshRepository.pluginManagerSnapshotFlow.collectAsState()
@@ -1642,6 +1738,17 @@ fun MainAppHost(
                                     }
                                 },
                                 stats = currentSessionStats,
+                                voiceEnabled = voiceEnabled,
+                                voiceRecording = voiceRecording,
+                                voiceSeconds = voiceSeconds,
+                                voiceLevel = voiceLevel,
+                                voiceBusy = voiceBusy,
+                                voiceError = voiceError,
+                                voiceTranscript = voiceTranscript,
+                                onVoiceStart = { startVoice() },
+                                onVoiceStop = { stopVoice() },
+                                onVoiceCancel = { cancelVoice() },
+                                onVoiceTranscriptConsumed = { voiceTranscript = null },
                                 onOpenAttachmentMenu = {
                                     activePage = ActivePage.FILES
                                 }

@@ -36,6 +36,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -197,11 +198,32 @@ fun ModernChatScreen(
     onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
     onReasoningSelected: (ReasoningOption) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
+    // 录音输入（官方录音输入插件的 composer activity）：麦克风按钮与录音条。
+    voiceEnabled: Boolean = false,
+    voiceRecording: Boolean = false,
+    voiceSeconds: Int = 0,
+    voiceLevel: Float = 0f,
+    voiceBusy: Boolean = false,
+    voiceError: String? = null,
+    voiceTranscript: String? = null,
+    onVoiceStart: () -> Unit = {},
+    onVoiceStop: () -> Unit = {},
+    onVoiceCancel: () -> Unit = {},
+    onVoiceTranscriptConsumed: () -> Unit = {},
     isThinking: Boolean = false,
     onStopClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var inputText by remember { mutableStateOf("") }
+    // 语音转写结果插进草稿：官方 insertText 是在录前记下的光标处插入；
+    // 原生草稿是单一字符串，这里追加到末尾，同样可继续编辑后发送。
+    LaunchedEffect(voiceTranscript) {
+        val transcript = voiceTranscript?.trim()
+        if (!transcript.isNullOrEmpty()) {
+            inputText = if (inputText.isBlank()) transcript else inputText.trimEnd() + " " + transcript
+        }
+        if (voiceTranscript != null) onVoiceTranscriptConsumed()
+    }
     var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
     var isPlanMode by remember { mutableStateOf(false) }
     var commandSheetOpen by remember { mutableStateOf(false) }
@@ -366,6 +388,24 @@ fun ModernChatScreen(
             isGenerating = isThinking,
             onStop = onStopClick,
             stats = stats,
+
+            voiceEnabled = voiceEnabled,
+
+            voiceRecording = voiceRecording,
+
+            voiceSeconds = voiceSeconds,
+
+            voiceLevel = voiceLevel,
+
+            voiceBusy = voiceBusy,
+
+            voiceError = voiceError,
+
+            onVoiceStart = onVoiceStart,
+
+            onVoiceStop = onVoiceStop,
+
+            onVoiceCancel = onVoiceCancel,
             showDockStats = messages.isNotEmpty() || isSending
         )
     }
@@ -1959,7 +1999,17 @@ fun BottomInputBar(
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
-    showDockStats: Boolean = true
+    showDockStats: Boolean = true,
+    // 录音输入：麦克风按钮与录音条（官方 conversation.input.activity）。
+    voiceEnabled: Boolean = false,
+    voiceRecording: Boolean = false,
+    voiceSeconds: Int = 0,
+    voiceLevel: Float = 0f,
+    voiceBusy: Boolean = false,
+    voiceError: String? = null,
+    onVoiceStart: () -> Unit = {},
+    onVoiceStop: () -> Unit = {},
+    onVoiceCancel: () -> Unit = {},
 ) {
     val panelColors = dshPanelColors()
     val plusInteraction = remember { MutableInteractionSource() }
@@ -1979,6 +2029,76 @@ fun BottomInputBar(
             spec = kotlinx.serialization.json.JsonObject(emptyMap()),
             modifier = Modifier.padding(bottom = 6.dp),
         )
+        // 录音条：官方展开后的 composer 工具条（波形 + 计时 + 取消 / 停止并识别）。
+        if (voiceRecording) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(panelColors.bgModulePlatform)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // 电平条：8 段，按当前 RMS 亮起。
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    repeat(8) { index ->
+                        val threshold = (index + 1) / 8f
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .height(if (voiceLevel >= threshold) 16.dp else 8.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(
+                                    if (voiceLevel >= threshold) MaterialTheme.colorScheme.primary
+                                    else panelColors.labelCaption,
+                                ),
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "正在录音… ${voiceSeconds}s",
+                        color = panelColors.labelSecondary,
+                        fontSize = 12.sp,
+                    )
+                }
+                Text(
+                    text = "取消",
+                    color = panelColors.labelSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onVoiceCancel)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(enabled = !voiceBusy, onClick = onVoiceStop)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        text = if (voiceBusy) "识别中…" else "停止并识别",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
+        if (voiceEnabled && voiceError != null) {
+            Text(
+                text = voiceError,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 11.5.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2107,6 +2227,26 @@ fun BottomInputBar(
                         slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_OVERLAY,
                         spec = kotlinx.serialization.json.JsonObject(emptyMap()),
                     )
+
+                    // 录音输入：麦克风动作（官方 conversation.input.activity）。
+                    // 录音中由上方录音条承担停止/取消，这里只保留状态指示。
+                    if (voiceEnabled && !voiceRecording) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(panelColors.bgModulePlatform)
+                                .clickable(enabled = !voiceBusy, onClick = onVoiceStart),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Filled.Mic,
+                                contentDescription = "开始录音",
+                                tint = panelColors.labelPrimary,
+                                modifier = Modifier.size(15.dp),
+                            )
+                        }
+                    }
 
                     // 生成中：发送按钮切换为停止按钮，两者不同时出现。
                     if (isGenerating) {

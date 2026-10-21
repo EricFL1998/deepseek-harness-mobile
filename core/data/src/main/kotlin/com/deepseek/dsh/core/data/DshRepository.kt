@@ -668,6 +668,37 @@ class DshRepository(
         return rpcRaw(hostId, "speech/cancelPreparation", args.toString()).map { true }
     }
 
+    /**
+     * 转写一段录音。
+     *
+     * @param hostId Host 标识。
+     * @param providerId 识别服务 id。
+     * @param language 识别语言（auto/zh/en/…）。
+     * @param audioBase64 规范 16 kHz 单声道 PCM16 WAV 的 base64（无 data URL 前缀）。
+     * @returns 识别出的文字。
+     */
+    suspend fun speechTranscribe(
+        hostId: String,
+        providerId: String,
+        language: String,
+        audioBase64: String,
+    ): Result<String> {
+        val args = buildJsonObject {
+            put(
+                "request",
+                buildJsonObject {
+                    put("audioBase64", audioBase64)
+                    put("providerId", providerId)
+                    put("language", language)
+                },
+            )
+        }
+        return rpcRaw(hostId, "speech/transcribe", args.toString()).mapCatching { raw ->
+            val value = remoteValueOrThrow(raw) as? JsonObject ?: error("语音转写没有返回结果")
+            (value["text"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        }
+    }
+
     /** 取出 Remote 响应信封里的 `result.value`；`ok=false` 时抛出 Host 的错误码。 */
     private fun remoteValueOrThrow(raw: String): JsonElement? {        val root = credentialJson.parseToJsonElement(raw) as? JsonObject
             ?: error("无法解析 Host 响应")
