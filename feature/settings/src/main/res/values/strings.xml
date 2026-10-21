@@ -132,7 +132,7 @@
     <string name="plugins_title">Plugins</string>
     <string name="plugins_subtitle">Install, enable and configure plugins</string>
     <string name="action_add_plugin">Add Plugin</string>
-    <string name="plugin_dialog_title">Add Plugin (Official Specification)</string>
+    <string name="plugin_dialog_title">Add Plugin</string>
     <string name="plugin_dialog_desc">Enter plugin npm package name (e.g. dsh-subscription-oauth), as following dsh plugin add in documentation.</string>
     <string name="plugin_dialog_hint">e.g. dsh-subscription-oauth</string>
     <string name="plugin_dialog_source">Source: Official npm / Mirrors</string>

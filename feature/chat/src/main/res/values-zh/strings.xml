@@ -142,7 +142,7 @@
     <string name="plugins_title">插件</string>
     <string name="plugins_subtitle">安装、启用和配置插件</string>
     <string name="action_add_plugin">添加插件</string>
-    <string name="plugin_dialog_title">添加插件 (官方安装规范)</string>
+    <string name="plugin_dialog_title">添加插件</string>
     <string name="plugin_dialog_desc">输入插件 npm 包名（如 dsh-subscription-oauth），即 README 安装命令中 dsh plugin add 之后的部分。</string>
     <string name="plugin_dialog_hint">例如 dsh-subscription-oauth</string>
     <string name="plugin_dialog_source">来源: 官方 npm / 国内镜像</string>
