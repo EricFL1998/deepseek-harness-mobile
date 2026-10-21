@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -479,6 +480,35 @@ fun MainAppHost(
         val sid = selectedSessionId
         if (claudeCodeModsEnabled && sid != null) {
             dshRepository.claudeCodeBand(activeHostId, sid).collect { snapshot -> bandSnapshot = snapshot }
+        }
+    }
+
+    // 会话数据诊断（开发者工具）：只读展示当前会话收到的原始帧。
+    val sessionInspectorEnabled = remember(dshRepository.bridgePluginCatalogFlow.value) {
+        dshRepository.bridgePluginCatalogFlow.value.bundles.any {
+            it.name == SessionInspectorPluginUi.BUNDLE && it.enabled
+        }
+    }
+    var sessionInspectorOpen by remember { mutableStateOf(false) }
+    var rawSessionFrames by remember {
+        mutableStateOf<List<com.deepseek.dsh.core.protocol.SessionRawFrame>>(emptyList())
+    }
+    LaunchedEffect(sessionInspectorOpen, selectedSessionId) {
+        while (sessionInspectorOpen) {
+            rawSessionFrames = selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
+            kotlinx.coroutines.delay(1_000)
+        }
+    }
+    if (sessionInspectorOpen) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { sessionInspectorOpen = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            SessionInspectorPluginUi.Overlay(
+                frames = rawSessionFrames,
+                sessionId = selectedSessionId,
+                onDismiss = { sessionInspectorOpen = false },
+            )
         }
     }
 
@@ -1502,6 +1532,8 @@ fun MainAppHost(
                                 },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
+                                inspectorEnabled = sessionInspectorEnabled,
+                                onOpenInspector = { sessionInspectorOpen = true },
                                 agentTeam = agentTeam,
                                 agentTeamLoading = agentTeamLoading,
                                 teamEnabled = agentTeamEnabled,
@@ -2792,6 +2824,9 @@ fun ModernTopAppBar(
     teamEnabled: Boolean = false,
     currentSessionId: String? = null,
     onOpenMember: (String) -> Unit = {},
+    /** 「开发者工具」插件是否启用；启用才显示会话数据诊断入口。 */
+    inspectorEnabled: Boolean = false,
+    onOpenInspector: () -> Unit = {},
     onMenuClick: () -> Unit
 ) {
     val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
@@ -2886,6 +2921,24 @@ fun ModernTopAppBar(
 
             // 团队动作：官方由「智能体团队」插件注册到
             // conversation.session.header.actions；启用时在标题右侧。
+            if (inspectorEnabled) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(barColors.bgModulePlatform)
+                        .clickable(onClick = onOpenInspector)
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Filled.BugReport,
+                        contentDescription = "会话数据诊断",
+                        tint = barColors.labelPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             if (teamEnabled) {
                 AgentTeamPluginUi.HeaderAction(
                     memberCount = teamMemberCount,

@@ -627,6 +627,10 @@ class DshRepository(
     // 官方在 conversation.input.dock 画一条由 Host 下发的动态横幅；watchBand 是
     // 流式方法，走 Gateway 的 `/api/remote.mux` WebSocket。
 
+    /** 最近收到的原始会话帧（开发者工具/会话数据诊断用）。 */
+    fun rawSessionFrames(sessionId: String): List<com.deepseek.dsh.core.protocol.SessionRawFrame> =
+        client.rawSessionFrames(sessionId)
+
     /** 订阅会话的模组横幅；每次重绘发一份快照，流结束即完成。 */
     fun claudeCodeBand(hostId: String, sessionId: String): Flow<ClaudeCodeBandSnapshot?> =
         client.watchClaudeCodeBand(hostId, sessionId).map { snapshot -> parseBandSnapshot(snapshot) }
