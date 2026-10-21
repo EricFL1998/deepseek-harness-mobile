@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -212,7 +213,7 @@ internal fun PluginSettingsEditorPage(
         val loaded = documents
         if (loaded == null) {
             Text(
-                text = "正在读取设置…",
+                text = stringResource(R.string.settings_loading),
                 color = colors.labelTertiary,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(PluginsDimens.PageHorizontal, 16.dp),
@@ -221,7 +222,7 @@ internal fun PluginSettingsEditorPage(
         }
         if (loaded.isEmpty()) {
             Text(
-                text = if (failed > 0) "Host 上没有可读的设置文档。" else "这个页面没有可配置的字段。",
+                text = if (failed > 0) stringResource(R.string.settings_no_docs) else stringResource(R.string.settings_no_fields),
                 color = colors.labelTertiary,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
@@ -273,7 +274,7 @@ private fun SettingsDocumentEditor(
         )
         if (form == null || form.dict.isEmpty()) {
             Text(
-                text = "Host 没有为这个命名空间投影出表单字段。",
+                text = stringResource(R.string.settings_no_projected_fields),
                 color = colors.labelTertiary,
                 fontSize = 12.sp,
             )
@@ -286,10 +287,13 @@ private fun SettingsDocumentEditor(
             )
         }
         val label = when {
-            saving -> "保存中…"
+            saving -> stringResource(R.string.settings_saving)
             status != null -> status!!
-            else -> "保存"
+            else -> stringResource(R.string.settings_save)
         }
+        val noChangesLabel = stringResource(R.string.settings_no_changes)
+        val savedLabel = stringResource(R.string.settings_saved_host)
+        val saveFailedLabel = stringResource(R.string.settings_save_failed)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -298,12 +302,12 @@ private fun SettingsDocumentEditor(
                 .background(if (saving) colors.bgModulePlatform else colors.buttonPrimaryFill)
                 .clickable(enabled = !saving) {
                     if (edits.isEmpty()) {
-                        status = "没有改动"
+                        status = noChangesLabel
                         return@clickable
                     }
                     val patch = editsPatch(edits)
                     if (patch.isEmpty()) {
-                        status = "没有改动"
+                        status = noChangesLabel
                         return@clickable
                     }
                     saving = true
@@ -312,7 +316,7 @@ private fun SettingsDocumentEditor(
                         val ok = runCatching { save(document.ns, patch, document.revision) }
                             .getOrDefault(false)
                         saving = false
-                        status = if (ok) "已保存到 Host" else "保存失败"
+                        status = if (ok) savedLabel else saveFailedLabel
                         if (ok) onSaved()
                     }
                 },
@@ -430,7 +434,7 @@ private fun FormField(
             DshTextInput(
                 value = text,
                 onValueChange = { edits[key] = JsonPrimitive(it) },
-                placeholder = if (secret) "留空表示不修改" else "",
+                placeholder = if (secret) stringResource(R.string.settings_blank_unchanged) else "",
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -491,7 +495,7 @@ private fun FormField(
             // 数组与未识别的字段：显示当前值，标注不可编辑，避免把编辑做成静默丢弃。
             FieldLabel(label, colors.labelSecondary)
             Text(
-                text = (current?.toString() ?: "未设置").take(240),
+                text = (current?.toString() ?: stringResource(R.string.settings_not_set)).take(240),
                 color = colors.labelTertiary,
                 fontSize = 11.5.sp,
                 maxLines = 4,

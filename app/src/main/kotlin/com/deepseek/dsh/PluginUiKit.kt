@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,7 +90,7 @@ internal fun PluginSettingsSection(
     hooks: PluginUiHooks,
     fields: List<PluginField>,
     notices: List<String> = emptyList(),
-    emptyHint: String = "这个插件的设置暂未就绪。",
+    emptyHint: String = "",
 ) {
     val colors = LocalDshPanelColors.current
     var document by remember(namespace) { mutableStateOf<PluginSettingsDocument?>(null) }
@@ -98,6 +99,9 @@ internal fun PluginSettingsSection(
     var saving by remember(namespace) { mutableStateOf(false) }
     var status by remember(namespace) { mutableStateOf<String?>(null) }
     var reload by remember(namespace) { mutableStateOf(0) }
+    val numberRequiredLabel = stringResource(R.string.settings_number_required, "")
+    val savedLabel = stringResource(R.string.settings_saved)
+    val rejectedLabel = stringResource(R.string.settings_deployment_rejected)
 
     LaunchedEffect(namespace, reload) {
         loaded = false
@@ -125,7 +129,7 @@ internal fun PluginSettingsSection(
 
     val doc = document
     when {
-        !loaded -> Text("正在读取设置…", color = colors.labelTertiary, fontSize = 13.sp)
+        !loaded -> Text(stringResource(R.string.settings_loading), color = colors.labelTertiary, fontSize = 13.sp)
         doc == null -> Text(emptyHint, color = colors.labelTertiary, fontSize = 13.sp, lineHeight = 19.sp)
         else -> {
             var currentGroup: String? = null
@@ -177,14 +181,14 @@ internal fun PluginSettingsSection(
                         .clickable(enabled = !saving && edits.isNotEmpty()) { saving = true },
                 ) {
                     Text(
-                        text = if (saving) "保存中…" else "保存",
+                        text = if (saving) stringResource(R.string.settings_saving) else stringResource(R.string.settings_save),
                         color = if (saving) colors.labelTertiary else colors.labelPrimaryForeground,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                     )
                 }
                 Text(
-                    text = status ?: if (edits.isEmpty()) "已保存" else "有未保存的修改",
+                    text = status ?: if (edits.isEmpty()) savedLabel else stringResource(R.string.settings_unsaved_changes),
                     color = colors.labelTertiary,
                     fontSize = 12.sp,
                 )
@@ -198,7 +202,7 @@ internal fun PluginSettingsSection(
                         PluginFieldKind.NUMBER -> {
                             val number = text.trim().toDoubleOrNull()
                             if (number == null) {
-                                status = "请输入数字：${field.label}"
+                                status = numberRequiredLabel + field.label
                                 saving = false
                                 return@LaunchedEffect
                             }
@@ -214,9 +218,9 @@ internal fun PluginSettingsSection(
                 status = if (ok) {
                     edits.clear()
                     reload += 1
-                    "已保存"
+                    savedLabel
                 } else {
-                    "本部署没有接受这些值，已保留供你修改。"
+                    rejectedLabel
                 }
             }
         }
