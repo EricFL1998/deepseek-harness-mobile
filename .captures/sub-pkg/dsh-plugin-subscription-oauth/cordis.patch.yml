@@ -1,0 +1,13 @@
+# Bundle self-activation patch.
+#
+# When this package is installed into a profile (`dsh plugin --profile web add
+# dsh-plugin-subscription-oauth`, or a local checkout / git URL), this patch mounts the
+# plugin's node half. The client half (Settings -> Subscriptions) is discovered
+# automatically from the `dsh.client` declaration in package.json.
+#
+# Installing this patch is also what decides whether a login persists: the
+# token file below the DSH home is shared between profiles, so a login made in
+# one window is visible in another once both mount this plugin.
+- insert:
+    - id: llm-subscription-oauth
+      name: dsh-plugin-subscription-oauth

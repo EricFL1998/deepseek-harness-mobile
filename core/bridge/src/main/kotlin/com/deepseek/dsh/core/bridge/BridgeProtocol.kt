@@ -34,6 +34,9 @@ object BridgeProtocol {
     /** `package-inventory` provider id。 */
     const val PROVIDER_PACKAGE_INVENTORY: String = "package-inventory"
 
+    /** `native-plugins` provider id（原生伴侣清单）。 */
+    const val PROVIDER_NATIVE_PLUGINS: String = "native-plugins"
+
     /** `rpc` provider id。 */
     const val PROVIDER_RPC: String = "rpc"
 }
@@ -296,6 +299,29 @@ data class BridgeInventory(
 data class BridgeMetaIcon(
     val name: String = "",
     val icon: String? = null,
+)
+
+/** `native-plugins`：一个原生伴侣插件的声明（JS 插件的 package.json 里 `dsh.native`）。 */
+@Serializable
+data class BridgeNativeCompanion(
+    val pluginId: String = "",
+    val name: String? = null,
+    val apiVersion: Int? = null,
+    val minAppVersion: Int? = null,
+    val capabilities: List<String> = emptyList(),
+    val storeUrl: String? = null,
+)
+
+/** `native-plugins` / `for` 的数据。 */
+@Serializable
+data class BridgeNativeCompanionResult(
+    val companion: BridgeNativeCompanion? = null,
+)
+
+/** `native-plugins` / `list` 的数据。 */
+@Serializable
+data class BridgeNativeCompanionList(
+    val companions: List<BridgeNativeCompanion> = emptyList(),
 )
 
 /**

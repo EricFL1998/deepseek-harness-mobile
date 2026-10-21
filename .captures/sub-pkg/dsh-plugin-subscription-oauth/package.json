@@ -1,0 +1,129 @@
+{
+  "name": "dsh-plugin-subscription-oauth",
+  "version": "0.17.17",
+  "description": "Use subscription accounts as DeepSeek Harness LLM providers — Kimi Code (OAuth device flow), Grok / X Premium (OIDC + PKCE), Google Antigravity (Google OAuth + Cloud Code Assist) and GLM / BigModel (ZCode's browser sign-in) — with per-model visibility, drag-to-reorder Auto fallback and plan quotas from the web Settings page",
+  "license": "MIT",
+  "author": "EricFL1998",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EricFL1998/dsh-subscription-oauth.git"
+  },
+  "homepage": "https://github.com/EricFL1998/dsh-subscription-oauth#readme",
+  "bugs": {
+    "url": "https://github.com/EricFL1998/dsh-subscription-oauth/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "llm",
+    "oauth",
+    "subscription",
+    "kimi",
+    "kimi-code",
+    "moonshot",
+    "grok",
+    "xai",
+    "x-premium",
+    "antigravity",
+    "google",
+    "glm",
+    "bigmodel",
+    "zhipu",
+    "z.ai"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"for (const d of ['lib','lib-test']) require('node:fs').rmSync(d, { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc && tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "node -e \"require('node:fs').rmSync('lib-test', { recursive: true, force: true })\" && tsc -p tsconfig.test.json && node --test \"lib-test/test/**/*.spec.js\"",
+    "preview": "tsdown --config tools/tsdown.preview.config.ts",
+    "probe": "node tools/probe-kimi-oauth.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "undici": "^7.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-attachment": ">=0.0.1-rc.1 <1.0.0",
+    "@deepseek-ai/dsh-home-paths": ">=0.0.1-rc.1 <1.0.0",
+    "@deepseek-ai/dsh-llm": ">=0.0.1-rc.1 <1.0.0",
+    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <1.0.0",
+    "@deepseek-ai/dsh-web": ">=0.0.1-rc.1 <1.0.0",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-attachment": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-home-paths": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-web": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-api-remotes": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-attachment": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-web": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "3.18.4",
+    "@types/node": "^24.0.0",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "~18.3.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsdown": "^0.15.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -227,46 +227,6 @@ fun MainAppHost(
         com.deepseek.dsh.feature.settings.UpdateCenter.ensureChecked(context)
     }
 
-    // 扫描系统里已装的原生伴侣 APK，填充「原生插件」tab，并把 READY 的插件
-    // 装载进 App 进程（触发它们的落点/工具/页面注册）。卸载/安装后回前台时
-    // 重扫（onResume 递增信号），保证「卸载即从列表摘除」。
-    val nativePluginRescanSignal by nativePluginRescanFlow.collectAsState()
-    LaunchedEffect(nativePluginRescanSignal) {
-        runCatching {
-            val discovery = com.deepseek.dsh.plugin.nativehost.NativePluginDiscovery(context)
-            val loader = com.deepseek.dsh.plugin.nativehost.NativePluginLoader(context)
-            val appVersionCode = context.packageManager
-                .getPackageInfo(context.packageName, 0).longVersionCode.toInt()
-            val discovered = discovery.scan(
-                appVersionCode = appVersionCode,
-                supportedApiVersion = com.deepseek.dsh.plugin.nativehost.NativeAbi.CURRENT,
-                pinnedFingerprints = emptyMap(),
-            )
-            // 装载 READY 插件进 App 进程：它们的 init 块会跑 SlotRegistry.register 等，
-            // 落点容器（NativeSlotHost）于是能读到这些贡献。
-            discovered.filter { it.status == com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY }
-                .forEach { loader.load(it) }
-            nativePluginItems = discovered.map { installed ->
-                com.deepseek.dsh.plugin.nativehost.NativePluginItem(
-                    pluginId = installed.pluginId,
-                    name = installed.pluginId.substringAfterLast('.'),
-                    description = "原生界面插件（${installed.packageName}）",
-                    version = installed.version.toString(),
-                    capabilities = emptyList(),
-                    installed = true,
-                    statusLabel = when (installed.status) {
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY -> "已安装"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.ABI_TOO_NEW -> "需更新插件"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.APP_TOO_OLD -> "需更新 App"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.SIGNATURE_MISMATCH -> "身份不符"
-                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.DISABLED -> "已停用"
-                    },
-                    signatureFingerprint = installed.signatureFingerprint,
-                )
-            }
-        }
-    }
-
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
 
@@ -475,8 +435,77 @@ fun MainAppHost(
         managedPluginPackages = runCatching { appPluginInstaller.managedPackages() }
             .getOrDefault(emptySet())
     }
+
+    // 扫描系统里已装的原生伴侣 APK，填充「原生插件」tab，并把 READY 的插件
+    // 装载进 App 进程（触发它们的落点/工具/页面注册）。卸载/安装后回前台时
+    // 重扫（onResume 递增信号），保证「卸载即从列表摘除」。装 APK 时连带装
+    // 配对的 JS 插件（甲 manifest 声明 / 乙商店索引兜底），装完重启 Host。
+    val nativePluginRescanSignal by nativePluginRescanFlow.collectAsState()
+    LaunchedEffect(nativePluginRescanSignal, appPluginInstaller) {
+        runCatching {
+            val discovery = com.deepseek.dsh.plugin.nativehost.NativePluginDiscovery(context)
+            val loader = com.deepseek.dsh.plugin.nativehost.NativePluginLoader(context)
+            val appVersionCode = context.packageManager
+                .getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+            val discovered = discovery.scan(
+                appVersionCode = appVersionCode,
+                supportedApiVersion = com.deepseek.dsh.plugin.nativehost.NativeAbi.CURRENT,
+                pinnedFingerprints = emptyMap(),
+            )
+            // 装载 READY 插件进 App 进程：它们的 init 块会跑 SlotRegistry.register 等。
+            val ready = discovered.filter {
+                it.status == com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY
+            }
+            ready.forEach { loader.load(it) }
+            ready.forEach { plugin ->
+                runCatching {
+                    val jsPackage = com.deepseek.dsh.plugin.nativehost.NativePluginPairing
+                        .resolveJsPackage(plugin, storeLookup = null)
+                    if (jsPackage != null) {
+                        val pkgName = jsPackage.substringAfterLast('/').substringBefore('@')
+                            .ifBlank { jsPackage }
+                        val inProfile = java.io.File(
+                            layout.rootfsDir,
+                            "root/.dsh/profiles/web/node_modules/$pkgName/package.json",
+                        ).isFile
+                        val managed = managedPluginPackages.any {
+                            it.equals(pkgName, ignoreCase = true) || it.equals(jsPackage, ignoreCase = true)
+                        }
+                        if (!inProfile && !managed) {
+                            val installed = appPluginInstaller.install(jsPackage) { _, _ -> }
+                            if (installed.isSuccess) {
+                                HostRuntimeHolder.restartHost?.invoke()
+                            }
+                        }
+                    }
+                }
+            }
+            nativePluginItems = discovered.map { installed ->
+                com.deepseek.dsh.plugin.nativehost.NativePluginItem(
+                    pluginId = installed.pluginId,
+                    name = installed.pluginId.substringAfterLast('.'),
+                    description = "原生界面插件（${installed.packageName}）",
+                    version = installed.version.toString(),
+                    capabilities = emptyList(),
+                    installed = true,
+                    statusLabel = when (installed.status) {
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.READY -> "已安装"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.ABI_TOO_NEW -> "需更新插件"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.APP_TOO_OLD -> "需更新 App"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.SIGNATURE_MISMATCH -> "身份不符"
+                        com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.DISABLED -> "已停用"
+                    },
+                    signatureFingerprint = installed.signatureFingerprint,
+                )
+            }
+        }
+    }
     var activeSheetSurface by remember { mutableStateOf<SurfaceItem?>(null) }
     var activeOverlaySurface by remember { mutableStateOf<SurfaceItem?>(null) }
+    // 反向联动：刚装的 JS 插件有原生伴侣时，这里带上它的声明，UI 提示可装。
+    var nativeCompanionAvailable by remember {
+        mutableStateOf<com.deepseek.dsh.core.bridge.BridgeNativeCompanion?>(null)
+    }
 
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
@@ -1503,6 +1532,19 @@ fun MainAppHost(
                                             dshRepository.refreshPluginInventory(activeHostId)
                                             dshRepository.refreshBridgePluginCatalog()
                                             dshRepository.refreshPluginSettingsPages()
+                                            // 反向联动：这个 JS 插件有原生伴侣 APK 的话，提示可装。
+                                            // 查 bridge 的 native-plugins provider；有则通知用户去商店。
+                                            runCatching {
+                                                val pkgName = installed.substringAfterLast('/')
+                                                    .substringBefore('@').ifBlank { installed }
+                                                val companion = dshRepository.bridge()
+                                                    ?.nativeCompanionFor(pkgName)
+                                                if (companion is com.deepseek.dsh.core.bridge.BridgeResult.Success &&
+                                                    companion.value != null
+                                                ) {
+                                                    nativeCompanionAvailable = companion.value
+                                                }
+                                            }
                                             Result.success(installed)
                                         },
                                         onFailure = { error ->
@@ -1784,6 +1826,42 @@ fun MainAppHost(
                 token = status.token,
                 onClose = { activeOverlaySurface = null }
             )
+        }
+
+        // 反向联动：刚装的 JS 插件有原生伴侣时，底部提示可去商店装原生界面。
+        nativeCompanionAvailable?.let { companion ->
+            androidx.compose.material3.Surface(
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
+                        androidx.compose.material3.Text(
+                            text = "「${companion.name ?: companion.pluginId}」有原生界面可装",
+                            style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                        )
+                        androidx.compose.material3.Text(
+                            text = "到「插件 → 原生插件」查看并安装",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    androidx.compose.material3.TextButton(onClick = {
+                        nativeCompanionAvailable = null
+                        activePage = ActivePage.PLUGINS
+                    }) { androidx.compose.material3.Text("去查看") }
+                    androidx.compose.material3.TextButton(onClick = { nativeCompanionAvailable = null }) {
+                        androidx.compose.material3.Text("忽略")
+                    }
+                }
+            }
         }
 
         // shell.overlay：原生插件的顶层浮层落点。

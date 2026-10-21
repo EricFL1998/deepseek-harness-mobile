@@ -28,6 +28,11 @@ data class InstalledNativePlugin(
     val signatureFingerprint: String,
     val status: Status,
     val serviceComponent: ComponentName,
+    /**
+     * 配对的 JS 插件安装地址（`dsh.plugin.jsPackage`：npm 包名或 GitHub 地址）。
+     * 装 APK 时 App 读它连带装 JS 插件；缺省时兜底用 [pluginId] 当 npm 包名试装。
+     */
+    val jsPackage: String? = null,
 ) {
     enum class Status { READY, ABI_TOO_NEW, APP_TOO_OLD, SIGNATURE_MISMATCH, DISABLED }
 }
@@ -63,6 +68,8 @@ class NativePluginDiscovery(private val context: Context) {
             val pluginId = meta.getString(META_ID)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val apiVersion = meta.getInt(META_API_VERSION, -1).takeIf { it >= 0 } ?: return@mapNotNull null
             val minAppVersion = meta.getInt(META_MIN_APP_VERSION, 0)
+            // 配对的 JS 插件安装地址（甲：manifest 直声明）。缺省时由调用方查商店索引兜底（乙）。
+            val jsPackage = meta.getString(META_JS_PACKAGE)?.takeIf { it.isNotBlank() }
             val packageName = serviceInfo.packageName
             val fingerprint = signingFingerprint(pm, packageName) ?: return@mapNotNull null
 
@@ -89,6 +96,7 @@ class NativePluginDiscovery(private val context: Context) {
                 signatureFingerprint = fingerprint,
                 status = status,
                 serviceComponent = ComponentName(packageName, serviceInfo.name),
+                jsPackage = jsPackage,
             )
         }
     }
@@ -108,5 +116,7 @@ class NativePluginDiscovery(private val context: Context) {
         const val META_API_VERSION = "dsh.plugin.apiVersion"
         const val META_MIN_APP_VERSION = "dsh.plugin.minAppVersion"
         const val META_VERSION = "dsh.plugin.version"
+        /** 配对的 JS 插件安装地址（npm 包名 / GitHub 地址）。 */
+        const val META_JS_PACKAGE = "dsh.plugin.jsPackage"
     }
 }

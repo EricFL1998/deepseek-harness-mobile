@@ -173,6 +173,23 @@ class BridgeRegistry(
         args = BridgeArgs.of("ns", ns),
     ) { json.decodeFromString(BridgeSettingsDocument.serializer(), it.toString()) }
 
+    // ── native-plugins ───────────────────────────────────────────────────────
+
+    /** 一个 JS 插件有没有配套的原生伴侣 APK；有则返回它的声明。 */
+    suspend fun nativeCompanionFor(pluginId: String): BridgeResult<BridgeNativeCompanion?> = query(
+        provider = BridgeProtocol.PROVIDER_NATIVE_PLUGINS,
+        op = "for",
+        args = BridgeArgs.of("pluginId", pluginId),
+    ) { element ->
+        json.decodeFromString(BridgeNativeCompanionResult.serializer(), element.toString()).companion
+    }
+
+    /** 全部已声明的原生伴侣（商店「原生插件」tab 的可装推荐）。 */
+    suspend fun nativeCompanions(): BridgeResult<BridgeNativeCompanionList> = query(
+        provider = BridgeProtocol.PROVIDER_NATIVE_PLUGINS,
+        op = "list",
+    ) { json.decodeFromString(BridgeNativeCompanionList.serializer(), it.toString()) }
+
     /** 回写编辑后的字段；`expectedRevision` 不匹配时 Host 会拒绝。 */
     suspend fun settingsUpdate(
         ns: String,
