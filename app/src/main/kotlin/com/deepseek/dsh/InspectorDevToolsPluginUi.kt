@@ -1,0 +1,132 @@
+package com.deepseek.dsh
+
+import android.annotation.SuppressLint
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.clickable
+import com.deepseek.dsh.core.designsystem.LocalDshPanelColors
+import okhttp3.HttpUrl.Companion.toHttpUrl
+
+/**
+ * 「开发者工具」插件的原生界面：NodeJS 诊断（Chrome DevTools）。
+ *
+ * 官方 `experimental-inspector` 本身就是把 chrome-devtools-frontend 放进
+ * `shell.bottom` 的 iframe，并通过 Host 代理 CDP。原生侧没有可移植的等价物，
+ * 所以这里按官方同样的做法：用 WebView 载入同一个 DevTools 前端（Host 的
+ * `/inspector/devtools/devtools_app.html`），并把会话 cookie 同步给 WebView，
+ * 让它与浏览器里打开的 DevTools 是同一个应用。
+ *
+ * 注：官方入口是快捷键 + 底部面板；手机上没有该快捷键，入口放在插件详情里。
+ */
+internal object InspectorDevToolsPluginUi : PluginUi {
+    override val bundle: String = "@deepseek-ai/dsh-experimental-inspector-profile"
+
+    @Composable
+    override fun Section(hooks: PluginUiHooks) {
+        NodeJsDevToolsPane()
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun NodeJsDevToolsPane() {
+    val colors = LocalDshPanelColors.current
+    val context = LocalContext.current
+    val app = context.applicationContext as? DshApplication
+    val port = app?.localHostPort ?: 0
+    val token = app?.localHostToken
+    var reloadKey by remember { mutableStateOf(0) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("NodeJS 诊断", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = "按 Ctrl/Cmd+Shift+. 在底部面板打开 Chrome DevTools 进行开发调试",
+                    color = colors.labelTertiary,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(colors.bgModulePlatform)
+                    .border(0.5.dp, colors.borderL2, RoundedCornerShape(9.dp))
+                    .clickable { reloadKey += 1 }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text("重新加载", color = colors.labelSecondary, fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        when {
+            port <= 0 -> Text(
+                text = "Host 未运行，无法打开 NodeJS 诊断。",
+                color = colors.labelTertiary,
+                fontSize = 12.5.sp,
+            )
+            else -> {
+                val url = remember(port, reloadKey) {
+                    "http://127.0.0.1:$port/inspector/devtools/devtools_app.html?disableLocaleInfoBar=true"
+                }
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(420.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .border(0.5.dp, colors.borderL2, RoundedCornerShape(10.dp)),
+                    factory = { viewContext ->
+                        WebView(viewContext).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.allowFileAccess = false
+                            settings.allowContentAccess = false
+                            webViewClient = WebViewClient()
+                            // Host 的调试路由走会话 cookie；把 App 的 cookie jar 内容同步给 WebView。
+                            runCatching {
+                                @Suppress("UNUSED_VARIABLE")
+                                val ignored = token
+                                val cookies = app?.cookieJar?.loadForRequest(
+                                    "http://127.0.0.1:$port/".toHttpUrl(),
+                                ).orEmpty()
+                                val header = cookies.joinToString("; ") { "${it.name}=${it.value}" }
+                                if (header.isNotBlank()) {
+                                    CookieManager.getInstance().setCookie("http://127.0.0.1:$port/", header)
+                                    CookieManager.getInstance().flush()
+                                }
+                            }
+                            loadUrl(url)
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
