@@ -412,6 +412,12 @@ fun PluginsScreen(
                     onToggle = { enabled -> onToggleBundle(bundleDetail.packageName, enabled) },
                     onToggleComponent = onToggleComponent,
                     onUninstall = { onUninstall(SurfaceItem(pluginId = bundleDetail.packageName, slot = "host.bundle", title = bundleDetail.title)) },
+                    pluginHooks = PluginUiHooks(
+                        loadDocument = loadPluginSettings,
+                        saveDocument = savePluginSettings,
+                        loadCredential = loadCredential,
+                        saveCredential = saveCredential,
+                    ),
                 )
             }
         }
@@ -1342,6 +1348,7 @@ private fun BundleDetailContent(
     onToggle: (Boolean) -> Unit,
     onToggleComponent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
+    pluginHooks: PluginUiHooks,
 ) {
     val colors = LocalDshPanelColors.current
     Column(
@@ -1509,6 +1516,11 @@ private fun BundleDetailContent(
                     )
                 }
             }
+        }
+        // 插件自己的原生 UI（官方客户端里也是一块独立的插件界面）。
+        PluginUis.forBundle(bundle.packageName)?.let { pluginUi ->
+            Spacer(Modifier.height(28.dp))
+            pluginUi.Section(pluginHooks)
         }
         Spacer(Modifier.height(28.dp))
         Text("来源信息", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
