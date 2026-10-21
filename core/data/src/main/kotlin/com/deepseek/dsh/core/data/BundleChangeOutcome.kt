@@ -16,7 +16,7 @@ data class BundleChangeOutcome(
     /** Host 返回的提示列表。 */
     val warnings: List<String>,
 ) {
-    /** 是否要重启 DSH 才生效。 */
+    /** 是否要重启 DSH 才生效。部分 Host 版本只返回 restartReason。 */
     val restartRequired: Boolean
-        get() = application == "restart-required"
+        get() = application == "restart-required" || !restartReason.isNullOrBlank()
 }

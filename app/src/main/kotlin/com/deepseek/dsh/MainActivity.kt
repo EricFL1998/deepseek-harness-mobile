@@ -511,12 +511,25 @@ fun MainAppHost(
     }
     // 启停插件后 Host 若要求重启或带提示，按官方做法明确告诉用户。
     var pluginChangeNotice by remember { mutableStateOf<List<String>?>(null) }
+    var pluginRestartRunning by remember { mutableStateOf(false) }
+    var pluginRestartError by remember { mutableStateOf<String?>(null) }
     pluginChangeNotice?.let { lines ->
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { pluginChangeNotice = null },
-            title = { Text("插件设置已更新") },
+            onDismissRequest = {
+                if (!pluginRestartRunning) {
+                    pluginChangeNotice = null
+                    pluginRestartError = null
+                }
+            },
+            title = { Text("需要重启 Host") },
             text = {
                 Column {
+                    Text(
+                        text = "这项插件更改已保存，但要重启 Host 后才会生效。",
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
                     lines.forEach { line ->
                         Text(
                             text = line,
@@ -525,12 +538,45 @@ fun MainAppHost(
                             modifier = Modifier.padding(bottom = 6.dp),
                         )
                     }
+                    pluginRestartError?.let { message ->
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                        )
+                    }
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { pluginChangeNotice = null }) {
-                    Text("知道了")
+                androidx.compose.material3.TextButton(
+                    enabled = !pluginRestartRunning,
+                    onClick = {
+                        scope.launch {
+                            pluginRestartRunning = true
+                            pluginRestartError = null
+                            val restart = HostRuntimeHolder.restartHost?.invoke()
+                                ?: Result.failure(IllegalStateException("Host 尚未就绪"))
+                            pluginRestartRunning = false
+                            if (restart.isSuccess) {
+                                pluginChangeNotice = null
+                            } else {
+                                pluginRestartError = restart.exceptionOrNull()?.message ?: "重启失败，请重试"
+                            }
+                        }
+                    },
+                ) {
+                    Text(if (pluginRestartRunning) "正在重启…" else "立即重启 Host")
                 }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = !pluginRestartRunning,
+                    onClick = {
+                        pluginChangeNotice = null
+                        pluginRestartError = null
+                    },
+                ) { Text("稍后处理") }
             },
         )
     }
