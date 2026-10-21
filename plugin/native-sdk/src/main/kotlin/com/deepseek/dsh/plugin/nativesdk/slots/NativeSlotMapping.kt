@@ -18,6 +18,15 @@ object NativeSlotMapping {
         "conversation.composer.dock" to NativeSlot.COMPOSER_DOCK,
         "conversation.input.dock" to NativeSlot.COMPOSER_DOCK,
         "conversation.input.overlay" to NativeSlot.COMPOSER_OVERLAY,
+        "conversation.input.left" to NativeSlot.COMPOSER_LEFT,
+        "conversation.input.right" to NativeSlot.COMPOSER_RIGHT,
+        "conversation.input.model" to NativeSlot.COMPOSER_MODEL,
+        "conversation.input.permission" to NativeSlot.COMPOSER_PERMISSION,
+        "conversation.input.plan" to NativeSlot.COMPOSER_PLAN,
+        "conversation.input.attachments" to NativeSlot.COMPOSER_ATTACHMENTS,
+        "conversation.composer.bar" to NativeSlot.COMPOSER_BAR,
+        "conversation.view" to NativeSlot.CONVERSATION_VIEW,
+        "conversation.session.header.corner" to NativeSlot.SESSION_HEADER_CORNER,
 
         // 会话消息流与动作
         "conversation.chat.flow" to NativeSlot.CHAT_STREAM,
@@ -49,20 +58,10 @@ object NativeSlotMapping {
     /**
      * 官方存在、但 App 还没有原生宿主容器的 slot。
      *
-     * 这些位置目前由输入栏内置控件/官方实现承担；插件贡献不会有落点可渲染。
-     * 需要支持时：新增 NativeSlot、宿主容器、映射条目，并从本集合移除。
+     * 目前为空：所有官方 slot 都已有原生落点与宿主容器。保留这个集合是为了未来
+     * 新增官方 slot 时能显式标记“暂不支持”，而不是让它静默丢失。
      */
-    val explicitlyUnsupported: Set<String> = setOf(
-        "conversation.input.left",
-        "conversation.input.right",
-        "conversation.input.model",
-        "conversation.input.permission",
-        "conversation.input.plan",
-        "conversation.input.attachments",
-        "conversation.composer.bar",
-        "conversation.view",
-        "conversation.session.header.corner",
-    )
+    val explicitlyUnsupported: Set<String> = emptySet()
 
     /** 已映射 + 明确不支持的并集；等于官方 slot 全集。 */
     val allOfficialSlots: Set<String>

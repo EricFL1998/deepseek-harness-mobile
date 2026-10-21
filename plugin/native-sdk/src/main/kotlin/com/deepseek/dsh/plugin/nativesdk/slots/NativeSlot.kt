@@ -28,6 +28,33 @@ enum class NativeSlot {
     /** 输入框顶栏 / 底部药丸栏。承载 conversation.composer.dock、conversation.input.dock。 */
     COMPOSER_DOCK,
 
+    /** 输入栏左侧扩展位（conversation.input.left）。 */
+    COMPOSER_LEFT,
+
+    /** 输入栏右侧扩展位（conversation.input.right）。 */
+    COMPOSER_RIGHT,
+
+    /** 模型选择控件（conversation.input.model）。 */
+    COMPOSER_MODEL,
+
+    /** 权限预设控件（conversation.input.permission）。 */
+    COMPOSER_PERMISSION,
+
+    /** Plan 模式控件（conversation.input.plan）。 */
+    COMPOSER_PLAN,
+
+    /** 附件入口（conversation.input.attachments）。 */
+    COMPOSER_ATTACHMENTS,
+
+    /** 整条 composer 栏（conversation.composer.bar）。 */
+    COMPOSER_BAR,
+
+    /** 会话视图整体（conversation.view）。 */
+    CONVERSATION_VIEW,
+
+    /** 会话标题栏角落（conversation.session.header.corner）。 */
+    SESSION_HEADER_CORNER,
+
     /** 输入框悬浮气泡。承载 conversation.input.overlay。 */
     COMPOSER_OVERLAY,
 

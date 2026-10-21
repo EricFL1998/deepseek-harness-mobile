@@ -1,16 +1,91 @@
 package com.deepseek.dsh.plugin.nativehost
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.deepseek.dsh.plugin.nativesdk.host.PluginHostApi
 import com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot
+import com.deepseek.dsh.plugin.nativesdk.slots.RenderMode
 import com.deepseek.dsh.plugin.nativesdk.slots.SlotRegistry
 import com.deepseek.dsh.plugin.nativesdk.theme.PluginTheme
 import kotlinx.serialization.json.JsonObject
+
+/** 官方默认内容与插件增强内容的排列方式。 */
+enum class SlotArrangement {
+    /** 与官方控件并排（输入栏按钮、触发器）。 */
+    INLINE,
+
+    /** 官方内容在上，插件增强内容在下方（整条栏、整页）。 */
+    BLOCK,
+}
+
+/**
+ * 官方控件的 slot 包装：官方默认 UI 通过 [content] 传入，插件贡献按仲裁规则
+ * 与默认内容组合。这样官方控件本身也走同一条 slot 通道，插件可以 ENHANCE 或
+ * OVERRIDE，而不是只有插件内容才经过 SlotRegistry。
+ *
+ * - 无 NativeHost/Theme（例如预览/测试）：只渲染官方默认内容；
+ * - 插件 OVERRIDE：官方默认隐藏，只渲染该插件；
+ * - ENHANCE：官方默认内容 + 插件贡献按 [arrangement] 排列；
+ * - 都没有：只渲染官方默认内容。
+ */
+@Composable
+fun OfficialSlot(
+    slot: NativeSlot,
+    modifier: Modifier = Modifier,
+    spec: JsonObject = JsonObject(emptyMap()),
+    arrangement: SlotArrangement = SlotArrangement.INLINE,
+    content: @Composable () -> Unit,
+) {
+    val host = NativeHost.LocalHost.current
+    val theme = NativeHost.LocalTheme.current
+    if (host == null || theme == null) {
+        content()
+        return
+    }
+    val contributions = SlotRegistry.resolve(slot)
+    val override = contributions.firstOrNull { it.mode == RenderMode.OVERRIDE && !it.isOfficial }
+    if (override != null) {
+        NativeSlotGuard(pluginLabel = override.javaClass.simpleName, theme = theme) {
+            override.Render(spec, theme, host)
+        }
+        return
+    }
+    if (contributions.isEmpty()) {
+        content()
+        return
+    }
+    when (arrangement) {
+        SlotArrangement.INLINE -> Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            content()
+            for (contribution in contributions) {
+                NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
+                    contribution.Render(spec, theme, host)
+                }
+            }
+        }
+
+        SlotArrangement.BLOCK -> Column(modifier = modifier) {
+            content()
+            for (contribution in contributions) {
+                NativeSlotGuard(pluginLabel = contribution.javaClass.simpleName, theme = theme) {
+                    contribution.Render(spec, theme, host)
+                }
+            }
+        }
+    }
+}
 
 /**
  * 一个落点的通用宿主容器：放在 App 的某个 UI 位置（dock、输入框旁、设置页…），

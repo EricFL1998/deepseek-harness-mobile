@@ -1682,6 +1682,12 @@ fun MainAppHost(
                                 },
                             )
                         }
+                        // conversation.session.header.corner：会话标题栏角落的插件落点。
+                        if (chatPage) {
+                            com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                                slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.SESSION_HEADER_CORNER,
+                            ) {}
+                        }
                     }
                 }
             ) { innerPadding ->

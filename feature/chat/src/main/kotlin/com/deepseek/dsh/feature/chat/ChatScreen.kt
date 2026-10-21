@@ -440,6 +440,11 @@ fun ModernChatScreen(
             .background(MaterialTheme.colorScheme.background)
             .imePadding()
     ) {
+        // conversation.view：插件可以在会话视图整体位置增强（官方默认内容为空占位）。
+        com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.CONVERSATION_VIEW,
+            arrangement = com.deepseek.dsh.plugin.nativehost.SlotArrangement.BLOCK,
+        ) {}
         if (messages.isEmpty() && !isSending) {
             Box(
                 modifier = Modifier
@@ -2247,6 +2252,10 @@ fun BottomInputBar(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
             )
         }
+        com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+            slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_BAR,
+            arrangement = com.deepseek.dsh.plugin.nativehost.SlotArrangement.BLOCK,
+        ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2305,74 +2314,92 @@ fun BottomInputBar(
                     horizontalArrangement = Arrangement.spacedBy(if (tightComposer) 6.dp else 10.dp)
                 ) {
                     // 加号：28dp 圆形 selector 按钮（无 Material 涟漪）
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(panelColors.bgModulePlatform)
-                            .clickable(
-                                interactionSource = plusInteraction,
-                                indication = null,
-                                onClick = onPlusClick,
-                            ),
-                        contentAlignment = Alignment.Center
+                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_LEFT,
                     ) {
-                        Icon(
-                            imageVector = DshIcons.PlusOutline,
-                            contentDescription = stringResource(R.string.action_input_commands),
-                            tint = panelColors.labelPrimary,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(panelColors.bgModulePlatform)
+                                .clickable(
+                                    interactionSource = plusInteraction,
+                                    indication = null,
+                                    onClick = onPlusClick,
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = DshIcons.PlusOutline,
+                                contentDescription = stringResource(R.string.action_input_commands),
+                                tint = panelColors.labelPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
+                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_ATTACHMENTS,
+                    ) {}
 
                     // 权限预设：trigger 28dp 高 / R8 / 13-20 二级色 / 14dp 图标与箭头
-                    Box(modifier = Modifier.onGloballyPositioned { permissionAnchor = it.boundsInWindow() }) {
-                        ComposerTrigger(
-                            label = stringResource(currentPermission.titleResId),
-                            leadingIconResId = currentPermission.iconResId(),
-                            labelWeight = FontWeight.Medium,
-                            onClick = onOpenPermissionMenu,
-                            compact = tightComposer,
-                            modifier = Modifier.widthIn(max = 140.dp),
-                        )
-                        PermissionMenu(
-                            expanded = permissionMenuOpen,
-                            anchorBounds = permissionAnchor,
-                            current = currentPermission,
-                            onDismiss = onPermissionMenuDismiss,
-                            onSelect = onPermissionSelect,
-                        )
+                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_PERMISSION,
+                    ) {
+                        Box(modifier = Modifier.onGloballyPositioned { permissionAnchor = it.boundsInWindow() }) {
+                            ComposerTrigger(
+                                label = stringResource(currentPermission.titleResId),
+                                leadingIconResId = currentPermission.iconResId(),
+                                labelWeight = FontWeight.Medium,
+                                onClick = onOpenPermissionMenu,
+                                compact = tightComposer,
+                                modifier = Modifier.widthIn(max = 140.dp),
+                            )
+                            PermissionMenu(
+                                expanded = permissionMenuOpen,
+                                anchorBounds = permissionAnchor,
+                                current = currentPermission,
+                                onDismiss = onPermissionMenuDismiss,
+                                onSelect = onPermissionSelect,
+                            )
+                        }
                     }
 
                     // 模型与推理等级：贴近右侧发送按钮，菜单锚定在此。
                     Spacer(modifier = Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier
-                            .widthIn(max = 200.dp)
-                            .onGloballyPositioned { modelAnchor = it.boundsInWindow() },
+                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_MODEL,
                     ) {
-                        ComposerTrigger(
-                            label = selectedModel.ifBlank { stringResource(R.string.chat_select_model) },
-                            // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
-                            trailingValue = if (availableModels.isEmpty()) null else effortLabel,
-                            onClick = onOpenModelMenu,
-                            compact = tightComposer,
-                        )
-                        ModelEffortMenu(
-                            expanded = modelMenuOpen,
-                            anchorBounds = modelAnchor,
-                            selectedModel = selectedModel,
-                            availableModels = availableModels.distinct(),
-                            modelGroups = modelGroups,
-                            effortLabel = effortLabel,
-                            reasoningOptions = reasoningOptions,
-                            selectedReasoningId = selectedReasoningId,
-                            onDismiss = onModelMenuDismiss,
-                            onModelSelected = onModelSelected,
-                            onEffortSelected = onEffortSelected,
-                            onReasoningSelected = onReasoningSelected,
-                        )
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 200.dp)
+                                .onGloballyPositioned { modelAnchor = it.boundsInWindow() },
+                        ) {
+                            ComposerTrigger(
+                                label = selectedModel.ifBlank { stringResource(R.string.chat_select_model) },
+                                // 官方：未选模型时只显示「请选择模型」，不附带推理等级。
+                                trailingValue = if (availableModels.isEmpty()) null else effortLabel,
+                                onClick = onOpenModelMenu,
+                                compact = tightComposer,
+                            )
+                            ModelEffortMenu(
+                                expanded = modelMenuOpen,
+                                anchorBounds = modelAnchor,
+                                selectedModel = selectedModel,
+                                availableModels = availableModels.distinct(),
+                                modelGroups = modelGroups,
+                                effortLabel = effortLabel,
+                                reasoningOptions = reasoningOptions,
+                                selectedReasoningId = selectedReasoningId,
+                                onDismiss = onModelMenuDismiss,
+                                onModelSelected = onModelSelected,
+                                onEffortSelected = onEffortSelected,
+                                onReasoningSelected = onReasoningSelected,
+                            )
+                        }
                     }
+                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_PLAN,
+                    ) {}
 
                     // conversation.input.right：原生插件在发送/停止按钮旁的落点。
                     com.deepseek.dsh.plugin.nativehost.NativeSlot(
@@ -2401,41 +2428,46 @@ fun BottomInputBar(
                     }
 
                     // 生成中：发送按钮切换为停止按钮，两者不同时出现。
-                    if (isGenerating) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.error,
-                            onClick = onStop,
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = DshIcons.StopFill,
-                                    contentDescription = stringResource(R.string.action_stop),
-                                    tint = MaterialTheme.colorScheme.onError,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                    com.deepseek.dsh.plugin.nativehost.OfficialSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_RIGHT,
+                    ) {
+                        if (isGenerating) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.error,
+                                onClick = onStop,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = DshIcons.StopFill,
+                                        contentDescription = stringResource(R.string.action_stop),
+                                        tint = MaterialTheme.colorScheme.onError,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
-                        }
-                    } else {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            onClick = onSend,
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = DshIcons.SendUpArrow,
-                                    contentDescription = stringResource(R.string.action_send),
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                onClick = onSend,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = DshIcons.SendUpArrow,
+                                        contentDescription = stringResource(R.string.action_send),
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
+        }
         }
 
         Spacer(modifier = Modifier.height(6.dp))

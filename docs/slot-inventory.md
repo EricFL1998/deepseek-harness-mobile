@@ -5,8 +5,8 @@
 > `NativeSlotHost`/`NativeSlot.X` 引用。两者不一致时工具失败。
 
 - 官方 slot 常量：30
-- 已映射：21
-- 明确不支持：9
+- 已映射：30
+- 明确不支持：0
 - 未覆盖：0
 - 声明了映射但未找到宿主：0
 
@@ -17,19 +17,19 @@
 | `conversation.chat.node` | `CHAT_STREAM` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.chat.reasoning.body` | `CHAT_STREAM` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.chat.turnTail` | `CHAT_STREAM` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
-| `conversation.composer.bar` | 未接入（显式） | — |
+| `conversation.composer.bar` | `COMPOSER_BAR` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.composer.dock` | `COMPOSER_DOCK` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt<br>plugin\native-host\src\main\kotlin\com\deepseek\dsh\plugin\nativehost\NativeHost.kt |
-| `conversation.input.attachments` | 未接入（显式） | — |
+| `conversation.input.attachments` | `COMPOSER_ATTACHMENTS` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.input.dock` | `COMPOSER_DOCK` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt<br>plugin\native-host\src\main\kotlin\com\deepseek\dsh\plugin\nativehost\NativeHost.kt |
-| `conversation.input.left` | 未接入（显式） | — |
-| `conversation.input.model` | 未接入（显式） | — |
+| `conversation.input.left` | `COMPOSER_LEFT` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
+| `conversation.input.model` | `COMPOSER_MODEL` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `conversation.input.overlay` | `COMPOSER_OVERLAY` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
-| `conversation.input.permission` | 未接入（显式） | — |
-| `conversation.input.plan` | 未接入（显式） | — |
-| `conversation.input.right` | 未接入（显式） | — |
-| `conversation.session.header.corner` | 未接入（显式） | — |
+| `conversation.input.permission` | `COMPOSER_PERMISSION` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
+| `conversation.input.plan` | `COMPOSER_PLAN` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
+| `conversation.input.right` | `COMPOSER_RIGHT` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
+| `conversation.session.header.corner` | `SESSION_HEADER_CORNER` | app\src\main\kotlin\com\deepseek\dsh\MainActivity.kt |
 | `conversation.user.text.node` | `CHAT_STREAM` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
-| `conversation.view` | 未接入（显式） | — |
+| `conversation.view` | `CONVERSATION_VIEW` | feature\chat\src\main\kotlin\com\deepseek\dsh\feature\chat\ChatScreen.kt |
 | `plugins.tab` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt |
 | `settings.general.item` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt |
 | `settings.section` | `SETTINGS_SHEET` | feature\settings\src\main\kotlin\com\deepseek\dsh\feature\settings\SettingsRootScreen.kt |
