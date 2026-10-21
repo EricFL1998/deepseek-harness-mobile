@@ -1,4 +1,4 @@
-package com.example.subscription.nativeui
+package com.dsh.mobile.dsh_plugin_subscription_oauth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

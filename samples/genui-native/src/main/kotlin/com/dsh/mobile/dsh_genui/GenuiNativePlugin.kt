@@ -1,4 +1,4 @@
-package com.example.dshgenui.nativeui
+package com.dsh.mobile.dsh_genui
 
 import androidx.compose.runtime.Composable
 import com.deepseek.dsh.plugin.nativesdk.contract.ComponentRenderer

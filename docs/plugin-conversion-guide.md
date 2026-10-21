@@ -112,10 +112,10 @@ plugins {
 }
 
 android {
-    namespace = "com.example.yourplugin.nativeui" // 不要用 Java 关键字 native
+    namespace = "com.dsh.mobile.dsh_plugin_your_pluginui" // 不要用 Java 关键字 native
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.example.yourplugin.nativeui"
+        applicationId = "com.dsh.mobile.dsh_plugin_your_pluginui"
         minSdk = 26
         versionCode = 1
         versionName = "1.0.0"
@@ -168,7 +168,7 @@ meta-data 必须放在 **Service 级**：
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.subscription.nativeui">
+    package="com.dsh.mobile.dsh_plugin_subscription_oauth">
     <application>
         <service
             android:name=".SubscriptionPluginService"

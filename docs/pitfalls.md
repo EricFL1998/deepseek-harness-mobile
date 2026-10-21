@@ -57,6 +57,27 @@ App 的设置-模型页没有任何订阅区块。
 
 ## 2. 伴侣 APK / 装载
 
+### 2.0 包名缩写导致身份/升级混乱
+
+**现象**：伴侣包名写成 `com.dsh.mobile.subscription`，后来功能扩展（或同包多个能力）
+无法区分，用户安装后像另一个 APK。
+
+**根因**：包名没有使用完整插件名，发布后不能再改。
+
+**规范**：`com.dsh.mobile.<完整插件名>`，保留 `dsh-plugin-` 前缀并转小写，
+非 `[a-z0-9]` 字符替换为 `_`：
+
+```
+dsh-plugin-subscription-oauth  -> com.dsh.mobile.dsh_plugin_subscription_oauth
+dsh-plugin-my-plugin           -> com.dsh.mobile.dsh_plugin_my_plugin
+```
+
+同一 JS 包的附加能力加 `_<capability>` 后缀，例如
+`com.dsh.mobile.dsh_plugin_subscription_oauth_kimi`。
+`dsh.plugin.id` 与包名解耦，仍用插件自己的反向域名 id。
+
+**预防**：包名在第一次发布前定稿；写进 CI/评审清单，禁止缩写。
+
 ### 2.1 `Failed to find entry 'classes.dex'`
 
 **现象**：`createPackageContext` 后单独 `DexClassLoader` 加载伴侣，日志报

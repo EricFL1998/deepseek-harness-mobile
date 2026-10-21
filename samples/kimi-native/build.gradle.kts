@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.kimi.nativeui"
+    namespace = "com.dsh.mobile.dsh_plugin_subscription_oauth_kimi"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.kimi.nativeui"
+        applicationId = "com.dsh.mobile.dsh_plugin_subscription_oauth_kimi"
         minSdk = 26
         versionCode = 1
         versionName = "1.0.0"

@@ -1,4 +1,4 @@
-package com.example.kimi.nativeui
+package com.dsh.mobile.dsh_plugin_subscription_oauth_kimi
 
 import android.app.Service
 import android.content.Intent

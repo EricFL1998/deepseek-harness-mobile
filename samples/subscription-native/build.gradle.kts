@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.subscription.nativeui"
+    namespace = "com.dsh.mobile.dsh_plugin_subscription_oauth"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.subscription.nativeui"
+        applicationId = "com.dsh.mobile.dsh_plugin_subscription_oauth"
         minSdk = 26
         versionCode = 1
         versionName = "1.0.0"

@@ -95,7 +95,7 @@ DSH 插件天然分层：
 ### 3.2 两个包的关联
 
 - npm 包（如 `@changfenhuang/dsh-kimi-oauth`）：不变，走现有插件安装通道进 Host；
-- 伴侣 APK（如 `com.example.kimi.oauth.native`）：走商店分发，由系统安装器装入；
+- 伴侣 APK（如 `com.dsh.mobile.dsh_plugin_kimi_oauth`）：走商店分发，由系统安装器装入；
 - 伴生身份是 **`pluginId`**（如 `changfenhuang.kimi-oauth`），用于签名、商店与注册归属；
 - JS 配对键是 **`jsPackage`**（如 `dsh-plugin-kimi-oauth`），在 Service 的 `dsh.plugin.jsPackage` 声明。两者可以不同；
 - 页面接管键是 **`<jsPackage>#<PageEntry.id>`**，与 bridge 的实际组件身份一致。App 据此把「JS 插件注册的槽位」和「原生页面」配对，不能仅凭 pluginId 猜包名。
@@ -112,7 +112,7 @@ DSH 插件天然分层：
 插件 APK 必须声明以下 meta-data 与服务，缺一不可：
 
 ```xml
-<manifest package="com.example.kimi.oauth.native">
+<manifest package="com.dsh.mobile.dsh_plugin_kimi_oauth">
 
     <!-- 入口服务：App 通过 action 发现插件，并读取 service 级 meta-data -->
     <service

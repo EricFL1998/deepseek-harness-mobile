@@ -97,7 +97,7 @@ your-plugin-native/             ← 新增 Android 工程
 ### 3.2 AndroidManifest.xml（基础契约 + JS 配对）
 
 ```xml
-<manifest package="com.example.yourplugin.native">
+<manifest package="com.dsh.mobile.dsh_plugin_your_plugin">
 
     <!-- 入口服务：发现、ABI 校验、静态工厂加载及 JS 插件配对都在 service 级声明 -->
     <service

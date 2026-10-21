@@ -1,4 +1,4 @@
-package com.example.dshgenui.nativeui
+package com.dsh.mobile.dsh_genui
 
 import android.app.Service
 import android.content.Intent

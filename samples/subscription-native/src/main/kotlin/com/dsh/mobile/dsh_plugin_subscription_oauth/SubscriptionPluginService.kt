@@ -1,4 +1,4 @@
-package com.example.subscription.nativeui
+package com.dsh.mobile.dsh_plugin_subscription_oauth
 
 import android.app.Service
 import android.content.Intent

@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.dshgenui.nativeui"
+    namespace = "com.dsh.mobile.dsh_genui"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.dshgenui.nativeui"
+        applicationId = "com.dsh.mobile.dsh_genui"
         minSdk = 26
         versionCode = 1
         versionName = "1.0.0"

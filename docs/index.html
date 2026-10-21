@@ -401,6 +401,14 @@
         <p>扫描器只读插件包。官方 slot 清单由 App 的 <code>NativeSlotMapping</code> 提供；
         第三方环境无需 <code>dsh-upstream</code>。</p>
       </div>
+      <div class="callout warn">
+        <strong>包名规范（强制）</strong>
+        <p>伴侣 APK 统一 <code>com.dsh.mobile.&lt;完整插件名&gt;</code>：保留
+        <code>dsh-plugin-</code> 前缀，转小写，非字母数字换成 <code>_</code>。
+        例：<code>dsh-plugin-subscription-oauth</code> →
+        <code>com.dsh.mobile.dsh_plugin_subscription_oauth</code>。不要缩写成
+        <code>com.dsh.mobile.subscription</code>。</p>
+      </div>
     </section>
 
     <section id="scan">
