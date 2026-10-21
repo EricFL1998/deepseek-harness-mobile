@@ -457,6 +457,33 @@ fun MainAppHost(
             voiceRecorder.cancel()
         }
     }
+    // Claude Code 模组横幅：官方在 conversation.input.dock 画一条 Host 下发的
+    // 动态横幅；只有 Claude Code 子智能体插件启用且当前会话存在时订阅。
+    val claudeCodeModsEnabled = remember(dshRepository.bridgePluginCatalogFlow.value) {
+        dshRepository.bridgePluginCatalogFlow.value.bundles.any {
+            it.name == com.deepseek.dsh.feature.chat.ClaudeCodeModsPluginUi.BUNDLE && it.enabled
+        }
+    }
+    var bandSnapshot by remember { mutableStateOf<com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot?>(null) }
+    var bandPressing by remember { mutableStateOf(false) }
+    LaunchedEffect(activeHostId, selectedSessionId, claudeCodeModsEnabled) {
+        bandSnapshot = null
+        val sid = selectedSessionId
+        if (claudeCodeModsEnabled && sid != null) {
+            dshRepository.claudeCodeBand(activeHostId, sid).collect { snapshot -> bandSnapshot = snapshot }
+        }
+    }
+
+    fun pressClaudeCodeBand(generation: Long, actionId: String) {
+        val sid = selectedSessionId ?: return
+        scope.launch {
+            bandPressing = true
+            dshRepository.pressClaudeCodeBand(activeHostId, sid, generation, actionId)
+                .onSuccess { snapshot -> if (snapshot != null) bandSnapshot = snapshot }
+            bandPressing = false
+        }
+    }
+
     LaunchedEffect(voiceRecording) {
         while (voiceRecording) {
             kotlinx.coroutines.delay(1_000)
@@ -1749,6 +1776,9 @@ fun MainAppHost(
                                 onVoiceStop = { stopVoice() },
                                 onVoiceCancel = { cancelVoice() },
                                 onVoiceTranscriptConsumed = { voiceTranscript = null },
+                                bandSnapshot = bandSnapshot,
+                                bandPressing = bandPressing,
+                                onBandPress = { generation, actionId -> pressClaudeCodeBand(generation, actionId) },
                                 onOpenAttachmentMenu = {
                                     activePage = ActivePage.FILES
                                 }

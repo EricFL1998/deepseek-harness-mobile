@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
@@ -1698,6 +1699,62 @@ class RemoteClient(
         })
         followSockets.add(socket)
     }
+
+    /**
+     * 订阅 Claude Code 模组横幅。
+     *
+     * 走 Gateway 的流式多路复用 WebSocket（`/api/remote.mux`）：先 `open`
+     * `claudeCodeMods/watchBand`，随后每个 `item` 帧是一次重绘的
+     * `SurfaceSnapshot`，`end`/`error` 结束订阅。
+     */
+    override fun watchClaudeCodeBand(hostId: String, sessionId: String): Flow<JsonElement?> = callbackFlow {
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val request = Request.Builder().url(wsUrl).build()
+        val streamId = java.util.UUID.randomUUID().toString()
+        val socket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                val open = buildJsonObject {
+                    put("type", "open")
+                    put("streamId", streamId)
+                    put("endpoint", "claudeCodeMods/watchBand")
+                    put("payload", buildJsonObject {
+                        put("args", buildJsonObject { put("agent", sessionId) })
+                    })
+                }
+                webSocket.send(open.toString())
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                runCatching {
+                    val frame = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+                        ?: return@runCatching
+                    fun field(key: String): String? =
+                        (frame[key] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                    if (field("streamId") != streamId) return@runCatching
+                    when (field("type")) {
+                        "item" -> trySend(frame["value"])
+                        "error", "end" -> {
+                            trySend(null)
+                            close()
+                        }
+                    }
+                }
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                close(t)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                close()
+            }
+        })
+        awaitClose {
+            runCatching { socket.send("{\"type\":\"cancel\",\"streamId\":\"$streamId\"}") }
+            runCatching { socket.close(1000, "client closed") }
+        }
+    }
+
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
 

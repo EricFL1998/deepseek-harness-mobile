@@ -199,6 +199,14 @@ fun ModernChatScreen(
     onReasoningSelected: (ReasoningOption) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
     // 录音输入（官方录音输入插件的 composer activity）：麦克风按钮与录音条。
+    // Claude Code 模组横幅（官方 conversation.input.dock）。
+
+    bandSnapshot: com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot? = null,
+
+    bandPressing: Boolean = false,
+
+    onBandPress: (Long, String) -> Unit = { _, _ -> },
+
     voiceEnabled: Boolean = false,
     voiceRecording: Boolean = false,
     voiceSeconds: Int = 0,
@@ -406,6 +414,9 @@ fun ModernChatScreen(
             onVoiceStop = onVoiceStop,
 
             onVoiceCancel = onVoiceCancel,
+            bandSnapshot = bandSnapshot,
+            bandPressing = bandPressing,
+            onBandPress = onBandPress,
             showDockStats = messages.isNotEmpty() || isSending
         )
     }
@@ -2001,6 +2012,14 @@ fun BottomInputBar(
     stats: ComposerStats = ComposerStats(),
     showDockStats: Boolean = true,
     // 录音输入：麦克风按钮与录音条（官方 conversation.input.activity）。
+    // Claude Code 模组横幅（官方 conversation.input.dock）。
+
+    bandSnapshot: com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot? = null,
+
+    bandPressing: Boolean = false,
+
+    onBandPress: (Long, String) -> Unit = { _, _ -> },
+
     voiceEnabled: Boolean = false,
     voiceRecording: Boolean = false,
     voiceSeconds: Int = 0,
@@ -2028,6 +2047,13 @@ fun BottomInputBar(
             slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK,
             spec = kotlinx.serialization.json.JsonObject(emptyMap()),
             modifier = Modifier.padding(bottom = 6.dp),
+        )
+
+        // conversation.input.dock：Claude Code 模组横幅（Host 下发的动态树）。
+        ClaudeCodeModsPluginUi.BandView(
+            snapshot = bandSnapshot,
+            pressing = bandPressing,
+            onPress = onBandPress,
         )
         // 录音条：官方展开后的 composer 工具条（波形 + 计时 + 取消 / 停止并识别）。
         if (voiceRecording) {

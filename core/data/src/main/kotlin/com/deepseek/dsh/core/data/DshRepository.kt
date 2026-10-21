@@ -566,6 +566,39 @@ class DshRepository(
             is RemoteResult.Failure -> Result.failure(IllegalStateException("${res.code}: ${res.message}"))
         }
 
+    // ── Claude Code 模组横幅（claudeCodeMods Remote）──────────────────────────
+    //
+    // 官方在 conversation.input.dock 画一条由 Host 下发的动态横幅；watchBand 是
+    // 流式方法，走 Gateway 的 `/api/remote.mux` WebSocket。
+
+    /** 订阅会话的模组横幅；每次重绘发一份快照，流结束即完成。 */
+    fun claudeCodeBand(hostId: String, sessionId: String): Flow<ClaudeCodeBandSnapshot?> =
+        client.watchClaudeCodeBand(hostId, sessionId).map { snapshot -> parseBandSnapshot(snapshot) }
+
+    /**
+     * 点横幅上的按钮。
+     *
+     * @param hostId Host 标识。
+     * @param sessionId 会话 id。
+     * @param generation 快照代次（过期的按钮会被 Host 拒绝）。
+     * @param actionId 按钮的动作 id。
+     * @returns 按下的新快照。
+     */
+    suspend fun pressClaudeCodeBand(
+        hostId: String,
+        sessionId: String,
+        generation: Long,
+        actionId: String,
+    ): Result<ClaudeCodeBandSnapshot?> {
+        val args = buildJsonObject {
+            put("agent", sessionId)
+            put("generation", generation)
+            put("actionId", actionId)
+        }
+        return rpcRaw(hostId, "claudeCodeMods/pressBand", args.toString())
+            .mapCatching { raw -> parseBandSnapshot(remoteValueOrThrow(raw)) }
+    }
+
     // ── 插件市场（pluginMarket Remote）─────────────────────────────────────────
     //
     // 「发现」页的数据来自 Host 的 `pluginMarket` Remote，与网页版读同一份索引。

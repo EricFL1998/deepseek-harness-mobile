@@ -103,6 +103,17 @@ interface DshClientProtocol {
     suspend fun respondApproval(hostId: String, approvalId: String, approved: Boolean): RemoteResult<Boolean>
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
+    /**
+     * 订阅会话的 Claude Code 模组横幅（流式 `claudeCodeMods/watchBand`）。
+     *
+     * @param hostId Host 标识。
+     * @param sessionId 会话 id（Host 侧的 agent 标识）。
+     * @returns 每次重绘的 `SurfaceSnapshot` 原始 JSON；流结束时完成。
+     */
+    fun watchClaudeCodeBand(
+        hostId: String,
+        sessionId: String,
+    ): Flow<kotlinx.serialization.json.JsonElement?>
 }
 
 
