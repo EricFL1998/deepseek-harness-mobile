@@ -277,7 +277,8 @@ fun PluginsScreen(
                 )
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 分段页签永远在最顶（添加插件按钮之上），两个 tab 都有它。
+                    // 分段页签在最顶；页头（含「添加插件」按钮）两个 tab 共用，
+                    // 按钮的文案与动作随 tab 变：插件 tab 装 JS 插件，原生 tab 装伴侣 APK。
                     PluginsNativeTabs(
                         selectedIndex = pluginsTabIndex,
                         onSelect = { pluginsTabIndex = it },
@@ -286,6 +287,26 @@ fun PluginsScreen(
                             end = PluginsDimens.PageHorizontal,
                             top = PluginsDimens.PageTop,
                             bottom = 16.dp,
+                        ),
+                    )
+                    PluginsPageHead(
+                        isNativeTab = pluginsTabIndex == 1,
+                        onAddPluginClick = {
+                            if (pluginsTabIndex == 1) {
+                                // 原生 tab：安装原生伴侣（商店浏览由列表承载，这里给安装入口）。
+                                showInstallDialog = true
+                            } else {
+                                showInstallDialog = true
+                            }
+                        },
+                        addMenuOpen = addMenuOpen,
+                        onToggleAddMenu = { addMenuOpen = !addMenuOpen },
+                        onDismissAddMenu = { addMenuOpen = false },
+                        onRefresh = { /* 本地目录刷新由 Host 推送 */ },
+                        onCreatePlugin = onCreatePlugin,
+                        modifier = Modifier.padding(
+                            start = PluginsDimens.PageHorizontal,
+                            end = PluginsDimens.PageHorizontal,
                         ),
                     )
                     if (pluginsTabIndex == 1) {
@@ -304,17 +325,6 @@ fun PluginsScreen(
                         bottom = PluginsDimens.PageBottom,
                     ),
                 ) {
-                    item(key = "page_head") {
-                        PluginsPageHead(
-                            onAddPluginClick = { showInstallDialog = true },
-                            addMenuOpen = addMenuOpen,
-                            onToggleAddMenu = { addMenuOpen = !addMenuOpen },
-                            onDismissAddMenu = { addMenuOpen = false },
-                            onRefresh = { /* 本地目录刷新由 Host 推送；此处保持官方按钮形态 */ },
-                            onCreatePlugin = onCreatePlugin,
-                        )
-                    }
-
                     if (officialConfigItems.isNotEmpty()) {
                         item(key = "builtin_config_head") {
                             PluginsGroupTitle(
@@ -391,36 +401,9 @@ fun PluginsScreen(
                     // 进入单独页面，不再在主列表里占一节。
                     // （原「更多插件」整组已移除，见 MorePluginsScreen。）
 
-                    // 插件声明的行级配置入口：与设置页同一套机制，按 slot 分派到插件页。
-                    if (rowConfigSurfaces.isNotEmpty()) {
-                        item(key = "row_config_head") {
-                            PluginsGroupTitle(
-                                text = "插件配置",
-                                modifier = Modifier.padding(
-                                    top = PluginsDimens.SectionGap,
-                                    bottom = PluginsDimens.GroupTitleGap,
-                                ),
-                            )
-                        }
-                        itemsIndexed(
-                            items = rowConfigSurfaces,
-                            key = { index, surface -> "row_config_${index}_${surface.id}" },
-                        ) { index, surface ->
-                            RowConfigRow(
-                                surface = surface,
-                                showDivider = index != rowConfigSurfaces.lastIndex,
-                                onClick = {
-                                    // id 形如 <bundle>#<rowId>：打开所属 bundle 的详情页。
-                                    val bundleName = surface.id.substringBefore("#")
-                                    val target = (derivedExperimentalBundles + derivedMoreBundles +
-                                        derivedInstalledBundles).firstOrNull {
-                                        it.packageName == bundleName
-                                    }
-                                    if (target != null) selectedBundle = target
-                                },
-                            )
-                        }
-                    }
+                    // 行级配置入口（plugins.row.config）不进主列表：官方页面把一行的
+                    // 配置放在它所属组合包的详情页里，主列表多出一节「插件配置」既不是
+                    // 官方结构，也和上面的分组重复。
 
                     // 1. 已安装插件：只列第三方（官方与实验性已各自成组）
                     item(key = "installed_group_head") {
@@ -755,16 +738,18 @@ internal object PluginsDimens {    /** 手机页面左右安全边距（clamp(24
 /** 页头：左标题/引导语，右上刷新 + 官方拆分「添加插件」按钮（主按钮 + 下拉）。 */
 @Composable
 private fun PluginsPageHead(
+    isNativeTab: Boolean = false,
     onAddPluginClick: () -> Unit,
     addMenuOpen: Boolean,
     onToggleAddMenu: () -> Unit,
     onDismissAddMenu: () -> Unit,
     onRefresh: () -> Unit,
     onCreatePlugin: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalDshPanelColors.current
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
     ) {
         Column(
@@ -773,14 +758,14 @@ private fun PluginsPageHead(
                 .padding(end = 16.dp)
         ) {
             Text(
-                text = "插件",
+                text = if (isNativeTab) "原生插件" else "插件",
                 color = colors.labelPrimary,
                 fontSize = 20.sp,
                 lineHeight = 28.sp,
                 fontWeight = FontWeight.Medium,
             )
             Text(
-                text = "安装、启用和配置插件",
+                text = if (isNativeTab) "发现和安装原生界面插件" else "安装、启用和配置插件",
                 color = colors.labelSecondary,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
@@ -817,6 +802,7 @@ private fun PluginsPageHead(
             Box {
                 PluginsSplitAddButton(
                     expanded = addMenuOpen,
+                    primaryLabel = if (isNativeTab) "安装原生插件" else "添加插件",
                     onPrimaryClick = {
                         onDismissAddMenu()
                         onAddPluginClick()
@@ -840,10 +826,11 @@ private fun PluginsPageHead(
     }
 }
 
-/** 官方拆分主按钮：左「+ 添加插件」，右侧 32dp 下拉段，中间 0.5dp 前景色分隔线。 */
+/** 官方拆分主按钮：左「+ 添加插件/安装原生插件」，右侧 32dp 下拉段，中间 0.5dp 分隔线。 */
 @Composable
 private fun PluginsSplitAddButton(
     expanded: Boolean,
+    primaryLabel: String = "添加插件",
     onPrimaryClick: () -> Unit,
     onChevronClick: () -> Unit,
 ) {
@@ -878,7 +865,7 @@ private fun PluginsSplitAddButton(
                 modifier = Modifier.size(13.dp),
             )
             Text(
-                text = "添加插件",
+                text = primaryLabel,
                 color = colors.labelPrimaryForeground,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
