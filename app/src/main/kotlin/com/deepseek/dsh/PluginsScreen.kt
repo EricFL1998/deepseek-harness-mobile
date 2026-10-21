@@ -145,6 +145,8 @@ fun PluginsScreen(
     nativePluginItems: List<com.deepseek.dsh.plugin.nativehost.NativePluginItem> = emptyList(),
     /** 插件市场的数据源；「自定义插件市场」bundle 启用时 tab 才会出现。 */
     marketBackend: MarketBackend? = null,
+    /** 语音识别的 Host 接口（语音输入插件用）。 */
+    speechHooks: SpeechHooks? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = dshPanelColors()
@@ -427,6 +429,7 @@ fun PluginsScreen(
                         saveDocument = savePluginSettings,
                         loadCredential = loadCredential,
                         saveCredential = saveCredential,
+                        speech = speechHooks,
                     ),
                 )
             }

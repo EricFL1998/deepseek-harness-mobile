@@ -1818,6 +1818,19 @@ fun MainAppHost(
                                         dshRepository.marketSetIndexes(activeHostId, urls)
                                     },
                                 ),
+                                // 语音输入插件的 Host speech 接口（准备卡片 / 选择服务）。
+                                speechHooks = SpeechHooks(
+                                    catalog = { dshRepository.speechCatalog(activeHostId) },
+                                    configure = { providerId, language ->
+                                        dshRepository.speechConfigure(activeHostId, providerId, language)
+                                    },
+                                    prepare = { providerId, source ->
+                                        dshRepository.speechPrepare(activeHostId, providerId, source)
+                                    },
+                                    cancelPrepare = { providerId ->
+                                        dshRepository.speechCancelPrepare(activeHostId, providerId)
+                                    },
+                                ),
                                 onUninstallCompanion = { companion ->
                                     requestApkUninstall(companion.packageName)
                                 },

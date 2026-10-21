@@ -611,9 +611,65 @@ class DshRepository(
         return rpcRaw(hostId, "pluginMarket/setIndexes", args.toString()).map { true }
     }
 
+    // ── 语音输入（speech Remote）─────────────────────────────────────────────
+    //
+    // 官方网页端的语音输入用 `remote.speech`：catalog 给出识别服务/语言/准备
+    // 状态，configure/prepare/cancelPreparation 改选择与模型准备。原生页用同一
+    // 组方法，因此与网页版共享同一份 Host 状态。
+
+    /** 读取语音识别目录（服务、语言、准备状态）。 */
+    suspend fun speechCatalog(hostId: String): Result<SpeechCatalog> =
+        rpcRaw(hostId, "speech/catalog", "{}").mapCatching { raw ->
+            parseSpeechCatalog(remoteValueOrThrow(raw)) ?: error("语音服务没有返回目录")
+        }
+
+    /** 保存识别服务与语言选择（Host 方法签名是 `configure(patch)`）。 */
+    suspend fun speechConfigure(
+        hostId: String,
+        providerId: String,
+        language: String,
+    ): Result<Boolean> {
+        val args = buildJsonObject {
+            put(
+                "patch",
+                buildJsonObject {
+                    put("providerId", providerId)
+                    put("language", language)
+                },
+            )
+        }
+        return rpcRaw(hostId, "speech/configure", args.toString()).map { true }
+    }
+
+    /**
+     * 准备某个服务（下载/校验/加载本地模型）。
+     *
+     * @param hostId Host 标识。
+     * @param providerId 识别服务 id。
+     * @param downloadSource 下载来源；null/空表示自动选择。
+     */
+    suspend fun speechPrepare(
+        hostId: String,
+        providerId: String,
+        downloadSource: String?,
+    ): Result<Boolean> {
+        val args = buildJsonObject {
+            put("providerId", providerId)
+            if (!downloadSource.isNullOrBlank()) {
+                put("options", buildJsonObject { put("downloadSource", downloadSource) })
+            }
+        }
+        return rpcRaw(hostId, "speech/prepare", args.toString()).map { true }
+    }
+
+    /** 取消进行中的准备。 */
+    suspend fun speechCancelPrepare(hostId: String, providerId: String): Result<Boolean> {
+        val args = buildJsonObject { put("providerId", providerId) }
+        return rpcRaw(hostId, "speech/cancelPreparation", args.toString()).map { true }
+    }
+
     /** 取出 Remote 响应信封里的 `result.value`；`ok=false` 时抛出 Host 的错误码。 */
-    private fun remoteValueOrThrow(raw: String): JsonElement? {
-        val root = credentialJson.parseToJsonElement(raw) as? JsonObject
+    private fun remoteValueOrThrow(raw: String): JsonElement? {        val root = credentialJson.parseToJsonElement(raw) as? JsonObject
             ?: error("无法解析 Host 响应")
         val result = root["result"] as? JsonObject ?: error("Host 响应缺少 result")
         val ok = (result["ok"] as? JsonPrimitive)?.booleanOrNull == true

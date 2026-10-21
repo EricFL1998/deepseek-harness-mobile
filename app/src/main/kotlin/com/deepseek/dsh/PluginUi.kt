@@ -20,6 +20,8 @@ internal data class PluginUiHooks(
     val loadCredential: suspend (String) -> DshRepository.CredentialStatus?,
     /** 写入一个凭据引用。 */
     val saveCredential: suspend (String, String) -> Boolean,
+    /** 语音识别的 Host `speech` 接口；语音插件之外为 null。 */
+    val speech: SpeechHooks? = null,
 )
 
 /**
@@ -43,6 +45,7 @@ internal object PluginUis {
     private val entries: List<PluginUi> = listOf(
         // 新插件在这里登记（每个插件一个 .kt 文件）。
         CotTranslationPluginUi,
+        VoiceInputPluginUi,
     )
 
     /** @param bundle bundle 包名。 @returns 该 bundle 的原生 UI，没有时 null。 */
