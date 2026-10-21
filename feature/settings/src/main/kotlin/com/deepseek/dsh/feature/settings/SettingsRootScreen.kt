@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -45,6 +46,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private data class SettingsContentKey(
+    val section: SettingsSectionTab?,
+    val componentId: String?,
+    val settingsPageId: String?,
+    val native: Boolean,
+)
 
 /**
  * 6 大标准 Section (对齐 dsh-upstream/packages/client/ui-settings-*)
@@ -99,6 +107,8 @@ fun SettingsRootScreen(
     hostToken: String? = null,
     /** 需要时再取一次 Host 端口（异步就绪）。 */
     hostPortProvider: (() -> Int)? = null,
+    /** 原生伴生页面调用 Host 插件 RPC；参数原样传递，不包 args。 */
+    pluginRpc: (suspend (method: String, payload: kotlinx.serialization.json.JsonObject) -> Result<String>)? = null,
     /** 读取一份插件设置表单。 */
     loadPluginSettings: suspend (String) -> com.deepseek.dsh.core.model.PluginSettingsDocument? = { null },
     /** 回写插件设置字段。 */
@@ -131,6 +141,8 @@ fun SettingsRootScreen(
     var activePluginComponent by remember { mutableStateOf<com.deepseek.dsh.core.model.PluginSlotEntry?>(null) }
     var currentSettings by remember(settings) { mutableStateOf(settings) }
     var selectedAgentPreset by remember { mutableStateOf(settings.transcriptView) }
+    val nativePageRegistrations by com.deepseek.dsh.plugin.nativehost.NativePageRegistry
+        .registrations.collectAsState()
 
     BackHandler(enabled = true) {
         when {
@@ -196,24 +208,56 @@ fun SettingsRootScreen(
                 }
             }
 
+            val activeEntry = activePluginComponent
+            val activeComponentId = activeEntry?.resolvedComponentId()
+                ?: activeEntry?.let { "${it.module}#${it.slot}" }
+            val activeNativePage = activeComponentId?.let { componentId ->
+                com.deepseek.dsh.plugin.nativehost.NativePageRegistry.find(
+                    componentId = componentId,
+                    registrations = nativePageRegistrations,
+                )
+            }
             AnimatedContent(
-                targetState = activeSection,
+                targetState = SettingsContentKey(
+                    section = activeSection,
+                    componentId = activeComponentId,
+                    settingsPageId = activePluginPage?.id,
+                    native = activeNativePage != null,
+                ),
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "settings_nav"
-            ) { section ->
-                if (activePluginComponent != null) {
-                    val entry = activePluginComponent!!
-                    PluginComponentPane(
-                        componentId = entry.resolvedComponentId() ?: "${entry.module}#${entry.slot}",
-                        title = entry.title ?: entry.identity ?: entry.slot,
-                        registry = bridgeRegistry,
-                        onBack = { activePluginComponent = null },
-                        refreshEvents = pluginComponentRefresh,
-                        hostPort = hostPort,
-                        hostToken = hostToken,
-                        hostPortProvider = hostPortProvider,
-                    )
-                } else if (activePluginPage != null) {
+            ) { content ->
+                if (content.componentId != null && activeEntry != null) {
+                    val entry = activeEntry
+                    val componentId = content.componentId
+                    val nativePage = activeNativePage
+                    if (nativePage != null) {
+                        // A loaded companion owns this exact settings.section. Do not even
+                        // create the Web fallback: OAuth and quota updates stay on Host RPC.
+                        com.deepseek.dsh.plugin.nativehost.NativePluginComponentPane(
+                            page = nativePage,
+                            componentId = componentId,
+                            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                            onBack = { activePluginComponent = null },
+                            pluginRpc = pluginRpc,
+                            dispatchEvent = { id, event, payload ->
+                                bridgeRegistry?.dispatchUiEvent(id, event, payload)
+                            },
+                            refreshEvents = pluginComponentRefresh,
+                        )
+                    } else {
+                        PluginComponentPane(
+                            componentId = componentId,
+                            title = entry.title ?: entry.identity ?: entry.slot,
+                            registry = bridgeRegistry,
+                            onBack = { activePluginComponent = null },
+                            refreshEvents = pluginComponentRefresh,
+                            hostPort = hostPort,
+                            hostToken = hostToken,
+                            hostPortProvider = hostPortProvider,
+                        )
+                    }
+                } else if (content.settingsPageId != null && activePluginPage != null) {
                     val page = activePluginPage!!
                     PluginSettingsPage(
                         ns = page.id,
@@ -223,7 +267,7 @@ fun SettingsRootScreen(
                         saveDocument = savePluginSettings,
                         onBack = { activePluginPage = null },
                     )
-                } else if (section == null) {
+                } else if (content.section == null) {
                     // 移动端设置主页：分组卡片内的分区行（图标 + 标签 + 箭头）。
                     LazyColumn(
                         modifier = Modifier
@@ -346,7 +390,7 @@ fun SettingsRootScreen(
                     }
                 } else {
                     // 右侧内容面板：与 dsh-upstream 对应 settings section 一一对应。
-                    when (section) {
+                    when (content.section) {
                         SettingsSectionTab.ACCOUNT -> SettingsAccountPane(
                             accountName = accountName,
                             accountBalance = accountBalance,

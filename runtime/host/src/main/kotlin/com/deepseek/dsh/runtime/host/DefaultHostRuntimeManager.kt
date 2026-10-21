@@ -506,6 +506,10 @@ class DefaultHostRuntimeManager(
         File(layout.rootfsDir, "root/.dsh/sessions/--workspace--").mkdirs()
         File(layout.rootfsDir, "root/.dsh/storages").mkdirs()
         File(layout.rootfsDir, "root/.dsh/storages/session-projection").mkdirs()
+        // GenUI initializes ArtifactRegistry and DesignStore whenever a profile reload
+        // activates it. Create their parent directories on Android first so the loader
+        // never depends on proot's recursive-mkdir behavior for a fresh storage root.
+        File(layout.rootfsDir, "root/.dsh/genui/.designs").mkdirs()
         File(workspacePath).mkdirs()
         // proot 需要能 chdir 进 bind 目标；rootfs 内 /workspace 必须是可进入目录。
         File(layout.rootfsDir, "workspace").apply {

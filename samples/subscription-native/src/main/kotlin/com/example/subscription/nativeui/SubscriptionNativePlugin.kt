@@ -13,6 +13,7 @@ import com.deepseek.dsh.plugin.nativesdk.contract.DshUiPlugin
 import com.deepseek.dsh.plugin.nativesdk.contract.PluginCapabilities
 import com.deepseek.dsh.plugin.nativesdk.contract.PluginDescriptor
 import com.deepseek.dsh.plugin.nativesdk.host.PluginHostApi
+import com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry
 import com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot
 import com.deepseek.dsh.plugin.nativesdk.slots.SlotContribution
 import com.deepseek.dsh.plugin.nativesdk.slots.SlotRegistry
@@ -34,6 +35,7 @@ class SubscriptionNativePlugin : DshUiPlugin {
         capabilities = setOf(
             PluginCapabilities.OPEN_URL,
             PluginCapabilities.STORAGE,
+            PluginCapabilities.PAGE_ENTRY,
         ),
     )
 
@@ -42,6 +44,7 @@ class SubscriptionNativePlugin : DshUiPlugin {
     init {
         // 设置页顶部落点：订阅用量概览。
         SlotRegistry.register(SubscriptionSettingsContribution())
+        PageRegistry.register(SubscriptionSettingsPage())
     }
 }
 

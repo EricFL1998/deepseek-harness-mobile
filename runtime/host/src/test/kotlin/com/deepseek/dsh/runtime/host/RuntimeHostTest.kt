@@ -44,6 +44,11 @@ class RuntimeHostTest {
         assertTrue(cmd.contains(layout.rootfsDir.absolutePath))
         assertTrue(cmd.contains("${config.userWorkspacePath}:/workspace"))
         assertTrue(cmd.contains("--link2symlink"))
+        // Relative plugin storage such as GenUI's .dsh/genui must resolve below
+        // the Harness home, never the root-owned /.dsh directory.
+        assertEquals("/root", cmd[cmd.indexOf("-w") + 1])
+        assertTrue(cmd.contains("HOME=/root"))
+        assertTrue(cmd.contains("DSH_HOME=/root/.dsh"))
         // 直接跑 dsh 的 bin.js，而不是 /opt/dsh/bin/dsh 包装脚本：包装脚本会让
         // import.meta.url 指向包装层，profile bundle 的解析锚点随之出错。
         assertTrue(cmd.contains("/usr/local/bin/node"))

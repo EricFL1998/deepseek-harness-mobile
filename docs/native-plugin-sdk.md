@@ -2,8 +2,8 @@
 
 > 状态：**提案（待评审）**。本文定义「原生 UI 插件商店」体系里第三方开发者要遵守的全部契约。
 > 适用对象：想为 DSH 手机 App 提供原生（Kotlin/Compose）UI 的插件开发者。
-> 关联文档：[App 侧宿主接口](native-plugin-host.md)、[移动端 UI 架构选型](mobile-ui-architecture.md)、[移动 bridge 协议](mobile-bridge.md)。
-> 记录时间：2026-10-20。
+> 关联文档：[JS UI 转原生 UI 实战指南](plugin-conversion-guide.md)、[SDK 开发指南](plugin-sdk-guide.md)、[App 侧宿主接口](native-plugin-host.md)、[移动端 UI 架构选型](mobile-ui-architecture.md)、[移动 bridge 协议](mobile-bridge.md)。
+> 更新：2026-10-21。本文定义目标契约；当前可编译 API 与模拟器验证步骤以开发指南为准。
 
 ## 目录
 
@@ -96,7 +96,9 @@ DSH 插件天然分层：
 
 - npm 包（如 `@changfenhuang/dsh-kimi-oauth`）：不变，走现有插件安装通道进 Host；
 - 伴侣 APK（如 `com.example.kimi.oauth.native`）：走商店分发，由系统安装器装入；
-- 关联键是 **`pluginId`**：APK 清单里的 `dsh.plugin.id` 必须与 JS 插件注册的 componentId 前缀一致（本例 `changfenhuang.kimi-oauth`）。App 据此把「JS 插件注册的槽位」和「原生渲染器」配对。
+- 伴生身份是 **`pluginId`**（如 `changfenhuang.kimi-oauth`），用于签名、商店与注册归属；
+- JS 配对键是 **`jsPackage`**（如 `dsh-plugin-kimi-oauth`），在 Service 的 `dsh.plugin.jsPackage` 声明。两者可以不同；
+- 页面接管键是 **`<jsPackage>#<PageEntry.id>`**，与 bridge 的实际组件身份一致。App 据此把「JS 插件注册的槽位」和「原生页面」配对，不能仅凭 pluginId 猜包名。
 
 ### 3.3 插件可以只有一边
 
@@ -112,19 +114,16 @@ DSH 插件天然分层：
 ```xml
 <manifest package="com.example.kimi.oauth.native">
 
-    <!-- 接口版本：App 按此做 ABI 门禁 -->
-    <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
-    <!-- 运行本插件所需的最低 App 版本码 -->
-    <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
-    <!-- 与 JS 插件 componentId 前缀一致的关联键 -->
-    <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.kimi-oauth" />
-    <meta-data android:name="dsh.plugin.name" android:value="Kimi 登录" />
-
-    <!-- 入口服务：App 通过 bindService + 此 action 发现插件 -->
+    <!-- 入口服务：App 通过 action 发现插件，并读取 service 级 meta-data -->
     <service
         android:name=".KimiPluginService"
         android:exported="true"
         android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
+        <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
+        <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+        <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.kimi-oauth" />
+        <meta-data android:name="dsh.plugin.name" android:value="Kimi 登录" />
+        <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-kimi-oauth" />
         <intent-filter>
             <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
         </intent-filter>
@@ -168,12 +167,20 @@ data class PluginDescriptor(
 )
 ```
 
-服务类照抄模板，只换插件实例：
+服务类照抄模板，只换插件实例。`onBind` 与静态 `plugin()` 都要保留：前者服务绑定，
+后者让 App 在自己的进程实例化并注册页面。主 App 与伴生共享父优先加载的同一份
+SDK/Compose 类型，禁止插件再用隔离 ClassLoader 或嵌套 dex 加载绕开 ABI：
 
 ```kotlin
 class KimiPluginService : Service() {
     override fun onBind(intent: Intent): IBinder =
-        DshPluginBinder(KimiOAuthPlugin())   // SDK 提供的基类
+        DshPluginBinder(KimiOAuthPlugin())
+
+    companion object {
+        /** App 在自身进程加载插件时使用的必需工厂。 */
+        @JvmStatic
+        fun plugin(): DshUiPlugin = KimiOAuthPlugin()
+    }
 }
 ```
 
@@ -268,10 +275,12 @@ interface PluginStorage {
   → 原生渲染器 Render() 重组
 ```
 
-对插件作者的要求只有两条：
+对插件作者的要求：
 
-1. **componentId 约定**：原生端用 `<pluginId>#<slot 内 id>`（如 `changfenhuang.kimi-oauth#section`），与 JS 侧 `ctx.slots.register` 的 id 对应；
-2. **JS 侧推状态**：把原生端要画的数据放进 `client/refresh` 的 `patch`（或直接重新 register），保证 spec 是 JSON 安全的纯展示数据（无凭证、无函数、无循环引用）。
+1. **componentId 约定**：使用 Host 实际的 `<jsPackage>#<slot 内 id>`，与 JS 侧 `ctx.slots.register` 的包名和 id 对应；伴生 `pluginId` 可以不同；
+2. **JS 侧推状态**：把原生端要画的数据放进 `client/refresh` 的 `patch`（或直接重新 register），保证 spec 是 JSON 安全的纯展示数据（无凭证、无函数、无循环引用）；
+3. **已有 RPC**：完整页面可通过 `PluginRpcHost.callRpc(method, payload, callback)` 调用 Host 已有路由，payload 原样发送；先解 `{ result: { ok, value | error } }` 信封。不要虚构通用 `component.state` / `component.dispatch` 路由；
+4. **页面生命周期**：带 `refreshEvents` 的 `PageContent.Content` 可响应 Host 刷新；异步回调先检查 `PageLifecycle.LocalIsActive`，避免迟到结果更新已离开的页面。
 
 ---
 
@@ -307,8 +316,9 @@ JS 侧因此**不得假设**原生端在场：所有功能必须在纯 Web 下�
 
 静态扫描（自动）：
 
-- [ ] 清单四项 meta-data 齐全，`apiVersion`/`minAppVersion` 为整数；
-- [ ] `dsh.plugin.id` 与 JS 插件 componentId 前缀一致；
+- [ ] Service 级 `apiVersion`/`minAppVersion`/`id`/`name` 齐全，需要 JS 配对时声明 `jsPackage`；
+- [ ] `pluginId` 与 descriptor 一致；`jsPackage#PageEntry.id` 与 Host 实际组件身份一致；
+- [ ] Service 暴露 `@JvmStatic fun plugin(): DshUiPlugin`；
 - [ ] 无 `<uses-permission>`；
 - [ ] 禁止 API 零命中：反射访问 `com.deepseek.dsh.*` 内部类、`DexClassLoader`/`PathClassLoader` 再嵌套动态加载、读 `/data/data/com.deepseek.dsh.mobile` 私有目录、直连模型 API 域名；
 - [ ] 无硬编码色值/字号（主题契约）；
@@ -371,6 +381,11 @@ kimi-oauth-native/                 ← 新增 Android 工程
 ```kotlin
 class KimiPluginService : Service() {
     override fun onBind(intent: Intent): IBinder = DshPluginBinder(KimiOAuthPlugin())
+
+    companion object {
+        @JvmStatic
+        fun plugin(): DshUiPlugin = KimiOAuthPlugin()
+    }
 }
 
 class KimiOAuthPlugin : DshUiPlugin {

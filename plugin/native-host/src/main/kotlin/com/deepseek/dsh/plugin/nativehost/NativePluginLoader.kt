@@ -26,12 +26,24 @@ class NativePluginLoader(private val context: Context) {
     fun load(plugin: InstalledNativePlugin): DshUiPlugin? {
         if (plugin.status != InstalledNativePlugin.Status.READY) return null
         return runCatching {
-            // 用伴侣 APK 的上下文与 ClassLoader，把它的类装进 App 进程。
+            // The companion packages the SDK for compilation, but at runtime the host
+            // must own the single copy of DshUiPlugin, PageRegistry and Compose. A
+            // package context has a separate SDK class identity, so `instanceof` would
+            // reject an otherwise valid companion. Parent-first loading shares the
+            // gated host ABI while the child loader supplies only the companion's code.
             val pluginContext = context.createPackageContext(
                 plugin.packageName,
                 Context.CONTEXT_INCLUDE_CODE or Context.CONTEXT_IGNORE_SECURITY,
             )
-            val classLoader = pluginContext.classLoader
+            val appInfo = pluginContext.applicationInfo
+            val dexPath = (listOf(appInfo.sourceDir) + appInfo.splitSourceDirs.orEmpty())
+                .joinToString(java.io.File.pathSeparator)
+            val classLoader = dalvik.system.DexClassLoader(
+                dexPath,
+                null,
+                appInfo.nativeLibraryDir,
+                context.classLoader,
+            )
             // 约定：插件入口类是 `<service 类全名去掉 Service 后缀>` 不一定可靠；
             // 直接读 service 类名，找它同包里实现 DshUiPlugin 的类太绕。改为约定：
             // 插件在 service 类里暴露一个静态 `plugin()` 工厂，或 service 名推 plugin 类名。

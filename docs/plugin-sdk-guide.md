@@ -2,14 +2,13 @@
 
 > 状态：**已自证（样例编译打包通过）**。本文是原生插件（伴侣 APK）的完整开发指南。
 > 适用对象：想为 DSH 手机 App 提供原生（Kotlin/Compose）UI 的插件开发者。
-> 关联文档：[插件侧 SDK 规范](native-plugin-sdk.md)、[App 侧宿主接口](native-plugin-host.md)、[移动端 UI 架构选型](mobile-ui-architecture.md)。
+> 关联文档：[JS UI 转原生 UI 实战指南](plugin-conversion-guide.md)、[插件侧 SDK 规范](native-plugin-sdk.md)、[App 侧宿主接口](native-plugin-host.md)、[移动端 UI 架构选型](mobile-ui-architecture.md)。
 > SDK 坐标：`com.deepseek.dsh:dsh-native-sdk` · ABI 版本 `1`。
-> 记录时间：2026-10-20。
+> 更新：2026-10-21（页面接管、Host RPC 与生命周期经真实订阅插件验证）。
 >
-> **自证**：本仓库 `samples/genui-native`（GenUI `render_ui` 工具的原生渲染）与
-> `samples/kimi-native`（Kimi OAuth 登录卡片 + composer.dock 用量胶囊）两个真实
-> 伴侣插件均用本 SDK 写成，`assembleDebug` 编译打包通过（GenUI 已出可安装 APK）。
-> 它们就是 §14 的落地参照。
+> **自证**：`samples/genui-native`、`samples/kimi-native` 与
+> `samples/subscription-native` 均可编译打包。订阅伴生已在模拟器验证原生页面接管、
+> Provider 展开与管理、Host RPC、返回导航及卸载即时回退；它是设置页迁移的完整参照。
 
 ## 目录
 
@@ -56,7 +55,7 @@ dependencies {
 }
 
 # 2. 写一个渲染器（或直接用 SpecRenderer 画 dsh-ui spec）
-# 3. 填 AndroidManifest 四要素
+# 3. 在 Service 填 manifest 契约与 jsPackage 配对
 # 4. 打包成 APK，提交商店（或 CI 代编）
 ```
 
@@ -70,7 +69,9 @@ dependencies {
 | --- | --- |
 | **插件（JS 半边）** | 你已有的 npm/GitHub 插件，`lib/index.js` 跑在 Host。逻辑、凭证、模型调用都在这。 |
 | **伴侣 APK（原生半边）** | 一个独立 Android 应用，含你的 Compose 渲染器。只画 UI、回传意图。 |
-| **pluginId** | 关联两边的键：APK 清单的 `dsh.plugin.id` 必须等于 JS 侧注册的 componentId 前缀。 |
+| **pluginId** | 伴生 APK 自身身份与页面注册归属，如 `changfenhuang.subscription`；不必等于 JS 包名。 |
+| **jsPackage** | 与 Host 中 JS 插件配对的包名，如 `dsh-plugin-subscription-oauth`；在 manifest 的 `dsh.plugin.jsPackage` 声明。 |
+| **componentId** | bridge 的组件身份，通常为 `<jsPackage>#<settings.section id>`；决定原生页接管哪个 Web 页面。 |
 | **spec** | Host 推给原生端的 JSON 状态快照（纯展示数据，无凭证）。你的渲染器消费它。 |
 | **落点（NativeSlot）** | App 界面里插件能挂内容的位置（dock、输入框旁、工具卡片、设置页…）。 |
 | **能力桥（PluginHostApi）** | 插件唯一摸得到的 App 表面：回传事件、开链接、读主题、存数据。 |
@@ -93,25 +94,21 @@ your-plugin-native/             ← 新增 Android 工程
     └── kotlin/.../YourPlugin.kt
 ```
 
-### 3.2 AndroidManifest.xml（四要素，缺一不可）
+### 3.2 AndroidManifest.xml（基础契约 + JS 配对）
 
 ```xml
 <manifest package="com.example.yourplugin.native">
 
-    <!-- ① 接口版本：App 按此做 ABI 门禁。当前固定为 1 -->
-    <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
-    <!-- ② 运行本插件所需的最低 App 版本码 -->
-    <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
-    <!-- ③ 与 JS 插件 componentId 前缀一致的关联键（发布后不可改） -->
-    <meta-data android:name="dsh.plugin.id" android:value="yourname.your-plugin" />
-    <!-- ④ 展示名 -->
-    <meta-data android:name="dsh.plugin.name" android:value="你的插件" />
-
-    <!-- 入口服务：App 通过它发现并绑定你的插件 -->
+    <!-- 入口服务：发现、ABI 校验、静态工厂加载及 JS 插件配对都在 service 级声明 -->
     <service
         android:name=".YourPluginService"
         android:exported="true"
         android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
+        <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
+        <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+        <meta-data android:name="dsh.plugin.id" android:value="yourname.your-plugin" />
+        <meta-data android:name="dsh.plugin.name" android:value="你的插件" />
+        <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-your-plugin" />
         <intent-filter>
             <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
         </intent-filter>
@@ -127,7 +124,9 @@ your-plugin-native/             ← 新增 Android 工程
 ```
 
 **规则**：
-- `dsh.plugin.id` 一经发布不可更改——它是签名钉死与商店身份的锚；
+- `dsh.plugin.id` 一经发布不可更改——它是签名钉死与商店身份的锚；它不必等于 JS 包名；
+- `dsh.plugin.jsPackage` 才是与 Host 插件的配对键；`PageEntry.id` 决定接管哪个 `settings.section`；
+- 所有插件 meta-data 都放在 **Service 级**，不是 `<application>` 级；
 - 插件 APK **不申请任何系统权限**（无 `<uses-permission>`）；需要能力走能力桥声明。
 
 ---
@@ -156,6 +155,12 @@ class YourPlugin : DshUiPlugin {
 ```kotlin
 class YourPluginService : Service() {
     override fun onBind(intent: Intent): IBinder = DshPluginBinder(YourPlugin())
+
+    companion object {
+        /** App 在自身进程加载页面时使用的入口；仅写 onBind 不足以注册原生页面。 */
+        @JvmStatic
+        fun plugin(): DshUiPlugin = YourPlugin()
+    }
 }
 ```
 
@@ -311,6 +316,18 @@ PageRegistry.register(StatusPage())
 
 用户点设置页/插件页里你的入口，App 用 `Content` 画整页。
 
+### 9.1 设置页接管规则
+
+`PageEntry.id` 必须与 JS 侧 `settings.section` 的注册 `id` 完全相同。实际组件身份是
+`<jsPackage>#<PageEntry.id>`；伴生的 `pluginId` 与 JS 包名可以不同。只有静态工厂加载
+成功并注册该页面后，App 才跳过 WebView；APK 仅被安装但未注册页面时仍走 Web。
+
+### 9.2 接收 Host 刷新与检查页面存活
+
+有实时状态的页面可重载带 `refreshEvents` 的 `Content`，收到本组件事件后重新读取权威
+RPC。异步回调更新页面前，先检查 `PageLifecycle.LocalIsActive.current`，避免用户已经
+返回后仍写入旧页面状态。
+
 ---
 
 ## 10. 主题契约
@@ -338,8 +355,30 @@ PageRegistry.register(StatusPage())
 
 你只需保证：
 
-1. **componentId 约定**：用 `<pluginId>#<slot 内 id>`（如 `yourname.your-plugin#section`）；
+1. **componentId 约定**：使用 Host 实际的 `<jsPackage>#<slot 内 id>`；伴生自身 `pluginId` 不一定等于这个包名；
 2. **JS 侧推状态**：把原生端要画的数据放进 `client/refresh` 的 `patch`，保证 spec 是 JSON 安全的纯展示数据（无凭证、无函数、无循环引用）。
+
+### 11.1 已有插件 RPC 的页面：`PluginRpcHost`
+
+完整原生页面还可把 `host` 安全地转为 `PluginRpcHost`，直接调用 Host 已有的插件路由：
+
+```kotlin
+val rpc = host as? PluginRpcHost
+rpc?.callRpc("your-plugin.status", JsonObject(emptyMap())) { result ->
+    // 校验 result.ok，取 value；payload 原样发送，不包 args。
+}
+```
+
+`callRpc` 是回调式 API，不是 `suspend`。需要重新读取时递增 `refreshKey`，由
+`LaunchedEffect(rpc, refreshKey)` 发起下一次调用。只调用 Host 已存在的方法，响应中的
+`{ result: { ok, value | error } }` 先解信封再解析业务状态。凭证仍只留在 Host。
+
+### 11.2 复杂页面迁移参照
+
+Provider 展开/收起、账号管理、模型显示与排序、授权轮询、迟到响应防护等完整实现，见
+[JS UI 转原生 UI 实战指南](plugin-conversion-guide.md) 与
+`samples/subscription-native/src/main/kotlin/com/example/subscription/nativeui/SubscriptionSettingsPage.kt`。
+不要只迁移卡片外壳：展开区、按钮动作、空态与错误态都属于迁移范围。
 
 ---
 
@@ -410,6 +449,11 @@ bridge 的 `native-plugins` provider 把这个声明暴露给 App，商店页据
 ```kotlin
 class KimiPluginService : Service() {
     override fun onBind(intent: Intent): IBinder = DshPluginBinder(KimiOAuthPlugin())
+
+    companion object {
+        @JvmStatic
+        fun plugin(): DshUiPlugin = KimiOAuthPlugin()
+    }
 }
 
 class KimiOAuthPlugin : DshUiPlugin {

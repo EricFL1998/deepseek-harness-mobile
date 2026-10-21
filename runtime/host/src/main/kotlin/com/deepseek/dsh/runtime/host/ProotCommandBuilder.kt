@@ -108,9 +108,11 @@ object ProotCommandBuilder {
         cmd.add("$cache:/cache")
 
         // 避免 Android 权限与硬链接异常；显式指定 guest 工作目录。
+        // GenUI 等插件会用 process.cwd() 解析相对 artifactRoot（例如 .dsh/genui）。
+        // cwd=/ 会错误地变成 /.dsh/genui；与 HOME=/root 对齐后落到 /root/.dsh/genui。
         cmd.add("--link2symlink")
         cmd.add("-w")
-        cmd.add("/")
+        cmd.add("/root")
 
         // 启动环境隔离
         cmd.add("/usr/bin/env")
