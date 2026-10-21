@@ -29,6 +29,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -91,6 +93,7 @@ internal fun PluginMarketTab(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalDshPanelColors.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var indexes by remember { mutableStateOf<List<MarketIndexSummary>?>(null) }
     var indexError by remember { mutableStateOf<String?>(null) }
@@ -131,7 +134,7 @@ internal fun PluginMarketTab(
                 indexes = list
                 if (selectedUrl == null) selectedUrl = list.firstOrNull()?.url
             },
-            onFailure = { indexes = emptyList(); indexError = "无法读取索引源" },
+            onFailure = { indexes = emptyList(); indexError = context.getString(R.string.market_reading_index) },
         )
         loading = false
     }
@@ -143,8 +146,8 @@ internal fun PluginMarketTab(
         loading = true
         listingError = null
         hooks.search(url, queryJson(queryText, 0, 0, false)).fold(
-            onSuccess = { listing = it; if (it == null) listingError = "无法读取此索引" },
-            onFailure = { listing = null; listingError = "无法读取此索引" },
+            onSuccess = { listing = it; if (it == null) listingError = context.getString(R.string.market_no_results) },
+            onFailure = { listing = null; listingError = context.getString(R.string.market_no_results) },
         )
         loading = false
     }
@@ -160,8 +163,8 @@ internal fun PluginMarketTab(
                     val result = hooks.install(version.spec)
                     installing = null
                     installMessage = result.fold(
-                        onSuccess = { "已安装 ${it}" },
-                        onFailure = { "安装失败：${it.message ?: "未知错误"}" },
+                        onSuccess = { context.getString(R.string.market_install_success, it) },
+                        onFailure = { context.getString(R.string.market_install_failure, it.message ?: context.getString(R.string.market_no_results)) },
                     )
                     if (result.isSuccess) {
                         onInstalled()
@@ -195,7 +198,7 @@ internal fun PluginMarketTab(
                 if (current.size > 1) {
                     MarketChip(
                         text = current.firstOrNull { it.url == selectedUrl }?.let { marketLabel(it) }
-                            ?: "选择市场",
+                            ?: stringResource(R.string.market_sources),
                         onClick = { sourcesOpen = true },
                     )
                 }
@@ -208,7 +211,7 @@ internal fun PluginMarketTab(
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
                     if (queryText.isEmpty()) {
-                        Text("搜索插件", color = colors.labelTertiary, fontSize = 13.sp)
+                        Text(stringResource(R.string.market_search_plugins), color = colors.labelTertiary, fontSize = 13.sp)
                     }
                     BasicTextField(
                         value = queryText,
@@ -219,7 +222,7 @@ internal fun PluginMarketTab(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                MarketChip(text = "索引源", onClick = { sourcesOpen = true; sourceError = null })
+                MarketChip(text = stringResource(R.string.market_sources), onClick = { sourcesOpen = true; sourceError = null })
             }
             Spacer(Modifier.height(8.dp))
             installMessage?.let { message ->
@@ -239,7 +242,7 @@ internal fun PluginMarketTab(
                 ) {
                     Text(error, color = colors.labelSecondary, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
-                    MarketChip(text = "重试", onClick = { reloadKey += 1 })
+                    MarketChip(text = stringResource(R.string.market_retry), onClick = { reloadKey += 1 })
                 }
                 listing == null && loading -> Row(
                     modifier = Modifier
@@ -249,13 +252,13 @@ internal fun PluginMarketTab(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text("正在读取索引", color = colors.labelTertiary, fontSize = 13.sp)
+                    Text(stringResource(R.string.market_reading_index), color = colors.labelTertiary, fontSize = 13.sp)
                 }
                 listing != null -> {
                     val entries = listing!!.entries
                     if (entries.isEmpty()) {
                         Text(
-                            text = if (queryText.isBlank()) "此索引没有插件" else "没有符合条件的插件",
+                            text = if (queryText.isBlank()) stringResource(R.string.market_index_empty) else stringResource(R.string.market_no_results),
                             color = colors.labelTertiary,
                             fontSize = 13.sp,
                             modifier = Modifier.padding(PluginsDimens.PageHorizontal, 16.dp),
@@ -282,8 +285,8 @@ internal fun PluginMarketTab(
                                             val result = hooks.install(version.spec)
                                             installing = null
                                             installMessage = result.fold(
-                                                onSuccess = { "已安装 ${it}" },
-                                                onFailure = { "安装失败：${it.message ?: "未知错误"}" },
+                                                onSuccess = { context.getString(R.string.market_install_success, it) },
+                                                onFailure = { context.getString(R.string.market_install_failure, it.message ?: context.getString(R.string.market_no_results)) },
                                             )
                                             if (result.isSuccess) {
                                                 onInstalled()
@@ -297,7 +300,7 @@ internal fun PluginMarketTab(
                             if (nextOffset != null) {
                                 item(key = "market_more") {
                                     MarketChip(
-                                        text = "显示更多",
+                                        text = stringResource(R.string.market_show_more),
                                         onClick = {
                                             val url = selectedUrl ?: return@MarketChip
                                             val shown = listing ?: return@MarketChip
@@ -316,7 +319,7 @@ internal fun PluginMarketTab(
                                                             )
                                                         }
                                                     },
-                                                    onFailure = { listingError = "无法读取此索引" },
+                                                    onFailure = { listingError = context.getString(R.string.market_no_results) },
                                                 )
                                                 loading = false
                                             }
@@ -341,8 +344,8 @@ internal fun PluginMarketTab(
                 val url = draftUrl.trim()
                 sourceError = when {
                     !(url.startsWith("http://") || url.startsWith("https://")) ->
-                        "请使用 http 或 https 地址，且不要包含用户名、密码或 # 片段"
-                    current.any { it.url == url } -> "已添加过这个索引源"
+                        context.getString(R.string.market_invalid_source_url)
+                    current.any { it.url == url } -> context.getString(R.string.market_duplicate_source)
                     else -> null
                 }
                 if (sourceError == null) {
@@ -355,7 +358,7 @@ internal fun PluginMarketTab(
                                 selectedUrl = url
                                 reloadKey += 1
                             },
-                            onFailure = { sourceError = "无法保存索引源" },
+                            onFailure = { sourceError = context.getString(R.string.market_no_results) },
                         )
                     }
                 }
@@ -373,7 +376,7 @@ internal fun PluginMarketTab(
                             }
                             reloadKey += 1
                         },
-                        onFailure = { sourceError = "无法保存索引源" },
+                        onFailure = { sourceError = context.getString(R.string.market_no_results) },
                     )
                 }
             },
@@ -402,7 +405,7 @@ private fun EmptyMarket(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = if (error != null) "无法读取索引源" else "还没有插件市场",
+            text = if (error != null) stringResource(R.string.market_reading_index) else stringResource(R.string.market_no_market),
             color = colors.labelPrimary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
@@ -410,9 +413,9 @@ private fun EmptyMarket(
         Spacer(Modifier.height(6.dp))
         Text(
             text = if (error != null) {
-                "当前 Host 没有可用的插件市场服务，先启用「自定义插件市场」再试。"
+                stringResource(R.string.market_no_service)
             } else {
-                "添加一个插件市场索引，即可在这里浏览和安装其中的插件"
+                stringResource(R.string.market_add_index_hint)
             },
             color = colors.labelTertiary,
             fontSize = 12.5.sp,
@@ -420,7 +423,7 @@ private fun EmptyMarket(
         )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MarketChip(text = if (error != null) "重试" else "添加索引源", onClick = if (error != null) onRetry else onAdd)
+            MarketChip(text = if (error != null) stringResource(R.string.market_retry) else stringResource(R.string.market_add_source), onClick = if (error != null) onRetry else onAdd)
         }
     }
 }
@@ -492,12 +495,12 @@ private fun MarketEntryRow(
                 )
             }
             when {
-                entry.installationStatus != "not-installed" -> MarketChip(text = "已安装", onClick = onOpen)
+                entry.installationStatus != "not-installed" -> MarketChip(text = stringResource(R.string.market_installed), onClick = onOpen)
                 version != null && version.compatible -> MarketChip(
-                    text = if (installing == version.version) "安装中…" else "安装",
+                    text = if (installing == version.version) stringResource(R.string.market_installing) else stringResource(R.string.market_install),
                     onClick = { if (installing == null) onInstall(version) },
                 )
-                else -> Text("不兼容", color = colors.labelTertiary, fontSize = 11.sp)
+                else -> Text(stringResource(R.string.market_incompatible), color = colors.labelTertiary, fontSize = 11.sp)
             }
         }
         if (showDivider) {
@@ -527,7 +530,7 @@ private fun MarketEntryDetail(
     ) {
         item(key = "detail_crumb") {
             Text(
-                text = "‹ 发现",
+                text = stringResource(R.string.market_discover),
                 color = colors.labelTertiary,
                 fontSize = 12.5.sp,
                 modifier = Modifier
@@ -552,15 +555,15 @@ private fun MarketEntryDetail(
         }
         item(key = "detail_source") {
             Spacer(Modifier.height(20.dp))
-            Text("来源", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.market_source), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(6.dp))
-            entry.author?.let { DetailFactRow("作者", it) }
-            entry.homepage?.let { DetailFactRow("主页", it, monospace = true) }
-            DetailFactRow("软件包", entry.name, monospace = true)
+            entry.author?.let { DetailFactRow(stringResource(R.string.market_author), it) }
+            entry.homepage?.let { DetailFactRow(stringResource(R.string.market_homepage), it, monospace = true) }
+            DetailFactRow(stringResource(R.string.market_package), entry.name, monospace = true)
         }
         item(key = "detail_versions") {
             Spacer(Modifier.height(20.dp))
-            Text("版本", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(R.string.market_version), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }
         itemsIndexed(entry.versions, key = { index, version -> "market_version_${index}_${version.version}" }) { _, version ->
             Row(
@@ -574,7 +577,7 @@ private fun MarketEntryDetail(
                     Text("v${version.version}", color = colors.labelPrimary, fontSize = 13.sp)
                     if (!version.compatible) {
                         Text(
-                            text = "此版本与当前的 DSH 不兼容，它要求 DSH ${version.requirement ?: "更新版本"}",
+                            text = stringResource(R.string.market_incompatible_version, version.requirement ?: stringResource(R.string.market_version)),
                             color = colors.labelTertiary,
                             fontSize = 11.sp,
                         )
@@ -582,7 +585,7 @@ private fun MarketEntryDetail(
                 }
                 if (version.compatible) {
                     MarketChip(
-                        text = if (installing == version.version) "安装中…" else "安装",
+                        text = if (installing == version.version) stringResource(R.string.market_installing) else stringResource(R.string.market_install),
                         onClick = { if (installing == null) onInstall(version) },
                     )
                 }
@@ -611,10 +614,10 @@ private fun MarketSourcesDialog(
                 .background(colors.bgLayer2)
                 .padding(16.dp),
         ) {
-            Text("索引源", color = colors.labelPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.market_sources), color = colors.labelPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "插件市场以一个索引文件的 URL 提供，「发现」从这里列出的索引浏览插件",
+                text = stringResource(R.string.market_sources_desc_long),
                 color = colors.labelTertiary,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
@@ -630,7 +633,7 @@ private fun MarketSourcesDialog(
                         Text(index.title ?: index.url, color = colors.labelPrimary, fontSize = 12.5.sp)
                         Text(index.url, color = colors.labelTertiary, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    MarketChip(text = "移除", onClick = { onRemove(index) })
+                    MarketChip(text = stringResource(R.string.market_remove), onClick = { onRemove(index) })
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -646,15 +649,15 @@ private fun MarketSourcesDialog(
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "索引由第三方提供。只添加你信任的来源：其中的插件安装后以你的权限运行",
+                text = stringResource(R.string.market_third_party_note),
                 color = colors.labelTertiary,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
             )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MarketChip(text = "取消", onClick = onDismiss)
-                MarketChip(text = "添加", onClick = onAdd)
+                MarketChip(text = stringResource(R.string.market_cancel), onClick = onDismiss)
+                MarketChip(text = stringResource(R.string.market_add), onClick = onAdd)
             }
         }
     }
