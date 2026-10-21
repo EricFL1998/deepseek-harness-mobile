@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
@@ -83,30 +84,30 @@ internal object SessionInspectorPluginUi {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (tab == 0) "会话数据诊断" else "NodeJS 诊断",
+                            text = if (tab == 0) stringResource(R.string.inspector_session_diagnostics) else stringResource(R.string.inspector_node_diagnostics),
                             color = colors.labelPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
                             text = if (tab == 0) {
-                                "在会话侧边栏分析当前会话原始日志和聊天分组数据"
+                                stringResource(R.string.inspector_session_desc)
                             } else {
-                                "按 Ctrl/Cmd+Shift+. 在底部面板打开 Chrome DevTools 进行开发调试"
+                                stringResource(R.string.inspector_devtools_hint)
                             },
                             color = colors.labelTertiary,
                             fontSize = 11.sp,
                             lineHeight = 16.sp,
                         )
                     }
-                    InspectorChip(text = "关闭", onClick = onDismiss)
+                    InspectorChip(text = stringResource(R.string.inspector_close), onClick = onDismiss)
                 }
                 Row(
                     modifier = Modifier.padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    InspectorTab(text = "原始数据", selected = tab == 0) { tab = 0 }
-                    InspectorTab(text = "NodeJS 诊断", selected = tab == 1) { tab = 1 }
+                    InspectorTab(text = stringResource(R.string.inspector_raw_data), selected = tab == 0) { tab = 0 }
+                    InspectorTab(text = stringResource(R.string.inspector_node_diagnostics), selected = tab == 1) { tab = 1 }
                 }
                 if (tab == 1) {
                     NodeJsDevToolsPane()
@@ -145,7 +146,7 @@ private fun RawDataContent(frames: List<SessionRawFrame>, sessionId: String?) {
                 .padding(horizontal = 10.dp, vertical = 7.dp),
         ) {
             if (filter.isEmpty()) {
-                Text("输入类型片段，如 delta", color = colors.labelTertiary, fontSize = 12.sp)
+                Text(stringResource(R.string.inspector_filter_hint), color = colors.labelTertiary, fontSize = 12.sp)
             }
             BasicTextField(
                 value = filter,
@@ -157,7 +158,7 @@ private fun RawDataContent(frames: List<SessionRawFrame>, sessionId: String?) {
             )
         }
         Text(
-            text = if (keyword.isEmpty()) "共 ${frames.size} 条" else "${matched.size}/${frames.size}",
+            text = if (keyword.isEmpty()) stringResource(R.string.inspector_total_count, frames.size) else "${matched.size}/${frames.size}",
             color = colors.labelTertiary,
             fontSize = 11.sp,
         )
@@ -165,19 +166,19 @@ private fun RawDataContent(frames: List<SessionRawFrame>, sessionId: String?) {
     Spacer(Modifier.height(8.dp))
     when {
         sessionId.isNullOrBlank() -> Text(
-            text = "请先打开一个会话。",
+            text = stringResource(R.string.inspector_no_session),
             color = colors.labelTertiary,
             fontSize = 12.5.sp,
             modifier = Modifier.padding(top = 12.dp),
         )
         frames.isEmpty() -> Text(
-            text = "暂无记录",
+            text = stringResource(R.string.inspector_no_records),
             color = colors.labelTertiary,
             fontSize = 12.5.sp,
             modifier = Modifier.padding(top = 12.dp),
         )
         matched.isEmpty() -> Text(
-            text = "当前表格没有匹配记录，请修改类型关键词。",
+            text = stringResource(R.string.inspector_no_match_filter),
             color = colors.labelTertiary,
             fontSize = 12.5.sp,
             modifier = Modifier.padding(top = 12.dp),
@@ -189,10 +190,10 @@ private fun RawDataContent(frames: List<SessionRawFrame>, sessionId: String?) {
                     .padding(horizontal = 2.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("序号", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(44.dp))
-                Text("类型", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(96.dp))
-                Text("时间 (UTC)", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(88.dp))
-                Text("数据", color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.inspector_seq), color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(44.dp))
+                Text(stringResource(R.string.inspector_type), color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(96.dp))
+                Text(stringResource(R.string.inspector_time_utc), color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.width(88.dp))
+                Text(stringResource(R.string.inspector_data), color = colors.labelTertiary, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
             }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),

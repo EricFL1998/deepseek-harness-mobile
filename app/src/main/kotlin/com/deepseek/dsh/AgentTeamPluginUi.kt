@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,7 +93,7 @@ internal object AgentTeamPluginUi {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(
                     imageVector = usersIcon,
-                    contentDescription = "智能体团队",
+                    contentDescription = stringResource(R.string.official_agent_team_title),
                     tint = colors.labelPrimary,
                     modifier = Modifier.size(16.dp),
                 )
@@ -158,16 +159,16 @@ internal fun AgentTeamMenuPanel(
                     .clip(CircleShape)
                     .background(androidx.compose.material3.MaterialTheme.colorScheme.tertiary),
             )
-            Text("正在加载团队…", color = colors.labelSecondary, fontSize = 12.5.sp)
+            Text(stringResource(R.string.agent_team_loading), color = colors.labelSecondary, fontSize = 12.5.sp)
         }
         summary == null -> Text(
-            text = "Team 暂不可用",
+            text = stringResource(R.string.agent_team_unavailable),
             color = colors.labelTertiary,
             fontSize = 12.5.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
         )
         summary.failure != null -> Text(
-            text = "团队持久记录无效：${summary.failure}",
+            text = stringResource(R.string.agent_team_invalid, summary.failure ?: ""),
             color = colors.stateErrorPrimary,
             fontSize = 12.sp,
             lineHeight = 17.sp,
@@ -181,7 +182,7 @@ internal fun AgentTeamMenuPanel(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text("成员", color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.agent_team_members), color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     if (members.size > 1) {
                         Text(
                             text = members.size.toString(),
@@ -206,15 +207,15 @@ internal fun AgentTeamMenuPanel(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 if (member.id == currentSessionId) {
-                                    TagChip("当前会话", colors.labelSecondary)
+                                    TagChip(stringResource(R.string.agent_team_current_session), colors.labelSecondary)
                                 }
                             }
                             Text(
                                 text = when (member.phase) {
-                                    "provisioning" -> "准备中"
-                                    "failed" -> "失败"
-                                    "active" -> "运行中"
-                                    else -> "未运行"
+                                    "provisioning" -> stringResource(R.string.agent_team_phase_provisioning)
+                                    "failed" -> stringResource(R.string.agent_team_phase_failed)
+                                    "active" -> stringResource(R.string.agent_team_phase_active)
+                                    else -> stringResource(R.string.agent_team_phase_idle)
                                 },
                                 color = when (member.phase) {
                                     "failed" -> colors.stateErrorPrimary
@@ -252,7 +253,7 @@ internal fun AgentTeamMenuPanel(
             }
             if (tasks.isEmpty()) {
                 Text(
-                    text = "暂无共享任务，可以通过对话创建",
+                    text = stringResource(R.string.agent_team_no_tasks),
                     color = colors.labelTertiary,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
@@ -263,7 +264,7 @@ internal fun AgentTeamMenuPanel(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text("共享任务", color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.agent_team_tasks), color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Text(tasks.size.toString(), color = colors.labelTertiary, fontSize = 11.sp)
                 }
                 tasks.take(12).forEach { (task, full) ->
@@ -288,29 +289,33 @@ internal fun AgentTeamMenuPanel(
                                 )
                                 if (task.description.length > 40) {
                                     Text(
-                                        text = if (open) "收起" else "展开",
+                                        text = if (open) stringResource(R.string.agent_team_collapse) else stringResource(R.string.agent_team_expand),
                                         color = colors.labelSecondary,
                                         fontSize = 10.5.sp,
                                     )
                                 }
                             }
+                            val blockedLabel = stringResource(R.string.agent_team_blocked)
+                            val readyLabel = stringResource(R.string.agent_team_ready)
+                            val depsLabel = stringResource(R.string.agent_team_dependencies)
+                            val scopesLabel = stringResource(R.string.agent_team_write_scopes)
                             val meta = buildString {
                                 append(
                                     when (task.status) {
-                                        "in_progress" -> "进行中"
-                                        "completed" -> "已完成"
-                                        else -> "待处理"
+                                        "in_progress" -> stringResource(R.string.agent_team_task_in_progress)
+                                        "completed" -> stringResource(R.string.agent_team_task_completed)
+                                        else -> stringResource(R.string.agent_team_task_pending)
                                     },
                                 )
-                                append(" · Owner: ").append(task.ownerName ?: "未分配")
+                                append(" · Owner: ").append(task.ownerName ?: stringResource(R.string.agent_team_owner_unassigned))
                                 if (task.status == "pending") {
-                                    append(if (full?.ready == false) " · 被依赖阻塞" else " · 可开始")
+                                    append(" · ").append(if (full?.ready == false) blockedLabel else readyLabel)
                                 }
                                 full?.blockedBy?.takeIf { it.isNotEmpty() }?.let { blocked ->
-                                    append(" · 依赖: ").append(blocked.joinToString(", "))
+                                    append(" · ").append(depsLabel).append(": ").append(blocked.joinToString(", "))
                                 }
                                 full?.writeScopes?.takeIf { it.isNotEmpty() }?.let { scopes ->
-                                    append(" · 写入范围: ").append(scopes.joinToString(", "))
+                                    append(" · ").append(scopesLabel).append(": ").append(scopes.joinToString(", "))
                                 }
                             }
                             Text(

@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -57,9 +58,9 @@ internal fun NodeJsDevToolsPane() {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("NodeJS 诊断", color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.inspector_node_diagnostics), color = colors.labelPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 Text(
-                    text = "按 Ctrl/Cmd+Shift+. 在底部面板打开 Chrome DevTools 进行开发调试",
+                    text = stringResource(R.string.inspector_devtools_hint),
                     color = colors.labelTertiary,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -73,13 +74,13 @@ internal fun NodeJsDevToolsPane() {
                     .clickable { reloadKey += 1 }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
-                Text("重新加载", color = colors.labelSecondary, fontSize = 12.sp)
+                Text(stringResource(R.string.inspector_reload), color = colors.labelSecondary, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(8.dp))
         when {
             port <= 0 -> Text(
-                text = "Host 未运行，无法打开 NodeJS 诊断。",
+                text = stringResource(R.string.inspector_host_not_running),
                 color = colors.labelTertiary,
                 fontSize = 12.5.sp,
             )
