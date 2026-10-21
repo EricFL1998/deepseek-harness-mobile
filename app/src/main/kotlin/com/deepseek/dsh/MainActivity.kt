@@ -678,9 +678,33 @@ fun MainAppHost(
         }
     }
 
-    LaunchedEffect(activeHostId, selectedSessionId) {
+    LaunchedEffect(activeHostId, selectedSessionId, messages.size) {
         selectedSessionId?.let { sid ->
             dshRepository.refreshSessionStats(activeHostId, sid)
+        }
+    }
+
+    // 运行中定期刷新底部统计（tok/s、缓存命中、上下文占用），结束后再刷新一次落定。
+    LaunchedEffect(activeHostId, selectedSessionId, sessionRunningNow) {
+        val sid = selectedSessionId ?: return@LaunchedEffect
+        if (sessionRunningNow) {
+            while (true) {
+                dshRepository.refreshSessionStats(activeHostId, sid)
+                kotlinx.coroutines.delay(1200)
+            }
+        } else {
+            dshRepository.refreshSessionStats(activeHostId, sid)
+        }
+    }
+
+    // 订阅插件额度：composer dock 上方的用量窗口（如 Kimi 5 小时额度）。
+    var quotaUsage by remember { mutableStateOf<List<com.deepseek.dsh.feature.chat.ComposerQuota>>(emptyList()) }
+    LaunchedEffect(activeHostId, sessionRunningNow) {
+        while (true) {
+            quotaUsage = parseQuotaWindows(
+                dshRepository.pluginRpc(activeHostId, "subscription-oauth.status", "{}").getOrNull()
+            )
+            kotlinx.coroutines.delay(if (sessionRunningNow) 15_000L else 60_000L)
         }
     }
 
@@ -1790,9 +1814,10 @@ fun MainAppHost(
                                             }
                                             if (sid != null) {
                                                 // proot 下 Host 的 mkdir 可能返回 ENOENT；先在 Android 侧建好会话目录。
+                                                // Host 会把工作区目录名中的非 ASCII 码点转义为 ~XXXX。
                                                 java.io.File(
                                                     context.filesDir,
-                                                    "rootfs/root/.dsh/sessions/--workspace--/$sid"
+                                                    "rootfs/root/.dsh/sessions/${workspaceSessionDirName(activeWorkspaceName)}/$sid"
                                                 ).mkdirs()
                                                 selectedSessionId = sid
                                             }
@@ -1906,6 +1931,7 @@ fun MainAppHost(
                                     }
                                 },
                                 stats = currentSessionStats,
+                                quotaUsage = quotaUsage,
                                 voiceEnabled = voiceEnabled,
                                 voiceRecording = voiceRecording,
                                 voiceSeconds = voiceSeconds,
@@ -3223,6 +3249,60 @@ private fun formatAmount(raw: String): String {
     val clean = raw.removePrefix("¥").trim()
     val num = clean.toDoubleOrNull() ?: return "¥$raw"
     return String.format(java.util.Locale.US, "¥%.2f", num)
+}
+
+/**
+ * Host 会话目录名：`--workspace-<escaped>--`，非 ASCII 码点转义为 `~XXXX`。
+ * 与 Host 实际落盘规则一致，用于在 Android 侧预建会话目录。
+ */
+private fun workspaceSessionDirName(workspaceName: String): String {
+    val escaped = buildString {
+        workspaceName.codePoints().forEach { codePoint ->
+            if (codePoint in 0x21..0x7E && codePoint != 0x2F) {
+                appendCodePoint(codePoint)
+            } else {
+                append('~')
+                append(codePoint.toString(16).uppercase().padStart(4, '0'))
+            }
+        }
+    }
+    return "--workspace-$escaped--"
+}
+
+/**
+ * 解析 `subscription-oauth.status` 返回的额度窗口，供 composer dock 上方展示。
+ * 只做展示，不参与鉴权或计费判断；没有登录/没有额度时返回空列表。
+ */
+private fun parseQuotaWindows(body: String?): List<com.deepseek.dsh.feature.chat.ComposerQuota> {
+    if (body.isNullOrBlank()) return emptyList()
+    val root = runCatching {
+        kotlinx.serialization.json.Json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
+    }.getOrNull() ?: return emptyList()
+    val result = root["result"] as? kotlinx.serialization.json.JsonObject
+    val value = (result?.get("value") ?: root["value"] ?: root) as? kotlinx.serialization.json.JsonObject
+        ?: return emptyList()
+    val providers = value["providers"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+    val windows = mutableListOf<com.deepseek.dsh.feature.chat.ComposerQuota>()
+    providers.forEach { element ->
+        val provider = element as? kotlinx.serialization.json.JsonObject ?: return@forEach
+        val providerName = ((provider["displayName"] ?: provider["provider"]) as? kotlinx.serialization.json.JsonPrimitive)?.content
+            ?: return@forEach
+        (provider["usage"] as? kotlinx.serialization.json.JsonArray)?.forEach { usageElement ->
+            val usage = usageElement as? kotlinx.serialization.json.JsonObject ?: return@forEach
+            (usage["windows"] as? kotlinx.serialization.json.JsonArray)?.forEach { windowElement ->
+                val window = windowElement as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                val label = (window["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "额度"
+                val percent = ((window["usedPercent"] as? kotlinx.serialization.json.JsonPrimitive)?.content)?.toDoubleOrNull()
+                if (percent != null) {
+                    windows += com.deepseek.dsh.feature.chat.ComposerQuota(
+                        label = if (label.contains(providerName)) label else "$providerName $label",
+                        percent = percent,
+                    )
+                }
+            }
+        }
+    }
+    return windows.distinctBy { it.label }.take(3)
 }
 
 /** 从 workspace/create|rename 的 response 中取 workspaceId。 */

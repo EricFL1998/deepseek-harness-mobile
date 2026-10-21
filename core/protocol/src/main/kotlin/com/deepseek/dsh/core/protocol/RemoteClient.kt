@@ -475,16 +475,19 @@ class RemoteClient(
     ): RemoteResult<ComposerStats> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "session/projections")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("sessionId", sessionId)
+                    put("request", buildJsonObject {
+                        put("sessionId", sessionId)
+                    })
                 })
             })
         }.toString()
 
         val request = Request.Builder()
-            .url("$baseUrl/api")
+            .url("$baseUrl/api/session/projections")
             .post(payload.toRequestBody(mediaTypeJson))
             .build()
 
@@ -1550,6 +1553,8 @@ class RemoteClient(
             })
         }.toString()
 
+        // 先订阅会话事件流，再提交 prompt：Host 只在有 follow 订阅者时驱动 turn。
+        followSession(sessionId, hostId)
         val request = Request.Builder()
             .url("$baseUrl/api/session/prompt")
             .post(payload.toRequestBody(mediaTypeJson))
@@ -1557,11 +1562,24 @@ class RemoteClient(
 
         try {
             client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     return@withContext RemoteResult.Failure(
                         "dsh/remote/error",
                         "Send message failed, HTTP ${response.code}"
                     )
+                }
+                val envelope = runCatching {
+                    json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
+                }.getOrNull()
+                val result = envelope?.get("result") as? kotlinx.serialization.json.JsonObject
+                if (result != null && result["ok"]?.toString() == "false") {
+                    val error = result["error"] as? kotlinx.serialization.json.JsonObject
+                    val code = (error?.get("code") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        ?: "dsh/remote/error"
+                    val message = (error?.get("message") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        ?: "Host rejected the prompt"
+                    return@withContext RemoteResult.Failure(code, message)
                 }
                 val msg = ChatMessage(
                     hostId = hostId,
@@ -1571,7 +1589,6 @@ class RemoteClient(
                     content = text,
                     createdAt = System.currentTimeMillis()
                 )
-                followSession(sessionId, hostId)
                 RemoteResult.Success(msg)
             }
         } catch (e: IOException) {

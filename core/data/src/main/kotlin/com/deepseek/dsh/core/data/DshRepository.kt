@@ -1037,7 +1037,24 @@ class DshRepository(
 
         scope.launch(Dispatchers.IO) {
             // 用户消息已乐观插入；这里只提交 prompt，避免同一条消息被插入两次。
-            client.sendMessage(hostId, sessionId, content)
+            val result = client.sendMessage(hostId, sessionId, content)
+            if (result is RemoteResult.Failure) {
+                // Host 拒绝了 prompt（模型/权限/网络）：落一条可见错误，避免界面毫无反馈。
+                dao.insertMessages(
+                    listOf(
+                        MessageEntity(
+                            hostId = hostId,
+                            sessionId = sessionId,
+                            messageId = "msg_error_${System.currentTimeMillis()}",
+                            role = MessageRole.ASSISTANT.name,
+                            seq = 0L,
+                            contentJson = "发送失败：${result.message}",
+                            createdAt = System.currentTimeMillis(),
+                            status = "error"
+                        )
+                    )
+                )
+            }
         }
 
         return userMsg
