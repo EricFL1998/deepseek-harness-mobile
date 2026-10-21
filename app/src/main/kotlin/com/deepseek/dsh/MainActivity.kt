@@ -1884,6 +1884,7 @@ fun MainAppHost(
                                     }
                                 },
                                 selectedModel = currentModel,
+                                selectedModelId = effectiveModelIdByName[currentModel] ?: currentModel,
                                 availableModels = availableModelNames,
                                 agentPresetLabel = com.deepseek.dsh.feature.chat.agentPresetLabel(
                                     pendingAgentPreset ?: currentAppSettings.transcriptView

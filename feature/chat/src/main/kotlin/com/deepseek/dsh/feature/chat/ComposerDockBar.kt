@@ -41,6 +41,7 @@ import kotlinx.serialization.json.put
 fun ComposerDockBar(
     stats: ComposerStats = ComposerStats(),
     showStats: Boolean = true,
+    selectedModelId: String = "",
     modifier: Modifier = Modifier
 ) {
     if (!showStats) return
@@ -120,9 +121,12 @@ fun ComposerDockBar(
         }
 
         // 官方 composer.dock 的插件扩展：紧跟在上下文计量之后，同一条状态行内。
+        // spec 带上当前模型 id，插件据此解析当前 provider 并调用对应 RPC。
         com.deepseek.dsh.plugin.nativehost.NativeSlotInline(
             slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.COMPOSER_DOCK,
-            spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+            spec = kotlinx.serialization.json.buildJsonObject {
+                put("modelId", selectedModelId)
+            },
         )
     }
 }

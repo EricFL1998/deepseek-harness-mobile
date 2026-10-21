@@ -187,6 +187,8 @@ fun ModernChatScreen(
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
     onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "",
+    /** 当前模型 id（如 deepseek-account/deepseek-flash、kimi-for-coding），传给 dock 解析 provider。 */
+    selectedModelId: String = "",
     availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     onModelSelected: (String) -> Unit = {},
@@ -371,6 +373,7 @@ fun ModernChatScreen(
             },
             onPlusClick = { commandSheetOpen = true },
             selectedModel = selectedModel,
+            selectedModelId = selectedModelId,
             availableModels = availableModels,
             effortLabel = effortLabelOverride ?: stringResource(reasoningLevel.labelResId),
             reasoningOptions = reasoningOptions,
@@ -2178,6 +2181,7 @@ fun BottomInputBar(
     onSend: () -> Unit,
     onPlusClick: () -> Unit,
     selectedModel: String,
+    selectedModelId: String = "",
     availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     effortLabel: String,
@@ -2546,6 +2550,7 @@ fun BottomInputBar(
         ComposerDockBar(
             stats = stats,
             showStats = showDockStats,
+            selectedModelId = selectedModelId,
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     }

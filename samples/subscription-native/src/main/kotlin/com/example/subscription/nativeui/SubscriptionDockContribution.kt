@@ -1,6 +1,14 @@
 package com.example.subscription.nativeui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -8,7 +16,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.window.Dialog
 import com.deepseek.dsh.plugin.nativesdk.host.PluginHostApi
 import com.deepseek.dsh.plugin.nativesdk.host.PluginRpcHost
 import com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot
@@ -23,19 +35,20 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.math.roundToInt
 
 /**
- * composer.dock 的额度胶囊：复用 `dsh-plugin-subscription-oauth` 已有的两个 RPC，
- * 不新增 Host 协议、不复制业务逻辑。
+ * composer.dock 的用量/余额胶囊，复刻插件 Web 版 UsageChip：
  *
- * - `subscription-oauth.deepseek-balance`：当前选 DeepSeek 账号时，Web 版 UsageChip
- *   显示钱包余额（如 `DeepSeek ¥27.27`）；原生 dock 用同一份数据。
- * - `subscription-oauth.status`：没选中 DeepSeek 时退回订阅套餐的用量窗口
- *   （`5h 42%`），与 Web 版其它 provider 的表现一致。
+ * - 当前模型属于 DeepSeek 账号 → `subscription-oauth.deepseek-balance`，显示 `DeepSeek ¥24.80`；
+ * - 当前模型属于插件自己的 provider（Kimi/Grok/GLM…）→ `subscription-oauth.usage`，
+ *   显示套餐窗口的百分比；
+ * - 其它 provider → `subscription-oauth.ccswitch-balance`，显示该 provider 的余额。
  *
- * 未登录/没有可展示数据时不占空间。
+ * 点击/长按打开与 Web 版同等的明细面板。provider 由 App 通过 spec.modelId 传入，
+ * 原生端不自己猜当前选择。
  */
 class SubscriptionDockContribution : SlotContribution() {
     override val slot = NativeSlot.COMPOSER_DOCK
@@ -44,48 +57,223 @@ class SubscriptionDockContribution : SlotContribution() {
     @Composable
     override fun Render(spec: JsonObject, theme: PluginTheme, host: PluginHostApi) {
         val rpc = host as? PluginRpcHost ?: return
-        var label by remember { mutableStateOf("") }
-        LaunchedEffect(Unit) {
-            // Host 刚启动时 /api 可能先返回 401；重试几次直到 RPC 就绪，
-            // 避免旧会话的 dock 在首帧失败后永久空白。
+        val modelId = spec["modelId"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        var data by remember(modelId) { mutableStateOf<DockData?>(null) }
+        var panelOpen by remember(modelId) { mutableStateOf(false) }
+
+        LaunchedEffect(modelId) {
+            // Host 刚启动时 /api 可能先返回 401；重试几次直到 RPC 就绪。
             repeat(6) { attempt ->
-                val balance = rpc.await(
-                    "subscription-oauth.deepseek-balance",
-                    balancePayload(),
-                )?.let(::balanceLabel).orEmpty()
-                val text = balance.ifBlank {
-                    rpc.await("subscription-oauth.status", JsonObject(emptyMap()))
-                        ?.let(::quotaLabel)
-                        .orEmpty()
-                }
-                if (text.isNotBlank()) {
-                    label = text
+                val loaded = loadDockData(rpc, modelId)
+                if (loaded != null) {
+                    data = loaded
                     return@LaunchedEffect
                 }
                 kotlinx.coroutines.delay(if (attempt == 0) 800L else 2_000L)
             }
         }
-        if (label.isBlank()) return
-        // 与 composer 底部状态行的 tok/s、缓存命中、上下文读数同款：
-        // 无底色、无边框、labelSmall + outline 色，紧随上下文计量之后。
+
+        val current = data ?: return
         Text(
-            text = label,
+            text = current.compact,
             style = theme.textCaption.copy(fontFeatureSettings = "tnum"),
             color = theme.colorOutline,
-            modifier = Modifier.padding(horizontal = theme.spacingUnit / 2),
+            modifier = Modifier
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { panelOpen = true },
+                        onLongPress = { panelOpen = true },
+                    )
+                }
+                .padding(horizontal = theme.spacingUnit / 2),
         )
+
+        if (panelOpen) {
+            Dialog(onDismissRequest = { panelOpen = false }) {
+                Card(
+                    shape = theme.shapeCard,
+                    colors = CardDefaults.cardColors(containerColor = theme.colorSurface),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(theme.spacingUnit * 2),
+                        verticalArrangement = Arrangement.spacedBy(theme.spacingUnit),
+                    ) {
+                        Text(
+                            text = current.title,
+                            style = theme.textTitle,
+                            color = theme.colorOnSurface,
+                        )
+                        current.rows.forEach { (label, value) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = theme.textCaption,
+                                    color = theme.colorOnSurfaceVariant,
+                                )
+                                Text(
+                                    text = value,
+                                    style = theme.textBody.copy(fontWeight = FontWeight.Medium),
+                                    color = theme.colorOnSurface,
+                                )
+                            }
+                        }
+                        Text(
+                            text = "点击空白处关闭",
+                            style = theme.textCaption,
+                            color = theme.colorOutline,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = theme.spacingUnit)
+                                .clickable { panelOpen = false },
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
-/** 把回调式 PluginRpcHost.callRpc 包成可重试的 suspend 调用。 */
-private suspend fun PluginRpcHost.await(method: String, payload: JsonObject): JsonElement? =
-    kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
-        callRpc(method, payload) { result ->
-            continuation.resumeWith(Result.success(result.getOrNull()))
+private data class DockData(
+    val compact: String,
+    val title: String,
+    val rows: List<Pair<String, String>>,
+)
+
+private suspend fun loadDockData(rpc: PluginRpcHost, modelId: String): DockData? {
+    // 1) DeepSeek 账号：Web 版直接读账号余额，不走套餐 usage。
+    if (modelId.startsWith("deepseek-account/")) {
+        balanceData(rpc)?.let { return it }
+    }
+    // 2) 插件自己的 provider：用模型 id 在 status 里反查 provider，再读 usage。
+    val status = rpc.await("subscription-oauth.status", JsonObject(emptyMap()))
+    val provider = resolveProvider(status, modelId)
+    if (provider != null && provider == "deepseek-account") {
+        balanceData(rpc)?.let { return it }
+    }
+    if (provider != null) {
+        usageData(rpc, status, provider)?.let { return it }
+    }
+    // 3) 其它 provider（OpenAI 兼容等）：cc-switch 余额。
+    val guess = modelId.substringBefore('/').takeIf { it.isNotBlank() && it != modelId }
+    if (guess != null) ccSwitchData(rpc, guess)?.let { return it }
+    // 4) 没有 modelId（旧宿主）/无法判定时：保持原行为，先余额后退回第一个已登录套餐。
+    balanceData(rpc)?.let { return it }
+    return status?.let { fallbackUsageData(it) }
+}
+
+private fun resolveProvider(status: JsonElement?, modelId: String): String? {
+    if (modelId.isBlank()) return null
+    if (modelId.startsWith("deepseek-account/")) return "deepseek-account"
+    val providers = rpcValue(status ?: return null)?.get("providers") as? JsonArray ?: return null
+    for (element in providers) {
+        val provider = element as? JsonObject ?: continue
+        val id = (provider["provider"] as? JsonPrimitive)?.contentOrNull ?: continue
+        val defaultModel = (provider["defaultModel"] as? JsonPrimitive)?.contentOrNull
+        if (defaultModel == modelId) return id
+        val models = provider["models"] as? JsonArray ?: continue
+        if (models.any { (it as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull == modelId }) {
+            return id
         }
     }
+    return null
+}
 
-/** DeepSeek 余额接口要求的时区参数（东为正的整秒），与 Web 版一致。 */
+private suspend fun balanceData(rpc: PluginRpcHost): DockData? {
+    val value = rpcValue(rpc.await("subscription-oauth.deepseek-balance", balancePayload()) ?: return null) ?: return null
+    val wallets = value["wallets"] as? JsonArray ?: return null
+    val rows = wallets.mapNotNull { element ->
+        val wallet = element as? JsonObject ?: return@mapNotNull null
+        val currency = wallet.str("currency")
+        val amount = wallet.str("balance")
+        if (currency.isBlank() && amount.isBlank()) return@mapNotNull null
+        val text = formatMoney(currency, amount)
+        currency to text
+    }
+    if (rows.isEmpty()) return null
+    return DockData(
+        compact = "DeepSeek ${rows.first().second}",
+        title = "DeepSeek Account 额度",
+        rows = rows,
+    )
+}
+
+private suspend fun usageData(rpc: PluginRpcHost, status: JsonElement?, providerId: String): DockData? {
+    val providers = rpcValue(status ?: return null)?.get("providers") as? JsonArray
+        ?: return null
+    val provider = providers.mapNotNull { it as? JsonObject }
+        .firstOrNull { it.str("provider") == providerId }
+        ?: return null
+    val displayName = provider.str("displayName").ifBlank { providerId }
+    val payload = buildJsonObject { put("provider", providerId) }
+    val value = rpcValue(rpc.await("subscription-oauth.usage", payload) ?: return null) ?: return null
+        ?: return null
+    val accounts = value["usage"] as? JsonArray ?: return null
+    val rows = mutableListOf<Pair<String, String>>()
+    var compactPercent: Int? = null
+    for (element in accounts) {
+        val account = element as? JsonObject ?: continue
+        val windows = account["windows"] as? JsonArray ?: continue
+        for (windowElement in windows) {
+            val window = windowElement as? JsonObject ?: continue
+            val label = window.str("label").ifBlank { "额度" }
+            val percent = window["usedPercent"]?.jsonPrimitive?.doubleOrNull ?: continue
+            compactPercent = compactPercent ?: percent.roundToInt()
+            rows += label to "${percent.roundToInt()}%"
+        }
+    }
+    if (rows.isEmpty()) return null
+    return DockData(
+        compact = "${shortName(displayName, providerId)} ${rows.first().first} ${compactPercent}%",
+        title = "$displayName 用量",
+        rows = rows,
+    )
+}
+
+private suspend fun ccSwitchData(rpc: PluginRpcHost, providerId: String): DockData? {
+    val payload = buildJsonObject { put("provider", providerId) }
+    val value = rpcValue(rpc.await("subscription-oauth.ccswitch-balance", payload) ?: return null) ?: return null
+    val currency = value.str("currency")
+    val total = value.str("total")
+    if (total.isBlank()) return null
+    val text = formatMoney(currency, total)
+    return DockData(
+        compact = "${shortName(providerId, providerId)} $text",
+        title = "$providerId 余额",
+        rows = listOf((currency.ifBlank { "余额" }) to text),
+    )
+}
+
+private fun fallbackUsageData(status: JsonElement): DockData? {
+    val providers = rpcValue(status)?.get("providers") as? JsonArray ?: return null
+    for (element in providers) {
+        val provider = element as? JsonObject ?: continue
+        if ((provider["loggedIn"] as? JsonPrimitive)?.booleanOrNull != true) continue
+        val value = provider
+        val usage = value["usage"] as? JsonArray ?: continue
+        val window = usage.firstOrNull()
+            ?.let { it as? JsonObject }
+            ?.get("windows")
+            ?.let { it as? JsonArray }
+            ?.firstOrNull()
+            ?.let { it as? JsonObject }
+            ?: continue
+        val label = window.str("label").ifBlank { "额度" }
+        val percent = window["usedPercent"]?.jsonPrimitive?.doubleOrNull?.roundToInt() ?: continue
+        val name = shortName(provider.str("displayName"), provider.str("provider"))
+        return DockData(
+            compact = "$name $label $percent%",
+            title = "${provider.str("displayName").ifBlank { name }} 用量",
+            rows = listOf(label to "$percent%"),
+        )
+    }
+    return null
+}
+
 private fun balancePayload(): JsonObject {
     val offsetSeconds = TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 1000
     return buildJsonObject {
@@ -95,49 +283,15 @@ private fun balancePayload(): JsonObject {
     }
 }
 
-/** 从 `deepseek-balance` 的 value 中取第一个钱包，格式化成 `DeepSeek ¥27.27`。 */
-private fun balanceLabel(body: JsonElement): String {
-    val value = rpcValue(body) ?: return ""
-    val wallet = (value["wallets"] as? JsonArray)
-        ?.firstOrNull()
-        ?.let { it as? JsonObject }
-        ?: return ""
-    val currency = (wallet["currency"] as? JsonPrimitive)?.contentOrNull.orEmpty()
-    val raw = (wallet["balance"] as? JsonPrimitive)?.contentOrNull.orEmpty()
-    val amount = raw.toDoubleOrNull()?.let { String.format("%.2f", it) } ?: raw
-    if (amount.isBlank()) return ""
-    val symbol = when (currency) {
-        "CNY" -> "¥"
-        "USD" -> "$"
-        else -> if (currency.isBlank()) "" else "$currency "
+/** 把回调式 PluginRpcHost.callRpc 包成 suspend。 */
+private suspend fun PluginRpcHost.await(method: String, payload: JsonObject): JsonElement? =
+    kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+        callRpc(method, payload) { result ->
+            continuation.resumeWith(Result.success(result.getOrNull()))
+        }
     }
-    return "DeepSeek $symbol$amount"
-}
 
-/** 订阅套餐的用量窗口（Kimi/Grok/GLM 等），与 Web 版用量胶囊同一数据源。 */
-private fun quotaLabel(body: JsonElement): String {
-    val value = rpcValue(body) ?: return ""
-    val providers = value["providers"] as? JsonArray ?: return ""
-    for (element in providers) {
-        val provider = element as? JsonObject ?: continue
-        if ((provider["loggedIn"] as? JsonPrimitive)?.booleanOrNull != true) continue
-        val name = providerName(provider) ?: continue
-        val window = (provider["usage"] as? JsonArray)
-            ?.firstOrNull()
-            ?.let { it as? JsonObject }
-            ?.get("windows")
-            ?.let { it as? JsonArray }
-            ?.firstOrNull()
-            ?.let { it as? JsonObject }
-            ?: continue
-        val windowLabel = (window["label"] as? JsonPrimitive)?.contentOrNull ?: "额度"
-        val percent = (window["usedPercent"] as? JsonPrimitive)?.doubleOrNull ?: continue
-        return "$name $windowLabel ${percent.roundToInt()}%"
-    }
-    return ""
-}
-
-/** Host RPC 信封：`{result:{ok,value}}`；页面/落点拿到的通常是整封回包。 */
+/** Host RPC 信封：`{result:{ok,value}}`。 */
 private fun rpcValue(body: JsonElement): JsonObject? {
     val root = body as? JsonObject ?: return null
     val result = (root["result"] as? JsonObject) ?: root
@@ -145,6 +299,29 @@ private fun rpcValue(body: JsonElement): JsonObject? {
     return (result["value"] as? JsonObject) ?: (root["value"] as? JsonObject)
 }
 
-private fun providerName(provider: JsonObject): String? =
-    (provider["displayName"] as? JsonPrimitive)?.contentOrNull
-        ?: (provider["provider"] as? JsonPrimitive)?.contentOrNull
+private fun JsonObject.str(key: String): String =
+    (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
+
+private fun formatMoney(currency: String, raw: String): String {
+    val amount = raw.toDoubleOrNull()?.let { String.format("%.2f", it) } ?: raw
+    val symbol = when (currency) {
+        "CNY" -> "¥"
+        "USD" -> "$"
+        else -> if (currency.isBlank()) "" else "$currency "
+    }
+    return "$symbol$amount"
+}
+
+private fun shortName(displayName: String, providerId: String): String {
+    val known = mapOf(
+        "deepseek-account" to "DeepSeek",
+        "kimi" to "Kimi",
+        "grok" to "Grok",
+        "antigravity" to "Anti",
+        "glm" to "GLM",
+        "ark" to "Ark",
+    )
+    known[providerId]?.let { return it }
+    val first = displayName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+    return first.ifBlank { providerId.ifBlank { "用量" } }
+}
