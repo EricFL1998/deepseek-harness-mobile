@@ -496,6 +496,7 @@ fun MainAppHost(
                         com.deepseek.dsh.plugin.nativehost.InstalledNativePlugin.Status.DISABLED -> "已停用"
                     },
                     signatureFingerprint = installed.signatureFingerprint,
+                    jsPackage = installed.jsPackage,
                 )
             }
         }

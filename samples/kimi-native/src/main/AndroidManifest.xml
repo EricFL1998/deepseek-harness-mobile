@@ -11,6 +11,8 @@
             <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
             <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.kimi-oauth" />
             <meta-data android:name="dsh.plugin.name" android:value="Kimi 登录" />
+            <!-- 配对的 JS 插件：Kimi 登录是 subscription-oauth 插件里的一个能力。 -->
+            <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-subscription-oauth" />
             <intent-filter>
                 <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
             </intent-filter>

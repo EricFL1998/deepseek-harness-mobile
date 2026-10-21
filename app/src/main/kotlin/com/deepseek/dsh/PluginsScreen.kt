@@ -150,6 +150,8 @@ fun PluginsScreen(
     var selectedBundle by remember { mutableStateOf<PluginBundleItem?>(null) }
     // 「内置插件配置」的每一行后面都是 Host 的设置文档：点开就是可编辑的表单。
     var selectedConfig by remember { mutableStateOf<ConfigEntryRow?>(null) }
+    // 已安装的第三方行插件详情（伴侣 APK 作为它的子组件出现在里面）。
+    var selectedRowPlugin by remember { mutableStateOf<PluginRowInfo?>(null) }
     // 「更多插件」页面：从实验性分组头部的「更多 ›」进入。
     var showMorePlugins by remember { mutableStateOf(false) }
     // 原生伴侣：详情页 + 停用集合 + 已装列表（merge 进已安装分组）。
@@ -159,7 +161,6 @@ fun PluginsScreen(
     var disabledNativePlugins by remember { mutableStateOf<Set<String>>(emptySet()) }
     // 插件页分段页签：0 = 插件（现有列表），1 = 原生插件商店。
     var pluginsTabIndex by remember { mutableStateOf(0) }
-    val installedNativePlugins = nativePluginItems.filter { it.installed }
     /**
      * Host 的全部设置命名空间。
      *
@@ -305,6 +306,47 @@ fun PluginsScreen(
         }
     }
 
+    /**
+     * 已配对的伴侣 APK 不再在「已安装插件」里单占一行：它作为所属 JS 插件的
+     * 子组件出现在详情页里。没配对的（作者没声明 `dsh.plugin.jsPackage`）
+     * 仍然独立成行，否则就无处可达。
+     */
+    val unpairedNativePlugins = remember(nativePluginItems, derivedInstalledRows, derivedInstalledBundles) {
+        val pairedByRow = derivedInstalledRows
+            .flatMap { row -> companionsOf(row.moduleName, nativePluginItems) }
+        val pairedByBundle = derivedInstalledBundles
+            .flatMap { bundle -> companionsOf(bundle.packageName, nativePluginItems) }
+        val paired = (pairedByRow + pairedByBundle).map { it.pluginId }.toSet()
+        nativePluginItems.filter { it.installed && it.pluginId !in paired }
+    }
+
+    /** Host 上已安装的 JS 插件名：行插件的模块名 + bundle 的包名 + App 安装器管理的包。 */
+    val installedJsPluginNames = remember(
+        derivedInstalledRows,
+        derivedInstalledBundles,
+        managedPluginPackages,
+    ) {
+        (derivedInstalledRows.map { it.moduleName } +
+            derivedInstalledBundles.map { it.packageName } +
+            managedPluginPackages).toSet()
+    }
+
+    /**
+     * 伴侣独立成行时的提醒。
+     *
+     * 只有「作者声明了配对的 JS 插件、而它没装」才需要提醒；没声明
+     * `dsh.plugin.jsPackage` 的伴侣是作者没做配对，提醒也无从对照。
+     * @param plugin 列表里的伴侣。
+     * @returns 需要展示的状态胶囊文案，或 null。
+     */
+    fun orphanCompanionNote(plugin: com.deepseek.dsh.plugin.nativehost.NativePluginItem): String? {
+        val declared = plugin.jsPackage ?: return null
+        val normalized = normalizeModuleName(declared)
+        val installed = installedJsPluginNames.contains(normalized) ||
+            installedJsPluginNames.contains(declared)
+        return if (installed) null else "插件未安装"
+    }
+
     fun keyOf(item: SurfaceItem): String = "${item.pluginId}::${item.slot}"
     fun enabledOf(item: SurfaceItem): Boolean = keyOf(item) !in disabledPlugins
 
@@ -318,6 +360,7 @@ fun PluginsScreen(
      */
     val detailOpen = selectedBundle != null ||
         selectedNativePlugin != null ||
+        selectedRowPlugin != null ||
         selectedConfig != null ||
         showMorePlugins ||
         selectedPlugin != null
@@ -333,19 +376,32 @@ fun PluginsScreen(
         handledBackSignal = backSignal
         when {
             selectedConfig != null -> selectedConfig = null
-            selectedBundle != null -> selectedBundle = null
             selectedNativePlugin != null -> selectedNativePlugin = null
+            selectedRowPlugin != null -> selectedRowPlugin = null
+            selectedBundle != null -> selectedBundle = null
             showMorePlugins -> showMorePlugins = false
             selectedPlugin != null -> selectedPlugin = null
         }
     }
 
     val bundleDetail = selectedBundle
-    if (bundleDetail != null) {
+    // 从 bundle 详情点开伴侣 APK 详情时，先让伴侣详情占据整页；返回后回到 bundle
+    // 详情（`selectedBundle` 仍保留）。
+    if (bundleDetail != null && selectedNativePlugin == null) {
         CompositionLocalProvider(LocalDshPanelColors provides colors) {
             Box(modifier = modifier.fillMaxSize().background(colors.bgBase)) {
                 BundleDetailContent(
                     bundle = bundleDetail,
+                    companions = companionsOf(bundleDetail.packageName, nativePluginItems),
+                    companionEnabled = { companion -> companion.pluginId !in disabledNativePlugins },
+                    onToggleCompanion = { companion, enabled ->
+                        disabledNativePlugins = if (enabled) {
+                            disabledNativePlugins - companion.pluginId
+                        } else {
+                            disabledNativePlugins + companion.pluginId
+                        }
+                    },
+                    onOpenCompanion = { companion -> selectedNativePlugin = companion },
                     onToggle = { enabled -> onToggleBundle(bundleDetail.packageName, enabled) },
                     onToggleComponent = onToggleComponent,
                     onUninstall = { onUninstall(SurfaceItem(pluginId = bundleDetail.packageName, slot = "host.bundle", title = bundleDetail.title)) },
@@ -363,6 +419,7 @@ fun PluginsScreen(
             val detail = selectedPlugin
             val nativeDetail = selectedNativePlugin
             val configDetail = selectedConfig
+            val rowDetail = selectedRowPlugin
             if (configDetail != null) {
                 // 「内置插件配置」的详情。
                 //
@@ -390,6 +447,34 @@ fun PluginsScreen(
                     item = nativeDetail,
                     onBack = { selectedNativePlugin = null },
                     onUninstall = { selectedNativePlugin = null },
+                )
+            } else if (rowDetail != null) {
+                // 已安装的第三方行插件：伴侣 APK 在这里作为子组件出现。
+                InstalledPluginDetailPage(
+                    plugin = rowDetail,
+                    companions = companionsOf(rowDetail.moduleName, nativePluginItems),
+                    companionEnabled = { companion -> companion.pluginId !in disabledNativePlugins },
+                    onToggleCompanion = { companion, enabled ->
+                        disabledNativePlugins = if (enabled) {
+                            disabledNativePlugins - companion.pluginId
+                        } else {
+                            disabledNativePlugins + companion.pluginId
+                        }
+                    },
+                    onOpenCompanion = { companion -> selectedNativePlugin = companion },
+                    onToggle = { enabled ->
+                        rowDetail.entryId?.let { entryId -> onTogglePluginRow(entryId, enabled) }
+                    },
+                    onUninstall = {
+                        onUninstall(
+                            SurfaceItem(
+                                pluginId = rowDetail.moduleName,
+                                slot = "plugin.row",
+                                title = rowDetail.title,
+                            )
+                        )
+                        selectedRowPlugin = null
+                    },
                 )
             } else if (showMorePlugins) {
                 // 「更多插件」单独页面：实验性分组头部的「更多 ›」进入。
@@ -560,7 +645,9 @@ fun PluginsScreen(
 
                     val hostBundles = derivedInstalledBundles
                     val hostRows = derivedInstalledRows
-                    if (surfaces.isEmpty() && hostBundles.isEmpty() && hostRows.isEmpty()) {
+                    if (surfaces.isEmpty() && hostBundles.isEmpty() && hostRows.isEmpty() &&
+                        unpairedNativePlugins.isEmpty()
+                    ) {
                         item(key = "installed_empty") {
                             Text(
                                 text = "还没有安装任何插件。",
@@ -610,6 +697,7 @@ fun PluginsScreen(
                                 InstalledPluginRowItem(
                                     row = row,
                                     showDivider = index != hostRows.lastIndex || surfaces.isNotEmpty(),
+                                    onClick = { selectedRowPlugin = row },
                                     onToggle = { enabled ->
                                         row.entryId?.let { entryId ->
                                             onTogglePluginRow(entryId, enabled)
@@ -636,22 +724,23 @@ fun PluginsScreen(
                             ) { index, item ->
                                 InstalledSurfaceRow(
                                     item = item,
-                                    showDivider = index != surfaces.lastIndex || installedNativePlugins.isNotEmpty(),
+                                    showDivider = index != surfaces.lastIndex || unpairedNativePlugins.isNotEmpty(),
                                     onOpen = { onOpenSurface(item) },
                                     onOpenDetail = { selectedPlugin = item },
                                 )
                             }
                         }
 
-                        // 1.3 已装的原生伴侣插件：同行样式 + 「原生」标记 + 开关。
-                        if (installedNativePlugins.isNotEmpty()) {
+                        // 1.3 没配对的伴侣 APK：同行样式 + 「原生」标记 + 开关。
+                        // 配对上的伴侣已经作为子组件进了所属 JS 插件详情页。
+                        if (unpairedNativePlugins.isNotEmpty()) {
                             itemsIndexed(
-                                items = installedNativePlugins,
+                                items = unpairedNativePlugins,
                                 key = { index, p -> "native_${index}_${p.pluginId}" },
                             ) { index, plugin ->
                                 NativeInstalledRow(
                                     plugin = plugin,
-                                    showDivider = index != installedNativePlugins.lastIndex,
+                                    showDivider = index != unpairedNativePlugins.lastIndex,
                                     enabled = plugin.pluginId !in disabledNativePlugins,
                                     onToggle = { enabled ->
                                         disabledNativePlugins =
@@ -659,6 +748,7 @@ fun PluginsScreen(
                                             else disabledNativePlugins + plugin.pluginId
                                     },
                                     onClick = { selectedNativePlugin = plugin },
+                                    note = orphanCompanionNote(plugin),
                                 )
                             }
                         }
@@ -741,6 +831,29 @@ private fun BridgePluginBundleSummary.toPluginBundleItem(): PluginBundleItem = P
 )
 
 private const val BRIDGE_PLUGIN_PACKAGE = "dsh-mobile-bridge-plugin"
+
+/** 包名归一化：取最后一段并去掉版本后缀，用于跨来源比对。 */
+private fun normalizeModuleName(value: String): String =
+    value.substringAfterLast('/').substringBefore('@')
+
+/**
+ * 一个 JS 插件配对的伴侣 APK。
+ *
+ * 配对依据是 APK manifest 的 `dsh.plugin.jsPackage`（作者声明），不按包名猜：
+ * 声明缺失时这个伴侣不挂到任何插件下，而是留在列表里独立成行。
+ *
+ * @param moduleName JS 插件在 Host 里的模块名（Loader 行的 `moduleName`）。
+ * @param items 已扫描到的伴侣 APK。
+ * @returns 配对的伴侣，按扫描顺序。
+ */
+internal fun companionsOf(
+    moduleName: String,
+    items: List<com.deepseek.dsh.plugin.nativehost.NativePluginItem>,
+): List<com.deepseek.dsh.plugin.nativehost.NativePluginItem> =
+    items.filter { item ->
+        val declared = item.jsPackage ?: return@filter false
+        item.installed && (declared == moduleName || normalizeModuleName(declared) == moduleName)
+    }
 
 
 
@@ -1208,6 +1321,10 @@ private fun SduiFeatureCard(
 @Composable
 private fun BundleDetailContent(
     bundle: PluginBundleItem,
+    companions: List<com.deepseek.dsh.plugin.nativehost.NativePluginItem>,
+    companionEnabled: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Boolean,
+    onToggleCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem, Boolean) -> Unit,
+    onOpenCompanion: (com.deepseek.dsh.plugin.nativehost.NativePluginItem) -> Unit,
     onToggle: (Boolean) -> Unit,
     onToggleComponent: (String, Boolean) -> Unit,
     onUninstall: () -> Unit,
@@ -1293,7 +1410,7 @@ private fun BundleDetailContent(
         }
         Spacer(Modifier.height(28.dp))
         Text(
-            text = "包含的组件 共 ${bundle.rows.size} 个 · ${bundle.rows.count { it.enabled }} 运行中",
+            text = "包含的组件 共 ${bundle.rows.size + companions.size} 个 · ${bundle.rows.count { it.enabled }} 运行中",
             color = colors.labelPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
@@ -1329,6 +1446,39 @@ private fun BundleDetailContent(
                             onToggleComponent(entryId, enabled)
                         }
                     },
+                )
+            }
+        }
+        // 配对的伴侣 APK 是同一份插件能力的原生界面，作为子组件列在这里。
+        companions.forEach { companion ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenCompanion(companion) }
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                BundleArtwork(bundle = bundle, frameSize = 34.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(companion.name, color = colors.labelPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(colors.bgModulePlatform)
+                                .border(0.5.dp, colors.borderL2, RoundedCornerShape(9.dp))
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                        ) {
+                            Text("原生", color = colors.labelSecondary, fontSize = 10.sp, lineHeight = 12.sp)
+                        }
+                    }
+                    Text(companion.description, color = colors.labelTertiary, fontSize = 11.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(companion.pluginId, color = colors.labelTertiary, fontFamily = FontFamily.Monospace, fontSize = 10.5.sp)
+                }
+                DshSwitch(
+                    checked = companionEnabled(companion),
+                    onCheckedChange = { enabled -> onToggleCompanion(companion, enabled) },
                 )
             }
         }
@@ -1531,6 +1681,7 @@ private fun OfficialConfigRow(
 private fun InstalledPluginRowItem(
     row: PluginRowInfo,
     showDivider: Boolean,
+    onClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onUninstall: () -> Unit,
 ) {
@@ -1539,6 +1690,8 @@ private fun InstalledPluginRowItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -2015,7 +2168,7 @@ private fun PluginComponentRow(
 
 /** 详情页来源信息行：44dp 最小高 + 8/2 内距 + 0.5dp border-l2 下划线；值右对齐。 */
 @Composable
-private fun DetailFactRow(label: String, value: String, monospace: Boolean = false) {
+internal fun DetailFactRow(label: String, value: String, monospace: Boolean = false) {
     val colors = LocalDshPanelColors.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(

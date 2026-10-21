@@ -47,7 +47,7 @@ internal val WEB_SEARCH_SETTINGS_PAGE: OfficialPageSpec = OfficialPageSpec(
             ns = "web-deepseek-api",
             key = "count",
             label = "每次搜索结果数",
-            hint = "每个查询返回的结果条数，须为 1–50 的整数，默认 10；不控制搜索调用次数。",
+            hint = "每个查询返回的结果条数，须为 1–50 的整数，默认 10；不控制搜索调用次数。web_search 保留的来源数不超过其自身的结果上限。",
             kind = OfficialFieldKind.NUMBER,
         ),
     ),

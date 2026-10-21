@@ -12,6 +12,8 @@
             <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
             <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.dsh-genui" />
             <meta-data android:name="dsh.plugin.name" android:value="GenUI 界面" />
+            <!-- 配对的 JS 插件：没装它时这个伴侣在列表里独立成行并标「插件未安装」。 -->
+            <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-genui" />
             <intent-filter>
                 <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
             </intent-filter>

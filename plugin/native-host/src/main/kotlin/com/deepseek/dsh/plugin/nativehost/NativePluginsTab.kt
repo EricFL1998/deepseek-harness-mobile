@@ -52,6 +52,13 @@ data class NativePluginItem(
     /** 已装项的状态文案（正常/待更新/身份不符）。 */
     val statusLabel: String? = null,
     val signatureFingerprint: String? = null,
+    /**
+     * APK manifest 声明的配对 JS 插件（`dsh.plugin.jsPackage`）。
+     *
+     * 插件页据此把伴侣 APK 挂到对应 JS 插件的详情里，作为那个插件的子组件；
+     * 没有声明时为 null，伴侣只能独立出现在列表里。
+     */
+    val jsPackage: String? = null,
 )
 
 /**

@@ -208,6 +208,8 @@ fun NativeInstalledRow(
     onToggle: (Boolean) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 额外状态胶囊，例如「插件未安装」：伴侣在、配对的 JS 插件不在。 */
+    note: String? = null,
 ) {
     val colors = LocalDshPanelColors.current
     Column(modifier = modifier.fillMaxWidth()) {
@@ -240,6 +242,9 @@ fun NativeInstalledRow(
                         fontWeight = FontWeight.Medium,
                     )
                     NativeChip(text = "原生", colors = colors)
+                    if (note != null) {
+                        NativeChip(text = note, colors = colors)
+                    }
                 }
                 Text(
                     text = plugin.description,
