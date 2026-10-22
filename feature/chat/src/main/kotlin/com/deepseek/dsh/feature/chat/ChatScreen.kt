@@ -468,7 +468,9 @@ fun ModernChatScreen(
                     val attachmentBlock = if (attachments.isEmpty()) {
                         ""
                     } else {
-                        attachments.joinToString(" ") { it.asMessageReference() } + "\n\n"
+                        attachments.filterNot { it.isImageAttachment() }
+                            .joinToString(" ") { it.asMessageReference() }
+                            .let { block -> if (block.isBlank()) "" else block + "\n\n" }
                     }
                     // 输入框里显示的是本地化 chip（/目标）；发送时还原成 Host 命令 /goal。
                     val commandPrefix = activeCommandToken?.let { "/$it " } ?: ""

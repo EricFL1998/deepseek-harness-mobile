@@ -22,6 +22,19 @@ data class ChatAttachment(
  */
 fun ChatAttachment.asMessageReference(): String = "@$workspaceRelativePath"
 
+/**
+ * 图片附件是否走内联 image part。
+ *
+ * 官方 prompt 的 image 分支把图片字节直接交给模型；此时再补一条 `@路径`
+ * 只会让用户气泡里多出一行无用文本，所以图片不出现在 @ 引用里。
+ */
+fun ChatAttachment.isImageAttachment(): Boolean = when (
+    displayName.substringAfterLast('.', "").lowercase()
+) {
+    "png", "jpg", "jpeg", "webp", "gif" -> true
+    else -> false
+}
+
 /** 给输入卡片附件栏展示的大小文案。 */
 fun ChatAttachment.formattedSize(): String {
     if (sizeBytes <= 0) return ""
