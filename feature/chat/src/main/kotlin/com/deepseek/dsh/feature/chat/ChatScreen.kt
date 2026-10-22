@@ -47,6 +47,11 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.ThumbDown
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -214,6 +219,11 @@ fun ModernChatScreen(
     onHostCommand: (String) -> Unit = {},
     /** 官方 `skills/list`：当前会话可调用的技能。 */
     skills: List<com.deepseek.dsh.core.model.SkillInfo> = emptyList(),
+    /** 官方 `messageFeedback`：按 assistant message id 索引的反馈。 */
+    messageFeedback: Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo> = emptyMap(),
+    /** 写入/删除反馈：rating 为 positive/negative，null 表示删除。 */
+    onMessageFeedback: (messageId: String, rating: String?, note: String?) -> Unit =
+        { _, _, _ -> },
     /** 打开加号菜单前刷新技能目录（冷读 skills/list）。 */
     onRefreshSkills: () -> Unit = {},
     /** 直接读取技能目录（菜单打开时用返回值渲染，避免状态管道丢失）。 */
@@ -655,6 +665,30 @@ fun ModernChatScreen(
                                 onOpenToolDetail = { toolDetail = it },
                                 translateReasoning = translateReasoning,
                             )
+                            // 官方 message-feedback：助手消息下方的赞/踩（可选备注）。
+                            if (row.message.role == MessageRole.ASSISTANT &&
+                                row.message.content.isNotBlank()
+                            ) {
+                                MessageFeedbackActions(
+                                    current = messageFeedback[row.message.messageId],
+                                    onRating = { rating ->
+                                        val existing = messageFeedback[row.message.messageId]
+                                        if (existing?.rating == rating) {
+                                            onMessageFeedback(row.message.messageId, null, null)
+                                        } else {
+                                            onMessageFeedback(row.message.messageId, rating, existing?.note)
+                                        }
+                                    },
+                                    onNote = { note ->
+                                        val existing = messageFeedback[row.message.messageId]
+                                        onMessageFeedback(
+                                            row.message.messageId,
+                                            existing?.rating ?: "positive",
+                                            note,
+                                        )
+                                    },
+                                )
+                            }
                         }
                         is ChatRow.TurnDone -> TurnCompletedRow(
                             durationMs = row.durationMs,
@@ -3181,4 +3215,95 @@ private fun SessionPlanDock(
             }
         }
     }
+}
+
+
+/**
+ * 助手消息下方的反馈按钮（官方 message-feedback）。
+ *
+ * 点击赞/踩即写入；再次点击同一档位删除；「备注」打开可选说明输入框。
+ */
+@Composable
+private fun MessageFeedbackActions(
+    current: com.deepseek.dsh.core.model.MessageFeedbackInfo?,
+    onRating: (String) -> Unit,
+    onNote: (String) -> Unit,
+) {
+    var noteDialog by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.padding(start = 4.dp, top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FeedbackIcon(
+            selected = current?.rating == "positive",
+            icon = androidx.compose.material.icons.Icons.Outlined.ThumbUp,
+            description = stringResource(R.string.feedback_helpful),
+            onClick = { onRating("positive") },
+        )
+        FeedbackIcon(
+            selected = current?.rating == "negative",
+            icon = androidx.compose.material.icons.Icons.Outlined.ThumbDown,
+            description = stringResource(R.string.feedback_not_helpful),
+            onClick = { onRating("negative") },
+        )
+        if (current != null) {
+            Text(
+                text = if (current.note.isNullOrBlank()) {
+                    stringResource(R.string.feedback_add_note)
+                } else {
+                    stringResource(R.string.feedback_edit_note)
+                },
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier
+                    .clickable { noteDialog = true }
+                    .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
+    if (noteDialog) {
+        var draft by remember(current?.note) { mutableStateOf(current?.note.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { noteDialog = false },
+            title = { Text(stringResource(R.string.feedback_note_title)) },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    placeholder = { Text(stringResource(R.string.feedback_note_hint)) },
+                    minLines = 2,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    noteDialog = false
+                    onNote(draft.trim())
+                }) { Text(stringResource(R.string.queue_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteDialog = false }) {
+                    Text(stringResource(R.string.queue_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun FeedbackIcon(
+    selected: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    onClick: () -> Unit,
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = description,
+        tint = if (selected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.outline,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(4.dp)
+            .size(16.dp),
+    )
 }

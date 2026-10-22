@@ -984,6 +984,7 @@ fun MainAppHost(
     val sessionDeliverables by dshRepository.deliverablesFlow.collectAsState()
     val sessionChanges by dshRepository.changesFlow.collectAsState()
     val sessionQueuedMessages by dshRepository.queuedMessagesFlow.collectAsState()
+    val sessionMessageFeedback by dshRepository.messageFeedbackFlow.collectAsState()
     // 终端页状态：屏幕缓冲（去 ANSI）、状态行、可写标志。
     // Host 客户端是否已绑定到真实地址（决定能否开远程流）。
     var localHostBound by remember { mutableStateOf(false) }
@@ -2412,6 +2413,31 @@ fun MainAppHost(
                                 streamingReasoning = streamingReasoning,
                                 hostCommands = hostCommands,
                                 skills = hostSkills,
+                                messageFeedback = sessionMessageFeedback,
+                                onMessageFeedback = { messageId, rating, note ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            val existing = sessionMessageFeedback[messageId]
+                                            if (rating == null) {
+                                                if (existing != null) {
+                                                    runCatching {
+                                                        dshRepository.deleteMessageFeedback(
+                                                            activeHostId, sid, messageId, existing.version,
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                runCatching {
+                                                    dshRepository.putMessageFeedback(
+                                                        activeHostId, sid, messageId, rating, note,
+                                                        existing?.version,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
                                 loadSkills = {
                                     val sid = selectedSessionId
                                     if (sid == null) emptyList()

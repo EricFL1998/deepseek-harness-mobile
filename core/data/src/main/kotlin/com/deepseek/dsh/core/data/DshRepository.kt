@@ -887,6 +887,81 @@ class DshRepository(
         }
     }
 
+    private val _messageFeedbackFlow =
+        MutableStateFlow<Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo>>(emptyMap())
+    val messageFeedbackFlow:
+        StateFlow<Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo>> =
+        _messageFeedbackFlow.asStateFlow()
+
+    /** 读取当前会话的消息反馈（`messageFeedback/list`）。 */
+    suspend fun refreshMessageFeedback(hostId: String, sessionId: String) {
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("sessionId", sessionId) })
+        }
+        val raw = rpcRaw(hostId, "messageFeedback/list", args.toString()).getOrNull() ?: return
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return
+        val items = value["items"] as? JsonArray ?: return
+        val map =
+            mutableMapOf<String, com.deepseek.dsh.core.model.MessageFeedbackInfo>()
+        for (item in items) {
+            val obj = item as? JsonObject ?: continue
+            val messageId = (obj["messageId"] as? JsonPrimitive)?.contentOrNull ?: continue
+            map[messageId] = com.deepseek.dsh.core.model.MessageFeedbackInfo(
+                messageId = messageId,
+                rating = (obj["rating"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                note = (obj["note"] as? JsonPrimitive)?.contentOrNull,
+                version = (obj["version"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            )
+        }
+        _messageFeedbackFlow.value = map
+    }
+
+    /** 写入一条反馈（`messageFeedback/put`），version 为空表示要求当前不存在。 */
+    suspend fun putMessageFeedback(
+        hostId: String,
+        sessionId: String,
+        messageId: String,
+        rating: String,
+        note: String?,
+        ifVersion: String?,
+    ): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                put("messageId", messageId)
+                put("rating", rating)
+                if (!note.isNullOrBlank()) put("note", note)
+                if (ifVersion == null) put("ifVersion", kotlinx.serialization.json.JsonNull)
+                else put("ifVersion", ifVersion)
+            })
+        }
+        val ok = rpcRaw(hostId, "messageFeedback/put", args.toString())
+            .getOrNull()?.contains("\"ok\":true") == true
+        if (ok) refreshMessageFeedback(hostId, sessionId)
+        return ok
+    }
+
+    /** 删除一条反馈（`messageFeedback/delete`），用于再次点击同一评价。 */
+    suspend fun deleteMessageFeedback(
+        hostId: String,
+        sessionId: String,
+        messageId: String,
+        ifVersion: String,
+    ): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                put("messageId", messageId)
+                put("ifVersion", ifVersion)
+            })
+        }
+        val ok = rpcRaw(hostId, "messageFeedback/delete", args.toString())
+            .getOrNull()?.contains("\"ok\":true") == true
+        if (ok) refreshMessageFeedback(hostId, sessionId)
+        return ok
+    }
+
     /** 官方 `skills/list`：当前会话可用的技能（人可调用）。 */
     private val _hostSkillsFlow =
         MutableStateFlow<List<com.deepseek.dsh.core.model.SkillInfo>>(emptyList())
@@ -1556,6 +1631,7 @@ class DshRepository(
     /** 打开会话时订阅 `session/follow`，重放历史并恢复产物声明。 */
     fun watchSession(hostId: String, sessionId: String) {
         client.followSession(hostId, sessionId)
+        scope.launch(Dispatchers.IO) { refreshMessageFeedback(hostId, sessionId) }
     }
 
     fun markSessionViewed(sessionId: String?) {
@@ -1568,6 +1644,7 @@ class DshRepository(
             _changesFlow.value = null
             changesSeq = 0L
             _queuedMessagesFlow.value = emptyList()
+            _messageFeedbackFlow.value = emptyMap()
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId

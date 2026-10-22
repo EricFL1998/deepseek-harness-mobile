@@ -293,4 +293,10 @@
     <string name="queue_save">保存</string>
     <string name="queue_cancel">取消</string>
     <string name="cmd_section_skills">技能</string>
+<string name="feedback_helpful">有帮助</string>
+    <string name="feedback_not_helpful">没帮助</string>
+    <string name="feedback_add_note">添加备注</string>
+    <string name="feedback_edit_note">编辑备注</string>
+    <string name="feedback_note_title">反馈备注</string>
+    <string name="feedback_note_hint">哪里好 / 哪里不好？</string>
 </resources>

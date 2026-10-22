@@ -294,6 +294,15 @@ data class HostCommandInfo(
     val acceptsAttachments: Boolean = false,
 )
 
+/** 官方 `messageFeedback` 的一条消息反馈。 */
+@Serializable
+data class MessageFeedbackInfo(
+    val messageId: String,
+    val rating: String,
+    val note: String? = null,
+    val version: String = "",
+)
+
 /** 官方 `terminal/list` 里的一个网页终端。 */
 @Serializable
 data class TerminalInfo(

@@ -1886,7 +1886,11 @@ class RemoteClient(
                     answer.isBlank() -> reasoning + "\u0001"
                     else -> reasoning + "\u0001" + answer
                 }
-                emitDurableMessage(sessionId, hostId, seq, "assistant_$seq", MessageRole.ASSISTANT, content)
+                // 官方 messageFeedback 以 assistant message 的 MessageId 为准；
+                // 优先用事件里的真实 id，缺失时退回 seq。
+                val assistantId = (message["id"] as? kotlinx.serialization.json.JsonPrimitive)
+                    ?.contentOrNull ?: "assistant_$seq"
+                emitDurableMessage(sessionId, hostId, seq, assistantId, MessageRole.ASSISTANT, content)
             }
             "tool/call" -> {
                 val callId = data["callId"]?.toString()?.trim('"')

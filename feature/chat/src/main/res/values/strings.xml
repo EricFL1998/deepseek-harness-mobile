@@ -294,4 +294,10 @@
     <string name="queue_save">Save</string>
     <string name="queue_cancel">Cancel</string>
     <string name="cmd_section_skills">Skills</string>
+<string name="feedback_helpful">Helpful</string>
+    <string name="feedback_not_helpful">Not helpful</string>
+    <string name="feedback_add_note">Add note</string>
+    <string name="feedback_edit_note">Edit note</string>
+    <string name="feedback_note_title">Feedback note</string>
+    <string name="feedback_note_hint">What was good or bad?</string>
 </resources>
