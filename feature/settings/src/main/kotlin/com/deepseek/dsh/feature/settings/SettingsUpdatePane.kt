@@ -75,6 +75,8 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
     var pluginError by remember { mutableStateOf<String?>(null) }
     var rootfsBusy by remember { mutableStateOf(false) }
     var rootfsStatus by remember { mutableStateOf<String?>(null) }
+    // bridge 插件更新弹窗：落后时主动提醒一次，用户可稍后。
+    var showPluginUpdateDialog by remember { mutableStateOf(false) }
 
     // stringResource 只能在 @Composable 中调用，而下面这些文案还要在协程 / suspend 回调
     // 里更新状态时使用，因此在组合作用域内先读出来（带占位符的保留模板，用 format 填充）。
@@ -142,6 +144,8 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
         // 打一次 GitHub API（未授权接口每小时只有 60 次）。
         UpdateCenter.ensureChecked(context)
         refreshAssessment()
+        // bridge 插件是协议对端，落后时用弹窗主动提醒；镜像更新不弹窗。
+        if (assessment.pluginOutdated) showPluginUpdateDialog = true
     }
 
     /**
@@ -167,6 +171,65 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
     val installed = RootfsVersion.parse(assessment.installed)
     val packaged = RootfsVersion.parse(assessment.available)
     val pluginComparison = comparePluginVersions(assessment.installedPlugin, assessment.latestPlugin)
+    // 镜像只在「新引擎」真的存在时提示：bridge 单独更新不需要重下几百 MB 的镜像。
+    val engineUpdateAvailable = installed?.dsh != null &&
+        packaged?.dsh != null &&
+        installed.dsh != packaged.dsh
+
+    /** 安装最新 bridge 插件并重启 Host；按钮与弹窗共用这一条路径。 */
+    suspend fun updateBridgePlugin() {
+        pluginBusy = true
+        pluginError = null
+        val manager = HostRuntimeHolder.manager
+        val target = assessment.latestPlugin
+        if (manager == null) {
+            pluginError = errorRuntimeUnavailable
+            pluginBusy = false
+            return
+        }
+        if (target == null) {
+            pluginError = errorPluginLatestMissing
+            pluginBusy = false
+            return
+        }
+        pluginStatus = statusPluginPrepareUpdateTpl.format(target)
+        // 下载与解压都在 App 进程完成：Host 跑在 proot 里，解析不到 github.com。
+        val result = manager.updateBridgePlugin(target) { _, step ->
+            pluginStatus = step
+        }
+        result.fold(
+            onSuccess = { version ->
+                pluginStatus = statusPluginInstalledRestartingTpl.format(version)
+                val restart = HostRuntimeHolder.restartHost
+                val restartFailure = restart?.invoke()?.exceptionOrNull()
+                if (restart == null) {
+                    pluginStatus = statusPluginInstalledRestartNeededTpl.format(version)
+                }
+                // 装完必须以「运行中的插件版本」收尾：文件对了但 Host 没加载时，
+                // 界面不能假装更新成功。
+                delay(1_200)
+                val running = awaitRunningPluginVersion()
+                pluginStatus = statusPluginWrittenTpl.format(version)
+                pluginError = when {
+                    restartFailure != null ->
+                        errorHostRestartFailedTpl.format(
+                            restartFailure.message ?: textUnknownReason,
+                        )
+                    running == null -> errorPluginNotLoaded
+                    running != version -> errorHostVersionMismatchTpl.format(running, version)
+                    else -> {
+                        pluginStatus = statusPluginUpdatedRestartedTpl.format(version)
+                        null
+                    }
+                }
+                refreshAssessment()
+            },
+            onFailure = { failure ->
+                pluginError = failure.message ?: errorPluginUpdateFailed
+            },
+        )
+        pluginBusy = false
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -305,66 +368,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                     Button(
                         enabled = !pluginBusy && assessmentLoaded && assessment.canUpdatePlugin,
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            scope.launch {
-                                pluginBusy = true
-                                pluginError = null
-                                val manager = HostRuntimeHolder.manager
-                                val target = assessment.latestPlugin
-                                if (manager == null) {
-                                    pluginError = errorRuntimeUnavailable
-                                    pluginBusy = false
-                                    return@launch
-                                }
-                                if (target == null) {
-                                    pluginError = errorPluginLatestMissing
-                                    pluginBusy = false
-                                    return@launch
-                                }
-                                pluginStatus = statusPluginPrepareUpdateTpl.format(target)
-                                // 下载与解压都在 App 进程完成：Host 跑在 proot 里，
-                                // 解析不到 github.com，无法在那里跑 git/pnpm。
-                                val result = manager.updateBridgePlugin(target) { _, step ->
-                                    pluginStatus = step
-                                }
-                                result.fold(
-                                    onSuccess = { version ->
-                                        pluginStatus = statusPluginInstalledRestartingTpl.format(version)
-                                        val restart = HostRuntimeHolder.restartHost
-                                        val restartFailure = restart?.invoke()?.exceptionOrNull()
-                                        if (restart == null) {
-                                            pluginStatus =
-                                                statusPluginInstalledRestartNeededTpl.format(version)
-                                        }
-                                        // 装完必须以「运行中的插件版本」收尾：文件对了但
-                                        // Host 没加载（依赖缺失、启动失败）时，界面不能
-                                        // 假装更新成功。
-                                        delay(1_200)
-                                        val running = awaitRunningPluginVersion()
-                                        pluginStatus = statusPluginWrittenTpl.format(version)
-                                        pluginError = when {
-                                            restartFailure != null ->
-                                                errorHostRestartFailedTpl.format(
-                                                    restartFailure.message ?: textUnknownReason,
-                                                )
-                                            running == null -> errorPluginNotLoaded
-                                            running != version ->
-                                                errorHostVersionMismatchTpl.format(running, version)
-                                            else -> {
-                                                pluginStatus =
-                                                    statusPluginUpdatedRestartedTpl.format(version)
-                                                null
-                                            }
-                                        }
-                                        refreshAssessment()
-                                    },
-                                    onFailure = { failure ->
-                                        pluginError = failure.message ?: errorPluginUpdateFailed
-                                    },
-                                )
-                                pluginBusy = false
-                            }
-                        },
+                        onClick = { scope.launch { showPluginUpdateDialog = false; updateBridgePlugin() } },
                     ) {
                         if (pluginBusy) {
                             CircularProgressIndicator(
@@ -429,8 +433,8 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
             }
         }
 
-        // ── rootfs 镜像：可选更新 ────────────────────────────────────────────
-        item {
+        // ── rootfs 镜像：只有 DSH 引擎换代时才提示 ────────────────────────────
+        if (engineUpdateAvailable) item {
             UpdateCard {
                 SectionTitle(
                     stringResource(R.string.agent_update_section_rootfs),
@@ -602,6 +606,51 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.outline,
             )
         }
+    }
+
+    if (showPluginUpdateDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showPluginUpdateDialog = false },
+            title = {
+                Text(stringResource(R.string.agent_update_plugin_popup_title))
+            },
+            text = {
+                Column {
+                    Text(
+                        stringResource(R.string.agent_update_plugin_popup_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(
+                            R.string.agent_update_plugin_versions,
+                            assessment.installedPlugin ?: textUnknown,
+                            assessment.latestPlugin ?: textUnknown,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = !pluginBusy,
+                    onClick = {
+                        showPluginUpdateDialog = false
+                        scope.launch { updateBridgePlugin() }
+                    },
+                ) {
+                    Text(stringResource(R.string.agent_update_action_update_plugin))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showPluginUpdateDialog = false },
+                ) {
+                    Text(stringResource(R.string.agent_update_plugin_popup_later))
+                }
+            },
+        )
     }
 }
 

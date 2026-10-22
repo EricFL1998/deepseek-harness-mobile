@@ -86,9 +86,12 @@
 
     <!-- ── 更新面板：rootfs 镜像（可选更新） ─────────────────────────── -->
     <string name="agent_update_section_rootfs">Rootfs 运行时镜像</string>
-    <string name="agent_update_badge_optional">可选更新</string>
+    <string name="agent_update_plugin_popup_title">Bridge 插件有可用更新</string>
+    <string name="agent_update_plugin_popup_desc">已安装的客户端插件与本机 Host 通信。更新后两端继续使用同一套 bridge 协议。</string>
+    <string name="agent_update_plugin_popup_later">稍后</string>
+    <string name="agent_update_badge_optional">有可用更新</string>
     <string name="agent_update_loading_rootfs_version">正在检查镜像版本…</string>
-    <string name="agent_update_rootfs_optional_desc">镜像重建只为跟随新的 DSH 引擎。当前镜像仍然可用；更新会重新下载运行时，并保留你的账号、会话与工作区。</string>
+    <string name="agent_update_rootfs_optional_desc">DSH 引擎有新版本。更新会重新下载运行时，并保留你的账号、会话与工作区。</string>
     <string name="agent_update_rootfs_up_to_date">镜像与当前发布一致。</string>
     <string name="agent_update_rootfs_versions">已安装 %1$s → 可用 %2$s</string>
     <string name="agent_update_rootfs_prepare_reinstall">准备重新安装镜像…</string>
@@ -97,7 +100,7 @@
     <string name="agent_update_rootfs_updated_host_failed">镜像已更新，但 Host 启动失败：%1$s</string>
     <string name="agent_update_error_rootfs_update_failed">镜像更新失败：%1$s</string>
     <string name="agent_update_action_installing">正在安装…</string>
-    <string name="agent_update_action_update_rootfs">更新镜像（可选）</string>
+    <string name="agent_update_action_update_rootfs">更新镜像</string>
 
     <!-- ── 更新面板：APK 客户端 ───────────────────────────────────────── -->
     <string name="agent_update_section_apk">APK 客户端</string>

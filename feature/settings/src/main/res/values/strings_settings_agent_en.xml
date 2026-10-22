@@ -86,9 +86,12 @@
 
     <!-- ── Update pane: rootfs image (optional update) ───────────────── -->
     <string name="agent_update_section_rootfs">Rootfs runtime image</string>
-    <string name="agent_update_badge_optional">Optional update</string>
+    <string name="agent_update_plugin_popup_title">Bridge plugin update available</string>
+    <string name="agent_update_plugin_popup_desc">The installed client plugin talks to this Host. Updating it keeps both sides on the same bridge protocol.</string>
+    <string name="agent_update_plugin_popup_later">Later</string>
+    <string name="agent_update_badge_optional">Update available</string>
     <string name="agent_update_loading_rootfs_version">Checking image version…</string>
-    <string name="agent_update_rootfs_optional_desc">The image is rebuilt only to follow a new DSH engine. The current image still works; updating downloads the runtime again and keeps your account, sessions, and workspace.</string>
+    <string name="agent_update_rootfs_optional_desc">The DSH engine has a new release. Updating downloads the runtime again and keeps your account, sessions, and workspace.</string>
     <string name="agent_update_rootfs_up_to_date">The image matches the current release.</string>
     <string name="agent_update_rootfs_versions">Installed %1$s → available %2$s</string>
     <string name="agent_update_rootfs_prepare_reinstall">Preparing to reinstall the image…</string>
@@ -97,7 +100,7 @@
     <string name="agent_update_rootfs_updated_host_failed">Image updated, but the Host failed to start: %1$s</string>
     <string name="agent_update_error_rootfs_update_failed">Image update failed: %1$s</string>
     <string name="agent_update_action_installing">Installing…</string>
-    <string name="agent_update_action_update_rootfs">Update image (optional)</string>
+    <string name="agent_update_action_update_rootfs">Update image</string>
 
     <!-- ── Update pane: APK client ───────────────────────────────────── -->
     <string name="agent_update_section_apk">APK client</string>
