@@ -2414,10 +2414,9 @@ fun ModernMessageItem(
                 }
                 // 正文里的 ```dsh-ui 围栏由 GenUI 插件产生；原生兜底已移除，
                 // 这类界面内容请在插件的完整 Web 界面查看。
-                Text(
+                MarkdownMessageText(
                     text = contentParts.last(),
                     color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.bodyMedium,
                 )
 
                 // conversation.chat.assistant-actions：原生插件在助手消息下的动作落点。
