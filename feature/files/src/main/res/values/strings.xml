@@ -128,4 +128,5 @@
 <string name="files_import">Import</string>
 <string name="files_up">Up</string>
 <string name="files_imported">%1$d file(s) imported into the workspace</string>
+<string name="files_send">Send</string>
 </resources>

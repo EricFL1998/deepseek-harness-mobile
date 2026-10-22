@@ -2531,6 +2531,28 @@ fun MainAppHost(
                                 onImportClick = {
                                     filesImportLauncher.launch(arrayOf("*/*"))
                                 },
+                                onSendFile = { item ->
+                                    // 中转完成后的文件直接加入待发附件：发送时以
+                                    // @工作区相对路径 引用，Host 在 proot 里可直接读。
+                                    val rel = item.absolutePath
+                                        .removePrefix(activeWorkspace.absolutePath)
+                                        .trimStart('/')
+                                        .replace('\\', '/')
+                                    if (rel.isNotBlank() &&
+                                        chatAttachments.none {
+                                            it.workspaceRelativePath == rel
+                                        }
+                                    ) {
+                                        chatAttachments.add(
+                                            com.deepseek.dsh.feature.chat.ChatAttachment(
+                                                displayName = item.name,
+                                                workspaceRelativePath = rel,
+                                                sizeBytes = item.sizeBytes,
+                                            ),
+                                        )
+                                    }
+                                    activePage = ActivePage.CHAT
+                                },
                             )
                         }
 

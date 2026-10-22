@@ -128,4 +128,5 @@
 <string name="files_import">导入</string>
 <string name="files_up">上级</string>
 <string name="files_imported">已导入 %1$d 个文件到工作区</string>
+<string name="files_send">发送</string>
 </resources>

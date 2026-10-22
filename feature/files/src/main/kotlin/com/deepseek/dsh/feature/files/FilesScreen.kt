@@ -39,6 +39,8 @@ fun FilesScreen(
     onNavigateUp: (() -> Unit)? = null,
     /** 从手机任意位置选文件，导入当前工作区（Host 可见）做中转。 */
     onImportClick: (() -> Unit)? = null,
+    /** 把工作区里的一个文件加入待发附件（发送时以 @相对路径 引用）。 */
+    onSendFile: ((FileItem) -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -122,6 +124,16 @@ fun FilesScreen(
                                     text = if (file.isDirectory) stringResource(R.string.files_folder) else "${file.sizeBytes / 1024} KB",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            if (onSendFile != null && !file.isDirectory) {
+                                Text(
+                                    text = stringResource(R.string.files_send),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickable { onSendFile(file) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                 )
                             }
                         }
