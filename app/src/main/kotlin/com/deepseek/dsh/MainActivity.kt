@@ -2394,6 +2394,14 @@ fun MainAppHost(
                                 streamingReasoning = streamingReasoning,
                                 hostCommands = hostCommands,
                                 skills = hostSkills,
+                                onRefreshSkills = {
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            runCatching { dshRepository.refreshHostSkills(activeHostId, sid) }
+                                        }
+                                    }
+                                },
                                 todos = sessionTodos,
                                 goal = sessionGoal,
                                 deliverables = sessionDeliverables,

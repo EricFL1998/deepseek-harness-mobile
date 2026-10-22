@@ -213,6 +213,8 @@ fun ModernChatScreen(
     onHostCommand: (String) -> Unit = {},
     /** 官方 `skills/list`：当前会话可调用的技能。 */
     skills: List<com.deepseek.dsh.core.model.SkillInfo> = emptyList(),
+    /** 打开加号菜单前刷新技能目录（冷读 skills/list）。 */
+    onRefreshSkills: () -> Unit = {},
     /** 官方 `todos` 投影（当前会话待办）。 */
     todos: List<com.deepseek.dsh.core.model.TodoEntryInfo> = emptyList(),
     /** 官方 `goal` 投影（当前会话目标）。 */
@@ -467,7 +469,11 @@ fun ModernChatScreen(
                     onSendMessage(text)
                 }
             },
-            onPlusClick = { commandSheetOpen = true },
+            onPlusClick = {
+                // 技能来自工作区 .dsh/skills，可能刚被创建/修改；打开菜单前冷读一次。
+                onRefreshSkills()
+                commandSheetOpen = true
+            },
             selectedModel = selectedModel,
             selectedModelId = selectedModelId,
             availableModels = availableModels,
