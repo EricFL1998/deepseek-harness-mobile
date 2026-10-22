@@ -40,6 +40,10 @@ object ScheduleBridge {
     var flow: kotlinx.coroutines.flow.StateFlow<List<ScheduleInfo>>? = null
         private set
 
+    /** 进入页面时主动拉一次（Host 侧新提醒不会推给客户端）。 */
+    var refresh: (suspend () -> Unit)? = null
+        private set
+
     /** 宿主在会话 effect 里调用一次即可，避免把 lambda 内联进 MainAppHost。 */
     fun wire(
         repository: com.deepseek.dsh.core.data.DshRepository,
@@ -47,9 +51,8 @@ object ScheduleBridge {
         scope: kotlinx.coroutines.CoroutineScope,
     ) {
         flow = repository.scheduleCatalogFlow
-        scope.launch {
-            runCatching { repository.refreshScheduleCatalog(hostId) }
-        }
+        refresh = { runCatching { repository.refreshScheduleCatalog(hostId) } }
+        scope.launch { refresh?.invoke() }
         canceller = { schedule ->
             scope.launch {
                 runCatching {
@@ -76,6 +79,9 @@ object ScheduleBridge {
 fun SchedulesScreen(onCreateTask: () -> Unit) {
     val source = ScheduleBridge.flow
     val schedules = if (source == null) emptyList() else source.collectAsState().value
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        ScheduleBridge.refresh?.invoke()
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
