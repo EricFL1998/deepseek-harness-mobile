@@ -275,4 +275,5 @@
     <string name="model_search_hint">Search models…</string>
     <string name="workspace_add">Add workspace…</string>
     <string name="model_switch_unsupported">Switching models is not supported</string>
+    <string name="model_provider_account">DeepSeek Account</string>
 </resources>

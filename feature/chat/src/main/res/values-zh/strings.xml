@@ -274,4 +274,5 @@
     <string name="model_search_hint">搜索模型...</string>
     <string name="workspace_add">添加工作区…</string>
     <string name="model_switch_unsupported">不支持切换模型</string>
+    <string name="model_provider_account">DeepSeek 账号</string>
 </resources>

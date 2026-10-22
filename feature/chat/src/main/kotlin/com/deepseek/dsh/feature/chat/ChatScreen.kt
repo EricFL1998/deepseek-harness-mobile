@@ -451,6 +451,7 @@ fun ModernChatScreen(
             selectedModel = selectedModel,
             selectedModelId = selectedModelId,
             availableModels = availableModels,
+            modelGroups = modelGroups,
             effortLabel = effortLabelOverride ?: stringResource(reasoningLevel.labelResId),
             reasoningOptions = reasoningOptions,
             selectedReasoningId = selectedReasoningId,
@@ -1128,7 +1129,25 @@ private fun ModelEffortMenu(
             }
 
             1 -> {
-                val groups = modelGroups
+                // 官方 orderModelProviders：账号 → 官方 → 其余，保持目录内相对顺序；
+                // 账号组的显示名走本地化文案（后端给的是 DeepSeek Account）。
+                val accountLabel = stringResource(R.string.model_provider_account)
+                fun providerRank(id: String): Int = when (id) {
+                    "deepseek-account" -> 0
+                    "deepseek-official" -> 1
+                    else -> 2
+                }
+                val groups = remember(modelGroups, accountLabel) {
+                    modelGroups
+                        .sortedWith(compareBy { providerRank(it.id) })
+                        .map { group ->
+                            if (group.id == "deepseek-account") {
+                                group.copy(name = accountLabel)
+                            } else {
+                                group
+                            }
+                        }
+                }
                 val flatModels = if (groups.isEmpty()) availableModels.distinct() else emptyList()
                 val totalModels = if (groups.isEmpty()) flatModels.size else groups.sumOf { it.models.size }
                 val showSearch = totalModels > 4
