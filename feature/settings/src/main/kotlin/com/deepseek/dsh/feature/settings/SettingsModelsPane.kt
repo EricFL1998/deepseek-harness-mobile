@@ -1,6 +1,8 @@
 package com.deepseek.dsh.feature.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -278,54 +280,60 @@ private fun AddModelProviderDialog(
                         color = palette.labelPrimary,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    Box {
-                        SettingsCard(verticalPadding = 10.dp) {
-                            Row(
+                    SettingsCard(verticalPadding = 10.dp) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { dropdownOpen = !dropdownOpen },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = selected?.name
+                                    ?: stringResource(R.string.settings_pane_models_provider_select),
+                                fontSize = 14.sp,
+                                color = if (selected == null) palette.labelTertiary else palette.labelPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            SettingsChevronDown(expanded = dropdownOpen, size = 12.dp)
+                        }
+                    }
+                    if (dropdownOpen) {
+                        // 目录有 50+ 项：在对话框内给固定高度并自己滚动。用弹层会被
+                        // Dialog 窗口裁掉，既看不到全部也滚不动。
+                        Spacer(modifier = Modifier.height(6.dp))
+                        SettingsCard(verticalPadding = 4.dp) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { dropdownOpen = true },
-                                verticalAlignment = Alignment.CenterVertically,
+                                    .height(220.dp)
+                                    .verticalScroll(rememberScrollState()),
                             ) {
-                                Text(
-                                    text = selected?.name
-                                        ?: stringResource(R.string.settings_pane_models_provider_select),
-                                    fontSize = 14.sp,
-                                    color = if (selected == null) palette.labelTertiary else palette.labelPrimary,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                SettingsChevronDown(expanded = dropdownOpen, size = 12.dp)
-                            }
-                        }
-                        com.deepseek.dsh.core.designsystem.AnchoredMenuPopup(
-                            expanded = dropdownOpen,
-                            onDismiss = { dropdownOpen = false },
-                            align = com.deepseek.dsh.core.designsystem.DshMenuAlign.Start,
-                            contentWidth = true,
-                            // 官方目录有 50+ 条：让弹层占满可用高度并靠内部滚动，
-                            // 不要只露出前几条。
-                            maxHeight = 460.dp,
-                        ) {
-                            providers.forEach { provider ->
-                                com.deepseek.dsh.core.designsystem.DshMenuRow(
-                                    onClick = {
-                                        selected = provider
-                                        dropdownOpen = false
-                                    },
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            provider.name,
-                                            fontSize = 13.sp,
-                                            color = palette.labelPrimary,
-                                        )
-                                        Text(
-                                            provider.id,
-                                            fontSize = 11.sp,
-                                            color = palette.labelTertiary,
-                                        )
-                                    }
-                                    if (provider.id == selected?.id) {
-                                        com.deepseek.dsh.core.designsystem.DshMenuCheck()
+                                providers.forEach { provider ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                selected = provider
+                                                dropdownOpen = false
+                                            }
+                                            .padding(horizontal = 6.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                provider.name,
+                                                fontSize = 13.sp,
+                                                color = palette.labelPrimary,
+                                            )
+                                            Text(
+                                                provider.id,
+                                                fontSize = 11.sp,
+                                                color = palette.labelTertiary,
+                                            )
+                                        }
+                                        if (provider.id == selected?.id) {
+                                            com.deepseek.dsh.core.designsystem.DshMenuCheck()
+                                        }
                                     }
                                 }
                             }
