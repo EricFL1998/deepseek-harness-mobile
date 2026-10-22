@@ -572,4 +572,9 @@
 <string name="plugins_install_state_installing">Installing %1$s (%2$d/%3$d)</string>
 <string name="plugins_install_state_applying">Applying changes</string>
 <string name="plugins_install_state_cancelling">Cancelling</string>
+<string name="jobs_empty">No background jobs</string>
+<string name="jobs_kill">Stop</string>
+<string name="jobs_output_empty">No output yet</string>
+<string name="jobs_section">Background jobs</string>
+<string name="jobs_killed">Stopped</string>
 </resources>

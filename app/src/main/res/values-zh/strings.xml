@@ -572,4 +572,9 @@
 <string name="plugins_install_state_installing">正在安装 %1$s（%2$d/%3$d）</string>
 <string name="plugins_install_state_applying">正在写入改动</string>
 <string name="plugins_install_state_cancelling">正在取消</string>
+<string name="jobs_empty">暂无后台任务</string>
+<string name="jobs_kill">停止</string>
+<string name="jobs_output_empty">暂无输出</string>
+<string name="jobs_section">后台任务</string>
+<string name="jobs_killed">已停止</string>
 </resources>

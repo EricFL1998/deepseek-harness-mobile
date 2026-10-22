@@ -86,6 +86,19 @@ data class ForwardedEvent(
     val args: kotlinx.serialization.json.JsonArray,
 )
 
+/** 官方 `job/list` 流里的一条后台任务投影。 */
+data class HostJobInfo(
+    val id: String,
+    val kind: String,
+    val label: String,
+    val owner: String?,
+    val status: String,
+    val progress: String?,
+    val detail: String?,
+    val startedAt: Long,
+    val finishedAt: Long?,
+)
+
 /** 官方 `session/search` 的一条命中。 */
 data class SessionSearchHit(val sessionId: String, val snippet: String)
 
@@ -192,6 +205,12 @@ interface DshClientProtocol {
     fun workspaceFollow(hostId: String): Flow<String>
     /** 订阅官方 `session/control`：全部会话投影的基线 + 增量（模型选择等）。 */
     fun sessionControl(hostId: String): Flow<String>
+    /** 订阅官方 `job/list`：当前会话可见的后台任务集合（整集帧）。 */
+    fun jobList(hostId: String, sessionId: String): Flow<List<HostJobInfo>>
+    /** 订阅官方 `job/follow`：一条任务的保留输出（opened/output/status 原始 JSON）。 */
+    fun jobFollow(hostId: String, sessionId: String?, jobId: String, from: Long? = null): Flow<String>
+    /** 官方 `job/kill`：人为终止一条后台任务。 */
+    suspend fun killJob(hostId: String, sessionId: String, jobId: String): RemoteResult<String>
     /** 官方 `session/page`：按需加载更早的一页历史（滚动到顶时调用）。 */
     suspend fun loadOlderHistory(hostId: String, sessionId: String): RemoteResult<Boolean>
     /** 官方 `session/search`：按内容搜索会话（最多 20 条）。 */

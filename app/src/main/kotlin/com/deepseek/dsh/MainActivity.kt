@@ -971,6 +971,13 @@ fun MainAppHost(
     val accountState by oauthManager.accountFlow.collectAsState()
     val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
     val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
+    val hostJobs by dshRepository.jobsFlow.collectAsState()
+    // job/list 跟着当前会话走。
+    LaunchedEffect(activeHostId, selectedSessionId) {
+        val sid = selectedSessionId
+        if (sid != null) dshRepository.watchJobs(activeHostId, sid)
+        else dshRepository.unwatchJobs()
+    }
     val streamingText by dshRepository.streamingTextFlow.collectAsState()
     val streamingReasoning by dshRepository.streamingReasoningFlow.collectAsState()
     val hostWorkspaces by dshRepository.hostWorkspacesFlow.collectAsState()
@@ -1444,6 +1451,12 @@ fun MainAppHost(
     var remoteSearchResults by remember {
         mutableStateOf<List<Pair<String, String>>>(emptyList())
     }
+    // job/follow 输出窗：目标任务、聚合输出、结算状态行。
+    var jobOutputTarget by remember {
+        mutableStateOf<com.deepseek.dsh.core.protocol.HostJobInfo?>(null)
+    }
+    var jobOutputText by remember { mutableStateOf("") }
+    var jobOutputStatus by remember { mutableStateOf<String?>(null) }
     var deleteWorkspaceFolder by remember {
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
@@ -1704,6 +1717,16 @@ fun MainAppHost(
                     )
                 }
             },
+        )
+    }
+
+    // job/follow 输出窗。
+    jobOutputTarget?.let { job ->
+        JobOutputDialog(
+            job = job,
+            output = jobOutputText,
+            statusLine = jobOutputStatus,
+            onDismiss = { jobOutputTarget = null },
         )
     }
 
@@ -1991,6 +2014,69 @@ fun MainAppHost(
                                 },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
+                                hostJobs = hostJobs,
+                                onKillJob = { job ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            dshRepository.killJob(activeHostId, sid, job.id)
+                                        }
+                                    }
+                                },
+                                onOpenJobOutput = { job ->
+                                    jobOutputTarget = job
+                                    jobOutputText = ""
+                                    jobOutputStatus = null
+                                    scope.launch {
+                                        dshRepository.followJob(
+                                            activeHostId,
+                                            job.owner ?: selectedSessionId,
+                                            job.id,
+                                        ).collect { frameJson ->
+                                            val frame = runCatching {
+                                                kotlinx.serialization.json.Json
+                                                    .parseToJsonElement(frameJson)
+                                                    as? kotlinx.serialization.json.JsonObject
+                                            }.getOrNull() ?: return@collect
+                                            when ((frame["type"]
+                                                as? kotlinx.serialization.json.JsonPrimitive)
+                                                ?.content) {
+                                                "output" -> {
+                                                    val chunks = frame["chunks"]
+                                                        as? kotlinx.serialization.json.JsonArray
+                                                    chunks?.forEach { chunk ->
+                                                        val text = ((chunk
+                                                            as? kotlinx.serialization.json.JsonObject)
+                                                            ?.get("text")
+                                                            as? kotlinx.serialization.json.JsonPrimitive)
+                                                            ?.content
+                                                        if (!text.isNullOrEmpty()) {
+                                                            jobOutputText = (jobOutputText + text)
+                                                                .takeLast(60000)
+                                                        }
+                                                    }
+                                                }
+                                                "status" -> {
+                                                    val settled = frame["job"]
+                                                        as? kotlinx.serialization.json.JsonObject
+                                                    val status = (settled?.get("status")
+                                                        as? kotlinx.serialization.json.JsonPrimitive)
+                                                        ?.content.orEmpty()
+                                                    val detail = (settled?.get("detail")
+                                                        as? kotlinx.serialization.json.JsonPrimitive)
+                                                        ?.content
+                                                    jobOutputStatus = buildString {
+                                                        append(status)
+                                                        if (!detail.isNullOrBlank()) {
+                                                            append(" · ")
+                                                            append(detail)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
                                 inspectorEnabled = sessionInspectorEnabled,
                                 onOpenInspector = { sessionInspectorOpen = true },
                                 agentTeam = agentTeam,
@@ -3568,6 +3654,10 @@ fun ModernTopAppBar(
     title: String,
     showModeCapsule: Boolean = false,
     teamTasks: List<com.deepseek.dsh.core.model.TeamTaskItem> = emptyList(),
+    /** 当前会话的后台任务（官方 job/list）；非空时显示任务按钮。 */
+    hostJobs: List<com.deepseek.dsh.core.protocol.HostJobInfo> = emptyList(),
+    onKillJob: (com.deepseek.dsh.core.protocol.HostJobInfo) -> Unit = {},
+    onOpenJobOutput: (com.deepseek.dsh.core.protocol.HostJobInfo) -> Unit = {},
     /** 当前会话的团队成员投影（官方 header 的团队动作数据）。 */
     agentTeam: com.deepseek.dsh.core.model.AgentTeamSummary? = null,
     /** 团队投影第一次读取中（浮层显示「正在加载团队…」）。 */
@@ -3698,6 +3788,40 @@ fun ModernTopAppBar(
                     onClick = { teamPanelOpen = !teamPanelOpen },
                 )
             }
+            // 后台任务：官方 job/list 会话内可见的任务集合；有任务时在标题右侧。
+            if (hostJobs.isNotEmpty()) {
+                val jobsRunning = hostJobs.any { it.status == "running" || it.status == "stopping" }
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(barColors.bgModulePlatform)
+                        .clickable { jobsPanelOpen = !jobsPanelOpen }
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (jobsRunning) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(13.dp),
+                                strokeWidth = 1.5.dp,
+                                color = barColors.labelPrimary,
+                            )
+                        } else {
+                            Text(
+                                text = hostJobs.size.toString(),
+                                fontSize = 12.sp,
+                                color = barColors.labelPrimary,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.jobs_section),
+                            fontSize = 12.sp,
+                            color = barColors.labelPrimary,
+                        )
+                    }
+                }
+            }
         }
         // header 的 0.5dp border-l3 分隔线
         Box(
@@ -3729,6 +3853,31 @@ fun ModernTopAppBar(
                             onOpenMember = { memberId ->
                                 teamPanelOpen = false
                                 onOpenMember(memberId)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        // 后台任务面板：与团队面板同样的锚定浮层。
+        if (jobsPanelOpen) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopEnd,
+                offset = androidx.compose.ui.unit.IntOffset(
+                    x = 0,
+                    y = with(androidx.compose.ui.platform.LocalDensity.current) { 56.dp.roundToPx() },
+                ),
+                onDismissRequest = { jobsPanelOpen = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+            ) {
+                Box(modifier = Modifier.padding(end = 12.dp)) {
+                    com.deepseek.dsh.core.designsystem.DshMenuCard {
+                        JobsPanel(
+                            jobs = hostJobs,
+                            onKill = { job -> onKillJob(job) },
+                            onOpenOutput = { job ->
+                                jobsPanelOpen = false
+                                onOpenJobOutput(job)
                             },
                         )
                     }

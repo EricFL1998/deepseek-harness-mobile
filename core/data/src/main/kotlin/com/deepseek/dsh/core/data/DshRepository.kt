@@ -98,6 +98,16 @@ class DshRepository(
     /** 已经订阅过 `workspace/follow` 的 Host。 */
     private val watchedWorkspaceHosts = mutableSetOf<String>()
 
+    /** 官方 `job/list` 的当前可见后台任务集合。 */
+    private val _jobsFlow = MutableStateFlow<List<com.deepseek.dsh.core.protocol.HostJobInfo>>(emptyList())
+    val jobsFlow: StateFlow<List<com.deepseek.dsh.core.protocol.HostJobInfo>> =
+        _jobsFlow.asStateFlow()
+
+    /** job/list 订阅的会话；换会话时重订。 */
+    private var jobsSessionId: String? = null
+    private var jobsHostId: String? = null
+    private var jobsJob: kotlinx.coroutines.Job? = null
+
     /** 官方 `session/control` 投影出的每会话模型选择（model id）。 */
     private val _sessionModelFlow = MutableStateFlow<Map<String, String>>(emptyMap())
     val sessionModelFlow: StateFlow<Map<String, String>> = _sessionModelFlow.asStateFlow()
@@ -723,6 +733,40 @@ class DshRepository(
         when (val res = client.loadOlderHistory(hostId, sessionId)) {
             is RemoteResult.Success -> res.data
             is RemoteResult.Failure -> false
+        }
+
+    /** 订阅官方 `job/list`（当前会话可见的后台任务集合）。 */
+    fun watchJobs(hostId: String, sessionId: String) {
+        if (jobsHostId == hostId && jobsSessionId == sessionId) return
+        jobsJob?.cancel()
+        jobsHostId = hostId
+        jobsSessionId = sessionId
+        _jobsFlow.value = emptyList()
+        jobsJob = scope.launch(Dispatchers.IO) {
+            client.jobList(hostId, sessionId).collect { rows ->
+                _jobsFlow.value = rows
+            }
+        }
+    }
+
+    /** 停止 job/list 订阅（离开会话）。 */
+    fun unwatchJobs() {
+        jobsJob?.cancel()
+        jobsJob = null
+        jobsHostId = null
+        jobsSessionId = null
+        _jobsFlow.value = emptyList()
+    }
+
+    /** 订阅官方 `job/follow`：一条任务的输出流。 */
+    fun followJob(hostId: String, sessionId: String?, jobId: String, from: Long? = null) =
+        client.jobFollow(hostId, sessionId, jobId, from)
+
+    /** 官方 `job/kill`：人为终止一条后台任务。 */
+    suspend fun killJob(hostId: String, sessionId: String, jobId: String): String? =
+        when (val res = client.killJob(hostId, sessionId, jobId)) {
+            is RemoteResult.Success -> res.data
+            is RemoteResult.Failure -> null
         }
 
     /** 官方 `session/search`：按内容搜索会话。 */
