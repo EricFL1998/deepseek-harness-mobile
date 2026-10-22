@@ -893,15 +893,65 @@ class DshRepository(
         StateFlow<Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo>> =
         _messageFeedbackFlow.asStateFlow()
 
-    /** 读取当前会话的消息反馈（`messageFeedback/list`）。 */
-    suspend fun refreshMessageFeedback(hostId: String, sessionId: String) {
+    /**
+     * 应用一次反馈点击：rating 为 null 时删除现有条目，否则写入/更新。
+     *
+     * 收在数据层是为了让 Compose 侧的 lambda 保持很小 —— MainAppHost 是超长
+     * composable，新增内联逻辑会触发 DEX 方法体校验失败（VerifyError）。
+     */
+    /** 提交一次反馈点击：自己查出当前 version 再 put/delete，宿主只传点击语义。 */
+    suspend fun submitMessageFeedback(
+        hostId: String,
+        sessionId: String,
+        messageId: String,
+        rating: String?,
+        note: String?,
+    ): Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo> {
+        val existing = listMessageFeedback(hostId, sessionId)[messageId]
+        applyMessageFeedback(
+            hostId, sessionId, messageId, rating, note, existing?.version,
+        )
+        return listMessageFeedback(hostId, sessionId)
+    }
+
+    suspend fun applyMessageFeedback(
+        hostId: String,
+        sessionId: String,
+        messageId: String,
+        rating: String?,
+        note: String?,
+        existingVersion: String?,
+    ) {
+        if (rating == null) {
+            if (existingVersion != null) {
+                runCatching { deleteMessageFeedback(hostId, sessionId, messageId, existingVersion) }
+            }
+            return
+        }
+        runCatching {
+            putMessageFeedback(hostId, sessionId, messageId, rating, note, existingVersion)
+        }
+    }
+
+    /** 读取当前会话的消息反馈（`messageFeedback/list`），返回按消息 id 索引的映射。 */
+    suspend fun listMessageFeedback(
+        hostId: String,
+        sessionId: String,
+    ): Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo> {
         val args = buildJsonObject {
             put("request", buildJsonObject { put("sessionId", sessionId) })
         }
-        val raw = rpcRaw(hostId, "messageFeedback/list", args.toString()).getOrNull() ?: return
-        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return
-        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return
-        val items = value["items"] as? JsonArray ?: return
+        val raw = rpcRaw(hostId, "messageFeedback/list", args.toString()).getOrNull()
+            ?: return emptyMap()
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return emptyMap()
+        var value = (root["result"] as? JsonObject)?.get("value") as? JsonObject
+            ?: return emptyMap()
+        // messageFeedback 的 Remote 返回是 RemoteResult 包了一层：{ok, value:{items}}。
+        if (value["items"] == null) {
+            value = value["value"] as? JsonObject ?: value
+        }
+        val items = value["items"] as? JsonArray ?: return emptyMap()
         val map =
             mutableMapOf<String, com.deepseek.dsh.core.model.MessageFeedbackInfo>()
         for (item in items) {
@@ -914,7 +964,12 @@ class DshRepository(
                 version = (obj["version"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
             )
         }
-        _messageFeedbackFlow.value = map
+        return map
+    }
+
+    /** 拉取并发布当前会话反馈（供 follow 订阅时刷新）。 */
+    suspend fun refreshMessageFeedback(hostId: String, sessionId: String) {
+        _messageFeedbackFlow.value = listMessageFeedback(hostId, sessionId)
     }
 
     /** 写入一条反馈（`messageFeedback/put`），version 为空表示要求当前不存在。 */

@@ -1087,6 +1087,21 @@ fun MainAppHost(
             dshRepository.watchJobs(activeHostId, sid)
             // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
             dshRepository.watchSession(activeHostId, sid)
+            // 消息反馈能力以桥接注入 chat 模块（避免给 MainAppHost 增加参数）。
+            com.deepseek.dsh.feature.chat.MessageFeedbackBridge.refresh = {
+                selectedSessionId?.let { dshRepository.listMessageFeedback(activeHostId, it) }
+                    ?: emptyMap()
+            }
+            com.deepseek.dsh.feature.chat.MessageFeedbackBridge.submit = { messageId, rating, note ->
+                selectedSessionId?.let { session ->
+                    scope.launch {
+                        com.deepseek.dsh.feature.chat.MessageFeedbackBridge.items =
+                            dshRepository.submitMessageFeedback(
+                                activeHostId, session, messageId, rating, note,
+                            )
+                    }
+                }
+            }
         }
         else dshRepository.unwatchJobs()
     }
