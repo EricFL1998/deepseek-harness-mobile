@@ -42,7 +42,9 @@ fun rememberPluginTheme(): PluginTheme {
         textCaption = t.bodySmall,
         textPopupTitle = t.labelSmall.copy(fontWeight = FontWeight.SemiBold),
         textPopupBody = t.bodyMedium.copy(fontSize = 13.sp, lineHeight = 20.sp),
-        isDark = androidx.compose.foundation.isSystemInDarkTheme(),
+        // 主题由 App/Host 决定（ui-theme），不能用系统深浅色判断；
+        // dshPanelColors() 已经反映实际主题。
+        isDark = panel.isDark,
         // 设置页/面板与 App 的 DshPanel 完全同源：隔层底色、发丝边、三级文字色。
         colorPanel = panel.bgLayer2,
         colorPanelBorder = panel.borderL2,
