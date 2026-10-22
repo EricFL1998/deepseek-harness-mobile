@@ -1995,6 +1995,8 @@ private fun InstalledHostBundleRow(
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        // 先压缩标题再压缩药丸：否则「Plugin not installed」会被挤成两行。
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     // 与官方页面一致：包不在设备上时标「未安装」，而不是假装可用。
                     if (bundle.availability == "missing") {
@@ -2010,6 +2012,8 @@ private fun InstalledHostBundleRow(
                             Text(
                                 text = stringResource(R.string.plugin_not_installed),
                                 color = colors.labelSecondary,
+                                maxLines = 1,
+                                softWrap = false,
                                 style = androidx.compose.ui.text.TextStyle(
                                     fontSize = 9.sp,
                                     lineHeight = 11.sp,
