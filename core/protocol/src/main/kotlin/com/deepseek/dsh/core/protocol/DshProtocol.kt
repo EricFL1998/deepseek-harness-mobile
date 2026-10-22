@@ -3,7 +3,6 @@ package com.deepseek.dsh.core.protocol
 import com.deepseek.dsh.core.model.AccountBalanceInfo
 import com.deepseek.dsh.core.model.AccountProfileInfo
 import com.deepseek.dsh.core.model.AccountViewInfo
-import com.deepseek.dsh.core.model.ApprovalItemModel
 import com.deepseek.dsh.core.model.AutomationTaskItem
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
@@ -141,8 +140,6 @@ interface DshClientProtocol {
         hostId: String,
         sessionId: String,
     ): RemoteResult<com.deepseek.dsh.core.model.AgentTeamSummary?>
-    suspend fun getPendingApprovals(hostId: String): RemoteResult<List<ApprovalItemModel>>
-    suspend fun respondApproval(hostId: String, approvalId: String, approved: Boolean): RemoteResult<Boolean>
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
     /**
@@ -170,6 +167,13 @@ interface DshClientProtocol {
      * @param valueJson 结果 JSON（如 `"allowed-once"`）；null 表示回 `next` 交回 Host。
      */
     fun answerWaterfall(hostId: String, eventId: String, valueJson: String?)
+    /**
+     * 订阅官方 `workspace/follow`：工作区与其中会话的完整基线 + 增量帧。
+     *
+     * 帧是原始 JSON（`baseline` / `upsert` / `remove` / `order` / `archived` /
+     * `pinned` / `replace`），调用方只需据此刷新列表即可。
+     */
+    fun workspaceFollow(hostId: String): Flow<String>
     /**
      * 订阅会话的 Claude Code 模组横幅（流式 `claudeCodeMods/watchBand`）。
      *

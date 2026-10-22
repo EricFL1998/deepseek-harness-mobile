@@ -207,7 +207,6 @@ enum class ActivePage {
     PLUGINS,
     AUTOMATION,
     HOSTS,
-    APPROVAL,
     SETTINGS,
     RUNTIME
 }
@@ -718,26 +717,6 @@ fun MainAppHost(
             agentTeamLoading = false
         }
     }
-    val pendingApprovalsModels by dshRepository.pendingApprovalsFlow.collectAsState()
-
-    val pendingApprovals = remember(pendingApprovalsModels) {
-        pendingApprovalsModels.map { model ->
-            val status = when (model.status) {
-                "submitting" -> com.deepseek.dsh.feature.approval.ApprovalStatus.SUBMITTING
-                "confirmed" -> com.deepseek.dsh.feature.approval.ApprovalStatus.CONFIRMED
-                "rejected" -> com.deepseek.dsh.feature.approval.ApprovalStatus.REJECTED
-                else -> com.deepseek.dsh.feature.approval.ApprovalStatus.PENDING
-            }
-            com.deepseek.dsh.feature.approval.ApprovalItem(
-                id = model.id,
-                title = model.title,
-                command = model.command,
-                dangerReason = model.dangerReason,
-                status = status
-            )
-        }
-    }
-
     LaunchedEffect(activeHostId, selectedSessionId, messages.size) {
         selectedSessionId?.let { sid ->
             dshRepository.refreshSessionStats(activeHostId, sid)
@@ -783,7 +762,6 @@ fun MainAppHost(
         dshRepository.refreshPluginSettingsPages()
         dshRepository.refreshAutomationTasks(activeHostId)
         dshRepository.refreshTeamTasks(activeHostId)
-        dshRepository.refreshApprovals(activeHostId)
         dshRepository.subscribeRemoteEvents(activeHostId)
     }
     val onboardingPreferences = remember {
@@ -1172,7 +1150,6 @@ fun MainAppHost(
             dshRepository.refreshPluginInventory(activeHostId)
             dshRepository.refreshAutomationTasks(activeHostId)
             dshRepository.refreshTeamTasks(activeHostId)
-            dshRepository.refreshApprovals(activeHostId)
             dshRepository.subscribeRemoteEvents(activeHostId)
             // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
             // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
@@ -2579,22 +2556,6 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.APPROVAL -> {
-                            com.deepseek.dsh.feature.approval.ApprovalScreen(
-                                approvals = pendingApprovals,
-                                onApprove = { item ->
-                                    scope.launch {
-                                        dshRepository.respondApproval(activeHostId, item.id, true)
-                                    }
-                                },
-                                onDeny = { item ->
-                                    scope.launch {
-                                        dshRepository.respondApproval(activeHostId, item.id, false)
-                                    }
-                                }
-                            )
-                        }
-
                         ActivePage.SETTINGS -> {
                             // 打开设置页时补一次拉取：用户不一定等得到定时轮询的下一拍，
                             // 进入页面就先让「插件界面」有数据。
@@ -3295,7 +3256,6 @@ private fun pageTitleOf(page: ActivePage): String = when (page) {
     ActivePage.AUTOMATION -> stringResource(R.string.page_automation)
     ActivePage.FILES -> stringResource(R.string.page_files)
     ActivePage.HOSTS -> stringResource(R.string.page_hosts)
-    ActivePage.APPROVAL -> stringResource(R.string.page_approvals)
     ActivePage.RUNTIME -> stringResource(R.string.page_runtime)
     ActivePage.SETTINGS -> stringResource(R.string.page_settings)
     ActivePage.CHAT -> "deepseek"

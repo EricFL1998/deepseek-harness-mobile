@@ -10,7 +10,6 @@ import com.deepseek.dsh.core.model.AccountBalanceInfo
 import com.deepseek.dsh.core.model.AccountProfileInfo
 import com.deepseek.dsh.core.model.AccountViewInfo
 import com.deepseek.dsh.core.model.AgentPresetGroupInfo
-import com.deepseek.dsh.core.model.ApprovalItemModel
 import com.deepseek.dsh.core.model.AutomationTaskItem
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
@@ -86,6 +85,12 @@ class DshRepository(
     private val _pendingQuestionsFlow = MutableStateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>>(emptyList())
     val pendingQuestionsFlow: StateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>> =
         _pendingQuestionsFlow.asStateFlow()
+
+    /** 已经订阅过 `workspace/follow` 的 Host。 */
+    private val watchedWorkspaceHosts = mutableSetOf<String>()
+
+    /** workspace/follow 帧触发的会话列表刷新（合并抖动）。 */
+    private var workspaceRefreshJob: kotlinx.coroutines.Job? = null
 
     /** 已经订阅过 `$events` waterfall 的 Host。 */
     private val watchedWaterfallHosts = mutableSetOf<String>()
@@ -427,9 +432,6 @@ class DshRepository(
         }
     }
 
-    private val _pendingApprovalsFlow = MutableStateFlow<List<ApprovalItemModel>>(emptyList())
-    val pendingApprovalsFlow: StateFlow<List<ApprovalItemModel>> = _pendingApprovalsFlow.asStateFlow()
-
     suspend fun refreshAutomationTasks(hostId: String) {
         when (val res = client.getAutomationTasks(hostId)) {
             is RemoteResult.Success -> _automationTasksFlow.value = res.data
@@ -442,23 +444,6 @@ class DshRepository(
             is RemoteResult.Success -> _teamTasksFlow.value = res.data
             is RemoteResult.Failure -> {}
         }
-    }
-
-    suspend fun refreshApprovals(hostId: String) {
-        when (val res = client.getPendingApprovals(hostId)) {
-            is RemoteResult.Success -> _pendingApprovalsFlow.value = res.data
-            is RemoteResult.Failure -> {}
-        }
-    }
-
-    suspend fun respondApproval(hostId: String, approvalId: String, approved: Boolean) {
-        val current = _pendingApprovalsFlow.value.toMutableList()
-        val index = current.indexOfFirst { it.id == approvalId }
-        if (index != -1) {
-            current[index] = current[index].copy(status = if (approved) "confirmed" else "rejected")
-            _pendingApprovalsFlow.value = current
-        }
-        client.respondApproval(hostId, approvalId, approved)
     }
 
     fun getStatsForSession(sessionId: String): Flow<ComposerStats> {
@@ -1258,7 +1243,6 @@ class DshRepository(
                             refreshTeamTasks(hostId)
                         }
                         // 审批请求：先刷新待审批列表；waterfall 本身回 next 交给 Host 默认处理。
-                        "approval/request" -> refreshApprovals(hostId)
                         // DeepSeek 账号会话过期：交给 UI 清登录态。
                         "deepseek-account/session-expired" -> _accountExpiredFlow.tryEmit(Unit)
                         else -> Unit
@@ -1289,6 +1273,18 @@ class DshRepository(
                     } else {
                         client.answerWaterfall(hostId, waterfall.eventId, null)
                     }
+        // 官方 workspace/follow：工作区/会话树的实时基线 + 增量，刷新会话列表。
+        if (synchronized(watchedWorkspaceHosts) { watchedWorkspaceHosts.add(hostId) }) {
+            scope.launch(Dispatchers.IO) {
+                client.workspaceFollow(hostId).collect {
+                    workspaceRefreshJob?.cancel()
+                    workspaceRefreshJob = scope.launch {
+                        kotlinx.coroutines.delay(250)
+                        refreshSessions(hostId)
+                    }
+                }
+            }
+        }
                 }
             }
         }

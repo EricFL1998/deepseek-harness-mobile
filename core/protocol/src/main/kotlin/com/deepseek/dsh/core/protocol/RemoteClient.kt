@@ -7,7 +7,6 @@ import com.deepseek.dsh.core.model.AgentTeamTask
 import com.deepseek.dsh.core.model.AccountBalanceInfo
 import com.deepseek.dsh.core.model.AccountProfileInfo
 import com.deepseek.dsh.core.model.AccountViewInfo
-import com.deepseek.dsh.core.model.ApprovalItemModel
 import com.deepseek.dsh.core.model.AutomationTaskItem
 import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
@@ -1493,97 +1492,6 @@ class RemoteClient(
         RemoteResult.Success(emptyList())
     }
 
-    override suspend fun getPendingApprovals(
-        hostId: String
-    ): RemoteResult<List<ApprovalItemModel>> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val payload = buildJsonObject {
-            put("type", "client-request")
-            put("method", "approval/listPending")
-            put("payload", buildJsonObject {
-                put("args", buildJsonObject {})
-            })
-        }.toString()
-
-        val request = Request.Builder()
-            .url("$baseUrl/api")
-            .post(payload.toRequestBody(mediaTypeJson))
-            .build()
-
-        try {
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val bodyStr = response.body?.string() ?: "{}"
-                    val jsonElem = json.parseToJsonElement(bodyStr)
-                    val items = if (jsonElem is kotlinx.serialization.json.JsonObject) {
-                        jsonElem["result"]?.let { r ->
-                            if (r is kotlinx.serialization.json.JsonObject) r["value"] as? kotlinx.serialization.json.JsonArray else null
-                        } ?: jsonElem["approvals"] as? kotlinx.serialization.json.JsonArray
-                    } else null
-
-                    if (items != null) {
-                        val list = items.mapNotNull { item ->
-                            if (item is kotlinx.serialization.json.JsonObject) {
-                                val id = item["id"]?.toString()?.trim('"') ?: return@mapNotNull null
-                                val title = item["title"]?.toString()?.trim('"') ?: "操作审批"
-                                val cmd = item["command"]?.toString()?.trim('"') ?: ""
-                                val reason = item["dangerReason"]?.toString()?.trim('"') ?: "该操作可能涉及系统高危指令"
-                                ApprovalItemModel(
-                                    id = id,
-                                    title = title,
-                                    command = cmd,
-                                    dangerReason = reason,
-                                    status = "pending"
-                                )
-                            } else null
-                        }
-                        return@withContext RemoteResult.Success(list)
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-
-        RemoteResult.Success(
-            listOf(
-                ApprovalItemModel(
-                    id = "appr_1",
-                    title = "执行外部 Shell 脚本",
-                    command = "bash ./deploy.sh --clean",
-                    dangerReason = "该操作可能覆盖工作区现有构建目录与未提交代码",
-                    status = "pending"
-                )
-            )
-        )
-    }
-
-    override suspend fun respondApproval(
-        hostId: String,
-        approvalId: String,
-        approved: Boolean
-    ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val payload = buildJsonObject {
-            put("type", "client-request")
-            put("method", if (approved) "approval/confirm" else "approval/reject")
-            put("payload", buildJsonObject {
-                put("args", buildJsonObject {
-                    put("id", approvalId)
-                })
-            })
-        }.toString()
-
-        val request = Request.Builder()
-            .url("$baseUrl/api")
-            .post(payload.toRequestBody(mediaTypeJson))
-            .build()
-
-        try {
-            client.newCall(request).execute().use { response ->
-                RemoteResult.Success(response.isSuccessful)
-            }
-        } catch (_: Exception) {
-            RemoteResult.Success(true)
-        }
-    }
-
     override suspend fun sendMessage(
         hostId: String,
         sessionId: String,
@@ -2025,6 +1933,70 @@ class RemoteClient(
                 HistoryPage(records, hasMore, minSeq)
             }
         }.getOrNull()
+    }
+
+    /**
+     * 订阅官方 `workspace/follow` 流（工作区/会话树基线 + 增量）。
+     *
+     * 这里只把帧转成原始 JSON 交给数据层，由它决定刷新范围。
+     */
+    override fun workspaceFollow(hostId: String): Flow<String> = callbackFlow {
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val streamId = java.util.UUID.randomUUID().toString()
+        val socket = client.newWebSocket(
+            okhttp3.Request.Builder().url(wsUrl).build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    val open = buildJsonObject {
+                        put("type", "open")
+                        put("streamId", streamId)
+                        put("endpoint", "workspace/follow")
+                        put("payload", buildJsonObject { put("args", buildJsonObject { }) })
+                    }
+                    webSocket.send(open.toString())
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    runCatching {
+                        val frame = json.parseToJsonElement(text)
+                            as? kotlinx.serialization.json.JsonObject
+                            ?: return@runCatching
+                        val type = (frame["type"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        val id = (frame["streamId"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (id != streamId) return@runCatching
+                        when (type) {
+                            "item" -> {
+                                val value = frame["value"]
+                                if (value != null) trySend(value.toString())
+                            }
+                            "error", "end" -> close()
+                        }
+                    }
+                }
+
+                override fun onFailure(
+                    webSocket: okhttp3.WebSocket,
+                    t: Throwable,
+                    response: Response?,
+                ) {
+                    close(t)
+                }
+
+                override fun onClosed(
+                    webSocket: okhttp3.WebSocket,
+                    code: Int,
+                    reason: String,
+                ) {
+                    close()
+                }
+            },
+        )
+        awaitClose {
+            runCatching { socket.send("{\"type\":\"cancel\",\"streamId\":\"$streamId\"}") }
+            runCatching { socket.close(1000, "client closed") }
+        }
     }
 
     /**
