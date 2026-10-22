@@ -47,16 +47,9 @@
 │   ├── contract/                  # 会话流量与契约回放器 (ContractReplayer)
 │   └── frontend-patch/            # 前端补丁自动化注入器 (FrontendPatcher)
 ├── fixtures/                      # 脱敏契约回放夹具
-└── docs/                          # 设计文档与 ADR
 ```
 
 ---
-
-## 原生插件与 JS UI 迁移
-
-- [原生插件 SDK 开发者文档](docs/plugin-sdk-guide.md)：清单、页面注册、能力桥、Host RPC 与生命周期。
-- [JS UI 转原生 UI 实战指南](docs/plugin-conversion-guide.md)：以 Demo 插件（`samples/demo-js` → `samples/demo-native`）为例，按步骤完成组件身份配对、页面接管、RPC / 事件闭环、WebView 接管与卸载回退，附检查清单。
-- 接入案例：`samples/demo-js`（`demo.*` RPC + Web 回退）与 `samples/demo-native`（Compose 设置页 / dock / 全部落点）；扫描报告见 `docs/plugin-ui-inventory-example.md`。
 
 ## 构建与测试验证
 
@@ -133,7 +126,7 @@
   13/20 二级引导语、48dp/40dp 细线图标框卡片、14/20 500 卡片标题、13/18 三级说明、
   11.5/16 等宽 slot 说明、sm 按钮；与上游一致，仅呈现「已安装插件」分组，
   不提供不存在的「发现 / 插件市场」页签；
-  - **分类与图标来自 Host 兼容层**（见 [docs/mobile-bridge.md](docs/mobile-bridge.md)）：
+  - **分类与图标来自 Host 兼容层**：
     插件页读 `bridge/v1` 的 `client-slots/plugins.item` 注册，分类文案、顺序与
     图形全部是官方客户端资源；图形经 `icon-svg` 转成 SVG 后由
     `DshSvgIcon`（`core:designsystem`）在 Compose Canvas 上绘制，无 WebView；

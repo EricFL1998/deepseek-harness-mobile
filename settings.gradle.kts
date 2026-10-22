@@ -43,12 +43,6 @@ include(":plugin:surface")
 include(":plugin:native-sdk")
 include(":plugin:native-host")
 
-// 样例伴侣插件（SDK 自证）
-include(":samples:genui-native")
-include(":samples:kimi-native")
-include(":samples:subscription-native")
-include(":samples:demo-native")
-
 // Runtime & Bridge
 include(":runtime:host")
 include(":runtime:bridge")

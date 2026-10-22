@@ -18,8 +18,8 @@ import kotlinx.serialization.json.JsonObject
  *
  * 插件按落点声明「我在哪里渲染什么」，不需要关心具体槽位名到手机位置的映射。
  *
- * 当前的「官方 slot → 落点 → 宿主位置」覆盖表见 docs/native-ui-slot-discovery-postmortem.md
- * 与 SDK 交付包的 slot-mapping.md；新增落点必须先补宿主容器与映射，避免静默丢失。
+ * 当前的「内置 slot → 落点 → 宿主位置」覆盖表见 SDK 仓库的 slot-mapping.md；
+ * 新增落点必须先补宿主容器与映射，避免静默丢失。
  */
 enum class NativeSlot {
     /** 设置页 / 插件页（Sheet）。承载 settings.section、settings.general.item、plugins.tab。 */

@@ -1,6 +1,6 @@
 {
   "bridgeVersion": "1.0.0",
-  "note": "脱敏的 bridge/v1 契约夹具：与 docs/mobile-bridge.md 和 dsh-mobile-bridge 的 docs/protocol.md 对齐。客户端解码器与 Host 插件测试共用这一份形状。",
+  "note": "脱敏的 bridge/v1 契约夹具：与 dsh-mobile-bridge 的 docs/protocol.md 对齐。客户端解码器与 Host 插件测试共用这一份形状。",
   "manifest": {
     "bridgeVersion": "1.0.0",
     "dshVersion": "0.2.1-rc.2",
