@@ -204,6 +204,8 @@
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
     <string name="search_host_results">Host 搜索结果</string>
+<string name="workspace_move_up">上移</string>
+<string name="workspace_move_down">下移</string>
 </resources>
 
 

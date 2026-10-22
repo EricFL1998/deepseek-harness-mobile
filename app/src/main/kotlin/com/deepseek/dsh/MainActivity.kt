@@ -1926,6 +1926,28 @@ fun MainAppHost(
                     onDeleteWorkspace = { folder ->
                         deleteWorkspaceFolder = folder
                     },
+                    onMoveWorkspace = { folder, delta ->
+                        val index = hostWorkspaces.indexOfFirst { it.path == folder.path }
+                        if (index >= 0) {
+                            val targetIndex = index + delta
+                            when {
+                                delta < 0 && index == 0 -> Unit
+                                delta > 0 && index == hostWorkspaces.lastIndex -> Unit
+                                else -> {
+                                    val beforeId = hostWorkspaces.getOrNull(
+                                        if (delta < 0) index - 1 else index + 2
+                                    )?.id
+                                    scope.launch {
+                                        dshRepository.moveWorkspace(
+                                            activeHostId,
+                                            hostWorkspaces[index].id,
+                                            beforeId,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
                     onNavigateSettings = {
                         scope.launch {
                             drawerState.close()
