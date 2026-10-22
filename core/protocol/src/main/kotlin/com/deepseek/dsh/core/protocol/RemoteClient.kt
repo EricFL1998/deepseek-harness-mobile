@@ -2080,6 +2080,62 @@ class RemoteClient(
         }
     }
 
+    /** 官方 `session/control`：会话投影基线 + 增量帧。 */
+    override fun sessionControl(hostId: String): Flow<String> = callbackFlow {
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val streamId = java.util.UUID.randomUUID().toString()
+        val socket = client.newWebSocket(
+            okhttp3.Request.Builder().url(wsUrl).build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    val open = buildJsonObject {
+                        put("type", "open")
+                        put("streamId", streamId)
+                        put("endpoint", "session/control")
+                        put("payload", buildJsonObject { put("args", buildJsonObject { }) })
+                    }
+                    webSocket.send(open.toString())
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    runCatching {
+                        val frame = json.parseToJsonElement(text)
+                            as? kotlinx.serialization.json.JsonObject
+                            ?: return@runCatching
+                        val id = (frame["streamId"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (id != streamId) return@runCatching
+                        when ((frame["type"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.content) {
+                            "item" -> frame["value"]?.let { trySend(it.toString()) }
+                            "error", "end" -> close()
+                        }
+                    }
+                }
+
+                override fun onFailure(
+                    webSocket: okhttp3.WebSocket,
+                    t: Throwable,
+                    response: Response?,
+                ) {
+                    close(t)
+                }
+
+                override fun onClosed(
+                    webSocket: okhttp3.WebSocket,
+                    code: Int,
+                    reason: String,
+                ) {
+                    close()
+                }
+            },
+        )
+        awaitClose {
+            runCatching { socket.send("{\"type\":\"cancel\",\"streamId\":\"$streamId\"}") }
+            runCatching { socket.close(1000, "client closed") }
+        }
+    }
+
     /**
      * 订阅 Claude Code 模组横幅。
      *

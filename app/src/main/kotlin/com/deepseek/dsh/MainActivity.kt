@@ -974,6 +974,7 @@ fun MainAppHost(
     val streamingText by dshRepository.streamingTextFlow.collectAsState()
     val streamingReasoning by dshRepository.streamingReasoningFlow.collectAsState()
     val hostWorkspaces by dshRepository.hostWorkspacesFlow.collectAsState()
+    val hostSessionModels by dshRepository.sessionModelFlow.collectAsState()
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
@@ -2043,6 +2044,25 @@ fun MainAppHost(
                                 if (currentModel in availableModelNames && currentModel != lastUsedModel) {
                                     lastUsedModel = currentModel
                                     modelPrefs.edit().putString("last_model_name", currentModel).apply()
+                                }
+                            }
+                            // 官方 session/control：其它客户端切了模型时同步标签。
+                            val hostModelName = selectedSessionId?.let { sid ->
+                                hostSessionModels[sid]?.let { modelId ->
+                                    effectiveModelIdByName.entries
+                                        .firstOrNull { it.value == modelId }?.key
+                                        ?: modelId.takeIf { it in availableModelNames }
+                                }
+                            }
+                            LaunchedEffect(hostModelName) {
+                                if (!hostModelName.isNullOrBlank() &&
+                                    hostModelName != lastUsedModel &&
+                                    hostModelName in availableModelNames
+                                ) {
+                                    lastUsedModel = hostModelName
+                                    modelPrefs.edit()
+                                        .putString("last_model_name", hostModelName)
+                                        .apply()
                                 }
                             }
                             val currentProviderGroup = catalogInfo.groups.firstOrNull { group ->

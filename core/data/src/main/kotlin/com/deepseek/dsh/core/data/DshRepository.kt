@@ -98,6 +98,12 @@ class DshRepository(
     /** 已经订阅过 `workspace/follow` 的 Host。 */
     private val watchedWorkspaceHosts = mutableSetOf<String>()
 
+    /** 官方 `session/control` 投影出的每会话模型选择（model id）。 */
+    private val _sessionModelFlow = MutableStateFlow<Map<String, String>>(emptyMap())
+    val sessionModelFlow: StateFlow<Map<String, String>> = _sessionModelFlow.asStateFlow()
+    private val sessionModels = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val watchedControlHosts = mutableSetOf<String>()
+
     /** 官方 `workspace/follow` 投影出的工作区树（按 Host 顺序）。 */
     private val _hostWorkspacesFlow = MutableStateFlow<List<HostWorkspaceInfo>>(emptyList())
     val hostWorkspacesFlow: StateFlow<List<HostWorkspaceInfo>> =
@@ -1086,6 +1092,38 @@ class DshRepository(
         _hostWorkspacesFlow.value = hostWorkspaceOrder.mapNotNull { hostWorkspaces[it] }
     }
 
+
+    /** 解析 `session/control` 帧，维护每会话模型选择。 */
+    private fun applyControlFrame(text: String) {
+        val root = runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+            ?: return
+        fun modelOf(element: JsonElement?): String? {
+            val obj = element as? JsonObject ?: return null
+            val selected = (obj["next"] as? JsonObject) ?: (obj["lastUsed"] as? JsonObject)
+                ?: return null
+            return (selected["model"] as? JsonPrimitive)?.contentOrNull
+        }
+        when ((root["type"] as? JsonPrimitive)?.contentOrNull) {
+            "baseline" -> {
+                val projections = (root["value"] as? JsonObject)
+                    ?.get("projections") as? JsonObject ?: return
+                sessionModels.clear()
+                projections.forEach { (sessionId, projection) ->
+                    val values = (projection as? JsonObject)?.get("values") as? JsonObject
+                    val model = modelOf(values?.get("modelSelection"))
+                    if (model != null) sessionModels[sessionId] = model
+                }
+            }
+            "projection" -> {
+                val sessionId = (root["sessionId"] as? JsonPrimitive)?.contentOrNull ?: return
+                if ((root["key"] as? JsonPrimitive)?.contentOrNull != "modelSelection") return
+                val model = modelOf(root["value"])
+                if (model != null) sessionModels[sessionId] = model
+            }
+        }
+        _sessionModelFlow.value = sessionModels.toMap()
+    }
+
     fun markSessionViewed(sessionId: String?) {
         if (sessionId != viewedSessionId) {
             _streamingTextFlow.value = ""
@@ -1422,6 +1460,12 @@ class DshRepository(
                         client.answerWaterfall(hostId, waterfall.eventId, null)
                     }
                 }
+            }
+        }
+        // 官方 session/control：全部会话投影（模型选择等）的基线 + 增量。
+        if (synchronized(watchedControlHosts) { watchedControlHosts.add(hostId) }) {
+            scope.launch(Dispatchers.IO) {
+                client.sessionControl(hostId).collect { frame -> applyControlFrame(frame) }
             }
         }
         // 官方 workspace/follow：工作区/会话树的实时基线 + 增量，刷新会话列表。
