@@ -990,17 +990,35 @@ fun MainAppHost(
     var terminalBuffer by remember { mutableStateOf("") }
     var terminalStatus by remember { mutableStateOf("") }
     var terminalWritable by remember { mutableStateOf(false) }
+    // 多终端（官方 terminal/list）：页签集合、当前页签、可用 shell。
+    var terminalList by remember {
+        mutableStateOf<List<com.deepseek.dsh.core.model.TerminalInfo>>(emptyList())
+    }
+    var activeTerminalId by remember { mutableStateOf("main") }
+    var terminalShells by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var terminalConnection by remember {
         mutableStateOf<com.deepseek.dsh.core.protocol.TerminalConnection?>(null)
     }
     // ANSI 屏幕模型：光标定位/清屏由它处理，渲染文本给 UI。
     val terminalBufferModel = remember { TerminalBuffer(cols = 80, rows = 24) }
-    DisposableEffect(activePage, selectedSessionId) {
+    DisposableEffect(activePage, selectedSessionId, activeTerminalId) {
         val sid = selectedSessionId
         var job: kotlinx.coroutines.Job? = null
         if (activePage == ActivePage.TERMINAL && sid != null) {
             job = scope.launch {
-                val connection = dshRepository.openTerminal(activeHostId, sid, 80, 24)
+                terminalList = dshRepository.listTerminals(activeHostId, sid)
+                terminalShells = dshRepository.listTerminalShells(activeHostId, sid)
+                if (terminalList.none { it.id == activeTerminalId }) {
+                    val created = dshRepository.createTerminal(
+                        activeHostId, sid, activeTerminalId, shellPath = null, cols = 80, rows = 24,
+                    )
+                    if (created != null) {
+                        terminalList = dshRepository.listTerminals(activeHostId, sid)
+                    }
+                }
+                val connection = dshRepository.openTerminal(
+                    activeHostId, sid, 80, 24, activeTerminalId,
+                )
                 if (connection == null) {
                     terminalStatus = context.getString(R.string.terminal_unavailable)
                     return@launch
@@ -3116,6 +3134,32 @@ fun MainAppHost(
                                 buffer = terminalBuffer,
                                 status = terminalStatus,
                                 writable = terminalWritable,
+                                terminals = terminalList,
+                                activeTerminalId = activeTerminalId,
+                                shellChoices = terminalShells,
+                                onSelectTerminal = { id -> activeTerminalId = id },
+                                onCreateTerminal = { shellPath ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            val id = "term-" + System.currentTimeMillis()
+                                            dshRepository.createTerminal(
+                                                activeHostId, sid, id, shellPath, 80, 24,
+                                            )
+                                            terminalList = dshRepository.listTerminals(activeHostId, sid)
+                                            activeTerminalId = id
+                                        }
+                                    }
+                                },
+                                onRenameTerminal = { id, title ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            dshRepository.renameTerminal(activeHostId, sid, id, title)
+                                            terminalList = dshRepository.listTerminals(activeHostId, sid)
+                                        }
+                                    }
+                                },
                                 onInput = { line ->
                                     terminalConnection?.write(line + "\r")
                                 },
@@ -3126,7 +3170,9 @@ fun MainAppHost(
                                     val sid = selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
-                                            dshRepository.closeTerminal(activeHostId, sid)
+                                            dshRepository.closeTerminal(
+                                                activeHostId, sid, activeTerminalId,
+                                            )
                                             terminalConnection?.close()
                                             terminalConnection = null
                                             terminalStatus = context.getString(

@@ -2528,8 +2528,8 @@ class RemoteClient(
         sessionId: String,
         cols: Int,
         rows: Int,
+        terminalId: String,
     ): RemoteResult<TerminalConnection> = withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val terminalId = "main"
         // create 对已打开的 id 幂等，直接调即可。
         val createPayload = buildJsonObject {
             put("type", "client-request")

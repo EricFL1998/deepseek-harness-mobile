@@ -305,6 +305,7 @@ interface DshClientProtocol {
         sessionId: String,
         cols: Int,
         rows: Int,
+        terminalId: String = "main",
     ): RemoteResult<TerminalConnection>
     /** 官方 `terminal/close`：关闭并杀掉终端进程。 */
     suspend fun closeTerminal(hostId: String, sessionId: String, id: String): RemoteResult<Boolean>

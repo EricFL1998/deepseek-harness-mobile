@@ -592,4 +592,6 @@
 <string name="settings_pane_models_custom_id">Provider ID</string>
 <string name="settings_pane_models_custom_id_placeholder">e.g. my-gateway</string>
 <string name="settings_pane_models_custom_id_invalid">Use letters, digits, dots or dashes</string>
+<string name="terminal_new">New terminal</string>
+    <string name="terminal_rename">Rename terminal</string>
 </resources>

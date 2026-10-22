@@ -38,6 +38,7 @@ import com.deepseek.dsh.core.model.PluginManagerSnapshot
 import com.deepseek.dsh.core.model.SessionInfo
 import com.deepseek.dsh.core.model.AgentTeamSummary
 import com.deepseek.dsh.core.model.TeamTaskItem
+import com.deepseek.dsh.core.model.TerminalInfo
 import com.deepseek.dsh.core.protocol.DshClientProtocol
 import com.deepseek.dsh.core.protocol.RemoteEvent
 import com.deepseek.dsh.core.protocol.RemoteResult
@@ -770,15 +771,96 @@ class DshRepository(
         sessionId: String,
         cols: Int,
         rows: Int,
+        terminalId: String = "main",
     ): com.deepseek.dsh.core.protocol.TerminalConnection? =
-        when (val res = client.openTerminal(hostId, sessionId, cols, rows)) {
+        when (val res = client.openTerminal(hostId, sessionId, cols, rows, terminalId)) {
             is RemoteResult.Success -> res.data
             is RemoteResult.Failure -> null
         }
 
     /** 关闭终端进程（官方 terminal/close）。 */
-    suspend fun closeTerminal(hostId: String, sessionId: String) {
-        client.closeTerminal(hostId, sessionId, "main")
+    suspend fun closeTerminal(hostId: String, sessionId: String, terminalId: String = "main") {
+        client.closeTerminal(hostId, sessionId, terminalId)
+    }
+
+    /** 官方 `terminal/list`：当前会话的网页终端集合。 */
+    suspend fun listTerminals(hostId: String, sessionId: String): List<TerminalInfo> {
+        val args = buildJsonObject { put("sessionId", sessionId) }
+        val raw = rpcRaw(hostId, "terminal/list", args.toString()).getOrNull() ?: return emptyList()
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return emptyList()
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonArray ?: return emptyList()
+        return value.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val id = (obj["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            val shell = obj["shell"] as? JsonObject
+            TerminalInfo(
+                id = id,
+                title = (obj["title"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                state = (obj["state"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                shellName = (shell?.get("name") as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            )
+        }
+    }
+
+    /** 官方 `terminal/shells`：可选的 shell（路径 + 名称）。 */
+    suspend fun listTerminalShells(hostId: String, sessionId: String): List<Pair<String, String>> {
+        val args = buildJsonObject { put("agentId", sessionId) }
+        val raw = rpcRaw(hostId, "terminal/shells", args.toString()).getOrNull() ?: return emptyList()
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return emptyList()
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonArray ?: return emptyList()
+        return value.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val path = (obj["path"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            path to (obj["name"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        }
+    }
+
+    /** 官方 `terminal/create`（显式 id 与 shell），返回新终端信息。 */
+    suspend fun createTerminal(
+        hostId: String,
+        sessionId: String,
+        terminalId: String,
+        shellPath: String?,
+        cols: Int = 80,
+        rows: Int = 24,
+    ): TerminalInfo? {
+        val args = buildJsonObject {
+            put("agentId", sessionId)
+            put("request", buildJsonObject {
+                put("id", terminalId)
+                put("cols", cols)
+                put("rows", rows)
+                if (!shellPath.isNullOrBlank()) put("shellPath", shellPath)
+            })
+        }
+        val raw = rpcRaw(hostId, "terminal/create", args.toString()).getOrNull() ?: return null
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return null
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return null
+        val shell = value["shell"] as? JsonObject
+        return TerminalInfo(
+            id = (value["id"] as? JsonPrimitive)?.contentOrNull ?: terminalId,
+            title = (value["title"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            state = (value["state"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            shellName = (shell?.get("name") as? JsonPrimitive)?.contentOrNull.orEmpty(),
+        )
+    }
+
+    /** 官方 `terminal/rename`：改终端标题。 */
+    suspend fun renameTerminal(
+        hostId: String,
+        sessionId: String,
+        terminalId: String,
+        title: String,
+    ): Boolean {
+        val args = buildJsonObject {
+            put("agentId", sessionId)
+            put("id", terminalId)
+            put("title", title)
+        }
+        return rpcRaw(hostId, "terminal/rename", args.toString())
+            .getOrNull()?.contains("\"ok\":true") == true
     }
 
     /** 官方 `commands/list` 的斜杠命令。 */    /** 官方 `commands/list` 的斜杠命令。 */

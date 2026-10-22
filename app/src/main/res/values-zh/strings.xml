@@ -592,4 +592,6 @@
 <string name="settings_pane_models_custom_id">提供商 ID</string>
 <string name="settings_pane_models_custom_id_placeholder">例如 my-gateway</string>
 <string name="settings_pane_models_custom_id_invalid">只能包含字母、数字、点或短横线</string>
+<string name="terminal_new">新终端</string>
+    <string name="terminal_rename">重命名终端</string>
 </resources>

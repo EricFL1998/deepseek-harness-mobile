@@ -294,6 +294,15 @@ data class HostCommandInfo(
     val acceptsAttachments: Boolean = false,
 )
 
+/** 官方 `terminal/list` 里的一个网页终端。 */
+@Serializable
+data class TerminalInfo(
+    val id: String,
+    val title: String,
+    val state: String = "",
+    val shellName: String = "",
+)
+
 /** 官方 `skills/list` 里人可调用的一个技能。 */
 @Serializable
 data class SkillInfo(
