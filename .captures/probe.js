@@ -1,1 +1,0 @@
-const u=process.argv[2]; fetch(u).then(r=>r.text()).then(t=>console.log(t.slice(0,3000))).catch(e=>console.log('ERR',String(e)));
