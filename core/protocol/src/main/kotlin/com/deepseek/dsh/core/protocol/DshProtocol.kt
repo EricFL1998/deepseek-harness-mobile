@@ -308,6 +308,12 @@ interface DshClientProtocol {
     fun sessionControl(hostId: String): Flow<String>
     /** 打开一条 `session/follow`：首帧 snapshot 会重放历史（含产物声明）。 */
     fun followSession(hostId: String, sessionId: String)
+    /** 官方 `/api/session.export`：下载会话日志 ZIP。 */
+    suspend fun downloadSessionExport(
+        hostId: String,
+        sessionId: String,
+    ): RemoteResult<ByteArray>
+
     /** 官方 `/api/changes.summary`：某轮改动的文件汇总。 */
     suspend fun fetchChangesSummary(
         hostId: String,

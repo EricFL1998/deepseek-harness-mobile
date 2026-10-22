@@ -594,4 +594,6 @@
 <string name="settings_pane_models_custom_id_invalid">Use letters, digits, dots or dashes</string>
 <string name="terminal_new">New terminal</string>
     <string name="terminal_rename">Rename terminal</string>
+<string name="session_export_saved">Session log saved to Downloads</string>
+    <string name="session_export_failed">Could not export the session log</string>
 </resources>

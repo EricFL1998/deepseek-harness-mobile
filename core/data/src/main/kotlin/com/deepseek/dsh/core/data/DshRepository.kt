@@ -1711,6 +1711,13 @@ class DshRepository(
         rpcRaw(hostId, "settings/update", args.toString())
     }
 
+    /** 下载当前会话日志 ZIP（官方 `/api/session.export`）。 */
+    suspend fun exportSessionLog(hostId: String, sessionId: String): ByteArray? =
+        when (val res = client.downloadSessionExport(hostId, sessionId)) {
+            is RemoteResult.Success -> res.data
+            is RemoteResult.Failure -> null
+        }
+
     /** 拉一轮改动里某个文件的逐行对比（官方 `/api/changes.diff`）。 */
     suspend fun loadChangeDiff(
         hostId: String,

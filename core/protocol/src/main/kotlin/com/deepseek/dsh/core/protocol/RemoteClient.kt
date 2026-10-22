@@ -2409,6 +2409,30 @@ class RemoteClient(
         }
     }
 
+    /** 官方 `/api/session.export`：导出会话日志 ZIP。 */
+    override suspend fun downloadSessionExport(
+        hostId: String,
+        sessionId: String,
+    ): RemoteResult<ByteArray> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("$baseUrl/api/session.export?sessionId=$sessionId&includeDescendants=true")
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure(
+                        "dsh/session-export",
+                        "HTTP ${response.code}",
+                    )
+                }
+                RemoteResult.Success(response.body?.bytes() ?: ByteArray(0))
+            }
+        }.getOrElse { e ->
+            RemoteResult.Failure("dsh/session-export-network", e.message ?: "export failed")
+        }
+    }
+
     /** 官方 `/api/changes.summary`。 */
     override suspend fun fetchChangesSummary(
         hostId: String,

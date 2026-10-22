@@ -9,4 +9,7 @@ package com.deepseek.dsh.feature.chat
 object MessageActionBridge {
     /** 从某个 seq 分叉新会话（宿主注入）。 */
     var forkAt: ((seq: Int) -> Unit)? = null
+
+    /** 下载当前会话日志 ZIP（宿主注入）。 */
+    var exportSession: (() -> Unit)? = null
 }

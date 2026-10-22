@@ -890,6 +890,11 @@ fun ModernChatScreen(
             onCommand = { command ->
                 commandSheetOpen = false
                 val token = command.trim().removePrefix("/")
+                // 「导出」是本地动作：直接下载官方 ZIP，不进入 prompt。
+                if (token == "export") {
+                    MessageActionBridge.exportSession?.invoke()
+                    return@ComposerCommandSheet
+                }
                 // 文本类命令在输入框里显示本地化 chip，参数由用户继续输入；
                 // 发送时再还原成 /goal 之类 Host 认识的命令。
                 if (commandLabelRes(token) != null) {
