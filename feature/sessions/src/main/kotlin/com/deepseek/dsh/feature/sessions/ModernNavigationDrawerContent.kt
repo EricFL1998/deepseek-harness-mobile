@@ -18,6 +18,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
@@ -179,6 +180,11 @@ fun ModernNavigationDrawerContent(
     var dragOffsetY by remember { mutableStateOf(0f) }
     var dragStartCenter by remember { mutableStateOf(0f) }
     var dragTargetFolderId by remember { mutableStateOf<String?>(null) }
+    // 拖动时手指在列表坐标系中的位置，用于边缘自动滚动与目标判定。
+    var dragPointerY by remember { mutableStateOf(0f) }
+    var dragAutoScrollDir by remember { mutableStateOf(0) }
+    var dragScrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val dragScope = rememberCoroutineScope()
     var searchOpen by remember { mutableStateOf(false) }
     var viewMenuOpen by remember { mutableStateOf(false) }
     var groupMode by remember { mutableStateOf(WorkspaceGroupMode.WORKSPACE) }
@@ -590,7 +596,7 @@ fun ModernNavigationDrawerContent(
                             // 官方 workspace/insertBefore。
                             .pointerInput(folder.id) {
                                 detectDragGesturesAfterLongPress(
-                                    onDragStart = {
+                                    onDragStart = { offset ->
                                         val info = sessionListState.layoutInfo
                                             .visibleItemsInfo
                                             .firstOrNull {
@@ -599,9 +605,21 @@ fun ModernNavigationDrawerContent(
                                         dragStartCenter = info?.let {
                                             it.offset + it.size / 2f
                                         } ?: 0f
+                                        dragPointerY = (info?.offset ?: 0) + offset.y
+                                        dragOffsetY = dragPointerY - dragStartCenter
                                         draggingFolderId = folder.id
-                                        dragOffsetY = 0f
                                         dragTargetFolderId = folder.id
+                                        dragAutoScrollDir = 0
+                                        dragScrollJob?.cancel()
+                                        dragScrollJob = dragScope.launch {
+                                            while (true) {
+                                                val dir = dragAutoScrollDir
+                                                if (dir != 0) {
+                                                    sessionListState.scrollBy(dir * 14f)
+                                                }
+                                                kotlinx.coroutines.delay(16)
+                                            }
+                                        }
                                     },
                                     onDragEnd = {
                                         val from = visibleWorkspaces
@@ -611,27 +629,49 @@ fun ModernNavigationDrawerContent(
                                         if (from >= 0 && to >= 0 && to != from) {
                                             onMoveWorkspace(folder, to - from)
                                         }
+                                        dragScrollJob?.cancel()
+                                        dragScrollJob = null
+                                        dragAutoScrollDir = 0
                                         draggingFolderId = null
                                         dragOffsetY = 0f
                                         dragTargetFolderId = null
                                     },
                                     onDragCancel = {
+                                        dragScrollJob?.cancel()
+                                        dragScrollJob = null
+                                        dragAutoScrollDir = 0
                                         draggingFolderId = null
                                         dragOffsetY = 0f
                                         dragTargetFolderId = null
                                     },
                                     onDrag = { change, amount ->
                                         change.consume()
-                                        dragOffsetY += amount.y
-                                        val center = dragStartCenter + dragOffsetY
-                                        val folderItems = sessionListState.layoutInfo
-                                            .visibleItemsInfo
+                                        dragPointerY += amount.y
+                                        val layout = sessionListState.layoutInfo
+                                        val edge = 72f
+                                        dragAutoScrollDir = when {
+                                            dragPointerY <
+                                                layout.viewportStartOffset + edge -> -1
+                                            dragPointerY >
+                                                layout.viewportEndOffset - edge -> 1
+                                            else -> 0
+                                        }
+                                        // 拖动行始终跟住手指（列表滚动时也保持）。
+                                        val selfInfo = layout.visibleItemsInfo
+                                            .firstOrNull {
+                                                (it.key as? String) == "fld_${folder.id}"
+                                            }
+                                        if (selfInfo != null) {
+                                            dragOffsetY = dragPointerY -
+                                                (selfInfo.offset + selfInfo.size / 2f)
+                                        }
+                                        val folderItems = layout.visibleItemsInfo
                                             .filter {
                                                 (it.key as? String)
                                                     ?.startsWith("fld_") == true
                                             }
                                         val target = folderItems.firstOrNull {
-                                            center < it.offset + it.size / 2f
+                                            dragPointerY < it.offset + it.size / 2f
                                         } ?: folderItems.lastOrNull()
                                         dragTargetFolderId =
                                             (target?.key as? String)?.removePrefix("fld_")
