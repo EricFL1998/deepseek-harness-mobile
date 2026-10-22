@@ -48,6 +48,12 @@ sealed interface RemoteEvent {
     @Serializable
     data class MessageDelta(val sessionId: String, val delta: String) : RemoteEvent
     data class ReasoningDelta(val sessionId: String, val delta: String) : RemoteEvent
+    /** 官方 workflow 运行状态变化（每个事件都带当前完整快照）。 */
+    data class WorkflowRunUpdated(
+        val sessionId: String,
+        val run: com.deepseek.dsh.core.model.WorkflowRunInfo,
+    ) : RemoteEvent
+
     /** 官方 `user/message` 里的图片附件（用于在气泡里渲染缩略图）。 */
     data class UserImages(
         val sessionId: String,

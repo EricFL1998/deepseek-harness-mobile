@@ -308,4 +308,11 @@
     <string name="message_action_copy">Copy text</string>
     <string name="message_action_fork">Fork from here</string>
     <string name="markdown_copy">Copy</string>
+<string name="workflow_run_title">Workflow</string>
+    <string name="workflow_phase_default">phase</string>
+    <string name="workflow_status_running">running</string>
+    <string name="workflow_status_completed">completed</string>
+    <string name="workflow_status_failed">failed</string>
+    <string name="workflow_status_cancelled">cancelled</string>
+    <string name="workflow_status_interrupted">interrupted</string>
 </resources>

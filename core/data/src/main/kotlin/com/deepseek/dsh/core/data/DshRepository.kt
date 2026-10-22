@@ -1752,6 +1752,19 @@ class DshRepository(
             ?.let { (it["revision"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() }
     }
 
+    /** 当前会话里的 workflow 运行（官方 tool-workflow 事件聚合）。 */
+    private val _workflowRunsFlow =
+        MutableStateFlow<Map<String, List<com.deepseek.dsh.core.model.WorkflowRunInfo>>>(
+            emptyMap(),
+        )
+    val workflowRunsFlow:
+        StateFlow<Map<String, List<com.deepseek.dsh.core.model.WorkflowRunInfo>>> =
+        _workflowRunsFlow.asStateFlow()
+
+    /** 某个会话的 workflow 运行列表（按创建顺序）。 */
+    fun workflowRuns(sessionId: String): List<com.deepseek.dsh.core.model.WorkflowRunInfo> =
+        _workflowRunsFlow.value[sessionId].orEmpty()
+
     /** 官方 `schedule/catalog`：Host 上所有计划任务（含会话绑定与状态）。 */
     private val _scheduleCatalogFlow =
         MutableStateFlow<List<com.deepseek.dsh.core.model.ScheduleInfo>>(emptyList())
@@ -1885,6 +1898,7 @@ class DshRepository(
             _queuedMessagesFlow.value = emptyList()
             _messageFeedbackFlow.value = emptyMap()
             _messageImagesFlow.value = emptyMap()
+            _workflowRunsFlow.value = emptyMap()
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId
@@ -2108,6 +2122,16 @@ class DshRepository(
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
                         if (event.sessionId == viewedSessionId) {
                             _streamingTextFlow.value = _streamingTextFlow.value + event.delta
+                        }
+                    }
+                    is RemoteEvent.WorkflowRunUpdated -> {
+                        if (event.sessionId == viewedSessionId) {
+                            val current = _workflowRunsFlow.value.toMutableMap()
+                            val runs = current[event.sessionId].orEmpty().toMutableList()
+                            val index = runs.indexOfFirst { it.runId == event.run.runId }
+                            if (index >= 0) runs[index] = event.run else runs += event.run
+                            current[event.sessionId] = runs
+                            _workflowRunsFlow.value = current
                         }
                     }
                     is RemoteEvent.UserImages -> {

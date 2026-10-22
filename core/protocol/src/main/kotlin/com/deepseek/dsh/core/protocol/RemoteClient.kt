@@ -1576,6 +1576,12 @@ class RemoteClient(
     }
 
     /** 每个会话最近收到的原始帧（开发者工具/会话数据诊断用），最多 500 条。 */
+    /** 官方 workflow 运行聚合状态：sessionId -> runId -> 快照。 */
+    private val workflowRuns =
+        java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.ConcurrentHashMap<String,
+                com.deepseek.dsh.core.model.WorkflowRunInfo>>()
+
     private val rawFrames =
         java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.ConcurrentLinkedDeque<SessionRawFrame>>()
     private val rawFrameCounters =
@@ -1802,6 +1808,91 @@ class RemoteClient(
         )
     }
 
+
+    /** 聚合官方 tool-workflow 事件并推给 UI（每个事件都带完整快照）。 */
+    private fun applyWorkflowEvent(
+        sessionId: String,
+        eventType: String,
+        data: kotlinx.serialization.json.JsonObject,
+    ) {
+        fun field(key: String): String? =
+            (data[key] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+        val runId = field("runId") ?: return
+        val runs = workflowRuns.getOrPut(sessionId) {
+            java.util.concurrent.ConcurrentHashMap()
+        }
+        val current = runs[runId] ?: com.deepseek.dsh.core.model.WorkflowRunInfo(runId = runId)
+
+        // 成员按 phase 分组；phase 缺省与空串是两种身份（与官方一致）。
+        fun updateMembers(transform: (MutableList<com.deepseek.dsh.core.model.WorkflowPhaseInfo>)
+            -> Unit): List<com.deepseek.dsh.core.model.WorkflowPhaseInfo> {
+            val phases = current.phases.map { phase ->
+                com.deepseek.dsh.core.model.WorkflowPhaseInfo(
+                    phase = phase.phase,
+                    members = phase.members.toMutableList(),
+                )
+            }.toMutableList()
+            transform(phases)
+            return phases
+        }
+
+        val next = when (eventType) {
+            "tool-workflow/run-start" -> current.copy(
+                name = field("name") ?: current.name,
+                status = "running",
+            )
+            "tool-workflow/agent-start" -> {
+                val phase = field("phase")
+                val member = com.deepseek.dsh.core.model.WorkflowMemberInfo(
+                    seq = field("seq")?.toIntOrNull() ?: 0,
+                    label = field("label").orEmpty(),
+                    childId = field("childId").orEmpty(),
+                    status = "running",
+                )
+                val phases = updateMembers { list ->
+                    val existing = list.firstOrNull { it.phase == phase }
+                    if (existing != null) {
+                        list[list.indexOf(existing)] = existing.copy(
+                            members = existing.members + member,
+                        )
+                    } else {
+                        list += com.deepseek.dsh.core.model.WorkflowPhaseInfo(
+                            phase = phase,
+                            members = listOf(member),
+                        )
+                    }
+                }
+                current.copy(status = "running", phases = phases)
+            }
+            "tool-workflow/agent-end" -> {
+                val seq = field("seq")?.toIntOrNull()
+                val outcome = field("outcome") ?: "completed"
+                val phases = updateMembers { list ->
+                    list.forEachIndexed { index, phase ->
+                        if (phase.members.any { it.seq == seq }) {
+                            list[index] = phase.copy(
+                                members = phase.members.map { member ->
+                                    if (member.seq == seq) member.copy(status = outcome) else member
+                                },
+                            )
+                        }
+                    }
+                }
+                current.copy(phases = phases)
+            }
+            else -> current.copy(status = field("stopReason").orEmpty().let { reason ->
+                when (reason) {
+                    "completed" -> "completed"
+                    "cancelled" -> "cancelled"
+                    "error" -> "failed"
+                    else -> reason.ifBlank { "completed" }
+                }
+            })
+        }
+        runs[runId] = next
+        eventBus.tryEmit(RemoteEvent.WorkflowRunUpdated(sessionId, next))
+    }
+
     /** snapshot 与 live event 共用的 durable 事件处理。 */
     private fun handleDurableEvent(
         sessionId: String,
@@ -1812,6 +1903,10 @@ class RemoteClient(
         val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
         val seq = event["seq"]?.toString()?.toLongOrNull() ?: System.currentTimeMillis()
         when (eventType) {
+            "tool-workflow/run-start", "tool-workflow/agent-start",
+            "tool-workflow/agent-end", "tool-workflow/run-end" -> {
+                applyWorkflowEvent(sessionId, eventType, data)
+            }
             "user/message" -> {
                 val message = data["message"] as? kotlinx.serialization.json.JsonObject
                 val blocks = (message?.get("content") ?: data["content"])

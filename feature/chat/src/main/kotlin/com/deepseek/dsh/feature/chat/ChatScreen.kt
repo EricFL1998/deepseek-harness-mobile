@@ -361,6 +361,7 @@ fun ModernChatScreen(
             MessageFeedbackBridge.items = refresh()
         }
         MessageMediaBridge.items = MessageMediaBridge.provider?.invoke() ?: emptyMap()
+        WorkflowRunsBridge.items = WorkflowRunsBridge.provider?.invoke() ?: emptyList()
     }
     val listState = rememberLazyListState()
     val collapsedTurns = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
@@ -794,6 +795,20 @@ fun ModernChatScreen(
                                 changeDiffIndex = index
                             },
                         )
+                    }
+                }
+                if (WorkflowRunsBridge.items.isNotEmpty()) {
+                    item(key = "workflow_runs") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            WorkflowRunsBridge.items.forEach { run ->
+                                WorkflowRunCard(run = run)
+                            }
+                        }
                     }
                 }
                 if (deliverables.isNotEmpty()) {

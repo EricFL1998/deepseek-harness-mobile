@@ -307,4 +307,11 @@
     <string name="message_action_copy">复制文本</string>
     <string name="message_action_fork">从此处分叉</string>
     <string name="markdown_copy">复制</string>
+<string name="workflow_run_title">工作流</string>
+    <string name="workflow_phase_default">阶段</string>
+    <string name="workflow_status_running">运行中</string>
+    <string name="workflow_status_completed">完成</string>
+    <string name="workflow_status_failed">失败</string>
+    <string name="workflow_status_cancelled">已取消</string>
+    <string name="workflow_status_interrupted">已中断</string>
 </resources>

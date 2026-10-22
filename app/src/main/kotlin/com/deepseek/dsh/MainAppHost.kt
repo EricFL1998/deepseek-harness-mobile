@@ -969,6 +969,9 @@ fun MainAppHost(
             dshRepository.watchSession(activeHostId, sid)
             // 轨迹面板的帧来源（同样走桥，不增加 MainAppHost 参数）。
             ScheduleBridge.wire(dshRepository, activeHostId, scope)
+            com.deepseek.dsh.feature.chat.WorkflowRunsBridge.provider = {
+                selectedSessionId?.let { dshRepository.workflowRuns(it) } ?: emptyList()
+            }
             com.deepseek.dsh.feature.settings.SessionLogUploadBridge.wire(
                 dshRepository, activeHostId, scope,
             )

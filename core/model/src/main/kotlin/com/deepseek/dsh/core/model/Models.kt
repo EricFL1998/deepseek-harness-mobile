@@ -294,6 +294,31 @@ data class HostCommandInfo(
     val acceptsAttachments: Boolean = false,
 )
 
+/** 官方 workflow 运行里的一个成员（子会话）。 */
+@Serializable
+data class WorkflowMemberInfo(
+    val seq: Int = 0,
+    val label: String = "",
+    val childId: String = "",
+    val status: String = "running",
+)
+
+/** 官方 workflow 运行里的一个阶段（phase 可缺省）。 */
+@Serializable
+data class WorkflowPhaseInfo(
+    val phase: String? = null,
+    val members: List<WorkflowMemberInfo> = emptyList(),
+)
+
+/** 由官方 tool-workflow 事件聚合出的一次 workflow 运行。 */
+@Serializable
+data class WorkflowRunInfo(
+    val runId: String,
+    val name: String = "",
+    val status: String = "running",
+    val phases: List<WorkflowPhaseInfo> = emptyList(),
+)
+
 /** 官方 `schedule/catalog` 里的一个计划任务（提醒）。 */
 @Serializable
 data class ScheduleInfo(
