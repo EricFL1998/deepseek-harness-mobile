@@ -153,9 +153,20 @@ private fun ScheduleRow(schedule: ScheduleInfo, onCancel: () -> Unit) {
                 color = MaterialTheme.colorScheme.primary,
             )
         }
-        if (schedule.scheduledAt.isNotBlank()) {
+        val frequency = frequencyLabel(schedule)
+        if (frequency.isNotBlank()) {
             Text(
-                text = schedule.scheduledAt.replace("T", " ").removeSuffix("Z"),
+                text = frequency,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        if (schedule.scheduledAt.isNotBlank()) {
+            val absolute = localTimeOf(schedule.scheduledAt)
+            val relative = relativeToNow(schedule.scheduledAt)
+            Text(
+                text = if (relative.isBlank()) absolute else "$absolute · $relative",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.padding(top = 2.dp),
@@ -170,5 +181,56 @@ private fun ScheduleRow(schedule: ScheduleInfo, onCancel: () -> Unit) {
                 .clickable(onClick = onCancel)
                 .padding(top = 6.dp, start = 12.dp),
         )
+    }
+}
+
+/** 官方 ui-schedule 的频率文案：after/every/daily/weekly/cron。 */
+@Composable
+private fun frequencyLabel(schedule: ScheduleInfo): String = when (schedule.kind) {
+    "after" -> androidx.compose.ui.res.stringResource(
+        R.string.schedule_frequency_after, humanDuration(schedule.afterSeconds),
+    )
+    "every" -> androidx.compose.ui.res.stringResource(
+        R.string.schedule_frequency_every, humanDuration(schedule.everySeconds),
+    )
+    "daily" -> androidx.compose.ui.res.stringResource(
+        R.string.schedule_frequency_daily, schedule.time.take(5),
+    )
+    "weekly" -> androidx.compose.ui.res.stringResource(
+        R.string.schedule_frequency_weekly,
+        schedule.weekdays.joinToString(",") + " " + schedule.time.take(5),
+    )
+    "cron" -> androidx.compose.ui.res.stringResource(
+        R.string.schedule_frequency_cron, schedule.expression,
+    )
+    else -> ""
+}
+
+private fun humanDuration(seconds: Long): String = when {
+    seconds <= 0 -> "0m"
+    seconds % 3600 == 0L -> "${seconds / 3600}h"
+    seconds < 60 -> "${seconds}s"
+    seconds % 60 == 0L -> "${seconds / 60}m"
+    else -> "${seconds / 60}m"
+}
+
+/** ISO 时间转本地 "MMM d, HH:mm"；解析失败时原样返回。 */
+private fun localTimeOf(iso: String): String = runCatching {
+    java.time.Instant.parse(iso)
+        .atZone(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))
+}.getOrDefault(iso)
+
+/** 距离下次触发的相对时间（官方列表同样显示 "in 30 min"）。 */
+@Composable
+private fun relativeToNow(iso: String): String {
+    val seconds = runCatching {
+        java.time.Duration.between(java.time.Instant.now(), java.time.Instant.parse(iso)).seconds
+    }.getOrDefault(0)
+    return when {
+        seconds <= 0 -> stringResource(R.string.schedule_due)
+        seconds < 3600 -> stringResource(R.string.schedule_in_minutes, (seconds / 60).toInt())
+        seconds < 86_400 -> stringResource(R.string.schedule_in_hours, (seconds / 3600).toInt())
+        else -> stringResource(R.string.schedule_in_days, (seconds / 86_400).toInt())
     }
 }

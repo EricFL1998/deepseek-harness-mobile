@@ -602,4 +602,13 @@
     <string name="schedule_empty">No scheduled reminders yet. Create one by asking in chat.</string>
     <string name="schedule_active">active</string>
     <string name="schedule_cancel">Cancel</string>
+<string name="schedule_frequency_after">after %1$s</string>
+    <string name="schedule_frequency_every">every %1$s</string>
+    <string name="schedule_frequency_daily">daily at %1$s</string>
+    <string name="schedule_frequency_weekly">weekly at %1$s</string>
+    <string name="schedule_frequency_cron">cron %1$s</string>
+    <string name="schedule_due">now</string>
+    <string name="schedule_in_minutes">in %1$d min</string>
+    <string name="schedule_in_hours">in %1$d h</string>
+    <string name="schedule_in_days">in %1$d d</string>
 </resources>

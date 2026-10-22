@@ -1733,6 +1733,15 @@ class DshRepository(
                 sessionId = (obj["sessionId"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                 status = (obj["status"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                 kind = (obj["kind"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                afterSeconds = (obj["afterSeconds"] as? JsonPrimitive)?.contentOrNull
+                    ?.toLongOrNull() ?: 0,
+                everySeconds = (obj["everySeconds"] as? JsonPrimitive)?.contentOrNull
+                    ?.toLongOrNull() ?: 0,
+                time = (obj["time"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                weekdays = (obj["weekdays"] as? JsonArray)?.mapNotNull {
+                    (it as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+                }.orEmpty(),
+                expression = (obj["expression"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
             )
         }
     }

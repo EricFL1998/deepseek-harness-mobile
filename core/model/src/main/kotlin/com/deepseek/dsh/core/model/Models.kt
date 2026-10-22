@@ -304,6 +304,16 @@ data class ScheduleInfo(
     val sessionId: String = "",
     val status: String = "",
     val kind: String = "",
+    /** `after` 的一次性延迟秒数。 */
+    val afterSeconds: Long = 0,
+    /** `every` 的固定间隔秒数。 */
+    val everySeconds: Long = 0,
+    /** `daily` / `weekly` 的本地时间 HH:mm:ss.SSS。 */
+    val time: String = "",
+    /** `weekly` 的星期序号（ISO：1=周一）。 */
+    val weekdays: List<Int> = emptyList(),
+    /** `cron` 的五段表达式。 */
+    val expression: String = "",
 )
 
 /** 官方 `account/getUnnotifiedBonuses` 里的一条奖励通知。 */

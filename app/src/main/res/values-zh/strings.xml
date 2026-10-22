@@ -602,4 +602,13 @@
     <string name="schedule_empty">还没有计划任务，可以在聊天里让 Agent 创建。</string>
     <string name="schedule_active">进行中</string>
     <string name="schedule_cancel">取消</string>
+<string name="schedule_frequency_after">%1$s 后</string>
+    <string name="schedule_frequency_every">每 %1$s</string>
+    <string name="schedule_frequency_daily">每天 %1$s</string>
+    <string name="schedule_frequency_weekly">每周 %1$s</string>
+    <string name="schedule_frequency_cron">cron %1$s</string>
+    <string name="schedule_due">现在</string>
+    <string name="schedule_in_minutes">%1$d 分钟后</string>
+    <string name="schedule_in_hours">%1$d 小时后</string>
+    <string name="schedule_in_days">%1$d 天后</string>
 </resources>
