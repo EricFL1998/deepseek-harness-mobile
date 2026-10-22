@@ -99,6 +99,40 @@ private data class GitHubRelease(
 )
 
 /**
+ * 已知插件仓库的展示文案（仓库里只有英文 description）。
+ *
+ * 键是 `owner/repo` 的小写形式；未登记的仓库回落到「仓库名 → 可读标题」的推导规则。
+ */
+private val STORE_LOCALIZED: Map<String, Pair<String, String>> = mapOf(
+    "ericfl1998/dsh-subscription-oauth" to (
+        "订阅" to
+            "用 Kimi Code / Grok（X Premium）/ Google Antigravity / GLM 订阅账号接入模型，无需 API Key。"
+        ),
+)
+
+/** 商店列表/详情的标题：优先本地化名称，其次把仓库名还原成可读标题。 */
+private fun storeDisplayTitle(repo: GitHubPluginRepo): String =
+    STORE_LOCALIZED[repo.fullName.lowercase()]?.first ?: friendlyRepoTitle(repo.fullName)
+
+/** 商店列表/详情的简介：优先本地化文案，其次仓库自带的 description。 */
+private fun storeDisplayDescription(repo: GitHubPluginRepo): String =
+    STORE_LOCALIZED[repo.fullName.lowercase()]?.second ?: repo.description
+
+/** `dsh-plugin-subscription-oauth` → `Subscription OAuth`（去掉生态前缀与连字符）。 */
+private fun friendlyRepoTitle(fullName: String): String {
+    val repo = fullName.substringAfterLast('/')
+    val stripped = repo
+        .removePrefix("dsh-mobile-plugin-")
+        .removePrefix("dsh-plugin-")
+        .removePrefix("dsh-")
+        .ifBlank { repo }
+    return stripped.split('-', '_')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+        .ifBlank { repo }
+}
+
+/**
  * 插件商店：GitHub topic `dsh-mobile-plugin` → 仓库列表 → 详情 → Release APK 安装。
  *
  * 与“插件”tab 的区别：这里不依赖已经装好的 companion，直接发现远程仓库。
@@ -252,7 +286,7 @@ private fun StoreRepoRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                repo.fullName,
+                storeDisplayTitle(repo),
                 color = colors.labelPrimary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -261,11 +295,11 @@ private fun StoreRepoRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                repo.description.ifBlank { repo.htmlUrl },
+                storeDisplayDescription(repo).ifBlank { repo.htmlUrl },
                 color = colors.labelTertiary,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
-                maxLines = 2,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -322,14 +356,21 @@ private fun PluginStoreDetail(
                 .padding(vertical = 6.dp),
         )
         Text(
-            repo.fullName,
+            storeDisplayTitle(repo),
             color = colors.labelPrimary,
             fontSize = 20.sp,
             lineHeight = 28.sp,
             fontWeight = FontWeight.Medium,
         )
         Text(
-            repo.description.ifBlank { repo.htmlUrl },
+            repo.fullName,
+            color = colors.labelTertiary,
+            fontSize = 11.5.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+        Text(
+            storeDisplayDescription(repo).ifBlank { repo.htmlUrl },
             color = colors.labelSecondary,
             fontSize = 13.sp,
             lineHeight = 20.sp,

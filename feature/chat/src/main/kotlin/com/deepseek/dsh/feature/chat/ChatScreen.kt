@@ -2762,7 +2762,9 @@ fun BottomInputBar(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        if (quotaUsage.isNotEmpty()) {
+        // 新会话页（欢迎屏）没有 session，Session 作用域的 dock 槽位不应出现：
+        // quotaUsage 与 ComposerDockBar 共用同一开关，只有会话里才显示。
+        if (quotaUsage.isNotEmpty() && showDockStats) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

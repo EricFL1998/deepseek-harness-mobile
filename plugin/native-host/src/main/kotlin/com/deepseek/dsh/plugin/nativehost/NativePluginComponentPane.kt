@@ -41,6 +41,8 @@ fun NativePluginComponentPane(
     pluginRpc: (suspend (method: String, payload: JsonObject) -> Result<String>)? = null,
     dispatchEvent: (suspend (componentId: String, event: String, payload: JsonObject) -> Unit)? = null,
     refreshEvents: SharedFlow<String>? = null,
+    /** 作为设置页子内容嵌入时传 false：返回条由设置页顶层 Header 提供。 */
+    showHeader: Boolean = true,
 ) {
     val host = NativeHost.LocalHost.current
     val theme = NativeHost.LocalTheme.current
@@ -59,25 +61,27 @@ fun NativePluginComponentPane(
         onDispose { mounted.value = false }
     }
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onBackground,
+        if (showHeader) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                Text(
+                    text = page.entry.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
                 )
             }
-            Text(
-                text = page.entry.title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f),
-            )
         }
         if (pageHost != null && theme != null) {
             CompositionLocalProvider(PageLifecycle.LocalIsActive provides { mounted.value }) {

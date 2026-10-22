@@ -165,10 +165,9 @@ fun SettingsRootScreen(
                 .background(bgTheme)
                 .statusBarsPadding()
         ) {
-            // 顶层 Header 只在「设置主页 / 分区面板」显示。插件界面与插件设置页
-            // 自带同一套返回条，这里再画一次就会出现两个返回按钮（且顶层的那个
-            // 返回的是设置根，不是上一级插件界面）。
-            val subPageOpen = activePluginComponent != null || activePluginPage != null
+            // 插件界面（settings.section）不再隐藏顶层 Header：它要像普通设置项一样
+            // 留在设置页框架里，由顶层 Header 负责返回，插件页自己不再画一条 header。
+            val subPageOpen = activePluginPage != null
             if (!subPageOpen) {
                 Box(
                     modifier = Modifier
@@ -185,7 +184,13 @@ fun SettingsRootScreen(
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            onClick = { if (activeSection == null) onClose() else activeSection = null },
+                            onClick = {
+                                when {
+                                    activePluginComponent != null -> activePluginComponent = null
+                                    activeSection == null -> onClose()
+                                    else -> activeSection = null
+                                }
+                            },
                             modifier = Modifier.size(44.dp),
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -199,7 +204,8 @@ fun SettingsRootScreen(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
-                            text = activeSection?.let { stringResource(it.titleResId) }
+                            text = activePluginComponent?.title
+                                ?: activeSection?.let { stringResource(it.titleResId) }
                                 ?: stringResource(R.string.settings_title),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = textPrimary,
@@ -257,6 +263,7 @@ fun SettingsRootScreen(
                                 bridgeRegistry?.dispatchUiEvent(id, event, payload)
                             },
                             refreshEvents = pluginComponentRefresh,
+                            showHeader = false,
                         )
                     } else {
                         PluginComponentPane(
@@ -269,6 +276,7 @@ fun SettingsRootScreen(
                             hostToken = hostToken,
                             hostPortProvider = hostPortProvider,
                             nativeFallbackReason = activeNativeMatch?.reason,
+                            showHeader = false,
                         )
                     }
                 } else if (content.settingsPageId != null && activePluginPage != null) {
@@ -282,7 +290,14 @@ fun SettingsRootScreen(
                         onBack = { activePluginPage = null },
                     )
                 } else if (content.section == null) {
-                    // 移动端设置主页：分组卡片内的分区行（图标 + 标签 + 箭头）。
+                    // 移动端设置主页：官方分区与插件入口共用同一张设置卡，插件入口紧挨官方设置。
+                    val pluginEntryRows = if (bridgeRegistry != null) {
+                        pluginSlotEntries.filter {
+                            it.slot == "settings.section" && it.isThirdPartyPlugin
+                        }
+                    } else {
+                        emptyList()
+                    }
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -305,98 +320,59 @@ fun SettingsRootScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Column {
-                                    SettingsSectionTab.values().forEachIndexed { index, tab ->
+                                    val totalRows = SettingsSectionTab.values().size +
+                                        pluginEntryRows.size +
+                                        pluginSettingsPages.size
+                                    var rowIndex = 0
+                                    SettingsSectionTab.values().forEach { tab ->
                                         SettingsNavRow(
                                             tab = tab,
                                             onClick = { activeSection = tab },
                                         )
-                                        if (index != SettingsSectionTab.values().lastIndex) {
+                                        if (rowIndex != totalRows - 1) {
                                             HorizontalDivider(
                                                 thickness = 0.5.dp,
                                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                                                 modifier = Modifier.padding(start = 52.dp, end = 16.dp),
                                             )
                                         }
+                                        rowIndex += 1
                                     }
-                                }
-                            }
-                        }
-                        // 插件声明的设置页：Host 为每个声明了 Config 的插件行生成命名空间，
-                        // 这里按同一个顺序列出来；内容页尚未实现。
-                        if (pluginSettingsPages.isNotEmpty()) {
-                            item(key = "plugin_settings_card_head") {
-                                Text(
-                                    text = stringResource(R.string.settings_misc_plugin_settings),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
-                                )
-                            }
-                            item(key = "plugin_settings_card") {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = cardBg,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Column {
-                                        pluginSettingsPages.forEachIndexed { index, page ->
-                                            SettingsNavRow(
-                                                title = page.title,
-                                                subtitle = page.description ?: page.id,
-                                                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
-                                                onClick = { activePluginPage = page },
+                                    // 插件注册的 settings.section 入口：直接排在官方设置后面，
+                                    // 不再单独成组。
+                                    pluginEntryRows.forEach { entry ->
+                                        SettingsNavRow(
+                                            title = entry.title ?: entry.id ?: entry.slot,
+                                            // 不展示插件包名：设置列表只给用户看得懂的入口名。
+                                            subtitle = null,
+                                            iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
+                                            onClick = { activePluginComponent = entry },
+                                        )
+                                        if (rowIndex != totalRows - 1) {
+                                            HorizontalDivider(
+                                                thickness = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                modifier = Modifier.padding(start = 52.dp, end = 16.dp),
                                             )
-                                            if (index != pluginSettingsPages.lastIndex) {
-                                                HorizontalDivider(
-                                                    thickness = 0.5.dp,
-                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                                    modifier = Modifier.padding(start = 52.dp, end = 16.dp),
-                                                )
-                                            }
                                         }
+                                        rowIndex += 1
                                     }
-                                }
-                            }
-                        }
-                        // 插件声明的 UI（settings.section 等 slot 注册）：点进去是该插件
-                        // 静态转译出的原生渲染树，而不是只有表单 schema 的页面。
-                        // 官方分区已有本页面自己的原生面板，这里只列第三方插件。
-                        val pluginComponents = pluginSlotEntries
-                            .filter {
-                                it.slot == "settings.section" &&
-                                    it.isThirdPartyPlugin
-                            }
-                        if (pluginComponents.isNotEmpty() && bridgeRegistry != null) {
-                            item(key = "plugin_components_card_head") {
-                                Text(
-                                    text = stringResource(R.string.settings_misc_plugin_pages),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
-                                )
-                            }
-                            item(key = "plugin_components_card") {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = cardBg,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Column {
-                                        pluginComponents.forEachIndexed { index, entry ->
-                                            SettingsNavRow(
-                                                title = entry.title ?: entry.id ?: entry.slot,
-                                                subtitle = entry.module ?: entry.slot,
-                                                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
-                                                onClick = { activePluginComponent = entry },
+                                    // 插件声明了 Config 的设置页（settings.page）同样并入这张卡。
+                                    pluginSettingsPages.forEach { page ->
+                                        SettingsNavRow(
+                                            title = page.title,
+                                            subtitle = page.description ?: page.id,
+                                            iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin,
+                                            onClick = { activePluginPage = page },
+                                        )
+                                        if (rowIndex != totalRows - 1) {
+                                            HorizontalDivider(
+                                                thickness = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                modifier = Modifier.padding(start = 52.dp, end = 16.dp),
                                             )
-                                            if (index != pluginComponents.lastIndex) {
-                                                HorizontalDivider(
-                                                    thickness = 0.5.dp,
-                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                                    modifier = Modifier.padding(start = 52.dp, end = 16.dp),
-                                                )
-                                            }
                                         }
+                                        rowIndex += 1
                                     }
                                 }
                             }
@@ -595,12 +571,6 @@ private fun PluginSettingsStub(
                 text = stringResource(R.string.settings_misc_page_not_ready),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = page.module ?: page.id,
-                color = MaterialTheme.colorScheme.outline,
-                fontSize = 11.sp,
             )
         }
     }

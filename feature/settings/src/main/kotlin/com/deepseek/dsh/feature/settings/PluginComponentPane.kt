@@ -61,6 +61,8 @@ fun PluginComponentPane(
     hostPortProvider: (() -> Int)? = null,
     /** 原生页未接管的原因（伴侣未加载 / 未注册设置页 / id 不匹配）；null 表示没有原生候选。 */
     nativeFallbackReason: String? = null,
+    /** 作为设置页子内容嵌入时传 false：返回条由设置页顶层 Header 提供。 */
+    showHeader: Boolean = true,
 ) {
     var webReloadKey by remember { mutableIntStateOf(0) }
     var webLoading by remember { mutableStateOf(true) }
@@ -95,57 +97,60 @@ fun PluginComponentPane(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = when {
-                        registry == null -> "bridge 未连接"
-                        webFailed != null -> "完整界面 · 加载失败"
-                        else -> "完整界面 · 真实 Web UI"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (nativeFallbackReason != null) {
-                    // 装过伴生 APK 却仍走 Web UI 时，必须让用户看到是哪一步没对上：
-                    // 伴侣没加载、没注册设置页，还是注册的 id 与分区 id 不一致。
+        if (showHeader) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = nativeFallbackReason,
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = when {
+                            registry == null -> "bridge 未连接"
+                            webFailed != null -> "完整界面 · 加载失败"
+                            else -> "完整界面 · 真实 Web UI"
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = {
+                    webFailed = null
+                    webLoading = true
+                    webReloadKey += 1
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "刷新",
+                        tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
             }
-            IconButton(onClick = {
-                webFailed = null
-                webLoading = true
-                webReloadKey += 1
-            }) {
-                Icon(
-                    imageVector = Icons.Filled.Refresh,
-                    contentDescription = "刷新",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+        }
+        if (nativeFallbackReason != null) {
+            // 装过伴生 APK 却仍走 Web UI 时，必须让用户看到是哪一步没对上：
+            // 伴侣没加载、没注册设置页，还是注册的 id 与分区 id 不一致。
+            Text(
+                text = nativeFallbackReason,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
         }
 
         Box(

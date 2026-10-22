@@ -1,6 +1,7 @@
 package com.deepseek.dsh
 
 import com.deepseek.dsh.core.designsystem.DshIcons
+import kotlinx.serialization.builtins.ListSerializer
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -376,6 +377,39 @@ fun MainAppHost(
     // Host 冷启动需要先拉起 proot/DSH，模型目录返回前用上次缓存让菜单立刻可用。
     val modelCatalogCache = remember {
         context.getSharedPreferences("dsh_model_catalog_cache", android.content.Context.MODE_PRIVATE)
+    }
+    // provider 分组也缓存：目录请求失败时仍按真实 provider 分组（Claude/Gemini 同属
+    // Antigravity），不会退化成按模型名前缀拆出来的假分组。
+    var cachedModelGroups by remember {
+        mutableStateOf(
+            runCatching {
+                kotlinx.serialization.json.Json.decodeFromString(
+                    ListSerializer(com.deepseek.dsh.core.model.ModelProviderGroup.serializer()),
+                    modelCatalogCache.getString("groups", "[]").orEmpty(),
+                )
+            }.getOrDefault(emptyList())
+        )
+    }
+    LaunchedEffect(catalogInfo.groups) {
+        if (catalogInfo.groups.isNotEmpty()) {
+            cachedModelGroups = catalogInfo.groups
+            runCatching {
+                modelCatalogCache.edit().putString(
+                    "groups",
+                    kotlinx.serialization.json.Json.encodeToString(
+                        ListSerializer(com.deepseek.dsh.core.model.ModelProviderGroup.serializer()),
+                        catalogInfo.groups,
+                    ),
+                ).apply()
+            }
+        }
+    }
+    // 模型目录随插件启用/登录态变化：定时轻量刷新，避免整个进程只吃启动时的缓存。
+    LaunchedEffect(activeHostId) {
+        while (true) {
+            dshRepository.refreshModelCatalog(activeHostId)
+            kotlinx.coroutines.delay(30_000L)
+        }
     }
     var cachedModelNames by remember {
         mutableStateOf(
@@ -1995,7 +2029,7 @@ fun MainAppHost(
                                             current.copy(transcriptView = preset)
                                         }
                                     }
-                                },                                modelGroups = catalogInfo.groups,
+                                },                                modelGroups = catalogInfo.groups.ifEmpty { cachedModelGroups },
                                 onModelSelected = { model ->
                                     selectedSessionId?.let { sid ->
                                         scope.launch {
