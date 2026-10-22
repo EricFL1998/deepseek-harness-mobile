@@ -125,4 +125,6 @@
     <string name="settings_pane_models_env_missing">No environment variable detected. Enter an API key or set %1$s.</string>
 <string name="settings_pane_models_models_label">Model IDs (comma separated)</string>
     <string name="settings_pane_models_models_hint">Leave blank to keep the provider catalogue; add IDs to expose them in the model picker.</string>
+<string name="settings_pane_models_provider_official">Built-in providers</string>
+    <string name="settings_pane_models_provider_plugin">Plugin providers</string>
 </resources>

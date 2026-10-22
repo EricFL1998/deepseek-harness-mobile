@@ -21,6 +21,8 @@ data class ModelProviderUi(
     val declared: Boolean = true,
     /** 目录声明的默认端点，作为自定义设置里的占位。 */
     val defaultBaseUrl: String = "",
+    /** 来自第三方插件（如订阅 OAuth 插件）的 provider，和官方内置分组显示。 */
+    val pluginProvided: Boolean = false,
     /**
      * 是否已在 Host 侧配置（存在 profile 值或已存密钥）。
      * 未配置的目录项只在“添加模型提供商”里列出，选中后才进入编辑器。
@@ -91,10 +93,12 @@ fun parseModelProviders(
         }.orEmpty().distinct()
 
         val declared = obj["declared"]?.toString() != "false"
+        val pluginProvided = settingsNs.startsWith("llm-subscription")
         ModelProviderUi(
             id = provider,
             name = displayName,
             declared = declared,
+            pluginProvided = pluginProvided,
             defaultBaseUrl = (obj["defaultBaseURL"] as? JsonPrimitive)?.content.orEmpty(),
             models = modelList,
             keyRef = keyRef,

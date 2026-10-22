@@ -701,6 +701,8 @@ fun MainAppHost(
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
     var modelCredentialsRaw by remember { mutableStateOf<String?>(null) }
+    // 已注册（可路由）的 provider：官方添加目录会排除它们，改由各自卡片配置。
+    var registeredProviderIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
@@ -3122,9 +3124,28 @@ fun MainAppHost(
                                 modelProvidersRaw = modelProvidersRaw,
                                 modelSettingsRaw = modelSettingsRaw,
                                 modelCredentialsRaw = modelCredentialsRaw,
-                                routableProviders = catalogInfo.routableProviders,
+                                routableProviders = registeredProviderIds,
                                 onRefreshModelProviders = {
                                     scope.launch {
+                                        val registeredRaw = dshRepository
+                                            .rpcRaw(activeHostId, "llm/listProviders", "{}")
+                                            .getOrNull()
+                                        registeredProviderIds = runCatching {
+                                            val root = kotlinx.serialization.json.Json
+                                                .parseToJsonElement(registeredRaw.orEmpty())
+                                            val value = ((root as? kotlinx.serialization.json.JsonObject)
+                                                ?.get("result")
+                                                as? kotlinx.serialization.json.JsonObject)
+                                                ?.get("value")
+                                            (value as? kotlinx.serialization.json.JsonArray)
+                                                ?.mapNotNull { item ->
+                                                    ((item as? kotlinx.serialization.json.JsonObject)
+                                                        ?.get("id")
+                                                        as? kotlinx.serialization.json.JsonPrimitive)
+                                                        ?.content
+                                                }
+                                                .orEmpty()
+                                        }.getOrDefault(emptyList())
                                         modelSettingsRaw = dshRepository
                                             .rpcRaw(activeHostId, "settings/describe", "{}")
                                             .getOrNull()

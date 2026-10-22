@@ -74,9 +74,11 @@ internal fun SettingsModelsPane(
         it.configured || it.id == "deepseek" || it.id == editingId
     }
     // 未配置的目录项只出现在“添加模型提供商”弹窗里；DeepSeek 已常驻卡片，不再重复列出。
+    // “添加模型提供商”只列官方内置目录：插件（订阅 OAuth 等）带来的 provider
+    // 由它自己的卡片/订阅页配置，不混进这个列表。
     val addableProviders = allProviders.filter {
         !it.configured &&
-            it.id != "deepseek" &&
+            !it.pluginProvided &&
             it.id != "deepseek-official" &&
             it.id != "deepseek-account" &&
             it.id !in routableProviders
