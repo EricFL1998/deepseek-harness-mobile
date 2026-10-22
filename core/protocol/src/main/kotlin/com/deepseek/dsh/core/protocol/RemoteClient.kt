@@ -1732,13 +1732,8 @@ class RemoteClient(
                     val root = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject ?: return
                     if (root["type"]?.toString()?.trim('"') != "item") return
                     val value = root["value"] as? kotlinx.serialization.json.JsonObject ?: return
-                    if (value["type"]?.toString()?.trim('"') != "event") return
-                    val event = value["event"] as? kotlinx.serialization.json.JsonObject ?: return
-                    val eventType = event["type"]?.toString()?.trim('"') ?: return
-                    val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
-                    val seq = event["seq"]?.toString()?.toLongOrNull() ?: System.currentTimeMillis()
 
-                    fun emit(messageId: String, role: MessageRole, content: String) {
+                    fun emit(seq: Long, messageId: String, role: MessageRole, content: String) {
                         if (content.isBlank()) return
                         eventBus.tryEmit(
                             RemoteEvent.MessageDone(
@@ -1756,56 +1751,143 @@ class RemoteClient(
                         )
                     }
 
-                    when (eventType) {
-                        "turn/start" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, true))
-                        "turn/end" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
-                        "assistant/message" -> {
-                            val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
-                            val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
-                            val reasoning = blocks?.mapNotNull { part ->
-                                val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                                if (obj["type"]?.toString()?.trim('"') == "reasoning") obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } else null
-                            }?.joinToString("").orEmpty()
-                            val answer = blocks?.mapNotNull { part ->
-                                val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } else null
-                            }?.joinToString("").orEmpty()
-                            val content = when {
-                                reasoning.isBlank() -> answer
-                                // 只有思考、没有可见回答：保留分隔符，UI 据此把它当
-                                // 可折叠的 reasoning 行，而不是普通 assistant 文本。
-                                answer.isBlank() -> reasoning + "\u0001"
-                                else -> reasoning + "\u0001" + answer
+                    /** 处理一条 durable 事件；snapshot 与 live event 帧共用。 */
+                    fun handleEvent(event: kotlinx.serialization.json.JsonObject) {
+                        val eventType = event["type"]?.toString()?.trim('"') ?: return
+                        val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
+                        val seq = event["seq"]?.toString()?.toLongOrNull()
+                            ?: System.currentTimeMillis()
+                        when (eventType) {
+                            // 历史快照里的用户消息（live 时 App 自己先插入）。
+                            "user/message" -> {
+                                val message = data["message"] as? kotlinx.serialization.json.JsonObject
+                                val blocks = (message?.get("content") ?: data["content"])
+                                    as? kotlinx.serialization.json.JsonArray
+                                val body = blocks?.mapNotNull { part ->
+                                    val obj = part as? kotlinx.serialization.json.JsonObject
+                                        ?: return@mapNotNull null
+                                    if (obj["type"]?.toString()?.trim('"') == "text") {
+                                        obj["text"]?.let {
+                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                        }
+                                    } else {
+                                        null
+                                    }
+                                }?.joinToString("").orEmpty()
+                                emit(seq, "user_$seq", MessageRole.USER, body)
                             }
-                            emit("assistant_$seq", MessageRole.ASSISTANT, content)
-                        }
-                        "tool/call" -> {
-                            val callId = data["callId"]?.toString()?.trim('"')
-                                ?: data["callID"]?.toString()?.trim('"') ?: return
-                            val name = data["name"]?.toString()?.trim('"') ?: "tool"
-                            val args = (data["arguments"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                ?: data["arguments"]?.toString()?.trim('"') ?: ""
-                            toolNames[callId] = name
-                            toolArgs[callId] = args
-                            emit("tool_$callId", MessageRole.TOOL, "\u0002TOOL\u0002$callId\u0002$name\u0002running\u0002$args\u0002$args")
-                        }
-                        "tool/result" -> {
-                            val message = data["message"] as? kotlinx.serialization.json.JsonObject
-                            val callId = message?.get("toolCallId")?.toString()?.trim('"')
-                                ?: data["callId"]?.toString()?.trim('"') ?: return
-                            val name = toolNames[callId] ?: "tool"
-                            val blocks = message?.get("content") as? kotlinx.serialization.json.JsonArray
-                            val body = blocks?.mapNotNull { part ->
-                                val obj = part as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-                                if (obj["type"]?.toString()?.trim('"') == "text") obj["text"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content } else null
-                            }?.joinToString("\n").orEmpty()
-                            val failed = data["error"] != null ||
-                                message?.get("isError")?.toString() == "true"
-                            emit(
-                                "tool_$callId",
-                                MessageRole.TOOL,
-                                "\u0002TOOL\u0002$callId\u0002$name\u0002${if (failed) "error" else "ok"}\u0002$body\u0002${toolArgs.remove(callId) ?: ""}"
+                            "turn/start" -> eventBus.tryEmit(
+                                RemoteEvent.SessionRunning(sessionId, true)
                             )
+                            "turn/end" -> eventBus.tryEmit(
+                                RemoteEvent.SessionRunning(sessionId, false)
+                            )
+                            "assistant/message" -> {
+                                val message = data["message"]
+                                    as? kotlinx.serialization.json.JsonObject ?: return
+                                val blocks = message["content"]
+                                    as? kotlinx.serialization.json.JsonArray
+                                val reasoning = blocks?.mapNotNull { part ->
+                                    val obj = part as? kotlinx.serialization.json.JsonObject
+                                        ?: return@mapNotNull null
+                                    if (obj["type"]?.toString()?.trim('"') == "reasoning") {
+                                        obj["text"]?.let {
+                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                        }
+                                    } else {
+                                        null
+                                    }
+                                }?.joinToString("").orEmpty()
+                                val answer = blocks?.mapNotNull { part ->
+                                    val obj = part as? kotlinx.serialization.json.JsonObject
+                                        ?: return@mapNotNull null
+                                    if (obj["type"]?.toString()?.trim('"') == "text") {
+                                        obj["text"]?.let {
+                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                        }
+                                    } else {
+                                        null
+                                    }
+                                }?.joinToString("").orEmpty()
+                                val content = when {
+                                    reasoning.isBlank() -> answer
+                                    // 只有思考、没有可见回答：保留分隔符，UI 据此把它当
+                                    // 可折叠的 reasoning 行，而不是普通 assistant 文本。
+                                    answer.isBlank() -> reasoning + "\u0001"
+                                    else -> reasoning + "\u0001" + answer
+                                }
+                                emit(seq, "assistant_$seq", MessageRole.ASSISTANT, content)
+                            }
+                            "tool/call" -> {
+                                val callId = data["callId"]?.toString()?.trim('"')
+                                    ?: data["callID"]?.toString()?.trim('"') ?: return
+                                val name = data["name"]?.toString()?.trim('"') ?: "tool"
+                                val args = (data["arguments"]
+                                    as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                    ?: data["arguments"]?.toString()?.trim('"') ?: ""
+                                toolNames[callId] = name
+                                toolArgs[callId] = args
+                                emit(
+                                    seq,
+                                    "tool_$callId",
+                                    MessageRole.TOOL,
+                                    "\u0002TOOL\u0002$callId\u0002$name\u0002running\u0002$args\u0002$args",
+                                )
+                            }
+                            "tool/result" -> {
+                                val message = data["message"]
+                                    as? kotlinx.serialization.json.JsonObject
+                                val callId = message?.get("toolCallId")?.toString()?.trim('"')
+                                    ?: data["callId"]?.toString()?.trim('"') ?: return
+                                val name = toolNames[callId] ?: "tool"
+                                val blocks = message?.get("content")
+                                    as? kotlinx.serialization.json.JsonArray
+                                val body = blocks?.mapNotNull { part ->
+                                    val obj = part as? kotlinx.serialization.json.JsonObject
+                                        ?: return@mapNotNull null
+                                    if (obj["type"]?.toString()?.trim('"') == "text") {
+                                        obj["text"]?.let {
+                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                        }
+                                    } else {
+                                        null
+                                    }
+                                }?.joinToString("\n").orEmpty()
+                                val failed = data["error"] != null ||
+                                    message?.get("isError")?.toString() == "true"
+                                emit(
+                                    seq,
+                                    "tool_$callId",
+                                    MessageRole.TOOL,
+                                    "\u0002TOOL\u0002$callId\u0002$name\u0002" +
+                                        "${if (failed) "error" else "ok"}\u0002$body\u0002" +
+                                        "${toolArgs.remove(callId) ?: ""}",
+                                )
+                            }
+                        }
+                    }
+
+                    when (value["type"]?.toString()?.trim('"')) {
+                        // follow 的首帧是完整历史窗口：把它当作历史事件逐个重放，
+                        // 否则 App 重启/重新打开旧会话时看不到历史消息。
+                        "snapshot" -> {
+                            val records = value["records"]
+                                as? kotlinx.serialization.json.JsonArray
+                            records?.forEach { record ->
+                                val entry = record as? kotlinx.serialization.json.JsonObject
+                                    ?: return@forEach
+                                if (entry["type"]?.toString()?.trim('"') != "event") {
+                                    return@forEach
+                                }
+                                val event = entry["event"]
+                                    as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                                handleEvent(event)
+                            }
+                        }
+                        "event" -> {
+                            val event = value["event"]
+                                as? kotlinx.serialization.json.JsonObject ?: return
+                            handleEvent(event)
                         }
                     }
                 } catch (_: Exception) {
