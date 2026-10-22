@@ -613,6 +613,21 @@ class DshRepository(
         return ok
     }
 
+    /** 官方 `session/fork`：从最近的完整轮次分叉一个新会话，返回新会话 id。 */
+    suspend fun forkSession(hostId: String, sessionId: String): String? {
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("sessionId", sessionId) })
+        }
+        val raw = rpcRaw(hostId, "session/fork", args.toString()).getOrNull() ?: return null
+        val root = runCatching {
+            kotlinx.serialization.json.Json.parseToJsonElement(raw) as? JsonObject
+        }.getOrNull()
+        val value = (root?.get("result") as? JsonObject)?.get("value") as? JsonObject
+        val newSessionId = (value?.get("sessionId") as? JsonPrimitive)?.contentOrNull
+        if (newSessionId != null) refreshSessions(hostId)
+        return newSessionId
+    }
+
     /** 官方 `workspace/pinSession` / `unpinSession`：置顶/取消置顶。 */
     suspend fun setSessionPinned(hostId: String, sessionId: String, pinned: Boolean): Boolean {
         val method = if (pinned) "workspace/pinSession" else "workspace/unpinSession"

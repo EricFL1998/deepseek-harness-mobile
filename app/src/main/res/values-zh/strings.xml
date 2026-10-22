@@ -574,4 +574,6 @@
     <string name="automation_empty_none">没有匹配的自动化任务</string>
     <string name="automation_new">新建自动化任务</string>
     <string name="plan_prompt_prefix">[计划模式] 请先输出实现计划（分步骤列出改动），等待我确认后再开始执行：\n\n</string>
-    <string name="attachment_copy_failed">无法复制 %1$s</string></resources>
+    <string name="attachment_copy_failed">无法复制 %1$s</string>
+    <string name="session_fork_failed">分叉失败</string>
+</resources>

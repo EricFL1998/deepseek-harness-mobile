@@ -1771,6 +1771,22 @@ fun MainAppHost(
                             dshRepository.setSessionArchived(activeHostId, item.sessionId, !item.archived)
                         }
                     },
+                    onForkSession = { item ->
+                        scope.launch {
+                            val forked = dshRepository.forkSession(activeHostId, item.sessionId)
+                            if (forked != null) {
+                                selectedSessionId = forked
+                                activePage = ActivePage.CHAT
+                                drawerState.close()
+                            } else {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.session_fork_failed),
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    },
                     onNewChatClick = {
                         // 官方行为：新会话在发出第一条消息前不创建 Host 会话；
                         // 离开后自然消失，不会留下空白会话。

@@ -132,6 +132,7 @@ fun ModernNavigationDrawerContent(
     onRenameSession: (SessionDisplayItem) -> Unit = {},
     onTogglePinSession: (SessionDisplayItem) -> Unit = {},
     onToggleArchiveSession: (SessionDisplayItem) -> Unit = {},
+    onForkSession: (SessionDisplayItem) -> Unit = {},
     onNewChatClick: () -> Unit,
     onNavigatePlugins: () -> Unit,
     onNavigateSchedule: () -> Unit = {},
@@ -622,6 +623,7 @@ fun ModernNavigationDrawerContent(
                                 session = session,
                                 onDismiss = { sessionMenuId = null },
                                 onRename = { onRenameSession(session) },
+                                onFork = { onForkSession(session) },
                                 onTogglePin = { onTogglePinSession(session) },
                                 onToggleArchive = { onToggleArchiveSession(session) },
                             )
@@ -777,6 +779,7 @@ private fun SessionRowMenu(
     session: SessionDisplayItem,
     onDismiss: () -> Unit,
     onRename: () -> Unit,
+    onFork: () -> Unit,
     onTogglePin: () -> Unit,
     onToggleArchive: () -> Unit,
 ) {
@@ -792,6 +795,10 @@ private fun SessionRowMenu(
             R.string.row_rename,
             com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official,
         ) { onRename() },
+        Entry(
+            R.string.row_fork,
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_row_branch,
+        ) { onFork() },
         Entry(
             if (session.archived) R.string.row_unarchive else R.string.row_archive,
             com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive,
