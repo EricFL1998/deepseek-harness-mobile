@@ -981,6 +981,7 @@ fun MainAppHost(
     val sessionTodos by dshRepository.todosFlow.collectAsState()
     val sessionGoal by dshRepository.goalFlow.collectAsState()
     val sessionDeliverables by dshRepository.deliverablesFlow.collectAsState()
+    val sessionChanges by dshRepository.changesFlow.collectAsState()
     // 终端页状态：屏幕缓冲（去 ANSI）、状态行、可写标志。
     // Host 客户端是否已绑定到真实地址（决定能否开远程流）。
     var localHostBound by remember { mutableStateOf(false) }
@@ -2392,6 +2393,12 @@ fun MainAppHost(
                                 todos = sessionTodos,
                                 goal = sessionGoal,
                                 deliverables = sessionDeliverables,
+                                changes = sessionChanges,
+                                onLoadChangeDiff = { index ->
+                                    val sid = selectedSessionId
+                                    if (sid == null) null
+                                    else dshRepository.loadChangeDiff(activeHostId, sid, index)
+                                },
                                 onOpenDeliverable = { file ->
                                     // Host 路径 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
                                     val hostPrefix = "/workspace/"

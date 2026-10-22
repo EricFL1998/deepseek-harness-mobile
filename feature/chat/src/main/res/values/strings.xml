@@ -276,4 +276,13 @@
     <string name="workspace_add">Add workspace…</string>
     <string name="model_switch_unsupported">Switching models is not supported</string>
     <string name="model_provider_account">DeepSeek Account</string>
+<string name="changes_title">%1$d files edited</string>
+    <string name="changes_single_title">Edited %1$s</string>
+    <string name="changes_added">+%1$d</string>
+    <string name="changes_deleted">−%1$d</string>
+    <string name="changes_binary">Binary</string>
+    <string name="changes_oversized">Too large</string>
+    <string name="changes_all">All %1$d files</string>
+    <string name="changes_collapse">Show less</string>
+    <string name="changes_diff_failed">Could not load this diff</string>
 </resources>

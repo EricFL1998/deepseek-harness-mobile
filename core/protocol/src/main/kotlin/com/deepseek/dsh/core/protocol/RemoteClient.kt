@@ -1827,6 +1827,11 @@ class RemoteClient(
                     )
                 }
             }
+            // 官方 workspace/changes：一轮改动落盘，UI 用 seq 去拉 summary。
+            "workspace/changes" -> {
+                val turn = data["turn"]?.toString()?.toIntOrNull() ?: return
+                eventBus.tryEmit(RemoteEvent.ChangesAnnounced(sessionId, seq, turn))
+            }
             "turn/start" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, true))
             "turn/end" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
             "assistant/message" -> {
@@ -2348,6 +2353,123 @@ class RemoteClient(
             }
         } catch (e: Exception) {
             RemoteResult.Failure("dsh/job-kill-network", e.message ?: "kill failed")
+        }
+    }
+
+    /** 官方 `/api/changes.summary`。 */
+    override suspend fun fetchChangesSummary(
+        hostId: String,
+        sessionId: String,
+        seq: Long,
+    ): RemoteResult<ChangesSummaryInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("$baseUrl/api/changes.summary?sessionId=$sessionId&seq=$seq")
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure(
+                        "dsh/changes-summary",
+                        "HTTP ${response.code}",
+                    )
+                }
+                val value = json.parseToJsonElement(response.body?.string().orEmpty())
+                    as? kotlinx.serialization.json.JsonObject
+                    ?: return@use RemoteResult.Failure("dsh/changes-summary", "malformed")
+                val files = (value["files"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { item ->
+                        val obj = item as? kotlinx.serialization.json.JsonObject
+                            ?: return@mapNotNull null
+                        fun text(key: String) = (obj[key]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                        fun number(key: String) = (obj[key]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                            ?.toIntOrNull() ?: 0
+                        val path = text("path") ?: return@mapNotNull null
+                        ChangedFileInfo(
+                            path = path,
+                            display = text("display") ?: path,
+                            added = number("added"),
+                            deleted = number("deleted"),
+                            binary = text("binary") == "true",
+                            oversized = text("oversized") == "true",
+                        )
+                    } ?: emptyList()
+                fun number(key: String) = (value[key]
+                    as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                    ?.toIntOrNull() ?: 0
+                RemoteResult.Success(
+                    ChangesSummaryInfo(
+                        turn = number("turn"),
+                        seq = seq,
+                        files = files,
+                        total = number("total").takeIf { it > 0 } ?: files.size,
+                        added = number("added"),
+                        deleted = number("deleted"),
+                    ),
+                )
+            }
+        }.getOrElse { e ->
+            RemoteResult.Failure("dsh/changes-summary-network", e.message ?: "summary failed")
+        }
+    }
+
+    /** 官方 `/api/changes.diff`。 */
+    override suspend fun fetchChangesDiff(
+        hostId: String,
+        sessionId: String,
+        seq: Long,
+        index: Int,
+    ): RemoteResult<ChangesDiffInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("$baseUrl/api/changes.diff?sessionId=$sessionId&seq=$seq&index=$index")
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure("dsh/changes-diff", "HTTP ${response.code}")
+                }
+                val value = json.parseToJsonElement(response.body?.string().orEmpty())
+                    as? kotlinx.serialization.json.JsonObject
+                    ?: return@use RemoteResult.Failure("dsh/changes-diff", "malformed")
+                fun text(key: String) = (value[key]
+                    as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                fun flag(key: String) = text(key) == "true"
+                val hunks = (value["hunks"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { item ->
+                        val obj = item as? kotlinx.serialization.json.JsonObject
+                            ?: return@mapNotNull null
+                        fun num(key: String) = (obj[key]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                            ?.toIntOrNull() ?: 0
+                        DiffHunkInfo(
+                            oldStart = num("oldStart"),
+                            oldLines = num("oldLines"),
+                            newStart = num("newStart"),
+                            newLines = num("newLines"),
+                            lines = (obj["lines"] as? kotlinx.serialization.json.JsonArray)
+                                ?.mapNotNull { line ->
+                                    (line as? kotlinx.serialization.json.JsonPrimitive)
+                                        ?.contentOrNull
+                                } ?: emptyList(),
+                        )
+                    } ?: emptyList()
+                RemoteResult.Success(
+                    ChangesDiffInfo(
+                        kind = text("kind") ?: "text",
+                        path = text("path") ?: "",
+                        display = text("display") ?: text("path").orEmpty(),
+                        hunks = hunks,
+                        before = flag("before"),
+                        after = flag("after"),
+                        coarse = flag("coarse"),
+                    ),
+                )
+            }
+        }.getOrElse { e ->
+            RemoteResult.Failure("dsh/changes-diff-network", e.message ?: "diff failed")
         }
     }
 

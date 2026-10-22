@@ -275,4 +275,13 @@
     <string name="workspace_add">添加工作区…</string>
     <string name="model_switch_unsupported">不支持切换模型</string>
     <string name="model_provider_account">DeepSeek 账号</string>
+<string name="changes_title">已编辑 %1$d 个文件</string>
+    <string name="changes_single_title">已编辑 %1$s</string>
+    <string name="changes_added">+%1$d</string>
+    <string name="changes_deleted">−%1$d</string>
+    <string name="changes_binary">二进制</string>
+    <string name="changes_oversized">过大</string>
+    <string name="changes_all">全部 %1$d 个文件</string>
+    <string name="changes_collapse">收起</string>
+    <string name="changes_diff_failed">无法加载这个文件的改动</string>
 </resources>

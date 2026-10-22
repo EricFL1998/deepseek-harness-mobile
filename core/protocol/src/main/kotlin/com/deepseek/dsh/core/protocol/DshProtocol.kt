@@ -48,6 +48,9 @@ sealed interface RemoteEvent {
     @Serializable
     data class MessageDelta(val sessionId: String, val delta: String) : RemoteEvent
     data class ReasoningDelta(val sessionId: String, val delta: String) : RemoteEvent
+    /** 官方 `workspace/changes`：一轮改动已记录，可按 seq 拉 summary。 */
+    data class ChangesAnnounced(val sessionId: String, val seq: Long, val turn: Int) : RemoteEvent
+
     /** 官方 `deliverables/presented`：本轮产出的文件。 */
     data class DeliverablesPresented(
         val sessionId: String,
@@ -83,6 +86,46 @@ data class ForwardedWaterfall(
     val eventId: String,
     val agentId: String?,
     val request: kotlinx.serialization.json.JsonObject,
+)
+
+/** 官方 `changes.summary` 里的一个改动文件。 */
+data class ChangedFileInfo(
+    val path: String,
+    val display: String,
+    val added: Int,
+    val deleted: Int,
+    val binary: Boolean = false,
+    val oversized: Boolean = false,
+)
+
+/** 官方 `changes.summary`：一轮改动的汇总。 */
+data class ChangesSummaryInfo(
+    val turn: Int,
+    val seq: Long,
+    val files: List<ChangedFileInfo>,
+    val total: Int,
+    val added: Int,
+    val deleted: Int,
+)
+
+/** diff 里的一个 hunk。 */
+data class DiffHunkInfo(
+    val oldStart: Int,
+    val oldLines: Int,
+    val newStart: Int,
+    val newLines: Int,
+    val lines: List<String>,
+)
+
+/** 官方 `changes.diff`：单个文件的对比。 */
+data class ChangesDiffInfo(
+    val kind: String,
+    val path: String,
+    val display: String,
+    val hunks: List<DiffHunkInfo> = emptyList(),
+    val before: Boolean = true,
+    val after: Boolean = true,
+    val coarse: Boolean = false,
 )
 
 /** 一条已打开的终端连接（官方 `terminal/attach` 双向流）。 */
@@ -237,6 +280,20 @@ interface DshClientProtocol {
     fun sessionControl(hostId: String): Flow<String>
     /** 打开一条 `session/follow`：首帧 snapshot 会重放历史（含产物声明）。 */
     fun followSession(hostId: String, sessionId: String)
+    /** 官方 `/api/changes.summary`：某轮改动的文件汇总。 */
+    suspend fun fetchChangesSummary(
+        hostId: String,
+        sessionId: String,
+        seq: Long,
+    ): RemoteResult<ChangesSummaryInfo>
+    /** 官方 `/api/changes.diff`：某个改动文件的逐行对比。 */
+    suspend fun fetchChangesDiff(
+        hostId: String,
+        sessionId: String,
+        seq: Long,
+        index: Int,
+    ): RemoteResult<ChangesDiffInfo>
+
     /** 官方 `terminal/environment`：当前目录与尺寸上限。 */
     suspend fun terminalEnvironment(
         hostId: String,

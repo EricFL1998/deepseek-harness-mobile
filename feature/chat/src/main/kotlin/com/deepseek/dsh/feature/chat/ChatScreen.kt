@@ -217,6 +217,10 @@ fun ModernChatScreen(
     goal: com.deepseek.dsh.core.model.GoalInfo? = null,
     /** 官方 `deliverables/presented` 的产物列表。 */
     deliverables: List<com.deepseek.dsh.core.protocol.PresentedFileInfo> = emptyList(),
+    /** 当前会话最近一轮的改动汇总（workspace/changes）。 */
+    changes: com.deepseek.dsh.core.protocol.ChangesSummaryInfo? = null,
+    /** 打开某个改动文件的 diff（下标是 summary.files 的原始下标）。 */
+    onLoadChangeDiff: suspend (Int) -> com.deepseek.dsh.core.protocol.ChangesDiffInfo? = { null },
     /** 点开一份产物（切到文件页并定位到该目录）。 */
     onOpenDeliverable: (com.deepseek.dsh.core.protocol.PresentedFileInfo) -> Unit = {},
     workspaceName: String = "默认工作区",
@@ -304,6 +308,16 @@ fun ModernChatScreen(
     // placeholder 变成该命令的参数提示，发送时再还原成 Host 认识的 /goal。
     var activeCommandToken by remember { mutableStateOf<String?>(null) }
     var toolDetail by remember { mutableStateOf<ToolDetailData?>(null) }
+    var changeDiffIndex by remember { mutableStateOf<Int?>(null) }
+    var changeDiff by remember { mutableStateOf<com.deepseek.dsh.core.protocol.ChangesDiffInfo?>(null) }
+    var changeDiffLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(changeDiffIndex) {
+        val index = changeDiffIndex ?: return@LaunchedEffect
+        changeDiff = null
+        changeDiffLoading = true
+        changeDiff = onLoadChangeDiff(index)
+        changeDiffLoading = false
+    }
     var workspaceMenuOpen by remember { mutableStateOf(false) }
     var workspaceAnchor by remember { mutableStateOf<Rect?>(null) }
     var permissionMenuOpen by remember { mutableStateOf(false) }
@@ -683,7 +697,17 @@ fun ModernChatScreen(
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 }
-                // 官方 ui-deliverables：产物卡挂在 turn 尾部（本轮最后一条回复后）。
+                // 官方 ui-deliverables：改动卡在产物卡之前（同一 turn 尾部）。
+                if (changes != null && changes!!.files.isNotEmpty()) {
+                    item(key = "changed_files") {
+                        ChangedFilesCard(
+                            summary = changes!!,
+                            onOpenDiff = { index ->
+                                changeDiffIndex = index
+                            },
+                        )
+                    }
+                }
                 if (deliverables.isNotEmpty()) {
                     item(key = "presented_files") {
                         PresentedFilesRow(
@@ -697,6 +721,15 @@ fun ModernChatScreen(
 
         toolDetail?.let { detail ->
             ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
+        }
+
+        changeDiffIndex?.let { index ->
+            val file = changes?.files?.getOrNull(index)
+            ChangeDiffSheet(
+                title = file?.display ?: "",
+                diff = if (changeDiffLoading) null else changeDiff,
+                onDismiss = { changeDiffIndex = null },
+            )
         }
 
         if (goal != null || todos.isNotEmpty()) {

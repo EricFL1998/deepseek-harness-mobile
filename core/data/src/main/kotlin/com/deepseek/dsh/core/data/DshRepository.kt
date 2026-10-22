@@ -113,6 +113,13 @@ class DshRepository(
     val todosFlow: StateFlow<List<com.deepseek.dsh.core.model.TodoEntryInfo>> =
         _todosFlow.asStateFlow()
 
+    /** 当前会话最近一轮的改动汇总（官方 `workspace/changes` + `/api/changes.summary`）。 */
+    private val _changesFlow =
+        MutableStateFlow<com.deepseek.dsh.core.protocol.ChangesSummaryInfo?>(null)
+    val changesFlow: StateFlow<com.deepseek.dsh.core.protocol.ChangesSummaryInfo?> =
+        _changesFlow.asStateFlow()
+    private var changesSeq: Long = 0L
+
     /** 当前会话本轮产出的文件（官方 `deliverables/presented`）。 */
     private val _deliverablesFlow =
         MutableStateFlow<List<com.deepseek.dsh.core.protocol.PresentedFileInfo>>(emptyList())
@@ -1336,6 +1343,18 @@ class DshRepository(
         rpcRaw(hostId, "settings/update", args.toString())
     }
 
+    /** 拉一轮改动里某个文件的逐行对比（官方 `/api/changes.diff`）。 */
+    suspend fun loadChangeDiff(
+        hostId: String,
+        sessionId: String,
+        index: Int,
+    ): com.deepseek.dsh.core.protocol.ChangesDiffInfo? {
+        val seq = changesSeq
+        if (seq <= 0L) return null
+        val res = client.fetchChangesDiff(hostId, sessionId, seq, index)
+        return (res as? RemoteResult.Success)?.data
+    }
+
     /** 打开会话时订阅 `session/follow`，重放历史并恢复产物声明。 */
     fun watchSession(hostId: String, sessionId: String) {
         client.followSession(hostId, sessionId)
@@ -1348,6 +1367,8 @@ class DshRepository(
             _todosFlow.value = emptyList()
             _goalFlow.value = null
             _deliverablesFlow.value = emptyList()
+            _changesFlow.value = null
+            changesSeq = 0L
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId
@@ -1559,6 +1580,19 @@ class DshRepository(
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
                         if (event.sessionId == viewedSessionId) {
                             _streamingTextFlow.value = _streamingTextFlow.value + event.delta
+                        }
+                    }
+                    is RemoteEvent.ChangesAnnounced -> {
+                        if (event.sessionId == viewedSessionId) {
+                            changesSeq = event.seq
+                            val sid = event.sessionId
+                            scope.launch(Dispatchers.IO) {
+                                val res = client.fetchChangesSummary(hostId, sid, event.seq)
+                                val summary = (res as? RemoteResult.Success)?.data
+                                if (summary != null && viewedSessionId == sid) {
+                                    _changesFlow.value = summary
+                                }
+                            }
                         }
                     }
                     is RemoteEvent.DeliverablesPresented -> {
