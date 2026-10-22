@@ -1733,146 +1733,13 @@ class RemoteClient(
                     if (root["type"]?.toString()?.trim('"') != "item") return
                     val value = root["value"] as? kotlinx.serialization.json.JsonObject ?: return
 
-                    fun emit(seq: Long, messageId: String, role: MessageRole, content: String) {
-                        if (content.isBlank()) return
-                        eventBus.tryEmit(
-                            RemoteEvent.MessageDone(
-                                sessionId = sessionId,
-                                message = ChatMessage(
-                                    hostId = hostId,
-                                    sessionId = sessionId,
-                                    messageId = messageId,
-                                    role = role,
-                                    content = content,
-                                    seq = seq,
-                                    createdAt = System.currentTimeMillis(),
-                                ),
-                            )
-                        )
-                    }
-
-                    /** 处理一条 durable 事件；snapshot 与 live event 帧共用。 */
-                    fun handleEvent(event: kotlinx.serialization.json.JsonObject) {
-                        val eventType = event["type"]?.toString()?.trim('"') ?: return
-                        val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
-                        val seq = event["seq"]?.toString()?.toLongOrNull()
-                            ?: System.currentTimeMillis()
-                        when (eventType) {
-                            // 历史快照里的用户消息（live 时 App 自己先插入）。
-                            "user/message" -> {
-                                val message = data["message"] as? kotlinx.serialization.json.JsonObject
-                                val blocks = (message?.get("content") ?: data["content"])
-                                    as? kotlinx.serialization.json.JsonArray
-                                val body = blocks?.mapNotNull { part ->
-                                    val obj = part as? kotlinx.serialization.json.JsonObject
-                                        ?: return@mapNotNull null
-                                    if (obj["type"]?.toString()?.trim('"') == "text") {
-                                        obj["text"]?.let {
-                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                        }
-                                    } else {
-                                        null
-                                    }
-                                }?.joinToString("").orEmpty()
-                                emit(seq, "user_$seq", MessageRole.USER, body)
-                            }
-                            "turn/start" -> eventBus.tryEmit(
-                                RemoteEvent.SessionRunning(sessionId, true)
-                            )
-                            "turn/end" -> eventBus.tryEmit(
-                                RemoteEvent.SessionRunning(sessionId, false)
-                            )
-                            "assistant/message" -> {
-                                val message = data["message"]
-                                    as? kotlinx.serialization.json.JsonObject ?: return
-                                val blocks = message["content"]
-                                    as? kotlinx.serialization.json.JsonArray
-                                val reasoning = blocks?.mapNotNull { part ->
-                                    val obj = part as? kotlinx.serialization.json.JsonObject
-                                        ?: return@mapNotNull null
-                                    if (obj["type"]?.toString()?.trim('"') == "reasoning") {
-                                        obj["text"]?.let {
-                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                        }
-                                    } else {
-                                        null
-                                    }
-                                }?.joinToString("").orEmpty()
-                                val answer = blocks?.mapNotNull { part ->
-                                    val obj = part as? kotlinx.serialization.json.JsonObject
-                                        ?: return@mapNotNull null
-                                    if (obj["type"]?.toString()?.trim('"') == "text") {
-                                        obj["text"]?.let {
-                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                        }
-                                    } else {
-                                        null
-                                    }
-                                }?.joinToString("").orEmpty()
-                                val content = when {
-                                    reasoning.isBlank() -> answer
-                                    // 只有思考、没有可见回答：保留分隔符，UI 据此把它当
-                                    // 可折叠的 reasoning 行，而不是普通 assistant 文本。
-                                    answer.isBlank() -> reasoning + "\u0001"
-                                    else -> reasoning + "\u0001" + answer
-                                }
-                                emit(seq, "assistant_$seq", MessageRole.ASSISTANT, content)
-                            }
-                            "tool/call" -> {
-                                val callId = data["callId"]?.toString()?.trim('"')
-                                    ?: data["callID"]?.toString()?.trim('"') ?: return
-                                val name = data["name"]?.toString()?.trim('"') ?: "tool"
-                                val args = (data["arguments"]
-                                    as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                    ?: data["arguments"]?.toString()?.trim('"') ?: ""
-                                toolNames[callId] = name
-                                toolArgs[callId] = args
-                                emit(
-                                    seq,
-                                    "tool_$callId",
-                                    MessageRole.TOOL,
-                                    "\u0002TOOL\u0002$callId\u0002$name\u0002running\u0002$args\u0002$args",
-                                )
-                            }
-                            "tool/result" -> {
-                                val message = data["message"]
-                                    as? kotlinx.serialization.json.JsonObject
-                                val callId = message?.get("toolCallId")?.toString()?.trim('"')
-                                    ?: data["callId"]?.toString()?.trim('"') ?: return
-                                val name = toolNames[callId] ?: "tool"
-                                val blocks = message?.get("content")
-                                    as? kotlinx.serialization.json.JsonArray
-                                val body = blocks?.mapNotNull { part ->
-                                    val obj = part as? kotlinx.serialization.json.JsonObject
-                                        ?: return@mapNotNull null
-                                    if (obj["type"]?.toString()?.trim('"') == "text") {
-                                        obj["text"]?.let {
-                                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
-                                        }
-                                    } else {
-                                        null
-                                    }
-                                }?.joinToString("\n").orEmpty()
-                                val failed = data["error"] != null ||
-                                    message?.get("isError")?.toString() == "true"
-                                emit(
-                                    seq,
-                                    "tool_$callId",
-                                    MessageRole.TOOL,
-                                    "\u0002TOOL\u0002$callId\u0002$name\u0002" +
-                                        "${if (failed) "error" else "ok"}\u0002$body\u0002" +
-                                        "${toolArgs.remove(callId) ?: ""}",
-                                )
-                            }
-                        }
-                    }
-
                     when (value["type"]?.toString()?.trim('"')) {
-                        // follow 的首帧是完整历史窗口：把它当作历史事件逐个重放，
-                        // 否则 App 重启/重新打开旧会话时看不到历史消息。
+                        // follow 的首帧是完整历史窗口：重放它，并在 hasMore 时用
+                        // session/page 继续往前翻，补全更早的历史。
                         "snapshot" -> {
                             val records = value["records"]
                                 as? kotlinx.serialization.json.JsonArray
+                            var minSeq = 0L
                             records?.forEach { record ->
                                 val entry = record as? kotlinx.serialization.json.JsonObject
                                     ?: return@forEach
@@ -1881,13 +1748,23 @@ class RemoteClient(
                                 }
                                 val event = entry["event"]
                                     as? kotlinx.serialization.json.JsonObject ?: return@forEach
-                                handleEvent(event)
+                                val seq = event["seq"]?.toString()?.toLongOrNull() ?: 0L
+                                if (seq > 0 && (minSeq == 0L || seq < minSeq)) minSeq = seq
+                                handleDurableEvent(sessionId, hostId, event)
+                            }
+                            val hasMore = value["hasMore"]?.toString() == "true"
+                            val cursor = value["cursor"]?.toString()?.toLongOrNull()
+                                ?: minSeq
+                            if (hasMore && cursor > 0) {
+                                forwardedScope.launch {
+                                    loadOlderHistory(sessionId, hostId, cursor)
+                                }
                             }
                         }
                         "event" -> {
                             val event = value["event"]
                                 as? kotlinx.serialization.json.JsonObject ?: return
-                            handleEvent(event)
+                            handleDurableEvent(sessionId, hostId, event)
                         }
                     }
                 } catch (_: Exception) {
@@ -1898,6 +1775,214 @@ class RemoteClient(
             }
         })
         followSockets.add(socket)
+    }
+
+
+    /** 把一条 durable 事件转成 ChatMessage 投递给数据层。 */
+    private fun emitDurableMessage(
+        sessionId: String,
+        hostId: String,
+        seq: Long,
+        messageId: String,
+        role: MessageRole,
+        content: String,
+    ) {
+        if (content.isBlank()) return
+        eventBus.tryEmit(
+            RemoteEvent.MessageDone(
+                sessionId = sessionId,
+                message = ChatMessage(
+                    hostId = hostId,
+                    sessionId = sessionId,
+                    messageId = messageId,
+                    role = role,
+                    content = content,
+                    seq = seq,
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        )
+    }
+
+    /** snapshot 与 live event 共用的 durable 事件处理。 */
+    private fun handleDurableEvent(
+        sessionId: String,
+        hostId: String,
+        event: kotlinx.serialization.json.JsonObject,
+    ) {
+        val eventType = event["type"]?.toString()?.trim('"') ?: return
+        val data = event["data"] as? kotlinx.serialization.json.JsonObject ?: return
+        val seq = event["seq"]?.toString()?.toLongOrNull() ?: System.currentTimeMillis()
+        when (eventType) {
+            "user/message" -> {
+                val message = data["message"] as? kotlinx.serialization.json.JsonObject
+                val blocks = (message?.get("content") ?: data["content"])
+                    as? kotlinx.serialization.json.JsonArray
+                val body = blocks?.mapNotNull { part ->
+                    val obj = part as? kotlinx.serialization.json.JsonObject
+                        ?: return@mapNotNull null
+                    if (obj["type"]?.toString()?.trim('"') == "text") {
+                        obj["text"]?.let {
+                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        }
+                    } else {
+                        null
+                    }
+                }?.joinToString("").orEmpty()
+                emitDurableMessage(sessionId, hostId, seq, "user_$seq", MessageRole.USER, body)
+            }
+            "turn/start" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, true))
+            "turn/end" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
+            "assistant/message" -> {
+                val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
+                val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
+                val reasoning = blocks?.mapNotNull { part ->
+                    val obj = part as? kotlinx.serialization.json.JsonObject
+                        ?: return@mapNotNull null
+                    if (obj["type"]?.toString()?.trim('"') == "reasoning") {
+                        obj["text"]?.let {
+                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        }
+                    } else {
+                        null
+                    }
+                }?.joinToString("").orEmpty()
+                val answer = blocks?.mapNotNull { part ->
+                    val obj = part as? kotlinx.serialization.json.JsonObject
+                        ?: return@mapNotNull null
+                    if (obj["type"]?.toString()?.trim('"') == "text") {
+                        obj["text"]?.let {
+                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        }
+                    } else {
+                        null
+                    }
+                }?.joinToString("").orEmpty()
+                val content = when {
+                    reasoning.isBlank() -> answer
+                    answer.isBlank() -> reasoning + "\u0001"
+                    else -> reasoning + "\u0001" + answer
+                }
+                emitDurableMessage(sessionId, hostId, seq, "assistant_$seq", MessageRole.ASSISTANT, content)
+            }
+            "tool/call" -> {
+                val callId = data["callId"]?.toString()?.trim('"')
+                    ?: data["callID"]?.toString()?.trim('"') ?: return
+                val name = data["name"]?.toString()?.trim('"') ?: "tool"
+                val args = (data["arguments"]
+                    as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    ?: data["arguments"]?.toString()?.trim('"') ?: ""
+                toolNames[callId] = name
+                toolArgs[callId] = args
+                emitDurableMessage(
+                    sessionId, hostId, seq, "tool_$callId", MessageRole.TOOL,
+                    "\u0002TOOL\u0002$callId\u0002$name\u0002running\u0002$args\u0002$args",
+                )
+            }
+            "tool/result" -> {
+                val message = data["message"] as? kotlinx.serialization.json.JsonObject
+                val callId = message?.get("toolCallId")?.toString()?.trim('"')
+                    ?: data["callId"]?.toString()?.trim('"') ?: return
+                val name = toolNames[callId] ?: "tool"
+                val blocks = message?.get("content") as? kotlinx.serialization.json.JsonArray
+                val body = blocks?.mapNotNull { part ->
+                    val obj = part as? kotlinx.serialization.json.JsonObject
+                        ?: return@mapNotNull null
+                    if (obj["type"]?.toString()?.trim('"') == "text") {
+                        obj["text"]?.let {
+                            (it as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        }
+                    } else {
+                        null
+                    }
+                }?.joinToString("\n").orEmpty()
+                val failed = data["error"] != null ||
+                    message?.get("isError")?.toString() == "true"
+                emitDurableMessage(
+                    sessionId, hostId, seq, "tool_$callId", MessageRole.TOOL,
+                    "\u0002TOOL\u0002$callId\u0002$name\u0002" +
+                        "${if (failed) "error" else "ok"}\u0002$body\u0002" +
+                        "${toolArgs.remove(callId) ?: ""}",
+                )
+            }
+        }
+    }
+
+    private data class HistoryPage(
+        val records: List<kotlinx.serialization.json.JsonObject>,
+        val hasMore: Boolean,
+        val minSeq: Long,
+    )
+
+    /** snapshot 只带一窗历史：用官方 `session/page` 继续往前翻。 */
+    private suspend fun loadOlderHistory(
+        sessionId: String,
+        hostId: String,
+        throughSeq: Long,
+    ) {
+        var beforeSeq = throughSeq
+        repeat(20) {
+            val page = fetchSessionPage(sessionId, throughSeq, beforeSeq) ?: return
+            if (page.records.isEmpty()) return
+            page.records.forEach { entry ->
+                if (entry["type"]?.toString()?.trim('"') != "event") return@forEach
+                val event = entry["event"] as? kotlinx.serialization.json.JsonObject
+                    ?: return@forEach
+                handleDurableEvent(sessionId, hostId, event)
+            }
+            if (!page.hasMore) return
+            if (page.minSeq <= 1L) return
+            beforeSeq = page.minSeq
+        }
+    }
+
+    /** 请求一页更早的历史（`session/page`）。 */
+    private suspend fun fetchSessionPage(
+        sessionId: String,
+        throughSeq: Long,
+        beforeSeq: Long,
+    ): HistoryPage? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "session/page")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject {
+                    put("request", buildJsonObject {
+                        put("address", buildJsonObject {
+                            put("kind", "session")
+                            put("sessionId", sessionId)
+                        })
+                        put("throughSeq", throughSeq)
+                        put("beforeSeq", beforeSeq)
+                        put("maxMessages", 60)
+                    })
+                })
+            })
+        }
+        runCatching {
+            val request = okhttp3.Request.Builder()
+                .url("$baseUrl/api/session/page")
+                .post(payload.toString().toRequestBody(mediaTypeJson))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val root = json.parseToJsonElement(response.body?.string().orEmpty())
+                    as? kotlinx.serialization.json.JsonObject ?: return@use null
+                val value = ((root["result"] as? kotlinx.serialization.json.JsonObject)
+                    ?.get("value")) as? kotlinx.serialization.json.JsonObject
+                    ?: return@use null
+                val records = (value["records"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { it as? kotlinx.serialization.json.JsonObject }
+                    ?: emptyList()
+                val hasMore = value["hasMore"]?.toString() == "true"
+                val minSeq = records.mapNotNull { record ->
+                    ((record["event"] as? kotlinx.serialization.json.JsonObject)
+                        ?.get("seq"))?.toString()?.toLongOrNull()
+                }.minOrNull() ?: 0L
+                HistoryPage(records, hasMore, minSeq)
+            }
+        }.getOrNull()
     }
 
     /**
