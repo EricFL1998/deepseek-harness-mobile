@@ -66,6 +66,11 @@ private const val STORE_API = "https://api.github.com"
 private val storeClient = OkHttpClient()
 private val storeJson = Json { ignoreUnknownKeys = true }
 
+/** 最近一次成功的响应：GitHub 匿名 API 403（限流）时先用缓存兜底，再报错。 */
+private data class CachedStoreJson(val at: Long, val value: JsonObject)
+private val storeJsonCache = java.util.concurrent.ConcurrentHashMap<String, CachedStoreJson>()
+private const val STORE_CACHE_TTL_MS = 10 * 60 * 1000L
+
 private data class GitHubPluginRepo(
     val fullName: String,
     val description: String,
@@ -543,15 +548,40 @@ private suspend fun fetchLatestRelease(fullName: String): GitHubRelease? = withC
 }
 
 private fun getJson(url: String): JsonObject {
+    val now = System.currentTimeMillis()
+    val cached = storeJsonCache[url]
+    if (cached != null && now - cached.at < STORE_CACHE_TTL_MS) {
+        return cached.value
+    }
     val request = Request.Builder()
         .url(url)
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "dsh-mobile-plugin-store")
         .build()
     storeClient.newCall(request).execute().use { response ->
-        if (!response.isSuccessful) error("GitHub API ${response.code}")
+        if (!response.isSuccessful) {
+            val body = response.body?.string().orEmpty()
+            val remaining = response.header("X-RateLimit-Remaining")
+            val reset = response.header("X-RateLimit-Reset")
+            val retryAfter = response.header("Retry-After")
+            android.util.Log.w(
+                "PluginStore",
+                "GET $url -> ${response.code}; remaining=$remaining reset=$reset retryAfter=$retryAfter body=${body.take(500)}",
+            )
+            // 限流时优先返回 10 分钟内的旧数据，商店不至于整页失败。
+            if (cached != null) return cached.value
+            val detail = buildString {
+                append("GitHub API ${response.code}")
+                remaining?.let { append(" · 剩余 $it") }
+                retryAfter?.let { append(" · Retry-After ${it}s") }
+                if (body.isNotBlank()) append(" · ").append(body.take(180))
+            }
+            error(detail)
+        }
         val body = response.body?.string().orEmpty()
-        return storeJson.parseToJsonElement(body).jsonObject
+        val value = storeJson.parseToJsonElement(body).jsonObject
+        storeJsonCache[url] = CachedStoreJson(now, value)
+        return value
     }
 }
 
