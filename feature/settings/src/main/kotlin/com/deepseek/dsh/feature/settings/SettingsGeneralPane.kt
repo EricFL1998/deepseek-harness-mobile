@@ -57,7 +57,10 @@ internal fun SettingsGeneralPane(
     onLanguageChange: (String) -> Unit = {},
 ) {
     val palette = LocalSettingsPalette.current
-    androidx.compose.runtime.LaunchedEffect(Unit) { SessionLogUploadBridge.refresh() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        SessionLogUploadBridge.refresh()
+        PermissionPresetBridge.refresh()
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -68,17 +71,56 @@ internal fun SettingsGeneralPane(
         ),
     ) {
         item(key = "general_permission") {
+            // 权限预设来自 Host（permissionPresets/catalog），当前默认值来自
+            // settings 的 permission.defaultPreset；选择后写回 Host。
+            val presets = PermissionPresetBridge.options
+            val currentPreset = PermissionPresetBridge.current
+            var showPermissionDialog by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(false)
+            }
             PreferenceSelectorRow(
                 title = stringResource(R.string.settings_pane_general_permission_title),
                 description = stringResource(R.string.settings_pane_general_permission_desc),
-                value = when (settings.highRiskConfirm) {
+                value = currentPreset?.let { value ->
+                    presets.firstOrNull { it.value == value }?.name ?: value
+                } ?: when (settings.highRiskConfirm) {
                     true -> stringResource(R.string.settings_pane_general_permission_workspace)
                     false -> stringResource(R.string.settings_pane_general_permission_full)
                 },
                 onClick = {
-                    onUpdateSettings(settings.copy(highRiskConfirm = !settings.highRiskConfirm))
-                }
+                    if (presets.isNotEmpty()) {
+                        showPermissionDialog = true
+                    } else {
+                        onUpdateSettings(settings.copy(highRiskConfirm = !settings.highRiskConfirm))
+                    }
+                },
             )
+            if (showPermissionDialog) {
+                com.deepseek.dsh.core.designsystem.DshDialog(
+                    onDismiss = { showPermissionDialog = false },
+                    title = stringResource(R.string.settings_pane_general_permission_title),
+                    closeLabel = stringResource(android.R.string.cancel),
+                    content = {
+                        presets.forEach { preset ->
+                            Text(
+                                text = preset.name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showPermissionDialog = false
+                                        PermissionPresetBridge.set(preset.value)
+                                        onUpdateSettings(
+                                            settings.copy(
+                                                highRiskConfirm = preset.value != "danger-full-access",
+                                            ),
+                                        )
+                                    }
+                                    .padding(vertical = 14.dp),
+                            )
+                        }
+                    },
+                )
+            }
             GeneralRowDivider()
         }
         item(key = "general_language") {

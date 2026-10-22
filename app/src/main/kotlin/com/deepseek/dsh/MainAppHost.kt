@@ -977,6 +977,10 @@ fun MainAppHost(
             com.deepseek.dsh.feature.settings.SessionLogUploadBridge.wire(
                 dshRepository, activeHostId, scope,
             )
+            // 默认权限预设：选项与当前值都来自 Host（catalog + settings）。
+            com.deepseek.dsh.feature.settings.PermissionPresetBridge.wire(
+                dshRepository, activeHostId, scope,
+            )
             // 会话日志导出（官方 /api/session.export）。
             com.deepseek.dsh.feature.chat.MessageActionBridge.exportSession = {
                 selectedSessionId?.let { session ->
@@ -2263,7 +2267,7 @@ fun MainAppHost(
                         }
                         Box(modifier = Modifier.weight(1f)) {
                     when (activePage) {
-                        ActivePage.CHAT -> {
+                        ActivePage.CHAT -> PageContentSlot {
                             var reasoningLevel by remember {
                                 mutableStateOf(
                                     runCatching {
@@ -2777,7 +2781,7 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.PLUGINS -> {
+                        ActivePage.PLUGINS -> PageContentSlot {
                             PluginsScreen(
                                 surfaces = catalog.surfaces,
                                 pluginManagerSnapshot = pluginManagerSnapshot,
@@ -2980,7 +2984,7 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.AUTOMATION -> {
+                        ActivePage.AUTOMATION -> PageContentSlot {
                             SchedulesScreen(
                                 onCreateTask = { activePage = ActivePage.CHAT },
                             )
@@ -3005,7 +3009,7 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.TERMINAL -> {
+                        ActivePage.TERMINAL -> PageContentSlot {
                             TerminalScreen(
                                 buffer = terminalBuffer,
                                 status = terminalStatus,
