@@ -60,6 +60,26 @@ sealed interface RemoteEvent {
     data class Error(val code: String, val message: String) : RemoteEvent
 }
 
+/**
+ * Host 侧一条等待客户端回答的 waterfall 请求。
+ *
+ * 官方客户端的 `approval/request` / `user-questions/request` 就是这种帧：
+ * 客户端必须通过 `$events/result` 回 `result`（或 `next` 交回 Host 默认处理）。
+ *
+ * @property hostId 所属 Host。
+ * @property event 事件名（如 `approval/request`）。
+ * @property eventId 回包时用于关联的事件 id。
+ * @property agentId 该请求所属 agent（会话）。
+ * @property request 事件请求体（`toolName` / `reason` 等）。
+ */
+data class ForwardedWaterfall(
+    val hostId: String,
+    val event: String,
+    val eventId: String,
+    val agentId: String?,
+    val request: kotlinx.serialization.json.JsonObject,
+)
+
 interface DshClientProtocol {
     suspend fun authenticate(baseUrl: String, token: String?): RemoteResult<String>
     suspend fun listSessions(hostId: String): RemoteResult<List<SessionInfo>>
@@ -136,6 +156,20 @@ interface DshClientProtocol {
      * @returns 事件名流；连接建立后持续投递，断开后在内部重连。
      */
     fun forwardedHostEvents(hostId: String): Flow<String>
+    /**
+     * 订阅 Host 的 waterfall 请求（`approval/request` 等）。
+     *
+     * 不回包超过 [ANSWER_TIMEOUT_MS] 时协议层会自动回 `next`，避免 Host 工具卡死。
+     */
+    fun forwardedWaterfalls(hostId: String): Flow<ForwardedWaterfall>
+    /**
+     * 回答一条 [ForwardedWaterfall]。
+     *
+     * @param hostId Host 标识。
+     * @param eventId 待回答事件的 id。
+     * @param valueJson 结果 JSON（如 `"allowed-once"`）；null 表示回 `next` 交回 Host。
+     */
+    fun answerWaterfall(hostId: String, eventId: String, valueJson: String?)
     /**
      * 订阅会话的 Claude Code 模组横幅（流式 `claudeCodeMods/watchBand`）。
      *

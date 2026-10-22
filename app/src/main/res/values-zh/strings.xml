@@ -576,4 +576,7 @@
     <string name="plan_prompt_prefix">[计划模式] 请先输出实现计划（分步骤列出改动），等待我确认后再开始执行：\n\n</string>
     <string name="attachment_copy_failed">无法复制 %1$s</string>
     <string name="session_fork_failed">分叉失败</string>
+    <string name="approval_request_title">需要审批</string>
+    <string name="approval_allow_once">允许一次</string>
+    <string name="approval_reject">拒绝</string>
 </resources>

@@ -76,6 +76,15 @@ class DshRepository(
     /** 已经订阅过 `account/watch` 的 Host，避免重复建流。 */
     private val watchedAccountHosts = mutableSetOf<String>()
 
+    /** 等待 App 回答的审批 waterfall（官方 `approval/request`）。 */
+    private val _pendingWaterfallApprovalsFlow =
+        MutableStateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>>(emptyList())
+    val pendingWaterfallApprovalsFlow: StateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>> =
+        _pendingWaterfallApprovalsFlow.asStateFlow()
+
+    /** 已经订阅过 `$events` waterfall 的 Host。 */
+    private val watchedWaterfallHosts = mutableSetOf<String>()
+
     private val _sessionStatsFlow = MutableStateFlow<Map<String, ComposerStats>>(emptyMap())
     val sessionStatsFlow: StateFlow<Map<String, ComposerStats>> = _sessionStatsFlow.asStateFlow()
 
@@ -611,6 +620,17 @@ class DshRepository(
         val ok = rpcRaw(hostId, "session/rename", args.toString()).isSuccess
         if (ok) refreshSessions(hostId)
         return ok
+    }
+
+    /** 回答一条待审批的 waterfall：`allowed-once` / `rejected`。 */
+    suspend fun respondApprovalWaterfall(hostId: String, eventId: String, approved: Boolean) {
+        val kept = _pendingWaterfallApprovalsFlow.value.filter { item -> item.eventId != eventId }
+        _pendingWaterfallApprovalsFlow.value = kept
+        client.answerWaterfall(
+            hostId,
+            eventId,
+            if (approved) "\"allowed-once\"" else "\"rejected\"",
+        )
     }
 
     /** 官方 `session/fork`：从最近的完整轮次分叉一个新会话，返回新会话 id。 */
@@ -1220,6 +1240,20 @@ class DshRepository(
             scope.launch(Dispatchers.IO) {
                 client.watchAccount(hostId).collect { view ->
                     _hostAccountFlow.value = view
+                }
+            }
+        }
+        // 官方 waterfall：approval/request 交给 UI 弹窗；其余（如提问）回 next。
+        if (synchronized(watchedWaterfallHosts) { watchedWaterfallHosts.add(hostId) }) {
+            scope.launch(Dispatchers.IO) {
+                client.forwardedWaterfalls(hostId).collect { waterfall ->
+                    if (waterfall.event == "approval/request") {
+                        val existing = _pendingWaterfallApprovalsFlow.value
+                        val kept = existing.filter { item -> item.eventId != waterfall.eventId }
+                        _pendingWaterfallApprovalsFlow.value = kept + waterfall
+                    } else {
+                        client.answerWaterfall(hostId, waterfall.eventId, null)
+                    }
                 }
             }
         }

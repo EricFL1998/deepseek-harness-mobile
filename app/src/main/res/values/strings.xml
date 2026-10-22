@@ -576,4 +576,7 @@
     <string name="plan_prompt_prefix">[Plan mode] Please first output an implementation plan (step-by-step changes) and wait for my confirmation before executing:\n\n</string>
     <string name="attachment_copy_failed">Could not copy %1$s</string>
     <string name="session_fork_failed">Fork failed</string>
+    <string name="approval_request_title">Approval required</string>
+    <string name="approval_allow_once">Allow once</string>
+    <string name="approval_reject">Reject</string>
 </resources>

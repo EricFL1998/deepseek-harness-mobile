@@ -1688,6 +1688,14 @@ class RemoteClient(
     private val forwardedScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
     )
+
+    /** Host waterfall 请求（approval/request 等），等 App 回答。 */
+    private val waterfallBus =
+        kotlinx.coroutines.flow.MutableSharedFlow<ForwardedWaterfall>(extraBufferCapacity = 32)
+    private val answeredWaterfalls = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    @Volatile
+    private var forwardedClientId: String? = null
     private val toolNames = mutableMapOf<String, String>()
     private val toolArgs = mutableMapOf<String, String>()
 
@@ -1916,13 +1924,41 @@ class RemoteClient(
                         val value = root["value"] as? kotlinx.serialization.json.JsonObject
                             ?: return@runCatching
                         when (value["type"]?.toString()?.trim('"')) {
-                            "ready" -> clientId = value["clientId"]?.toString()?.trim('"')
+                            "ready" -> {
+                                clientId = value["clientId"]?.toString()?.trim('"')
+                                forwardedClientId = clientId
+                            }
                             "emit" -> value["event"]?.toString()?.trim('"')
                                 ?.let { forwardedBus.tryEmit(it) }
                             "waterfall" -> {
                                 val eventId = value["eventId"]?.toString()?.trim('"')
                                     ?: return@runCatching
-                                clientId?.let { answerForwardedEvent(it, eventId) }
+                                val event = value["event"]?.toString()?.trim('"').orEmpty()
+                                val request = value["request"]
+                                    as? kotlinx.serialization.json.JsonObject
+                                    ?: kotlinx.serialization.json.JsonObject(emptyMap())
+                                val agentId = value["agentId"]?.toString()?.trim('"')
+                                if (event == "approval/request" ||
+                                    event == "user-questions/request"
+                                ) {
+                                    // 交给 App：超时未回答自动回 next，Host 不会永远卡住。
+                                    waterfallBus.tryEmit(
+                                        ForwardedWaterfall(
+                                            hostId = hostId,
+                                            event = event,
+                                            eventId = eventId,
+                                            agentId = agentId,
+                                            request = request,
+                                        ),
+                                    )
+                                    forwardedScope.launch {
+                                        kotlinx.coroutines.delay(ANSWER_TIMEOUT_MS)
+                                        answerForwardedEvent(eventId, null)
+                                    }
+                                } else {
+                                    // 其余 waterfall 直接回 next，交回 Host 默认处理。
+                                    answerForwardedEvent(eventId, null)
+                                }
                             }
                         }
                     }
@@ -1947,9 +1983,19 @@ class RemoteClient(
     }
 
     /** 客户端不实现的 Host waterfall 一律回 `next`，让 Host 继续默认处理。 */
-    private fun answerForwardedEvent(clientId: String, eventId: String) {
+    private fun answerForwardedEvent(eventId: String, valueJson: String?) {
+        val clientId = forwardedClientId ?: return
+        if (!answeredWaterfalls.add(eventId)) return
         forwardedScope.launch {
             runCatching {
+                val outcome = if (valueJson == null) {
+                    buildJsonObject { put("kind", "next") }
+                } else {
+                    buildJsonObject {
+                        put("kind", "result")
+                        put("value", json.parseToJsonElement(valueJson))
+                    }
+                }
                 val payload = buildJsonObject {
                     put("type", "client-request")
                     put("rpcId", java.util.UUID.randomUUID().toString())
@@ -1958,7 +2004,7 @@ class RemoteClient(
                         put("args", buildJsonObject {
                             put("clientId", clientId)
                             put("eventId", eventId)
-                            put("outcome", buildJsonObject { put("kind", "next") })
+                            put("outcome", outcome)
                         })
                     })
                 }
@@ -1970,6 +2016,12 @@ class RemoteClient(
             }
         }
     }
+
+    /** App 侧的 waterfall 结果回包入口。 */
+    override fun forwardedWaterfalls(hostId: String): Flow<ForwardedWaterfall> = waterfallBus
+
+    override fun answerWaterfall(hostId: String, eventId: String, valueJson: String?) =
+        answerForwardedEvent(eventId, valueJson)
 
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }
@@ -1997,4 +2049,8 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
 
 
 
+
+
+/** waterfall 等待 App 回答的上限；超时回 next 交回 Host。 */
+private const val ANSWER_TIMEOUT_MS = 120_000L
 

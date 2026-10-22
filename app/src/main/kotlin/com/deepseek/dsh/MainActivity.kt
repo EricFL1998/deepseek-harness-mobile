@@ -991,6 +991,7 @@ fun MainAppHost(
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
+    val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
@@ -1644,6 +1645,37 @@ fun MainAppHost(
                     placeholder = stringResource(R.string.row_rename),
                 )
             },
+        )
+    }
+
+    // 官方 approval/request waterfall：实时弹窗，允许一次 / 拒绝直接回 `$events/result`。
+    pendingApprovalWaterfalls.firstOrNull()?.let { waterfall ->
+        val toolName = (waterfall.request["toolName"]
+            as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty().ifBlank { "tool" }
+        val reason = (waterfall.request["reason"]
+            as? kotlinx.serialization.json.JsonPrimitive)?.content
+        fun answer(approved: Boolean) {
+            scope.launch {
+                dshRepository.respondApprovalWaterfall(activeHostId, waterfall.eventId, approved)
+            }
+        }
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { answer(false) },
+            title = stringResource(R.string.approval_request_title),
+            closeLabel = stringResource(R.string.action_close),
+            description = if (reason.isNullOrBlank()) toolName else "$toolName · $reason",
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = stringResource(R.string.approval_reject), primary = false, enabled = true,
+                    onClick = { answer(false) },
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = stringResource(R.string.approval_allow_once), primary = true, enabled = true,
+                    onClick = { answer(true) },
+                )
+            },
+            content = {},
         )
     }
 
