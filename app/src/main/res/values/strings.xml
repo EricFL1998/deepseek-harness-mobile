@@ -577,4 +577,5 @@
 <string name="jobs_output_empty">No output yet</string>
 <string name="jobs_section">Background jobs</string>
 <string name="jobs_killed">Stopped</string>
+<string name="cmd_unknown">Command failed</string>
 </resources>

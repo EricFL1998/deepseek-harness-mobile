@@ -577,4 +577,5 @@
 <string name="jobs_output_empty">暂无输出</string>
 <string name="jobs_section">后台任务</string>
 <string name="jobs_killed">已停止</string>
+<string name="cmd_unknown">命令执行失败</string>
 </resources>

@@ -231,4 +231,5 @@
     <string name="cmd_compact_hint">Describe what to compact…</string>
     <string name="cmd_export_hint">Export log</string>
     <string name="cmd_chip_remove">Remove command</string>
+<string name="cmd_section_host">Host commands</string>
 </resources>

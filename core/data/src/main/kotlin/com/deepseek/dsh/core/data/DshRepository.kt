@@ -735,7 +735,56 @@ class DshRepository(
             is RemoteResult.Failure -> false
         }
 
-    /** 订阅官方 `job/list`（当前会话可见的后台任务集合）。 */
+    /** 官方 `commands/list` 的斜杠命令。 */
+    private val _hostCommandsFlow = MutableStateFlow<List<com.deepseek.dsh.core.model.HostCommandInfo>>(emptyList())
+    val hostCommandsFlow: StateFlow<List<com.deepseek.dsh.core.model.HostCommandInfo>> =
+        _hostCommandsFlow.asStateFlow()
+
+    /** 刷新当前会话的斜杠命令目录。 */
+    suspend fun refreshHostCommands(hostId: String, sessionId: String) {
+        val args = buildJsonObject { put("agent", sessionId) }
+        val raw = rpcRaw(hostId, "commands/list", args.toString()).getOrNull() ?: return
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonArray ?: return
+        _hostCommandsFlow.value = value.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val name = (obj["name"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            val input = obj["input"] as? JsonObject
+            com.deepseek.dsh.core.model.HostCommandInfo(
+                name = name,
+                description = (obj["description"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                inputHint = (input?.get("hint") as? JsonPrimitive)?.contentOrNull,
+                acceptsAttachments = input?.get("attachments")?.toString() == "true",
+            )
+        }
+    }
+
+    /**
+     * 官方 `commands/execute`：执行一条斜杠命令。
+     *
+     * @returns null 表示 Host 不认识这条命令（调用方应改走普通 prompt）。
+     */
+    suspend fun executeHostCommand(
+        hostId: String,
+        sessionId: String,
+        line: String,
+    ): com.deepseek.dsh.core.model.HostCommandResult? {
+        val args = buildJsonObject {
+            put("agent", sessionId)
+            put("line", line)
+            put("submittedAttachments", kotlinx.serialization.json.JsonArray(emptyList()))
+        }
+        val raw = rpcRaw(hostId, "commands/execute", args.toString()).getOrNull() ?: return null
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return null
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return null
+        val result = value["result"] as? JsonObject ?: return null
+        return com.deepseek.dsh.core.model.HostCommandResult(
+            kind = (result["kind"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            text = (result["text"] as? JsonPrimitive)?.contentOrNull,
+        )
+    }
+
+    /** 订阅官方 `job/list`（当前会话可见的后台任务集合）。 */    /** 订阅官方 `job/list`（当前会话可见的后台任务集合）。 */
     fun watchJobs(hostId: String, sessionId: String) {
         if (jobsHostId == hostId && jobsSessionId == sessionId) return
         jobsJob?.cancel()
@@ -1503,6 +1552,11 @@ class DshRepository(
                         "api-session/activity", "api-session/error" -> refreshSessions(hostId)
                         // 权限预置目录变化：刷新设置文档缓存。
                         "permission-presets/catalog-changed" -> syncRemoteSettings(hostId)
+                        // 斜杠命令注册变化：刷新命令目录（当前会话）。
+                        "commands/change" -> {
+                            val sid = viewedSessionId
+                            if (sid != null) refreshHostCommands(hostId, sid)
+                        }
                         // 会话的 agent 预置或目标状态变化：会话摘要会变。
                         "agent-preset/selected", "goal/activation-changed" ->
                             refreshSessions(hostId)

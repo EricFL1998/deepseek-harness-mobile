@@ -207,6 +207,10 @@ fun ModernChatScreen(
     streamingReasoning: String = "",
     /** 列表滚到顶部时请求更早的一页历史。 */
     onLoadOlder: () -> Unit = {},
+    /** 官方 `commands/list` 的斜杠命令（Host 注册的，动态显示在加号菜单）。 */
+    hostCommands: List<com.deepseek.dsh.core.model.HostCommandInfo> = emptyList(),
+    /** 执行一条 Host 斜杠命令（commands/execute）。 */
+    onHostCommand: (String) -> Unit = {},
     workspaceName: String = "默认工作区",
     /** 系统文件选择器选回的附件；由宿主负责复制进工作区后传回这里。 */
     attachments: List<ChatAttachment> = emptyList(),
@@ -686,6 +690,7 @@ fun ModernChatScreen(
     if (commandSheetOpen) {
         ComposerCommandSheet(
             onDismiss = { commandSheetOpen = false },
+            hostCommands = hostCommands,
             onFile = {
                 commandSheetOpen = false
                 onPickAttachments()
@@ -2843,6 +2848,7 @@ fun BottomInputBar(
 @Composable
 fun ComposerCommandSheet(
     onDismiss: () -> Unit,
+    hostCommands: List<com.deepseek.dsh.core.model.HostCommandInfo> = emptyList(),
     onFile: () -> Unit,
     onPlan: () -> Unit,
     onPermission: () -> Unit,
@@ -2922,6 +2928,20 @@ fun ComposerCommandSheet(
                         }
                     }
                 )
+            }
+            // Host 注册的斜杠命令：动态目录，点选后走 commands/execute。
+            if (hostCommands.isNotEmpty()) {
+                Spacer(Modifier.height(3.dp))
+                DshMenuSectionLabel(stringResource(R.string.cmd_section_host))
+                hostCommands.forEach { command ->
+                    DshMenuRow(onClick = { onCommand("/${command.name}") }) {
+                        DshMenuLabel("/${command.name}")
+                        Spacer(Modifier.weight(1f))
+                        if (command.description.isNotBlank()) {
+                            DshMenuCaption(command.description)
+                        }
+                    }
+                }
             }
         }
     }

@@ -268,6 +268,22 @@ data class AgentTeamSummary(
     val failure: String? = null,
 )
 
+/** 官方 `commands/list` 的一条斜杠命令描述。 */
+@Serializable
+data class HostCommandInfo(
+    val name: String,
+    val description: String,
+    val inputHint: String? = null,
+    val acceptsAttachments: Boolean = false,
+)
+
+/** 官方 `commands/execute` 的结果。 */
+@Serializable
+data class HostCommandResult(
+    val kind: String,
+    val text: String? = null,
+)
+
 @Serializable
 data class PluginConfigItem(
     val id: String,

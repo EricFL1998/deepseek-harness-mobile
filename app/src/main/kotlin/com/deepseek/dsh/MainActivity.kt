@@ -972,6 +972,14 @@ fun MainAppHost(
     val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
     val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
     val hostJobs by dshRepository.jobsFlow.collectAsState()
+    val hostCommands by dshRepository.hostCommandsFlow.collectAsState()
+    // 斜杠命令目录跟着会话走；commands/change 事件也会触发刷新。
+    LaunchedEffect(activeHostId, selectedSessionId) {
+        val sid = selectedSessionId
+        if (sid != null) {
+            runCatching { dshRepository.refreshHostCommands(activeHostId, sid) }
+        }
+    }
     // job/list 跟着当前会话走。
     LaunchedEffect(activeHostId, selectedSessionId) {
         val sid = selectedSessionId
@@ -2283,6 +2291,25 @@ fun MainAppHost(
                                 messages = messages + pendingMessages,
                                 streamingText = streamingText,
                                 streamingReasoning = streamingReasoning,
+                                hostCommands = hostCommands,
+                                onHostCommand = { line ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            val result = dshRepository.executeHostCommand(
+                                                activeHostId, sid, line,
+                                            )
+                                            val message = result?.text
+                                                ?: result?.kind
+                                                ?: context.getString(R.string.cmd_unknown)
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                message,
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                },
                                 onLoadOlder = {
                                     val sid = selectedSessionId
                                     if (sid != null) {
@@ -2303,6 +2330,39 @@ fun MainAppHost(
                                 },
                                 onSendMessage = { text ->
                                     println("DSH_SEND start text=$text selected=$selectedSessionId live=$liveSessionIds")
+                                    // 斜杠命令走官方 commands/execute；Host 不认识的
+                                    // 回退成普通 prompt。
+                                    val commandLine = text.trim()
+                                    val commandSession = selectedSessionId
+                                    val handledAsCommand = commandLine.startsWith("/") &&
+                                        commandSession != null
+                                    if (handledAsCommand) {
+                                        val sid = commandSession!!
+                                        scope.launch {
+                                            val result = dshRepository.executeHostCommand(
+                                                activeHostId, sid, commandLine,
+                                            )
+                                            if (result != null) {
+                                                val message = result.text ?: result.kind
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    message,
+                                                    android.widget.Toast.LENGTH_SHORT,
+                                                ).show()
+                                                dshRepository.refreshSessionStats(
+                                                    activeHostId, sid,
+                                                )
+                                            } else {
+                                                // Host 不认识这条命令：按普通消息发送。
+                                                runCatching {
+                                                    dshRepository.sendMessage(
+                                                        activeHostId, sid, commandLine,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (!handledAsCommand) {
                                     val localId = "local_${System.nanoTime()}"
                                     val isPlanPrompt = chatPlanMode
                                     val outgoingText = if (isPlanPrompt) {
@@ -2367,6 +2427,7 @@ fun MainAppHost(
                                             pendingMessages.removeAll { it.messageId == localId }
                                             isSending = false
                                         }
+                                    }
                                     }
                                 },
                                 isSending = isSending,
