@@ -306,4 +306,5 @@
 <string name="message_actions_title">消息</string>
     <string name="message_action_copy">复制文本</string>
     <string name="message_action_fork">从此处分叉</string>
+    <string name="markdown_copy">复制</string>
 </resources>

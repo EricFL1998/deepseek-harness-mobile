@@ -307,4 +307,5 @@
 <string name="message_actions_title">Message</string>
     <string name="message_action_copy">Copy text</string>
     <string name="message_action_fork">Fork from here</string>
+    <string name="markdown_copy">Copy</string>
 </resources>

@@ -752,16 +752,18 @@ fun ModernChatScreen(
                                 )
                             }
                             if (streamingText.isNotBlank()) {
-                                Text(
-                                    text = streamingText,
-                                    fontSize = 14.sp,
-                                    lineHeight = 22.sp,
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(
                                             top = if (streamingReasoning.isNotBlank()) 6.dp else 12.dp,
                                         ),
-                                )
+                                ) {
+                                    MarkdownMessageText(
+                                        text = streamingText,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                    )
+                                }
                             }
                         }
                     }

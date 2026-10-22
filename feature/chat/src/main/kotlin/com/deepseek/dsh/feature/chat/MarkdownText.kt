@@ -1,6 +1,7 @@
 package com.deepseek.dsh.feature.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,8 +15,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -36,6 +40,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.onBackground) {
     val blocks = remember(text) { parseMarkdownBlocks(text) }
+    val localContext = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         blocks.forEach { block ->
             when (block) {
@@ -83,15 +88,45 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             RoundedCornerShape(10.dp),
                         )
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "code",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.weight(1f),
+                        )
+                        // 官方代码块右上角的复制按钮。
+                        Text(
+                            text = stringResource(R.string.markdown_copy),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable {
+                                    val clipboard = localContext.getSystemService(
+                                        android.content.Context.CLIPBOARD_SERVICE,
+                                    ) as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(
+                                        android.content.ClipData.newPlainText("code", block.code),
+                                    )
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
                     Text(
                         text = block.code,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                         color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 4.dp),
                     )
                 }
 
