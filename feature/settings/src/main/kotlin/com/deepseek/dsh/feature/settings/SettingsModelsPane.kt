@@ -236,19 +236,25 @@ private fun AddModelProviderDialog(
                         stringResource(R.string.settings_pane_models_add_tab_custom),
                     ).forEachIndexed { index, label ->
                         val active = mode == index
-                        Row(
+                        androidx.compose.material3.Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                            color = if (active) palette.labelPrimary else androidx.compose.ui.graphics.Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { mode = index }
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.Center,
+                                .padding(2.dp)
+                                .clickable { mode = index },
                         ) {
-                            Text(
-                                text = label,
-                                fontSize = 13.sp,
-                                fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
-                                color = if (active) palette.labelPrimary else palette.labelSecondary,
-                            )
+                            Row(
+                                modifier = Modifier.padding(vertical = 7.dp),
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+                                    color = if (active) androidx.compose.ui.graphics.Color.White else palette.labelSecondary,
+                                )
+                            }
                         }
                     }
                 }
