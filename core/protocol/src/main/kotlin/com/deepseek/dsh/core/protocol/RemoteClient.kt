@@ -2726,7 +2726,12 @@ class RemoteClient(
         }
         val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
         val streamId = java.util.UUID.randomUUID().toString()
-        val frames = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 256)
+        // replay：终端快照常在建连后立刻到达，调用方开始 collect 前不能被丢掉，
+        // 否则页面会永远停在「Connecting…」。
+        val frames = kotlinx.coroutines.flow.MutableSharedFlow<String>(
+            replay = 16,
+            extraBufferCapacity = 240,
+        )
         val sequence = java.util.concurrent.atomic.AtomicInteger(1)
         lateinit var socket: okhttp3.WebSocket
         var closed = false
