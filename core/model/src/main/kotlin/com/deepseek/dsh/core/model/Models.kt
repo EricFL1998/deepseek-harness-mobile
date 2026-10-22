@@ -269,15 +269,6 @@ data class AgentTeamSummary(
 )
 
 @Serializable
-data class ApprovalItemModel(
-    val id: String,
-    val title: String,
-    val command: String,
-    val dangerReason: String,
-    val status: String = "pending" // pending, submitting, confirmed, rejected
-)
-
-@Serializable
 data class PluginConfigItem(
     val id: String,
     val title: String,

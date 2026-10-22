@@ -46,7 +46,6 @@ include(":feature:runtime")
 include(":feature:hosts")
 include(":feature:sessions")
 include(":feature:chat")
-include(":feature:approval")
 include(":feature:settings")
 include(":feature:files")
 

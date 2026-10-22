@@ -12,7 +12,6 @@
     <string name="nav_files">Files</string>
     <string name="nav_plugins">Plugins</string>
     <string name="nav_hosts">Hosts</string>
-    <string name="nav_approval">Approvals</string>
     <string name="nav_settings">Settings</string>
     <string name="nav_runtime">Runtime</string>
     <string name="nav_new_session">New Session</string>
@@ -21,7 +20,6 @@
     <string name="page_automation">Scheduled Tasks</string>
     <string name="page_files">Files</string>
     <string name="page_hosts">Remote Hosts</string>
-    <string name="page_approvals">Approvals</string>
     <string name="page_runtime">Runtime</string>
     <string name="page_settings">Settings</string>
     <string name="drawer_default_user">DeepSeek User</string>
@@ -138,7 +136,6 @@
     <string name="drawer_nav_schedule">Scheduled Automation</string>
     <string name="drawer_nav_hosts">Remote Host Control</string>
     <string name="drawer_nav_surface">Built-in Surface Adapter</string>
-    <string name="drawer_nav_approvals">System Approvals</string>
     <string name="drawer_nav_settings">Preferences &amp; Settings</string>
     <string name="drawer_section_project">Project &amp; Workspace</string>
     <string name="drawer_section_history">History Sessions</string>
@@ -523,16 +520,6 @@
     <string name="host_tag_local">Local Environment</string>
     <string name="host_desc_local">127.0.0.1 (Phone User Space)</string>
 
-    <!-- Approval Screen -->
-    <string name="approval_title">System &amp; High-Risk Approvals</string>
-    <string name="approval_subtitle">Strictly govern Agent actions under your control (v4.0 §6.5)</string>
-    <string name="approval_empty">No pending high-risk tool calls or external writes</string>
-    <string name="approval_status_pending">Pending</string>
-    <string name="approval_status_submitting">Submitting</string>
-    <string name="approval_status_confirmed">Approved</string>
-    <string name="approval_status_rejected">Rejected</string>
-    <string name="action_deny">Deny</string>
-    <string name="action_approve">Approve</string>
 
     <!-- Settings Screen -->
     <string name="settings_title">Settings &amp; Preferences</string>

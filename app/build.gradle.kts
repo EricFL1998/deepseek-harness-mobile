@@ -66,7 +66,6 @@ dependencies {
     implementation(project(":feature:hosts"))
     implementation(project(":feature:sessions"))
     implementation(project(":feature:chat"))
-    implementation(project(":feature:approval"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:files"))
 

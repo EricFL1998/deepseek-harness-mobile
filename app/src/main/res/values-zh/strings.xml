@@ -12,7 +12,6 @@
     <string name="nav_files">工作区文件</string>
     <string name="nav_plugins">插件</string>
     <string name="nav_hosts">主机与连接中心</string>
-    <string name="nav_approval">系统审批中心</string>
     <string name="nav_settings">设置与偏好</string>
     <string name="nav_runtime">本地 Linux 运行时</string>
     <string name="nav_new_session">新建会话</string>
@@ -21,7 +20,6 @@
     <string name="page_automation">自动化任务</string>
     <string name="page_files">文件</string>
     <string name="page_hosts">远程连接</string>
-    <string name="page_approvals">授权请求</string>
     <string name="page_runtime">运行时</string>
     <string name="page_settings">设置</string>
     <string name="drawer_default_user">DeepSeek 用户</string>
@@ -138,7 +136,6 @@
     <string name="drawer_nav_schedule">定时自动化任务</string>
     <string name="drawer_nav_hosts">远程主机控制</string>
     <string name="drawer_nav_surface">内置 Surface 适配</string>
-    <string name="drawer_nav_approvals">系统审批中心</string>
     <string name="drawer_nav_settings">偏好与系统设置</string>
     <string name="drawer_section_project">项目与真实工作区</string>
     <string name="drawer_section_history">历史会话</string>
@@ -523,16 +520,6 @@
     <string name="host_tag_local">本地环境</string>
     <string name="host_desc_local">127.0.0.1 (本机用户空间)</string>
 
-    <!-- 审批中心 -->
-    <string name="approval_title">系统与高危操作审批中心</string>
-    <string name="approval_subtitle">严格限制 Agent 行为，手机端操作由你掌控 (v4.0 §6.5)</string>
-    <string name="approval_empty">暂无待审批的高危工具调用或外部写操作</string>
-    <string name="approval_status_pending">待确认</string>
-    <string name="approval_status_submitting">提交中</string>
-    <string name="approval_status_confirmed">已通过</string>
-    <string name="approval_status_rejected">已拒绝</string>
-    <string name="action_deny">拒绝执行</string>
-    <string name="action_approve">批准运行</string>
 
     <!-- 设置屏幕 -->
     <string name="settings_title">设置与偏好</string>
