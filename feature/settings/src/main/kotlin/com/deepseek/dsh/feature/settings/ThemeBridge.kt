@@ -33,6 +33,9 @@ object ThemeBridge {
     var fontSize by mutableStateOf<Int?>(null)
         private set
 
+    /** 最后一次读到的设置 revision，写回时作为 expectedRevision 的 CAS。 */
+    private var revision: Int = 0
+
     private var reader: (() -> Unit)? = null
     private var writer: ((String) -> Unit)? = null
 
@@ -64,6 +67,7 @@ object ThemeBridge {
                 val obj = item as? JsonObject ?: return@forEach
                 if ((obj["ns"] as? JsonPrimitive)?.contentOrNull != "ui-theme") return@forEach
                 val docValue = obj["value"] as? JsonObject ?: return@forEach
+                revision = (obj["revision"] as? JsonPrimitive)?.intOrNull ?: revision
                 (docValue["preference"] as? JsonPrimitive)?.contentOrNull?.let { preference = it }
                 fontSize = (docValue["fontSize"] as? JsonPrimitive)?.intOrNull
             }
@@ -80,7 +84,7 @@ object ThemeBridge {
                     put("value", value)
                 })
             })
-            put("expectedRevision", JsonNull)
+            put("expectedRevision", revision)
         }
         repository.rpcRaw(hostId, "settings/mutate", args.toString())
     }

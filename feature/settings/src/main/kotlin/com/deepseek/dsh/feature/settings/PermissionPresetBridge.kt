@@ -13,6 +13,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 
 /** 一个可选权限预设（Host 的 `permissionPresets/catalog` 返回项）。 */
@@ -33,6 +34,9 @@ object PermissionPresetBridge {
     /** 当前默认预设值；null 表示还没读到。 */
     var current by mutableStateOf<String?>(null)
         private set
+
+    /** 最后一次读到的设置 revision，写回时作为 expectedRevision 的 CAS。 */
+    private var revision: Int = 0
 
     private var reader: (() -> Unit)? = null
     private var writer: ((String) -> Unit)? = null
@@ -78,6 +82,7 @@ object PermissionPresetBridge {
                 val obj = item as? JsonObject ?: return@mapNotNull null
                 if ((obj["ns"] as? JsonPrimitive)?.contentOrNull != "permission") return@mapNotNull null
                 val docValue = obj["value"] as? JsonObject ?: return@mapNotNull null
+                revision = (obj["revision"] as? JsonPrimitive)?.intOrNull ?: revision
                 (docValue["defaultPreset"] as? JsonPrimitive)?.contentOrNull
             }.firstOrNull()
         }.getOrNull()
@@ -95,7 +100,7 @@ object PermissionPresetBridge {
                     put("value", value)
                 })
             })
-            put("expectedRevision", kotlinx.serialization.json.JsonNull)
+            put("expectedRevision", revision)
         }
         repository.rpcRaw(hostId, "settings/mutate", args.toString())
     }
