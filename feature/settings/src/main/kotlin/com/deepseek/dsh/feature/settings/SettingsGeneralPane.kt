@@ -38,6 +38,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
+/** 通用设置的一行：渲染键、后端注册 id（可能没有）与默认顺序。 */
+private data class RowSpec(val key: String, val backendId: String?, val fallbackOrder: Int)
+
 /**
  * 通用设置（右侧面板 GeneralSection）。
  *
@@ -55,11 +58,17 @@ internal fun SettingsGeneralPane(
     /** 当前语言选择：`system` / `zh` / `en`。 */
     languageTag: String = "system",
     onLanguageChange: (String) -> Unit = {},
+    /**
+     * 后端 `settings.general.item` 注册的排序（id → order）。为空时用本文件
+     * 的默认顺序；Host 新增/调整通用设置项时无需改 APK。
+     */
+    itemOrder: Map<String, Int> = emptyMap(),
 ) {
     val palette = LocalSettingsPalette.current
     androidx.compose.runtime.LaunchedEffect(Unit) {
         SessionLogUploadBridge.refresh()
         PermissionPresetBridge.refresh()
+        ThemeBridge.refresh()
     }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -70,7 +79,22 @@ internal fun SettingsGeneralPane(
             bottom = SettingsPaneDimens.Bottom,
         ),
     ) {
-        item(key = "general_permission") {
+        // 行的顺序来自 Host 的 settings.general.item 注册；没有注册过的行保持
+        // 本地默认顺序。设置页只负责「这一行怎么画」。
+        val rows = listOf(
+            RowSpec("general_permission", "permission", 0),
+            RowSpec("general_language", "language", 1),
+            RowSpec("general_appearance", "appearance", 2),
+            RowSpec("general_font_size", "font-size", 3),
+            RowSpec("general_transcript", "transcript-view", 4),
+            RowSpec("general_collapse", null, 5),
+            RowSpec("general_session_log_upload", null, 6),
+            RowSpec("general_developer_tools", "developer-tools", 7),
+        ).sortedBy { spec -> itemOrder[spec.backendId] ?: (1000 + spec.fallbackOrder) }
+        rows.forEach { spec ->
+            item(key = spec.key) {
+                when (spec.key) {
+                    "general_permission" -> {
             // 权限预设来自 Host（permissionPresets/catalog），当前默认值来自
             // settings 的 permission.defaultPreset；选择后写回 Host。
             val presets = PermissionPresetBridge.options
@@ -123,7 +147,7 @@ internal fun SettingsGeneralPane(
             }
             GeneralRowDivider()
         }
-        item(key = "general_language") {
+                    "general_language" -> {
             var showLanguageDialog by androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(false)
             }
@@ -164,15 +188,15 @@ internal fun SettingsGeneralPane(
             }
             GeneralRowDivider()
         }
-        item(key = "general_appearance") {
+                    "general_appearance" -> {
             AppearanceRow()
             GeneralRowDivider()
         }
-        item(key = "general_font_size") {
+                    "general_font_size" -> {
             FontSizeRow()
             GeneralRowDivider()
         }
-        item(key = "general_transcript") {
+                    "general_transcript" -> {
             PreferenceSelectorRow(
                 title = stringResource(R.string.settings_pane_general_steps_title),
                 description = stringResource(R.string.settings_pane_general_steps_desc),
@@ -188,8 +212,7 @@ internal fun SettingsGeneralPane(
             )
             GeneralRowDivider()
         }
-        // 最后一行不画分隔线（GeneralSection 会移除末尾 separator）。
-        item(key = "general_collapse") {
+                    "general_collapse" -> {
             PreferenceSelectorRow(
                 title = stringResource(R.string.settings_pane_general_collapse_title),
                 description = stringResource(R.string.settings_pane_general_collapse_desc),
@@ -198,7 +221,7 @@ internal fun SettingsGeneralPane(
             )
             GeneralRowDivider()
         }
-        item(key = "general_session_log_upload") {
+                    "general_session_log_upload" -> {
             val uploadEnabled = SessionLogUploadBridge.enabled
             if (uploadEnabled != null) {
                 SessionLogUploadRow(
@@ -208,7 +231,7 @@ internal fun SettingsGeneralPane(
                 GeneralRowDivider()
             }
         }
-        item(key = "general_developer_tools") {
+                    "general_developer_tools" -> {
             DeveloperToolsRow(
                 checked = settings.showCodingView,
                 onCheckedChange = { checked ->
@@ -216,7 +239,10 @@ internal fun SettingsGeneralPane(
                 },
             )
         }
-    }
+                }
+            }
+        }
+}
 }
 
 /** 行分隔线：0.5dp border-l2，通栏。 */
@@ -329,17 +355,20 @@ private fun AppearanceRow() {
             AppearanceCube(
                 label = stringResource(R.string.settings_pane_general_appearance_light),
                 icon = Icons.Outlined.LightMode,
-                selected = false,
+                selected = ThemeBridge.preference == "light",
+                onClick = { ThemeBridge.setPreference("light") },
             )
             AppearanceCube(
                 label = stringResource(R.string.settings_pane_general_appearance_dark),
                 icon = Icons.Outlined.DarkMode,
-                selected = false,
+                selected = ThemeBridge.preference == "dark",
+                onClick = { ThemeBridge.setPreference("dark") },
             )
             AppearanceCube(
                 label = stringResource(R.string.settings_pane_general_appearance_system),
                 icon = Icons.Outlined.Monitor,
-                selected = true,
+                selected = ThemeBridge.preference == "system",
+                onClick = { ThemeBridge.setPreference("system") },
             )
         }
     }
@@ -351,6 +380,7 @@ private fun RowScope.AppearanceCube(
     label: String,
     icon: ImageVector,
     selected: Boolean,
+    onClick: () -> Unit = {},
 ) {
     val palette = LocalSettingsPalette.current
     Surface(
@@ -432,7 +462,7 @@ private fun FontSizeRow() {
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "14",
+                        text = (ThemeBridge.fontSize ?: 14).toString(),
                         style = SettingsText.RowTitle,
                         color = palette.labelPrimary,
                     )

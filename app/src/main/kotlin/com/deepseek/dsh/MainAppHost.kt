@@ -981,6 +981,10 @@ fun MainAppHost(
             com.deepseek.dsh.feature.settings.PermissionPresetBridge.wire(
                 dshRepository, activeHostId, scope,
             )
+            // 外观（深浅色）与字号来自 Host 的 ui-theme 设置。
+            com.deepseek.dsh.feature.settings.ThemeBridge.wire(
+                dshRepository, activeHostId, scope,
+            )
             // 会话日志导出（官方 /api/session.export）。
             com.deepseek.dsh.feature.chat.MessageActionBridge.exportSession = {
                 selectedSessionId?.let { session ->

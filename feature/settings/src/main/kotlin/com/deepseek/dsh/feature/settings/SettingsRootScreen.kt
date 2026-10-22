@@ -442,6 +442,12 @@ fun SettingsRootScreen(
                             settings = currentSettings,
                             languageTag = languageTag,
                             onLanguageChange = onLanguageChange,
+                            itemOrder = pluginSlotEntries
+                                .filter { it.slot == "settings.general.item" }
+                                .mapNotNull { entry ->
+                                    entry.id?.let { id -> id to entry.order }
+                                }
+                                .toMap(),
                             onUpdateSettings = {
                                 currentSettings = it
                                 onUpdateSettings(it)

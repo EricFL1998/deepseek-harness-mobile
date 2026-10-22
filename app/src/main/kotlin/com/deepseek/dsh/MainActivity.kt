@@ -163,9 +163,16 @@ class MainActivity : ComponentActivity() {
                 com.deepseek.dsh.plugin.nativehost.NativeHost.LocalHost provides nativeHost,
                 com.deepseek.dsh.plugin.nativehost.NativeHost.LocalTheme provides nativeTheme,
             ) {
-            DshTheme {
+            // 深浅色跟随 Host 的 ui-theme 设置（同一账号与浏览器一致），
+            // 未连接 Host 时回落到系统。
+            val effectiveDark = when (com.deepseek.dsh.feature.settings.ThemeBridge.preference) {
+                "dark" -> true
+                "light" -> false
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+            DshTheme(darkTheme = effectiveDark) {
                 // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
-                val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val systemDark = effectiveDark
                 androidx.compose.runtime.SideEffect {
                     androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
                         isAppearanceLightStatusBars = !systemDark
