@@ -1126,8 +1126,27 @@ class DshRepository(
         if (synchronized(forwardedEventHosts) { forwardedEventHosts.add(hostId) }) {
             scope.launch(Dispatchers.IO) {
                 client.forwardedHostEvents(hostId).collect { eventName ->
-                    if (eventName in MODEL_CATALOG_REFRESH_EVENTS) {
-                        refreshModelCatalog(hostId)
+                    when (eventName) {
+                        in MODEL_CATALOG_REFRESH_EVENTS -> refreshModelCatalog(hostId)
+                        // 插件安装/启停/卸载：让插件页与原生伴生列表立刻刷新。
+                        "plugin-manager/changed" -> {
+                            refreshPluginInventory(hostId)
+                            refreshBridgePluginCatalog()
+                            refreshPluginSettingsPages()
+                        }
+                        // 插件市场索引变化（新增/删除市场）。
+                        "plugin-market/changed" -> refreshBridgePluginCatalog()
+                        // 会话被新建/删除/状态变化：列表与运行态直接重拉。
+                        "api-session/added", "api-session/removed", "api-session/status" ->
+                            refreshSessions(hostId)
+                        // 定时任务变化：自动化列表与团队任务。
+                        "schedule/changed" -> {
+                            refreshAutomationTasks(hostId)
+                            refreshTeamTasks(hostId)
+                        }
+                        // 审批请求：先刷新待审批列表；waterfall 本身回 next 交给 Host 默认处理。
+                        "approval/request" -> refreshApprovals(hostId)
+                        else -> Unit
                     }
                 }
             }
