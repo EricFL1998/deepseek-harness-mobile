@@ -618,6 +618,9 @@
     <string name="right_sidebar_tab_document">文档</string>
     <string name="right_sidebar_tab_plan">计划</string>
     <string name="right_sidebar_tab_deliverables">交付物</string>
+    <string name="right_sidebar_tab_terminal">终端</string>
+    <string name="right_sidebar_tab_schedule">定时任务</string>
+    <string name="right_sidebar_tab_plugins">插件</string>
     <string name="right_sidebar_tab_browser">浏览器</string>
     <string name="right_sidebar_up">上一级</string>
     <string name="right_sidebar_import">导入</string>

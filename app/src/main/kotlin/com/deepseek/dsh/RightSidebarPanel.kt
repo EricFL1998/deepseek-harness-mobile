@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** 右侧栏标签（对应官方 sidebar.right.pane.tab 里手机端可实现的部分）。 */
-private val RIGHT_TABS = listOf("files", "document", "plan", "deliverables", "browser")
+private val RIGHT_TABS = listOf("files", "document", "plan", "deliverables", "terminal", "schedule", "plugins", "browser")
 
 /** 单次预览读取上限。 */
 private const val PREVIEW_LIMIT_BYTES = 256 * 1024
@@ -73,6 +73,9 @@ fun RightSidebarPanel(
     todos: List<TodoEntryInfo>,
     deliverables: List<PresentedFileInfo>,
     onOpenDeliverable: (PresentedFileInfo) -> Unit,
+    terminalContent: @Composable () -> Unit,
+    scheduleContent: @Composable () -> Unit,
+    pluginContent: @Composable () -> Unit,
     onClose: () -> Unit,
 ) {
     val palette = dshPanelColors()
@@ -111,6 +114,9 @@ fun RightSidebarPanel(
                             "document" -> R.string.right_sidebar_tab_document
                             "plan" -> R.string.right_sidebar_tab_plan
                             "deliverables" -> R.string.right_sidebar_tab_deliverables
+                            "terminal" -> R.string.right_sidebar_tab_terminal
+                            "schedule" -> R.string.right_sidebar_tab_schedule
+                            "plugins" -> R.string.right_sidebar_tab_plugins
                             else -> R.string.right_sidebar_tab_browser
                         },
                     )
@@ -177,6 +183,9 @@ fun RightSidebarPanel(
                     deliverables = deliverables,
                     onOpen = onOpenDeliverable,
                 )
+                "terminal" -> Box(modifier = Modifier.fillMaxSize()) { terminalContent() }
+                "schedule" -> Box(modifier = Modifier.fillMaxSize()) { scheduleContent() }
+                "plugins" -> Box(modifier = Modifier.fillMaxSize()) { pluginContent() }
                 else -> RightInfoTab(
                     text = stringResource(R.string.right_sidebar_browser_unavailable),
                 )

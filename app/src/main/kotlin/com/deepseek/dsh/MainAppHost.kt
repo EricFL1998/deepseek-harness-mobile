@@ -1812,6 +1812,65 @@ fun MainAppHost(
         )
     }
 
+
+    // 终端面板内容：TERMINAL 页与右侧栏终端标签复用同一份状态与回调。
+    val terminalContent: @Composable () -> Unit = {
+    
+                                TerminalScreen(
+                                    buffer = runtimeUi.terminalBuffer,
+                                    status = runtimeUi.terminalStatus,
+                                    writable = runtimeUi.terminalWritable,
+                                    terminals = runtimeUi.terminalList,
+                                    activeTerminalId = runtimeUi.activeTerminalId,
+                                    shellChoices = runtimeUi.terminalShells,
+                                    onSelectTerminal = { id -> runtimeUi.activeTerminalId = id },
+                                    onCreateTerminal = { shellPath ->
+                                        val sid = ui.selectedSessionId
+                                        if (sid != null) {
+                                            scope.launch {
+                                                val id = "term-" + System.currentTimeMillis()
+                                                dshRepository.createTerminal(
+                                                    ui.activeHostId, sid, id, shellPath, 80, 24,
+                                                )
+                                                runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
+                                                runtimeUi.activeTerminalId = id
+                                            }
+                                        }
+                                    },
+                                    onRenameTerminal = { id, title ->
+                                        val sid = ui.selectedSessionId
+                                        if (sid != null) {
+                                            scope.launch {
+                                                dshRepository.renameTerminal(ui.activeHostId, sid, id, title)
+                                                runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
+                                            }
+                                        }
+                                    },
+                                    onInput = { line ->
+                                        runtimeUi.terminalConnection?.write(line + "\r")
+                                    },
+                                    onQuickKey = { key ->
+                                        runtimeUi.terminalConnection?.write(key)
+                                    },
+                                    onClose = {
+                                        val sid = ui.selectedSessionId
+                                        if (sid != null) {
+                                            scope.launch {
+                                                dshRepository.closeTerminal(
+                                                    ui.activeHostId, sid, runtimeUi.activeTerminalId,
+                                                )
+                                                runtimeUi.terminalConnection?.close()
+                                                runtimeUi.terminalConnection = null
+                                                runtimeUi.terminalStatus = context.getString(
+                                                    R.string.terminal_closed
+                                                )
+                                            }
+                                        }
+                                    },
+                                )
+                            
+    }
+
     val workspaceFolders = remember(
         sessions, ui.selectedSessionId, activeWorkspace, runtimeUi.workspaceRevision, hostWorkspaces,
     ) {
@@ -2909,60 +2968,7 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.TERMINAL -> PageContentSlot {
-                            TerminalScreen(
-                                buffer = runtimeUi.terminalBuffer,
-                                status = runtimeUi.terminalStatus,
-                                writable = runtimeUi.terminalWritable,
-                                terminals = runtimeUi.terminalList,
-                                activeTerminalId = runtimeUi.activeTerminalId,
-                                shellChoices = runtimeUi.terminalShells,
-                                onSelectTerminal = { id -> runtimeUi.activeTerminalId = id },
-                                onCreateTerminal = { shellPath ->
-                                    val sid = ui.selectedSessionId
-                                    if (sid != null) {
-                                        scope.launch {
-                                            val id = "term-" + System.currentTimeMillis()
-                                            dshRepository.createTerminal(
-                                                ui.activeHostId, sid, id, shellPath, 80, 24,
-                                            )
-                                            runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
-                                            runtimeUi.activeTerminalId = id
-                                        }
-                                    }
-                                },
-                                onRenameTerminal = { id, title ->
-                                    val sid = ui.selectedSessionId
-                                    if (sid != null) {
-                                        scope.launch {
-                                            dshRepository.renameTerminal(ui.activeHostId, sid, id, title)
-                                            runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
-                                        }
-                                    }
-                                },
-                                onInput = { line ->
-                                    runtimeUi.terminalConnection?.write(line + "\r")
-                                },
-                                onQuickKey = { key ->
-                                    runtimeUi.terminalConnection?.write(key)
-                                },
-                                onClose = {
-                                    val sid = ui.selectedSessionId
-                                    if (sid != null) {
-                                        scope.launch {
-                                            dshRepository.closeTerminal(
-                                                ui.activeHostId, sid, runtimeUi.activeTerminalId,
-                                            )
-                                            runtimeUi.terminalConnection?.close()
-                                            runtimeUi.terminalConnection = null
-                                            runtimeUi.terminalStatus = context.getString(
-                                                R.string.terminal_closed
-                                            )
-                                        }
-                                    }
-                                },
-                            )
-                        }
+                        ActivePage.TERMINAL -> PageContentSlot { terminalContent() }
 
                         ActivePage.SETTINGS -> AppSettingsPage(
                             settings = ui.currentAppSettings,
@@ -3149,6 +3155,16 @@ fun MainAppHost(
                 },
                 todos = sessionTodos,
                 deliverables = sessionDeliverables,
+                terminalContent = terminalContent,
+                scheduleContent = {
+                    SchedulesScreen(onCreateTask = { ui.activePage = ActivePage.CHAT })
+                },
+                pluginContent = {
+                    com.deepseek.dsh.plugin.nativehost.NativeSlot(
+                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.RIGHT_PANEL,
+                        spec = kotlinx.serialization.json.JsonObject(emptyMap()),
+                    )
+                },
                 onClose = { ui.rightDrawerOpen = false },
                 onOpenDeliverable = { file ->
                     // Host 的 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
