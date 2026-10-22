@@ -133,6 +133,10 @@ fun ModernNavigationDrawerContent(
     onTogglePinSession: (SessionDisplayItem) -> Unit = {},
     onToggleArchiveSession: (SessionDisplayItem) -> Unit = {},
     onForkSession: (SessionDisplayItem) -> Unit = {},
+    /** Host 内容搜索结果（sessionId + 命中片段）。 */
+    remoteSearchResults: List<Pair<String, String>> = emptyList(),
+    /** 搜索词变化（由宿主去抖后调用 Host `session/search`）。 */
+    onSearchQueryChange: (String) -> Unit = {},
     onNewChatClick: () -> Unit,
     onNavigatePlugins: () -> Unit,
     onNavigateSchedule: () -> Unit = {},
@@ -170,6 +174,14 @@ fun ModernNavigationDrawerContent(
     var sortMode by remember { mutableStateOf(SessionSortMode.MANUAL) }
     var archiveFilter by remember { mutableStateOf(ArchiveFilter.HIDE_ARCHIVED) }
     var searchQuery by remember { mutableStateOf("") }
+    LaunchedEffect(searchOpen, searchQuery) {
+        if (!searchOpen || searchQuery.isBlank()) {
+            onSearchQueryChange("")
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(300)
+        onSearchQueryChange(searchQuery)
+    }
     val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(searchOpen) {
         if (searchOpen) searchFocus.requestFocus()
@@ -446,6 +458,7 @@ fun ModernNavigationDrawerContent(
         val scrubTitles = workspaces.flatMap { folder ->
             folder.sessions.filterNot { it.archived }.map { it.title }
         }
+        val remoteSearchTitle = stringResource(R.string.search_host_results)
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
         LazyColumn(
             state = sessionListState,
@@ -493,7 +506,27 @@ fun ModernNavigationDrawerContent(
                 filteredWorkspaces
             }
 
-            visibleWorkspaces.forEachIndexed { folderIndex, folder ->
+            val remoteFolder = if (searching && remoteSearchResults.isNotEmpty()) {
+                val remoteTitle = remoteSearchTitle
+                listOf(
+                    WorkspaceFolder(
+                        id = "__remote",
+                        name = remoteTitle,
+                        sessions = remoteSearchResults.map { (sessionId, snippet) ->
+                            SessionDisplayItem(
+                                sessionId = sessionId,
+                                title = snippet,
+                                timeAgo = "",
+                                isActiveDot = sessionId == selectedSessionId,
+                            )
+                        },
+                        isExpanded = true,
+                    )
+                )
+            } else {
+                emptyList()
+            }
+            (visibleWorkspaces + remoteFolder).forEachIndexed { folderIndex, folder ->
                 val isExpanded = if ((searchOpen && searchQuery.isNotBlank()) || groupMode == WorkspaceGroupMode.SINGLE_LIST) true else (expandedMap[folder.id] ?: folder.isExpanded)
 
                 item(key = "fld_${folder.id}") {

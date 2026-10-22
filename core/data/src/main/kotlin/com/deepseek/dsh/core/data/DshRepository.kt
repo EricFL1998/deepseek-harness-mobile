@@ -649,6 +649,16 @@ class DshRepository(
         return newSessionId
     }
 
+    /** 官方 `session/search`：按内容搜索会话。 */
+    suspend fun searchSessions(
+        hostId: String,
+        query: String,
+    ): List<com.deepseek.dsh.core.protocol.SessionSearchHit> =
+        when (val res = client.searchSessions(hostId, query)) {
+            is RemoteResult.Success -> res.data
+            is RemoteResult.Failure -> emptyList()
+        }
+
     /** 官方 `workspace/pinSession` / `unpinSession`：置顶/取消置顶。 */
     suspend fun setSessionPinned(hostId: String, sessionId: String, pinned: Boolean): Boolean {
         val method = if (pinned) "workspace/pinSession" else "workspace/unpinSession"

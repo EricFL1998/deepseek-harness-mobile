@@ -1434,6 +1434,9 @@ fun MainAppHost(
         mutableStateOf<com.deepseek.dsh.feature.sessions.SessionDisplayItem?>(null)
     }
     var renameSessionTitle by remember { mutableStateOf("") }
+    var remoteSearchResults by remember {
+        mutableStateOf<List<Pair<String, String>>>(emptyList())
+    }
     var deleteWorkspaceFolder by remember {
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
@@ -1804,6 +1807,17 @@ fun MainAppHost(
                     onToggleArchiveSession = { item ->
                         scope.launch {
                             dshRepository.setSessionArchived(activeHostId, item.sessionId, !item.archived)
+                        }
+                    },
+                    remoteSearchResults = remoteSearchResults,
+                    onSearchQueryChange = { query ->
+                        if (query.isBlank()) {
+                            remoteSearchResults = emptyList()
+                        } else {
+                            scope.launch {
+                                val hits = dshRepository.searchSessions(activeHostId, query)
+                                remoteSearchResults = hits.map { it.sessionId to it.snippet }
+                            }
                         }
                     },
                     onForkSession = { item ->

@@ -1999,6 +1999,58 @@ class RemoteClient(
         }
     }
 
+    /** 官方 `session/search`：内容搜索，返回命中会话与片段。 */
+    override suspend fun searchSessions(
+        hostId: String,
+        query: String,
+    ): RemoteResult<List<SessionSearchHit>> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "session/search")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject {
+                    put("request", buildJsonObject { put("query", query) })
+                })
+            })
+        }
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/api/session/search")
+                .post(payload.toString().toRequestBody(mediaTypeJson))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure(
+                        "dsh/search-failed",
+                        "HTTP ${response.code}",
+                    )
+                }
+                val root = json.parseToJsonElement(response.body?.string().orEmpty())
+                    as? kotlinx.serialization.json.JsonObject
+                    ?: return@use RemoteResult.Success(emptyList())
+                val value = ((root["result"] as? kotlinx.serialization.json.JsonObject)
+                    ?.get("value")) as? kotlinx.serialization.json.JsonObject
+                val items = value?.get("items")
+                    as? kotlinx.serialization.json.JsonArray
+                    ?: return@use RemoteResult.Success(emptyList())
+                val hits = items.mapNotNull { item ->
+                    val obj = item as? kotlinx.serialization.json.JsonObject
+                        ?: return@mapNotNull null
+                    val sessionId = (obj["sessionId"]
+                        as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        ?: return@mapNotNull null
+                    val snippet = (obj["snippet"]
+                        as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                    SessionSearchHit(sessionId, snippet)
+                }
+                RemoteResult.Success(hits)
+            }
+        } catch (e: Exception) {
+            RemoteResult.Failure("dsh/search-network", e.message ?: "search failed")
+        }
+    }
+
     /**
      * 订阅 Claude Code 模组横幅。
      *

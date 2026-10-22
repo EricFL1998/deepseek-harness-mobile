@@ -79,6 +79,9 @@ data class ForwardedWaterfall(
     val request: kotlinx.serialization.json.JsonObject,
 )
 
+/** 官方 `session/search` 的一条命中。 */
+data class SessionSearchHit(val sessionId: String, val snippet: String)
+
 interface DshClientProtocol {
     suspend fun authenticate(baseUrl: String, token: String?): RemoteResult<String>
     suspend fun listSessions(hostId: String): RemoteResult<List<SessionInfo>>
@@ -174,6 +177,8 @@ interface DshClientProtocol {
      * `pinned` / `replace`），调用方只需据此刷新列表即可。
      */
     fun workspaceFollow(hostId: String): Flow<String>
+    /** 官方 `session/search`：按内容搜索会话（最多 20 条）。 */
+    suspend fun searchSessions(hostId: String, query: String): RemoteResult<List<SessionSearchHit>>
     /**
      * 订阅会话的 Claude Code 模组横幅（流式 `claudeCodeMods/watchBand`）。
      *
