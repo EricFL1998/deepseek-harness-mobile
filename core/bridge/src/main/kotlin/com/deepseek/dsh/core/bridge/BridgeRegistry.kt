@@ -209,10 +209,13 @@ class BridgeRegistry(
         op = "pending",
     ) { json.decodeFromString(BridgeTransientEventList.serializer(), it.toString()) }
 
-    suspend fun hostSlotSurfaces(): BridgeResult<BridgeSlotSurfaceList> = query(
-        provider = BridgeHostSlotsProvider,
-        op = "list",
-    ) { json.decodeFromString(BridgeSlotSurfaceList.serializer(), it.toString()) }
+    suspend fun hostSlotSurfaces(locale: String? = null): BridgeResult<BridgeSlotSurfaceList> =
+        query(
+            provider = BridgeHostSlotsProvider,
+            op = "list",
+            args = locale?.takeIf { it.isNotBlank() }
+                ?.let { BridgeArgs.of("locale", it) } ?: BridgeArgs.none(),
+        ) { json.decodeFromString(BridgeSlotSurfaceList.serializer(), it.toString()) }
 
     suspend fun bundles(name: String? = null): BridgeResult<BridgeInventory> = query(
         provider = BridgeProtocol.PROVIDER_PACKAGE_INVENTORY,

@@ -313,7 +313,7 @@ class DshRepository(
             is BridgeResult.Failure -> Unit
         }
         // ② Host 侧设置命名空间：可选路径，失败只影响「插件设置」分组。
-        val surfaces = when (val result = registry.hostSlotSurfaces()) {
+        val surfaces = when (val result = registry.hostSlotSurfaces(java.util.Locale.getDefault().toLanguageTag())) {
             is BridgeResult.Success -> result.value.surfaces
             is BridgeResult.Failure -> emptyList()
         }
