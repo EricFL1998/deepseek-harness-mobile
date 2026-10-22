@@ -1546,9 +1546,13 @@ fun MainAppHost(
                     onClick = {
                         val name = newWorkspaceName.trim()
                         if (name.isNotEmpty()) {
-                            java.io.File(activeWorkspace, name).mkdirs()
+                            val dir = java.io.File(activeWorkspace, name)
+                            dir.mkdirs()
                             activeWorkspaceName = name
                             workspaceRevision += 1
+                            scope.launch {
+                                dshRepository.createWorkspace(activeHostId, dir.absolutePath)
+                            }
                         }
                         showAddWorkspaceDialog = false
                     },
@@ -1586,6 +1590,17 @@ fun MainAppHost(
                             runCatching { target.renameTo(renamed) }
                             if (folder.name == activeWorkspaceName) activeWorkspaceName = renameWorkspaceName.trim()
                             workspaceRevision += 1
+                            // Host 工作区跟着改名（先按原路径找 workspaceId）。
+                            val hostWorkspace = hostWorkspaces.firstOrNull { it.path == folder.path }
+                            if (hostWorkspace != null) {
+                                scope.launch {
+                                    dshRepository.workspaceRename(
+                                        activeHostId,
+                                        hostWorkspace.id,
+                                        renameWorkspaceName.trim(),
+                                    )
+                                }
+                            }
                         }
                         renameWorkspaceFolder = null
                     },
@@ -1710,6 +1725,11 @@ fun MainAppHost(
                         val target = java.io.File(
                             folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
                         )
+                        // 先取消 Host 注册，再删本地目录。
+                        val hostWorkspace = hostWorkspaces.firstOrNull { it.path == folder.path }
+                        if (hostWorkspace != null) {
+                            scope.launch { dshRepository.deleteWorkspace(activeHostId, hostWorkspace.id) }
+                        }
                         runCatching { target.deleteRecursively() }
                         if (folder.name == activeWorkspaceName) activeWorkspaceName = DEFAULT_WORKSPACE_DIR_NAME
                         workspaceRevision += 1

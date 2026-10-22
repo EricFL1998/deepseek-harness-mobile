@@ -622,6 +622,22 @@ class DshRepository(
     suspend fun workspaceCreate(hostId: String, path: String): Result<String> =
         rpcRaw(hostId, "workspace/create", "{\"request\":{\"path\":\"${path.replace("\"", "\\\"")}\"}}")
 
+    /** 官方 `workspace/create`：把一个目录注册成 Host 工作区。 */
+    suspend fun createWorkspace(hostId: String, path: String): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("path", path) })
+        }
+        return rpcRaw(hostId, "workspace/create", args.toString()).isSuccess
+    }
+
+    /** 官方 `workspace/delete`：取消工作区注册（不删目录）。 */
+    suspend fun deleteWorkspace(hostId: String, workspaceId: String): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("workspaceId", workspaceId) })
+        }
+        return rpcRaw(hostId, "workspace/delete", args.toString()).isSuccess
+    }
+
     suspend fun workspaceRename(hostId: String, workspaceId: String, title: String): Result<String> =
         rpcRaw(
             hostId,
