@@ -96,34 +96,26 @@ internal fun SettingsGeneralPane(
                 onClick = { showLanguageDialog = true },
             )
             if (showLanguageDialog) {
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showLanguageDialog = false },
-                    title = {
-                        Text(stringResource(R.string.settings_pane_general_language_title))
-                    },
-                    text = {
-                        Column {
-                            listOf(
-                                "system" to R.string.settings_pane_general_language_system,
-                                "zh" to R.string.settings_pane_general_language_chinese,
-                                "en" to R.string.settings_pane_general_language_english,
-                            ).forEach { (value, label) ->
-                                Text(
-                                    text = stringResource(label),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            showLanguageDialog = false
-                                            onLanguageChange(value)
-                                        }
-                                        .padding(vertical = 14.dp),
-                                )
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = { showLanguageDialog = false }) {
-                            Text(stringResource(android.R.string.cancel))
+                com.deepseek.dsh.core.designsystem.DshDialog(
+                    onDismiss = { showLanguageDialog = false },
+                    title = stringResource(R.string.settings_pane_general_language_title),
+                    closeLabel = stringResource(android.R.string.cancel),
+                    content = {
+                        listOf(
+                            "system" to R.string.settings_pane_general_language_system,
+                            "zh" to R.string.settings_pane_general_language_chinese,
+                            "en" to R.string.settings_pane_general_language_english,
+                        ).forEach { (value, label) ->
+                            Text(
+                                text = stringResource(label),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showLanguageDialog = false
+                                        onLanguageChange(value)
+                                    }
+                                    .padding(vertical = 14.dp),
+                            )
                         }
                     },
                 )

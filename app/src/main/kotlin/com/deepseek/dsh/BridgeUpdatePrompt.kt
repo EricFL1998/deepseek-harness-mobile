@@ -3,6 +3,7 @@ package com.deepseek.dsh
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,32 +57,39 @@ internal fun BridgeUpdatePrompt() {
     if (!current.pluginOutdated) return
     if (dismissedVersion == current.latestPlugin) return
 
-    AlertDialog(
-        onDismissRequest = { dismissedVersion = current.latestPlugin },
-        title = { Text(stringResource(SettingsR.string.agent_update_plugin_popup_title)) },
-        text = {
-            Column {
-                Text(stringResource(SettingsR.string.agent_update_plugin_popup_desc))
+    com.deepseek.dsh.core.designsystem.DshDialog(
+        onDismiss = { dismissedVersion = current.latestPlugin },
+        title = stringResource(SettingsR.string.agent_update_plugin_popup_title),
+        closeLabel = stringResource(SettingsR.string.agent_update_plugin_popup_later),
+        description = stringResource(SettingsR.string.agent_update_plugin_popup_desc),
+        content = {
+            Text(
+                stringResource(
+                    SettingsR.string.agent_update_plugin_versions,
+                    current.installedPlugin ?: "?",
+                    current.latestPlugin ?: "?",
+                ),
+            )
+            status?.let {
                 Spacer(androidx.compose.ui.Modifier.height(8.dp))
-                Text(
-                    stringResource(
-                        SettingsR.string.agent_update_plugin_versions,
-                        current.installedPlugin ?: "?",
-                        current.latestPlugin ?: "?",
-                    ),
-                )
-                status?.let {
-                    Spacer(androidx.compose.ui.Modifier.height(8.dp))
-                    Text(it)
-                }
-                error?.let {
-                    Spacer(androidx.compose.ui.Modifier.height(8.dp))
-                    Text(it)
-                }
+                Text(it)
+            }
+            error?.let {
+                Spacer(androidx.compose.ui.Modifier.height(8.dp))
+                Text(it)
             }
         },
-        confirmButton = {
-            TextButton(
+        footer = {
+            com.deepseek.dsh.core.designsystem.DshDialogButton(
+                text = stringResource(SettingsR.string.agent_update_plugin_popup_later),
+                primary = false,
+                enabled = !busy,
+                onClick = { dismissedVersion = current.latestPlugin },
+            )
+            Spacer(androidx.compose.ui.Modifier.width(8.dp))
+            com.deepseek.dsh.core.designsystem.DshDialogButton(
+                text = stringResource(SettingsR.string.agent_update_action_update_plugin),
+                primary = true,
                 enabled = !busy,
                 onClick = {
                     scope.launch {
@@ -109,12 +117,7 @@ internal fun BridgeUpdatePrompt() {
                         busy = false
                     }
                 },
-            ) { Text(stringResource(SettingsR.string.agent_update_action_update_plugin)) }
-        },
-        dismissButton = {
-            TextButton(onClick = { dismissedVersion = current.latestPlugin }) {
-                Text(stringResource(SettingsR.string.agent_update_plugin_popup_later))
-            }
+            )
         },
     )
 }

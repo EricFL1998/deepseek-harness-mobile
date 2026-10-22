@@ -615,46 +615,39 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
     }
 
     if (showPluginUpdateDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showPluginUpdateDialog = false },
-            title = {
-                Text(stringResource(R.string.agent_update_plugin_popup_title))
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { showPluginUpdateDialog = false },
+            title = stringResource(R.string.agent_update_plugin_popup_title),
+            closeLabel = stringResource(R.string.agent_update_plugin_popup_later),
+            description = stringResource(R.string.agent_update_plugin_popup_desc),
+            content = {
+                Text(
+                    stringResource(
+                        R.string.agent_update_plugin_versions,
+                        assessment.installedPlugin ?: textUnknown,
+                        assessment.latestPlugin ?: textUnknown,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace,
+                )
             },
-            text = {
-                Column {
-                    Text(
-                        stringResource(R.string.agent_update_plugin_popup_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(
-                            R.string.agent_update_plugin_versions,
-                            assessment.installedPlugin ?: textUnknown,
-                            assessment.latestPlugin ?: textUnknown,
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontFamily = FontFamily.Monospace,
-                    )
-                }
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = stringResource(R.string.agent_update_plugin_popup_later),
+                    primary = false,
+                    enabled = !pluginBusy,
+                    onClick = { showPluginUpdateDialog = false },
+                )
+                Spacer(Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = stringResource(R.string.agent_update_action_update_plugin),
+                    primary = true,
                     enabled = !pluginBusy,
                     onClick = {
                         showPluginUpdateDialog = false
                         scope.launch { updateBridgePlugin() }
                     },
-                ) {
-                    Text(stringResource(R.string.agent_update_action_update_plugin))
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { showPluginUpdateDialog = false },
-                ) {
-                    Text(stringResource(R.string.agent_update_plugin_popup_later))
-                }
+                )
             },
         )
     }
