@@ -147,6 +147,11 @@ fun ModernNavigationDrawerContent(
     onNavigateSchedule: () -> Unit = {},
     /** 打开终端页（官方 terminal-controller）。 */
     onNavigateTerminal: () -> Unit = {},
+    /**
+     * 终端页是否出现：由 Host 的官方 Loader 行 `@deepseek-ai/dsh-api-terminal-controller`
+     * 是否启用决定（等价于官方插件页里那一行的开关），客户端不另造设置。
+     */
+    showTerminal: Boolean = true,
     onNavigateRuntime: () -> Unit = {},
     onNavigateFiles: () -> Unit,
     onNavigateHosts: () -> Unit = {},
@@ -320,13 +325,15 @@ fun ModernNavigationDrawerContent(
                 textColor = textPrimary,
                 iconTint = textSecondary
             )
-            DrawerItem(
-                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_compact,
-                title = stringResource(R.string.drawer_nav_terminal),
-                onClick = onNavigateTerminal,
-                textColor = textPrimary,
-                iconTint = textSecondary
-            )
+            if (showTerminal) {
+                DrawerItem(
+                    iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_compact,
+                    title = stringResource(R.string.drawer_nav_terminal),
+                    onClick = onNavigateTerminal,
+                    textColor = textPrimary,
+                    iconTint = textSecondary
+                )
+            }
 
         }
 

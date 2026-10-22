@@ -1817,6 +1817,25 @@ fun MainAppHost(
         }
     }
 
+    // 终端页跟随官方插件行：Host 的 Loader 里 `@deepseek-ai/dsh-api-terminal-controller`
+    // 启用时才出现。这与官方插件页里那一行的开关是同一个事实源，客户端不加设置项。
+    val terminalSupported = remember(bridgePluginCatalog) {
+        val bundles = bridgePluginCatalog.bundles
+        if (bundles.isEmpty()) {
+            true
+        } else {
+            bundles.any { bundle ->
+                bundle.enabled && bundle.rows.any { row ->
+                    row.moduleName == "@deepseek-ai/dsh-api-terminal-controller" &&
+                        row.enabled == true
+                }
+            }
+        }
+    }
+    LaunchedEffect(terminalSupported) {
+        if (!terminalSupported && ui.activePage == ActivePage.TERMINAL) ui.activePage = ActivePage.CHAT
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -1916,6 +1935,7 @@ fun MainAppHost(
                             ui.activePage = ActivePage.PLUGINS
                         }
                     },
+                    showTerminal = terminalSupported,
                     onNavigateTerminal = {
                         scope.launch {
                             drawerState.close()
