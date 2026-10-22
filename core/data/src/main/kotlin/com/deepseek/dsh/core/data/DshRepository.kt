@@ -600,6 +600,41 @@ class DshRepository(
             is RemoteResult.Failure -> Result.failure(IllegalStateException("${res.code}: ${res.message}"))
         }
 
+    /** 官方 `session/rename`：改会话标题。 */
+    suspend fun renameSession(hostId: String, sessionId: String, title: String): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                put("title", title)
+            })
+        }
+        val ok = rpcRaw(hostId, "session/rename", args.toString()).isSuccess
+        if (ok) refreshSessions(hostId)
+        return ok
+    }
+
+    /** 官方 `workspace/pinSession` / `unpinSession`：置顶/取消置顶。 */
+    suspend fun setSessionPinned(hostId: String, sessionId: String, pinned: Boolean): Boolean {
+        val method = if (pinned) "workspace/pinSession" else "workspace/unpinSession"
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("sessionId", sessionId) })
+        }
+        val ok = rpcRaw(hostId, method, args.toString()).isSuccess
+        if (ok) refreshSessions(hostId)
+        return ok
+    }
+
+    /** 官方 `workspace/archiveSession` / `unarchiveSession`：归档/取消归档。 */
+    suspend fun setSessionArchived(hostId: String, sessionId: String, archived: Boolean): Boolean {
+        val method = if (archived) "workspace/archiveSession" else "workspace/unarchiveSession"
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("sessionId", sessionId) })
+        }
+        val ok = rpcRaw(hostId, method, args.toString()).isSuccess
+        if (ok) refreshSessions(hostId)
+        return ok
+    }
+
     /** Call a plugin-owned Host route with its payload unchanged. */
     suspend fun pluginRpc(hostId: String, method: String, payloadJson: String): Result<String> =
         when (val res = client.pluginRpc(hostId, method, payloadJson)) {

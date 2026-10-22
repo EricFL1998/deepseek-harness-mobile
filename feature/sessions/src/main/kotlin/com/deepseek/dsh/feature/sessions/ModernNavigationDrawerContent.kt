@@ -96,6 +96,7 @@ data class SessionDisplayItem(
     val hasUnread: Boolean = false,
     val updatedAt: Long = 0L,
     val archived: Boolean = false,
+    val pinned: Boolean = false,
 )
 
 data class WorkspaceFolder(
@@ -127,6 +128,10 @@ fun ModernNavigationDrawerContent(
     workspaceDisplayName: (String) -> String = { it },
     selectedSessionId: String?,
     onSelectSession: (String) -> Unit,
+    /** 长按会话行的操作：重命名 / 置顶 / 归档。 */
+    onRenameSession: (SessionDisplayItem) -> Unit = {},
+    onTogglePinSession: (SessionDisplayItem) -> Unit = {},
+    onToggleArchiveSession: (SessionDisplayItem) -> Unit = {},
     onNewChatClick: () -> Unit,
     onNavigatePlugins: () -> Unit,
     onNavigateSchedule: () -> Unit = {},
@@ -614,7 +619,11 @@ fun ModernNavigationDrawerContent(
                             // 行操作菜单（原 hover 按钮）改为长按弹出
                             SessionRowMenu(
                                 expanded = sessionMenuId == session.sessionId,
+                                session = session,
                                 onDismiss = { sessionMenuId = null },
+                                onRename = { onRenameSession(session) },
+                                onTogglePin = { onTogglePinSession(session) },
+                                onToggleArchive = { onToggleArchiveSession(session) },
                             )
                         }
                     }
@@ -757,24 +766,46 @@ private fun AccountMenuRow(
     }
 }
 /**
- * 会话行长按菜单：对齐行内 `⋯` 菜单条目
- * （置顶会话 / 重命名 / 分叉会话 / 归档会话 / 复制 Session ID）。
+ * 会话行长按菜单：置顶 / 重命名 / 归档 / 复制 Session ID。
  *
- * 手机端不显示桌面快捷键提示。
+ * 每一项都直接落到官方 Remote（`workspace/pinSession`、`session/rename`、
+ * `workspace/archiveSession`），手机端不显示桌面快捷键提示。
  */
 @Composable
 private fun SessionRowMenu(
     expanded: Boolean,
+    session: SessionDisplayItem,
     onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onTogglePin: () -> Unit,
+    onToggleArchive: () -> Unit,
 ) {
-    data class Entry(val labelResId: Int, val iconResId: Int)
+    data class Entry(val labelResId: Int, val iconResId: Int, val action: () -> Unit)
 
+    val context = androidx.compose.ui.platform.LocalContext.current
     val entries = listOf(
-        Entry(R.string.row_pin, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_pin),
-        Entry(R.string.row_rename, com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official),
-        Entry(R.string.row_fork, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_branch),
-        Entry(R.string.row_archive, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
-        Entry(R.string.row_session_id, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_copy),
+        Entry(
+            if (session.pinned) R.string.row_unpin else R.string.row_pin,
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_row_pin,
+        ) { onTogglePin() },
+        Entry(
+            R.string.row_rename,
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official,
+        ) { onRename() },
+        Entry(
+            if (session.archived) R.string.row_unarchive else R.string.row_archive,
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive,
+        ) { onToggleArchive() },
+        Entry(
+            R.string.row_session_id,
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_row_copy,
+        ) {
+            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                as android.content.ClipboardManager
+            clipboard.setPrimaryClip(
+                android.content.ClipData.newPlainText("sessionId", session.sessionId)
+            )
+        },
     )
 
     // 宽度随内容自适应：卡片按最长一行定宽，行铺满卡片（Menu `.item` 100% 宽）。
@@ -786,7 +817,7 @@ private fun SessionRowMenu(
         anchorGap = 0.dp,
     ) {
         entries.forEach { entry ->
-            DshMenuRow(onClick = onDismiss) {
+            DshMenuRow(onClick = { onDismiss(); entry.action() }) {
                 DshMenuIcon(entry.iconResId)
                 DshMenuLabel(stringResource(entry.labelResId))
             }

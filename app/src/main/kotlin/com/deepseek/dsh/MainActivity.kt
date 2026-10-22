@@ -1450,6 +1450,10 @@ fun MainAppHost(
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
     var renameWorkspaceName by remember { mutableStateOf("") }
+    var renameSessionTarget by remember {
+        mutableStateOf<com.deepseek.dsh.feature.sessions.SessionDisplayItem?>(null)
+    }
+    var renameSessionTitle by remember { mutableStateOf("") }
     var deleteWorkspaceFolder by remember {
         mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
     }
@@ -1607,6 +1611,42 @@ fun MainAppHost(
         )
     }
 
+    // 会话重命名：官方 `session/rename`。
+    renameSessionTarget?.let { target ->
+        com.deepseek.dsh.core.designsystem.DshDialog(
+            onDismiss = { renameSessionTarget = null },
+            title = stringResource(R.string.row_rename),
+            closeLabel = stringResource(R.string.action_close),
+            footer = {
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = stringResource(R.string.action_cancel), primary = false, enabled = true,
+                    onClick = { renameSessionTarget = null },
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                com.deepseek.dsh.core.designsystem.DshDialogButton(
+                    text = stringResource(R.string.action_save), primary = true,
+                    enabled = renameSessionTitle.isNotBlank(),
+                    onClick = {
+                        val title = renameSessionTitle.trim()
+                        renameSessionTarget = null
+                        if (title.isNotEmpty() && title != target.title) {
+                            scope.launch {
+                                dshRepository.renameSession(activeHostId, target.sessionId, title)
+                            }
+                        }
+                    },
+                )
+            },
+            content = {
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = renameSessionTitle,
+                    onValueChange = { renameSessionTitle = it },
+                    placeholder = stringResource(R.string.row_rename),
+                )
+            },
+        )
+    }
+
     deleteWorkspaceFolder?.let { folder ->
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { deleteWorkspaceFolder = null },
@@ -1662,6 +1702,7 @@ fun MainAppHost(
                         hasUnread = s.sessionId in unreadSessionIds,
                         updatedAt = s.updatedAt,
                         archived = s.archived,
+                        pinned = s.pinned,
                         timeAgo = run {
                             val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
                             when {
@@ -1715,6 +1756,20 @@ fun MainAppHost(
                         selectedSessionId = sessionId
                         activePage = ActivePage.CHAT
                         scope.launch { drawerState.close() }
+                    },
+                    onRenameSession = { item ->
+                        renameSessionTarget = item
+                        renameSessionTitle = item.title
+                    },
+                    onTogglePinSession = { item ->
+                        scope.launch {
+                            dshRepository.setSessionPinned(activeHostId, item.sessionId, !item.pinned)
+                        }
+                    },
+                    onToggleArchiveSession = { item ->
+                        scope.launch {
+                            dshRepository.setSessionArchived(activeHostId, item.sessionId, !item.archived)
+                        }
                     },
                     onNewChatClick = {
                         // 官方行为：新会话在发出第一条消息前不创建 Host 会话；
