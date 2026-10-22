@@ -65,7 +65,9 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
                 )
 
                 is MarkdownBlock.ListItem -> Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = (16 * block.depth).dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
@@ -114,6 +116,11 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
                                     clipboard.setPrimaryClip(
                                         android.content.ClipData.newPlainText("code", block.code),
                                     )
+                                    android.widget.Toast.makeText(
+                                        localContext,
+                                        localContext.getString(R.string.markdown_copied),
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
                                 }
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
@@ -187,14 +194,15 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
 private sealed interface MarkdownBlock {
     data class Heading(val level: Int, val text: String) : MarkdownBlock
     data class Paragraph(val text: String) : MarkdownBlock
-    data class ListItem(val marker: String, val text: String) : MarkdownBlock
+    data class ListItem(val marker: String, val text: String, val depth: Int = 0) : MarkdownBlock
     data class Code(val code: String) : MarkdownBlock
     data class Table(val rows: List<List<String>>) : MarkdownBlock
     data class Quote(val text: String) : MarkdownBlock
 }
 
 private val headingRegex = Regex("^(#{1,6})\\s+(.*)$")
-private val listRegex = Regex("^\\s*([-*+]|\\d+[.)])\\s+(.*)$")
+private val listRegex = Regex("^(\\s*)([-*+]|\\d+[.)])\\s+(.*)$")
+private val taskRegex = Regex("^\\[([ xX])]\\s+(.*)$")
 private val tableSeparatorRegex = Regex("^\\|?\\s*:?-{2,}:?\\s*(\\|\\s*:?-{2,}:?\\s*)*\\|?$")
 private val fenceRegex = Regex("^\\s*```(.*)$")
 
@@ -255,9 +263,23 @@ private fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
             listRegex.matches(line) -> {
                 flushParagraph()
                 val match = listRegex.find(line)!!
-                val rawMarker = match.groupValues[1]
-                val marker = if (rawMarker.first().isDigit()) rawMarker else "•"
-                blocks += MarkdownBlock.ListItem(marker = marker, text = match.groupValues[2].trim())
+                val indent = match.groupValues[1].length
+                val depth = (indent / 2).coerceIn(0, 3)
+                val rawMarker = match.groupValues[2]
+                var itemText = match.groupValues[3].trim()
+                // 任务列表：- [ ] / - [x]
+                val task = taskRegex.find(itemText)
+                val marker = when {
+                    task != null -> if (task.groupValues[1].equals("x", ignoreCase = true)) "☑" else "☐"
+                    rawMarker.first().isDigit() -> rawMarker
+                    else -> "•"
+                }
+                if (task != null) itemText = task.groupValues[2].trim()
+                blocks += MarkdownBlock.ListItem(
+                    marker = marker,
+                    text = itemText,
+                    depth = depth,
+                )
             }
             trimmed.isEmpty() -> flushParagraph()
             else -> {

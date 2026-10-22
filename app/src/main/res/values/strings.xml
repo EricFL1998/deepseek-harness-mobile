@@ -611,4 +611,6 @@
     <string name="schedule_in_minutes">in %1$d min</string>
     <string name="schedule_in_hours">in %1$d h</string>
     <string name="schedule_in_days">in %1$d d</string>
+<string name="settings_secret_configured_placeholder">Configured — enter a new value to replace</string>
+    <string name="settings_secret_unset_placeholder">Not configured — enter a value</string>
 </resources>

@@ -314,4 +314,5 @@
     <string name="workflow_status_failed">失败</string>
     <string name="workflow_status_cancelled">已取消</string>
     <string name="workflow_status_interrupted">已中断</string>
+    <string name="markdown_copied">已复制</string>
 </resources>

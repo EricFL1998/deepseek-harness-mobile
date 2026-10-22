@@ -840,6 +840,11 @@ fun ModernChatScreen(
                     clipboard.setPrimaryClip(
                         android.content.ClipData.newPlainText("message", text),
                     )
+                    android.widget.Toast.makeText(
+                        localContext,
+                        localContext.getString(R.string.markdown_copied),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
                 },
                 onFork = { seq -> MessageActionBridge.forkAt?.invoke(seq) },
                 onDismiss = { actionMessage = null },

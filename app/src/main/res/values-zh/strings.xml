@@ -611,4 +611,6 @@
     <string name="schedule_in_minutes">%1$d 分钟后</string>
     <string name="schedule_in_hours">%1$d 小时后</string>
     <string name="schedule_in_days">%1$d 天后</string>
+<string name="settings_secret_configured_placeholder">已配置 —— 输入新值可替换</string>
+    <string name="settings_secret_unset_placeholder">未配置 —— 输入以设置</string>
 </resources>

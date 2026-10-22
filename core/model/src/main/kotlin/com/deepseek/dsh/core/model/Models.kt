@@ -488,6 +488,15 @@ data class PluginSettingsDocument(
     val revision: Int = 0,
     val schema: JsonObject = JsonObject(emptyMap()),
     val value: JsonObject = JsonObject(emptyMap()),
+    /** 已配置的密钥位置（Host 只下发 path + set，值本身被剥离）。 */
+    val secretSlots: List<PluginSecretSlot> = emptyList(),
+)
+
+/** 一个密钥字段位置（路径 + 是否已配置）。 */
+@Serializable
+data class PluginSecretSlot(
+    val path: List<String> = emptyList(),
+    val set: Boolean = false,
 )
 
 /**

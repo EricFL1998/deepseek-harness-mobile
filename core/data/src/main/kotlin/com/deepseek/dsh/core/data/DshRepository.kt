@@ -381,6 +381,9 @@ class DshRepository(
                 revision = result.value.revision,
                 schema = result.value.schema,
                 value = result.value.value,
+                secretSlots = result.value.secrets.map {
+                    com.deepseek.dsh.core.model.PluginSecretSlot(path = it.path, set = it.set)
+                },
             )
             is BridgeResult.Failure -> null
         }

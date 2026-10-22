@@ -347,6 +347,13 @@ data class BridgeSlotSurfaceList(
     val surfaces: List<BridgeSlotSurface> = emptyList(),
 )
 
+/** Host 报告的一个已配置密钥位置（值永远不下发）。 */
+@Serializable
+data class BridgeSecretSlot(
+    val path: List<String> = emptyList(),
+    val set: Boolean = false,
+)
+
 /** `settings/describe` 的响应体。 */
 @Serializable
 data class BridgeSettingsDocument(
@@ -355,6 +362,8 @@ data class BridgeSettingsDocument(
     val applies: String? = null,
     val schema: JsonObject = JsonObject(emptyMap()),
     val value: JsonObject = JsonObject(emptyMap()),
+    /** 密钥字段位置；值为空时客户端据此显示「已配置」而不回显密钥。 */
+    val secrets: List<BridgeSecretSlot> = emptyList(),
 )
 
 /** `settings/update` 的响应体。 */

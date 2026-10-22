@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -263,6 +264,15 @@ private fun SettingsDocumentEditor(
     val form = remember(document.schema) { parseSettingsForm(document.schema) }
     // 编辑过的字段，键是路径（用 \u0000 连接）。值为 null 表示这一字段没被改。
     val edits = remember(document.ns, document.revision) { mutableStateMapOf<String, JsonElement>() }
+    // 密钥字段：只回显「已配置」，新值由用户输入，留空表示保持不变。
+    val secretPaths = remember(document.secretSlots) {
+        document.secretSlots.filter { it.set }
+            .map { it.path.joinToString(PATH_SEPARATOR) }
+            .toSet()
+    }
+    val secretDrafts = remember(document.ns, document.revision) {
+        mutableStateMapOf<String, String>()
+    }
     var status by remember(document.ns, document.revision) { mutableStateOf<String?>(null) }
     var saving by remember(document.ns) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -284,6 +294,8 @@ private fun SettingsDocumentEditor(
                 path = emptyList(),
                 documentValue = document.value,
                 edits = edits,
+                secretPaths = secretPaths,
+                secretDrafts = secretDrafts,
             )
         }
         val label = when {
@@ -351,6 +363,8 @@ private fun FormFields(
     path: List<String>,
     documentValue: JsonObject,
     edits: MutableMap<String, JsonElement>,
+    secretPaths: Set<String>,
+    secretDrafts: MutableMap<String, String>,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for ((name, child) in node.dict) {
@@ -360,6 +374,8 @@ private fun FormFields(
                 path = path + name,
                 documentValue = documentValue,
                 edits = edits,
+                secretPaths = secretPaths,
+                secretDrafts = secretDrafts,
             )
         }
     }
@@ -373,6 +389,8 @@ private fun FormField(
     path: List<String>,
     documentValue: JsonObject,
     edits: MutableMap<String, JsonElement>,
+    secretPaths: Set<String>,
+    secretDrafts: MutableMap<String, String>,
 ) {
     val colors = dshPanelColors()
     val key = path.joinToString(PATH_SEPARATOR)
@@ -402,6 +420,8 @@ private fun FormField(
                             path = path + childName,
                             documentValue = documentValue,
                             edits = edits,
+                            secretPaths = secretPaths,
+                            secretDrafts = secretDrafts,
                         )
                     }
                 }
@@ -428,15 +448,50 @@ private fun FormField(
             }
         }
         "string" -> {
-            val text = (current as? JsonPrimitive)?.contentOrNull.orEmpty()
             val secret = (node.meta["role"] as? JsonPrimitive)?.contentOrNull == "secret"
-            FieldLabel(label, colors.labelSecondary)
-            DshTextInput(
-                value = text,
-                onValueChange = { edits[key] = JsonPrimitive(it) },
-                placeholder = if (secret) stringResource(R.string.settings_blank_unchanged) else "",
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (secret) {
+                // 密钥：Host 已剥离真实值，这里只显示「已配置」掩码；输入新值即替换，
+                // 留空表示保持不变（与官方 ui-secret-mask 的语义一致）。
+                val configured = key in secretPaths
+                val draft = secretDrafts[key].orEmpty()
+                FieldLabel(label, colors.labelSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (configured) "••••••••" else "—",
+                        color = colors.labelTertiary,
+                        fontSize = 13.sp,
+                        modifier = Modifier.width(84.dp),
+                    )
+                    DshTextInput(
+                        value = draft,
+                        onValueChange = { value ->
+                            secretDrafts[key] = value
+                            if (value.isBlank()) {
+                                edits.remove(key)
+                            } else {
+                                edits[key] = JsonPrimitive(value)
+                            }
+                        },
+                        placeholder = stringResource(
+                            if (configured) R.string.settings_secret_configured_placeholder
+                            else R.string.settings_secret_unset_placeholder,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            } else {
+                val text = (current as? JsonPrimitive)?.contentOrNull.orEmpty()
+                FieldLabel(label, colors.labelSecondary)
+                DshTextInput(
+                    value = text,
+                    onValueChange = { edits[key] = JsonPrimitive(it) },
+                    placeholder = "",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         "number" -> {
             val text = (current as? JsonPrimitive)?.contentOrNull.orEmpty()
