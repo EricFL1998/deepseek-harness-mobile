@@ -2558,10 +2558,17 @@ fun MainAppHost(
                                             "gif" -> "image/gif"
                                             else -> return@mapNotNull null
                                         }
-                                        val file = java.io.File(attachment.workspaceRelativePath).let {
-                                            if (it.isAbsolute) it else java.io.File(activeWorkspace, attachment.workspaceRelativePath)
+                                        // 相对路径可能相对工作区根，也可能相对会话目录
+                                        // （附件实际复制进 <root>/<workspaceName>/attachments）。
+                                        val relative = attachment.workspaceRelativePath
+                                        val file = listOf(
+                                            java.io.File(relative),
+                                            java.io.File(activeWorkspace, relative),
+                                            java.io.File(java.io.File(activeWorkspace, activeWorkspaceName), relative),
+                                        ).firstOrNull { it.isFile }
+                                        if (file == null || !file.isFile || file.length() > 20L * 1024 * 1024) {
+                                            return@mapNotNull null
                                         }
-                                        if (!file.isFile || file.length() > 20L * 1024 * 1024) return@mapNotNull null
                                         val encoded = android.util.Base64.encodeToString(
                                             file.readBytes(),
                                             android.util.Base64.NO_WRAP,
