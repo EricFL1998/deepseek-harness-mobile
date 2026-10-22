@@ -1711,6 +1711,47 @@ class DshRepository(
         rpcRaw(hostId, "settings/update", args.toString())
     }
 
+    /** 官方 `settings/describe` 里 `session-log-deepseek` 的上传开关。 */
+    suspend fun fetchSessionLogUploadEnabled(hostId: String): Boolean? {
+        val raw = rpcRaw(hostId, "settings/describe", "{}").getOrNull() ?: return null
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return null
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return null
+        val namespaces = value["namespaces"] as? JsonArray ?: return null
+        val ns = namespaces.mapNotNull { it as? JsonObject }
+            .firstOrNull { (it["ns"] as? JsonPrimitive)?.contentOrNull == SESSION_LOG_NS }
+            ?: return null
+        val section = ns["value"] as? JsonObject ?: return null
+        return (section["enabled"] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull()
+    }
+
+    /** 官方 `settings/mutate`：把 session log 上传开关写到 Host。 */
+    suspend fun setSessionLogUploadEnabled(hostId: String, enabled: Boolean): Boolean {
+        val revision = sessionLogRevision(hostId)
+        val args = buildJsonObject {
+            put("ns", SESSION_LOG_NS)
+            put("ops", buildJsonArray {
+                add(buildJsonObject {
+                    put("op", "set")
+                    put("path", buildJsonArray { add(JsonPrimitive("enabled")) })
+                    put("value", JsonPrimitive(enabled))
+                })
+            })
+            if (revision != null) put("expectedRevision", revision)
+        }
+        return rpcRaw(hostId, "settings/mutate", args.toString())
+            .getOrNull()?.contains("\"ok\":true") == true
+    }
+
+    private suspend fun sessionLogRevision(hostId: String): Int? {
+        val raw = rpcRaw(hostId, "settings/describe", "{}").getOrNull() ?: return null
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return null
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return null
+        val namespaces = value["namespaces"] as? JsonArray ?: return null
+        return namespaces.mapNotNull { it as? JsonObject }
+            .firstOrNull { (it["ns"] as? JsonPrimitive)?.contentOrNull == SESSION_LOG_NS }
+            ?.let { (it["revision"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() }
+    }
+
     /** 官方 `schedule/catalog`：Host 上所有计划任务（含会话绑定与状态）。 */
     private val _scheduleCatalogFlow =
         MutableStateFlow<List<com.deepseek.dsh.core.model.ScheduleInfo>>(emptyList())
@@ -2326,3 +2367,6 @@ data class HostWorkspaceInfo(
     val title: String,
     val sessionIds: List<String>,
 )
+
+/** 官方 session-log 上传配置的命名空间。 */
+private const val SESSION_LOG_NS = "session-log-deepseek"

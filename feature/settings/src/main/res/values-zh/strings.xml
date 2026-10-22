@@ -231,4 +231,6 @@
     <string name="settings_pane_models_custom_id">提供商 ID</string>
     <string name="settings_pane_models_custom_id_placeholder">例如 my-gateway</string>
     <string name="settings_pane_models_custom_id_invalid">只能包含字母、数字、点或短横线</string>
+<string name="settings_pane_general_upload_title">会话日志上传</string>
+    <string name="settings_pane_general_upload_desc">把会话日志上传到 DeepSeek，用于改进服务。</string>
 </resources>

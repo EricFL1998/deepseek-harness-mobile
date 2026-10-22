@@ -52,6 +52,7 @@ internal fun SettingsGeneralPane(
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalSettingsPalette.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { SessionLogUploadBridge.refresh() }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -117,6 +118,16 @@ internal fun SettingsGeneralPane(
                 onClick = {}
             )
             GeneralRowDivider()
+        }
+        item(key = "general_session_log_upload") {
+            val uploadEnabled = SessionLogUploadBridge.enabled
+            if (uploadEnabled != null) {
+                SessionLogUploadRow(
+                    checked = uploadEnabled,
+                    onCheckedChange = { checked -> SessionLogUploadBridge.set(checked) },
+                )
+                GeneralRowDivider()
+            }
         }
         item(key = "general_developer_tools") {
             DeveloperToolsRow(
@@ -390,5 +401,35 @@ private fun DeveloperToolsRow(
             checked = checked,
             onCheckedChange = onCheckedChange,
         )
+    }
+}
+
+/** Session log 上传开关（官方 `ui-settings-session-log` 的 UploadRow）。 */
+@Composable
+private fun SessionLogUploadRow(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val palette = LocalSettingsPalette.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_pane_general_upload_title),
+                style = SettingsText.RowTitle,
+                color = palette.labelPrimary,
+            )
+            Text(
+                text = stringResource(R.string.settings_pane_general_upload_desc),
+                style = SettingsText.RowDesc,
+                color = palette.labelSecondary,
+            )
+        }
+        SettingsSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
