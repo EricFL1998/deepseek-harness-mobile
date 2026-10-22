@@ -97,12 +97,19 @@ internal object AgentTeamPluginUi {
                     tint = colors.labelPrimary,
                     modifier = Modifier.size(16.dp),
                 )
+                Text(
+                    text = stringResource(R.string.official_agent_team_title),
+                    color = colors.labelPrimary,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                )
                 if (memberCount > 1) {
                     Text(
-                        text = memberCount.toString(),
+                        text = stringResource(R.string.header_agents_count, memberCount),
                         color = colors.labelSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
+                        maxLines = 1,
                     )
                 }
                 Box(

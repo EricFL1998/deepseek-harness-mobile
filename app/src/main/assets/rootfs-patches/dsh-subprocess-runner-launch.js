@@ -1028,7 +1028,10 @@ function spawnSubprocess(spec, internals = {}) {
 	];
 	if (spec.stdio.control === "pipe") {
 		while (stdio.length < SUBPROCESS_CONTROL_FD) stdio.push("ignore");
-		stdio.push("ignore");
+		// fd 7 必须是真实的双向管道：PTC / workflow worker 会在子进程里
+		// new Socket({fd:7}) 走控制通道。之前这里被改成 "ignore"，导致
+		// launched.control 为 null，workflow 直接报 reading 'on' of null。
+		stdio.push("overlapped");
 	}
 	let child;
 	try {

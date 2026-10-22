@@ -224,7 +224,9 @@ class DefaultHostRuntimeManager(
         // android bridge timeout 打断。
         // 36: fs.link 兜底只复制、不删除源文件，修官方 attachment store 的
         // ATTACHMENT_WRITE_FAILED（它自己在 link 成功后还会 unlink staging）。
-        val patchRevision = "36"
+        // 37: subprocess 控制通道 fd7 恢复为真实管道（之前被改成 "ignore"，
+        // 导致 workflow PTC worker 拿到 null control，卡在 reading 'on' of null）。
+        val patchRevision = "37"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to

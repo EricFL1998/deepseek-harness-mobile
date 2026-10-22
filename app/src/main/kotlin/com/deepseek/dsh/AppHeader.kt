@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -425,6 +426,14 @@ fun ModernTopAppBar(
                 )
             }
 
+            // 动作区：标题右边的按钮统一放进可横向滚动的一行。
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+
             if (onToggleRightPane != null) {
                 Surface(
                     shape = CircleShape,
@@ -473,9 +482,15 @@ fun ModernTopAppBar(
                     onClick = { teamPanelOpen = !teamPanelOpen },
                 )
             }
-            // 后台任务：官方 job/list 会话内可见的任务集合；有任务时在标题右侧。
+            // 后台任务：官方 JobListAction 的触发按钮（点 + 数量文案 + 状态点 + chevron）。
             if (hostJobs.isNotEmpty()) {
                 val jobsRunning = hostJobs.any { it.status == "running" || it.status == "stopping" }
+                val liveCount = hostJobs.count { it.status == "running" || it.status == "stopping" }
+                val countLabel = if (jobsRunning) {
+                    stringResource(R.string.header_jobs_running, liveCount)
+                } else {
+                    stringResource(R.string.header_jobs_idle, hostJobs.size)
+                }
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
@@ -486,26 +501,28 @@ fun ModernTopAppBar(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (jobsRunning) {
-                            androidx.compose.material3.CircularProgressIndicator(
-                                modifier = Modifier.size(13.dp),
-                                strokeWidth = 1.5.dp,
-                                color = barColors.labelPrimary,
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(barColors.labelPrimary),
                             )
-                        } else {
-                            Text(
-                                text = hostJobs.size.toString(),
-                                fontSize = 12.sp,
-                                color = barColors.labelPrimary,
-                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = stringResource(R.string.jobs_section),
+                            text = countLabel,
                             fontSize = 12.sp,
                             color = barColors.labelPrimary,
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (jobsPanelOpen) "\u25B4" else "\u25BE",
+                            fontSize = 10.sp,
+                            color = barColors.labelSecondary,
+                        )
                     }
                 }
+            }
             }
         }
         // header 的 0.5dp border-l3 分隔线

@@ -3167,12 +3167,6 @@ fun MainAppHost(
                 scheduleContent = {
                     SchedulesScreen(onCreateTask = { ui.activePage = ActivePage.CHAT })
                 },
-                pluginContent = {
-                    com.deepseek.dsh.plugin.nativehost.NativeSlot(
-                        slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.RIGHT_PANEL,
-                        spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-                    )
-                },
                 onClose = { ui.rightDrawerOpen = false },
                 onOpenDeliverable = { file ->
                     // Host 的 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。

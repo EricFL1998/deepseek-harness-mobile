@@ -621,6 +621,9 @@
     <string name="right_sidebar_tab_terminal">终端</string>
     <string name="right_sidebar_tab_schedule">定时任务</string>
     <string name="right_sidebar_tab_plugins">插件</string>
+    <string name="header_agents_count">%1$d 个智能体</string>
+    <string name="header_jobs_running">%1$d 个后台任务运行中</string>
+    <string name="header_jobs_idle">%1$d 个后台任务</string>
     <string name="right_sidebar_plugins_hint">注册到右侧栏的原生插件内容会显示在这里。</string>
     <string name="right_sidebar_tab_browser">浏览器</string>
     <string name="right_sidebar_up">上一级</string>

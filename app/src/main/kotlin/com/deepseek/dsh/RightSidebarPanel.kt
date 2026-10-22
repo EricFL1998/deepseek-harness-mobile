@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** 右侧栏标签（对应官方 sidebar.right.pane.tab 里手机端可实现的部分）。 */
-private val RIGHT_TABS = listOf("files", "document", "plan", "deliverables", "terminal", "schedule", "plugins", "browser")
+private val RIGHT_TABS = listOf("files", "document", "plan", "deliverables", "terminal", "schedule", "browser")
 
 /** 单次预览读取上限。 */
 private const val PREVIEW_LIMIT_BYTES = 256 * 1024
@@ -75,7 +75,6 @@ fun RightSidebarPanel(
     onOpenDeliverable: (PresentedFileInfo) -> Unit,
     terminalContent: @Composable () -> Unit,
     scheduleContent: @Composable () -> Unit,
-    pluginContent: @Composable () -> Unit,
     onClose: () -> Unit,
 ) {
     val palette = dshPanelColors()
@@ -116,7 +115,6 @@ fun RightSidebarPanel(
                             "deliverables" -> R.string.right_sidebar_tab_deliverables
                             "terminal" -> R.string.right_sidebar_tab_terminal
                             "schedule" -> R.string.right_sidebar_tab_schedule
-                            "plugins" -> R.string.right_sidebar_tab_plugins
                             else -> R.string.right_sidebar_tab_browser
                         },
                     )
@@ -185,16 +183,6 @@ fun RightSidebarPanel(
                 )
                 "terminal" -> Box(modifier = Modifier.fillMaxSize()) { terminalContent() }
                 "schedule" -> Box(modifier = Modifier.fillMaxSize()) { scheduleContent() }
-                "plugins" -> Column(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        text = stringResource(R.string.right_sidebar_plugins_hint),
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        color = palette.labelTertiary,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                    Box(modifier = Modifier.fillMaxSize()) { pluginContent() }
-                }
                 else -> RightInfoTab(
                     text = stringResource(R.string.right_sidebar_browser_unavailable),
                 )
