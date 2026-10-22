@@ -33,6 +33,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.deepseek.dsh.core.protocol.SessionRawFrame
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -72,9 +73,9 @@ fun buildTrajectory(frames: List<SessionRawFrame>): List<TrajectoryRow> {
         val root = runCatching {
             trajectoryJson.parseToJsonElement(frame.text) as? JsonObject
         }.getOrNull() ?: return@flatMap emptyList()
-        if (root["type"]?.jsonPrimitive?.contentOrNull != "item") return@flatMap emptyList()
+        if (root["type"].textOrNull() != "item") return@flatMap emptyList()
         val value = root["value"] as? JsonObject ?: return@flatMap emptyList()
-        when (value["type"]?.jsonPrimitive?.contentOrNull) {
+        when (value["type"].textOrNull()) {
             "snapshot" -> (value["records"] as? kotlinx.serialization.json.JsonArray)
                 ?.mapNotNull { record ->
                     ((record as? JsonObject)?.get("event") as? JsonObject)
@@ -83,52 +84,48 @@ fun buildTrajectory(frames: List<SessionRawFrame>): List<TrajectoryRow> {
             else -> emptyList()
         }
     }
-    val rows = mutableListOf<TrajectoryRow>()
-    for (event in events) {
-        val type = event["type"]?.jsonPrimitive?.contentOrNull ?: continue
-        val seq = event["seq"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: continue
-        val data = event["data"] as? JsonObject
-        val turn = data?.get("turn")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-        val step = data?.get("step")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-        val detail = when (type) {
-            "tool/call" -> data?.get("name")?.jsonPrimitive?.contentOrNull.orEmpty()
-            "assistant/message" -> textOfMessage(data).take(80)
-            "user/message" -> textOfMessage(data).take(80)
-            "request/header" -> data?.get("model")?.jsonPrimitive?.contentOrNull.orEmpty()
-            "turn/end" -> data?.get("reason")?.jsonPrimitive?.contentOrNull.orEmpty()
-            else -> ""
-        }
-        val title = when (type) {
-            "turn/start" -> "turn/start"
-            "turn/end" -> "turn/end"
-            "step/start" -> "step/start"
-            "step/end" -> "step/end"
-            "tool/call" -> "tool/call"
-            "tool/result" -> "tool/result"
-            "assistant/message" -> "assistant"
-            "user/message" -> "user"
-            "request/header" -> "request"
-            "session/title" -> "title"
-            else -> type
-        }
-        rows += TrajectoryRow(
-            seq = seq,
-            kind = type,
-            title = title,
-            detail = detail,
-            turn = turn,
-            step = step,
-            raw = event.toString(),
-        )
-    }
-    return rows.sortedBy { it.seq }
+    return events.mapNotNull { event -> runCatching { trajectoryRow(event) }.getOrNull() }
+        .sortedBy { it.seq }
 }
 
+/** 取消息文本摘要（user/assistant 事件的 data.message.content）。 */
 private fun textOfMessage(data: JsonObject?): String {
     val message = data?.get("message") as? JsonObject ?: return ""
     val content = message["content"] ?: return ""
-    val text = content.toString()
-    return text.replace("\\n", " ").take(120)
+    return content.toString().replace("\\n", " ").take(120)
+}
+
+/** 单个事件的轨迹行；形状异常时返回 null 而不是让面板崩溃。 */
+private fun trajectoryRow(event: JsonObject): TrajectoryRow? {
+    val type = event["type"].textOrNull() ?: return null
+    val seq = event["seq"].textOrNull()?.toLongOrNull() ?: return null
+    val data = event["data"] as? JsonObject
+    val turn = data?.get("turn").textOrNull()?.toIntOrNull() ?: 0
+    val step = data?.get("step").textOrNull()?.toIntOrNull() ?: 0
+    val detail = when (type) {
+        "tool/call" -> data?.get("name").textOrNull().orEmpty()
+        "assistant/message" -> textOfMessage(data).take(80)
+        "user/message" -> textOfMessage(data).take(80)
+        "request/header" -> data?.get("model").textOrNull().orEmpty()
+        "turn/end" -> data?.get("reason").textOrNull().orEmpty()
+        else -> ""
+    }
+    val title = when (type) {
+        "assistant/message" -> "assistant"
+        "user/message" -> "user"
+        "request/header" -> "request"
+        "session/title" -> "title"
+        else -> type
+    }
+    return TrajectoryRow(
+        seq = seq,
+        kind = type,
+        title = title,
+        detail = detail,
+        turn = turn,
+        step = step,
+        raw = event.toString(),
+    )
 }
 
 /**
@@ -252,3 +249,6 @@ private fun TrajectoryRowView(row: TrajectoryRow, expanded: Boolean, onClick: ()
         }
     }
 }
+
+/** 安全取字符串：字段可能是对象/数组（如 turn/end 的 reason），不能直接 jsonPrimitive。 */
+private fun JsonElement?.textOrNull(): String? = (this as? JsonPrimitive)?.contentOrNull
