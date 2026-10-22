@@ -303,4 +303,7 @@
     <string name="trajectory_subtitle">%1$d 条会话事件</string>
     <string name="trajectory_empty">还没有记录到事件。</string>
     <string name="trajectory_close">关闭</string>
+<string name="message_actions_title">消息</string>
+    <string name="message_action_copy">复制文本</string>
+    <string name="message_action_fork">从此处分叉</string>
 </resources>

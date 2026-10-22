@@ -744,9 +744,16 @@ class DshRepository(
     }
 
     /** 官方 `session/fork`：从最近的完整轮次分叉一个新会话，返回新会话 id。 */
-    suspend fun forkSession(hostId: String, sessionId: String): String? {
+    suspend fun forkSession(
+        hostId: String,
+        sessionId: String,
+        atSeq: Int? = null,
+    ): String? {
         val args = buildJsonObject {
-            put("request", buildJsonObject { put("sessionId", sessionId) })
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                if (atSeq != null) put("atSeq", atSeq)
+            })
         }
         val raw = rpcRaw(hostId, "session/fork", args.toString()).getOrNull() ?: return null
         val root = runCatching {

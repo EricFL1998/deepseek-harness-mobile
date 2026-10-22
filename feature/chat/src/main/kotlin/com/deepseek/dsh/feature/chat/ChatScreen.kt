@@ -79,6 +79,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -203,7 +204,7 @@ private fun commandHintRes(token: String): Int? = when (token) {
 /** 订阅插件的一条额度窗口（如 Kimi 的 5 小时额度），显示在 composer dock 上方。 */
 data class ComposerQuota(val label: String, val percent: Double)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ModernChatScreen(
     messages: List<ChatMessage>,
@@ -323,6 +324,8 @@ fun ModernChatScreen(
     var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
     var commandSheetOpen by remember { mutableStateOf(false) }
     var trajectoryOpen by remember { mutableStateOf(false) }
+    var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    val localContext = LocalContext.current
     // 技能目录随菜单打开现拉：工作区的 .dsh/skills 可能刚被改动。
     val sheetSkills = remember { mutableStateOf(skills) }
     val sheetScope = rememberCoroutineScope()
@@ -663,7 +666,12 @@ fun ModernChatScreen(
                     }
                     Column(modifier = Modifier.padding(top = topPadding)) {
                     when (row) {
-                        is ChatRow.Single -> Column {
+                        is ChatRow.Single -> Column(
+                            modifier = Modifier.combinedClickable(
+                                onClick = {},
+                                onLongClick = { actionMessage = row.message },
+                            ),
+                        ) {
                             // 官方 user 气泡：图片缩略图在文本上方。
                             if (row.message.role == MessageRole.USER) {
                                 val refs = MessageMediaBridge.items[row.message.messageId]
@@ -803,6 +811,22 @@ fun ModernChatScreen(
 
         if (trajectoryOpen) {
             TrajectoryDialog(onDismiss = { trajectoryOpen = false })
+        }
+
+        actionMessage?.let { message ->
+            MessageActionDialog(
+                message = message,
+                onCopy = { text ->
+                    val clipboard = localContext.getSystemService(
+                        android.content.Context.CLIPBOARD_SERVICE,
+                    ) as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(
+                        android.content.ClipData.newPlainText("message", text),
+                    )
+                },
+                onFork = { seq -> MessageActionBridge.forkAt?.invoke(seq) },
+                onDismiss = { actionMessage = null },
+            )
         }
 
         changeDiffIndex?.let { index ->

@@ -304,4 +304,7 @@
     <string name="trajectory_subtitle">%1$d session events</string>
     <string name="trajectory_empty">No events recorded yet.</string>
     <string name="trajectory_close">Close</string>
+<string name="message_actions_title">Message</string>
+    <string name="message_action_copy">Copy text</string>
+    <string name="message_action_fork">Fork from here</string>
 </resources>

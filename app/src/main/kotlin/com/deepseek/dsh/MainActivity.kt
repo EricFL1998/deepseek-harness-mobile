@@ -1088,6 +1088,24 @@ fun MainAppHost(
             // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
             dshRepository.watchSession(activeHostId, sid)
             // 轨迹面板的帧来源（同样走桥，不增加 MainAppHost 参数）。
+            // 消息级操作：从某条消息分叉（session/fork + atSeq）。
+            com.deepseek.dsh.feature.chat.MessageActionBridge.forkAt = { seq ->
+                selectedSessionId?.let { session ->
+                    scope.launch {
+                        val forked = dshRepository.forkSession(activeHostId, session, seq)
+                        if (forked != null) {
+                            selectedSessionId = forked
+                            runCatching { dshRepository.watchSession(activeHostId, forked) }
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(R.string.session_fork_failed),
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    }
+                }
+            }
             // 用户消息图片：引用快照 + 字节加载能力桥接给 chat 模块。
             com.deepseek.dsh.feature.chat.MessageMediaBridge.provider = {
                 dshRepository.messageImagesFlow.value
