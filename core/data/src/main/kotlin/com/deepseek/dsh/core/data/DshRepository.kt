@@ -805,6 +805,33 @@ class DshRepository(
         }
     }
 
+    /** 官方 `skills/list`：当前会话可用的技能（人可调用）。 */
+    private val _hostSkillsFlow =
+        MutableStateFlow<List<com.deepseek.dsh.core.model.SkillInfo>>(emptyList())
+    val hostSkillsFlow: StateFlow<List<com.deepseek.dsh.core.model.SkillInfo>> =
+        _hostSkillsFlow.asStateFlow()
+
+    /** 刷新当前会话的技能目录（`skills/list`，冷读，不激活 Agent）。 */
+    suspend fun refreshHostSkills(hostId: String, sessionId: String) {
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("sessionId", sessionId) })
+        }
+        val raw = rpcRaw(hostId, "skills/list", args.toString()).getOrNull() ?: return
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return
+        val skills = value["skills"] as? JsonArray ?: return
+        _hostSkillsFlow.value = skills.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val name = (obj["name"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            com.deepseek.dsh.core.model.SkillInfo(
+                name = name,
+                description = (obj["description"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                whenToUse = (obj["whenToUse"] as? JsonPrimitive)?.contentOrNull,
+                modelInvocable = (obj["modelInvocable"] as? JsonPrimitive)?.contentOrNull == "true",
+            )
+        }
+    }
+
     /**
      * 官方 `commands/execute`：执行一条斜杠命令。
      *
@@ -1581,23 +1608,30 @@ class DshRepository(
             createdAt = System.currentTimeMillis()
         )
         dao.touchSession(hostId, sessionId, System.currentTimeMillis())
-        dao.insertMessages(
-            listOf(
-                MessageEntity(
-                    hostId = userMsg.hostId,
-                    sessionId = userMsg.sessionId,
-                    messageId = userMsg.messageId,
-                    role = userMsg.role.name,
-                    seq = userMsg.seq,
-                    contentJson = userMsg.content,
-                    createdAt = userMsg.createdAt,
-                    status = "sent"
+        // 官方 inbox 语义：turn 运行中发送的消息进入 next-turn 队列，在 Agent claim
+        // 之前不属于对话记录。所以这里不乐观插气泡（否则会出现「气泡 + 队列条」两份），
+        // 等 follow 流回放 claim 后的 user/message 时再落库。
+        val queuedWhileRunning = runningSessionIdsFlow.value.contains(sessionId)
+        if (!queuedWhileRunning) {
+            dao.insertMessages(
+                listOf(
+                    MessageEntity(
+                        hostId = userMsg.hostId,
+                        sessionId = userMsg.sessionId,
+                        messageId = userMsg.messageId,
+                        role = userMsg.role.name,
+                        seq = userMsg.seq,
+                        contentJson = userMsg.content,
+                        createdAt = userMsg.createdAt,
+                        status = "sent"
+                    )
                 )
             )
-        )
+        }
 
         scope.launch(Dispatchers.IO) {
-            // 用户消息已乐观插入；这里只提交 prompt，避免同一条消息被插入两次。
+            // 队列消息不做乐观插入；follow 会带回 claim 后的记录。运行中发送失败也
+            // 只写错误行，避免残留一条从未进入对话的“用户消息”。
             val result = client.sendMessage(hostId, sessionId, content)
             if (result is RemoteResult.Failure) {
                 // Host 拒绝了 prompt（模型/权限/网络）：落一条可见错误，避免界面毫无反馈。

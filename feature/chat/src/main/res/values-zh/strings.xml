@@ -292,4 +292,5 @@
     <string name="queue_edit_placeholder">排队中的消息</string>
     <string name="queue_save">保存</string>
     <string name="queue_cancel">取消</string>
+    <string name="cmd_section_skills">技能</string>
 </resources>

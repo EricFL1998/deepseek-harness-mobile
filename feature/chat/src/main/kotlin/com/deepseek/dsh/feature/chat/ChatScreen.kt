@@ -211,6 +211,8 @@ fun ModernChatScreen(
     hostCommands: List<com.deepseek.dsh.core.model.HostCommandInfo> = emptyList(),
     /** 执行一条 Host 斜杠命令（commands/execute）。 */
     onHostCommand: (String) -> Unit = {},
+    /** 官方 `skills/list`：当前会话可调用的技能。 */
+    skills: List<com.deepseek.dsh.core.model.SkillInfo> = emptyList(),
     /** 官方 `todos` 投影（当前会话待办）。 */
     todos: List<com.deepseek.dsh.core.model.TodoEntryInfo> = emptyList(),
     /** 官方 `goal` 投影（当前会话目标）。 */
@@ -764,6 +766,11 @@ fun ModernChatScreen(
         ComposerCommandSheet(
             onDismiss = { commandSheetOpen = false },
             hostCommands = hostCommands,
+            skills = skills,
+            onSkill = { name ->
+                commandSheetOpen = false
+                inputText = (if (inputText.isBlank()) "" else inputText.trimEnd() + " ") + "/$name "
+            },
             onFile = {
                 commandSheetOpen = false
                 onPickAttachments()
@@ -2955,6 +2962,8 @@ fun BottomInputBar(
 fun ComposerCommandSheet(
     onDismiss: () -> Unit,
     hostCommands: List<com.deepseek.dsh.core.model.HostCommandInfo> = emptyList(),
+    skills: List<com.deepseek.dsh.core.model.SkillInfo> = emptyList(),
+    onSkill: (String) -> Unit = {},
     onFile: () -> Unit,
     onPlan: () -> Unit,
     onPermission: () -> Unit,
@@ -3036,6 +3045,19 @@ fun ComposerCommandSheet(
                 )
             }
             // Host 注册的斜杠命令：动态目录，点选后走 commands/execute。
+            if (skills.isNotEmpty()) {
+                Spacer(Modifier.height(3.dp))
+                DshMenuSectionLabel(stringResource(R.string.cmd_section_skills))
+                skills.forEach { skill ->
+                    DshMenuRow(onClick = { onSkill(skill.name) }) {
+                        DshMenuLabel("/${skill.name}")
+                        Spacer(Modifier.weight(1f))
+                        if (skill.description.isNotBlank()) {
+                            DshMenuCaption(skill.description)
+                        }
+                    }
+                }
+            }
             if (hostCommands.isNotEmpty()) {
                 Spacer(Modifier.height(3.dp))
                 DshMenuSectionLabel(stringResource(R.string.cmd_section_host))

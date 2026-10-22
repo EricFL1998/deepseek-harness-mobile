@@ -293,4 +293,5 @@
     <string name="queue_edit_placeholder">Queued message</string>
     <string name="queue_save">Save</string>
     <string name="queue_cancel">Cancel</string>
+    <string name="cmd_section_skills">Skills</string>
 </resources>

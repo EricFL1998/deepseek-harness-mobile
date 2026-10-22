@@ -294,6 +294,15 @@ data class HostCommandInfo(
     val acceptsAttachments: Boolean = false,
 )
 
+/** 官方 `skills/list` 里人可调用的一个技能。 */
+@Serializable
+data class SkillInfo(
+    val name: String,
+    val description: String,
+    val whenToUse: String? = null,
+    val modelInvocable: Boolean = false,
+)
+
 /** 官方 `commands/execute` 的结果。 */
 @Serializable
 data class HostCommandResult(

@@ -978,6 +978,7 @@ fun MainAppHost(
     val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
     val hostJobs by dshRepository.jobsFlow.collectAsState()
     val hostCommands by dshRepository.hostCommandsFlow.collectAsState()
+    val hostSkills by dshRepository.hostSkillsFlow.collectAsState()
     val sessionTodos by dshRepository.todosFlow.collectAsState()
     val sessionGoal by dshRepository.goalFlow.collectAsState()
     val sessionDeliverables by dshRepository.deliverablesFlow.collectAsState()
@@ -1056,6 +1057,7 @@ fun MainAppHost(
         val sid = selectedSessionId
         if (sid != null) {
             runCatching { dshRepository.refreshHostCommands(activeHostId, sid) }
+            runCatching { dshRepository.refreshHostSkills(activeHostId, sid) }
         }
     }
     // job/list 跟着当前会话走。
@@ -2391,6 +2393,7 @@ fun MainAppHost(
                                 streamingText = streamingText,
                                 streamingReasoning = streamingReasoning,
                                 hostCommands = hostCommands,
+                                skills = hostSkills,
                                 todos = sessionTodos,
                                 goal = sessionGoal,
                                 deliverables = sessionDeliverables,
