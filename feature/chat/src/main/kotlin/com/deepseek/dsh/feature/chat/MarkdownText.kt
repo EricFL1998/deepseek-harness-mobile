@@ -3,6 +3,7 @@ package com.deepseek.dsh.feature.chat
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.PlatformTextStyle
@@ -75,10 +76,17 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
                         .fillMaxWidth()
                         .padding(start = (16 * block.depth).dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    // 顶部对齐：标记列按首行行高居中，正文换行时标记不再跟着漂移。
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    // 固定宽度的标记列：圆点、序号与复选框占同样宽度，正文才能对齐。
+                    // 标记列与正文首行同高：圆点、序号与复选框都在这条 20dp 的
+                    // 中线居中，所以三者的视觉基线一致。
                     Box(
-                        modifier = Modifier.width(16.dp),
+                        modifier = Modifier
+                            .width(16.dp)
+                            // bodyMedium 的首行行高（20sp ≈ 20dp）：标记在首行垂直居中，
+                            // 与正文基线一致。
+                            .height(20.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (block.checked != null) {

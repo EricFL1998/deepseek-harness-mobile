@@ -135,9 +135,6 @@ fun MainAppHost(
 
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
-    // 界面语言：在「设置 → 通用 → 语言」里选择，选择同时写给 Host 的 locale 设置。
-    val languageContext = androidx.compose.ui.platform.LocalContext.current
-    var currentLanguageTag by remember { mutableStateOf(AppLanguage.selection(languageContext)) }
 
     val externalWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
     val visibleWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
@@ -573,18 +570,8 @@ fun MainAppHost(
     // Host 声明的行级/页面级设置位置：插件页的「内置插件配置」用它把官方设置页
     // 映射到真正的设置命名空间。
     val pluginSlotSurfaces by dshRepository.pluginSlotSurfacesFlow.collectAsState()
-    // 官方/插件归属由后端决定：bridge 只把官方 Loader 行拥有的设置命名空间列进
-    // host-slots，模型页据此判断哪些 provider 属于官方目录（其余属于插件）。
-    val officialModelNamespaces = remember(pluginSlotSurfaces) {
-        pluginSlotSurfaces
-            .filter { surface ->
-                surface.module?.startsWith("@deepseek-ai/") == true
-            }
-            .mapNotNull { surface ->
-                surface.id.substringAfterLast('#').takeIf { it.isNotBlank() }
-            }
-            .toSet()
-    }
+    // 官方/插件归属由后端决定（bridge 的 host-slots 归属），只在需要时读一次。
+    val officialModelNamespaces = dshRepository.officialSettingsNamespaces()
 
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
@@ -2825,111 +2812,15 @@ fun MainAppHost(
                                 },
                                 onOpenSdui = { },
                                 onInstallPlugin = { pkgName, onProgress ->
-                                    // 安装耗时以秒计：先报一个「已受理」，再让安装器
-                                    // 把下载/解压/依赖/写盘的每一步透传给对话框。
-                                    onProgress(0.02f, context.getString(R.string.plugins_install_preparing))
-                                    val hostRes = kotlinx.coroutines.coroutineScope {
-                                        val progressJob = launch {
-                                            dshRepository.installProgressFlow.collect { progress ->
-                                                if (progress == null) return@collect
-                                                val label = when (progress.phase) {
-                                                    "installing" -> if (progress.total > 1) {
-                                                        context.getString(
-                                                            R.string.plugins_install_state_installing,
-                                                            progress.registry.orEmpty(),
-                                                            progress.index,
-                                                            progress.total,
-                                                        )
-                                                    } else {
-                                                        context.getString(R.string.plugins_install_progress_title)
-                                                    }
-                                                    "applying" -> context.getString(
-                                                        R.string.plugins_install_state_applying
-                                                    )
-                                                    "cancelling" -> context.getString(
-                                                        R.string.plugins_install_state_cancelling
-                                                    )
-                                                    else -> context.getString(
-                                                        R.string.plugins_install_progress_title
-                                                    )
-                                                }
-                                                val fraction = 0.1f +
-                                                    0.45f * progress.index.toFloat() /
-                                                    progress.total.coerceAtLeast(1)
-                                                onProgress(fraction.coerceIn(0.05f, 0.6f), label)
-                                            }
-                                        }
-                                        try {
-                                            dshRepository.installPlugin(activeHostId, pkgName)
-                                        } finally {
-                                            progressJob.cancel()
-                                        }
-                                    }
-                                    // Host 内 pnpm 依赖 proot 的 rename/unlink/mkdtemp，
-                                    // 这台设备上全部返回 ENOSYS。失败后改用 App 自己的
-                                    // 文件与网络能力完成同一件事，再重启 Host 加载。
-                                    val usedFallback = hostRes.isFailure
-                                    val result = if (hostRes.isSuccess) {
-                                        onProgress(0.6f, context.getString(R.string.plugins_install_progress_title))
-                                        Result.success(pkgName)
-                                    } else {
-                                        onProgress(0.05f, context.getString(R.string.plugins_install_fallback))
-                                        appPluginInstaller.install(pkgName) { fraction, step ->
-                                            onProgress(0.05f + fraction * 0.75f, step)
-                                        }
-                                    }
-                                    result.fold(
-                                        onSuccess = { installed ->
-                                            var restartFailure: Throwable? = null
-                                            if (usedFallback) {
-                                                // 文件已就位，重启 Host 才会让新插件进入 Loader。
-                                                // 重启失败不能当成安装成功：界面会显示插件「已装」，
-                                                // 但 Host 里并没有加载它。
-                                                onProgress(0.85f, context.getString(R.string.plugins_install_restarting))
-                                                restartFailure = HostRuntimeHolder.restartHost
-                                                    ?.invoke()
-                                                    ?.exceptionOrNull()
-                                                kotlinx.coroutines.delay(1_200)
-                                            }
-                                            managedPluginPackages = runCatching {
-                                                appPluginInstaller.managedPackages()
-                                            }.getOrDefault(managedPluginPackages)
-                                            dshRepository.refreshPluginInventory(activeHostId)
-                                            dshRepository.refreshBridgePluginCatalog()
-                                            dshRepository.refreshPluginSettingsPages()
-                                            // 反向联动：这个 JS 插件有原生伴侣 APK 的话，提示可装。
-                                            // 查 bridge 的 native-plugins provider；有则通知用户去商店。
-                                            runCatching {
-                                                val pkgName = installed.substringAfterLast('/')
-                                                    .substringBefore('@').ifBlank { installed }
-                                                val companion = dshRepository.bridge()
-                                                    ?.nativeCompanionFor(pkgName)
-                                                if (companion is com.deepseek.dsh.core.bridge.BridgeResult.Success &&
-                                                    companion.value != null
-                                                ) {
-                                                    nativeCompanionAvailable = companion.value
-                                                }
-                                            }
-                                            val failure = restartFailure
-                                            if (failure != null) {
-                                                Result.failure(
-                                                    IllegalStateException(
-                                                        context.getString(
-                                                            R.string.plugins_install_restart_failed,
-                                                            failure.message ?: "",
-                                                        )
-                                                    )
-                                                )
-                                            } else {
-                                                onProgress(1f, context.getString(R.string.plugins_install_success, installed))
-                                                Result.success(installed)
-                                            }
-                                        },
-                                        onFailure = { error ->
-                                            Result.failure(
-                                                IllegalStateException(error.message ?: context.getString(R.string.plugin_install_failed))
-                                            )
-                                        },
+                                    installPluginWithProgress(
+                                        context = context,
+                                        repository = dshRepository,
+                                        hostId = activeHostId,
+                                        pkgName = pkgName,
+                                        installer = appPluginInstaller,
+                                        onProgress = onProgress,
+                                        onManagedPackages = { managedPluginPackages = it },
+                                        onNativeCompanion = { nativeCompanionAvailable = it },
                                     )
                                 },
                                 onToggleBundle = { packageName, enabled ->
@@ -3169,199 +3060,75 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.SETTINGS -> {
-                            // 打开设置页时补一次拉取：用户不一定等得到定时轮询的下一拍，
-                            // 进入页面就先让「插件界面」有数据。
-                            LaunchedEffect(Unit) {
-                                runCatching { dshRepository.refreshPluginSettingsPages() }
-                            }
-                            com.deepseek.dsh.feature.settings.SettingsRootScreen(
-                                settings = currentAppSettings,
-                                initialSection = settingsInitialSection,
-                                languageTag = currentLanguageTag,
-                                onLanguageChange = { selection ->
-                                    currentLanguageTag = selection
-                                    AppLanguage.apply(languageContext, selection)
-                                    scope.launch {
-                                        dshRepository.syncHostLocale(
-                                            activeHostId,
-                                            AppLanguage.effectiveTag(languageContext),
-                                        )
-                                    }
-                                },
-                                onUpdateSettings = { updated ->
-                                    currentAppSettings = updated
-                                    scope.launch {
-                                        settingsRepository.updateSettings { updated }
-                                    }
-                                },
-                                availableModels = availableModelNames,
-                                modelProvidersRaw = modelProvidersRaw,
-                                modelSettingsRaw = modelSettingsRaw,
-                                modelCredentialsRaw = modelCredentialsRaw,
-                                routableProviders = registeredProviderIds,
-                                onRefreshModelProviders = {
-                                    scope.launch {
-                                        val registeredRaw = dshRepository
-                                            .rpcRaw(activeHostId, "llm/listProviders", "{}")
-                                            .getOrNull()
-                                        registeredProviderIds = runCatching {
-                                            val root = kotlinx.serialization.json.Json
-                                                .parseToJsonElement(registeredRaw.orEmpty())
-                                            val value = ((root as? kotlinx.serialization.json.JsonObject)
-                                                ?.get("result")
-                                                as? kotlinx.serialization.json.JsonObject)
-                                                ?.get("value")
-                                            (value as? kotlinx.serialization.json.JsonArray)
-                                                ?.mapNotNull { item ->
-                                                    ((item as? kotlinx.serialization.json.JsonObject)
-                                                        ?.get("id")
-                                                        as? kotlinx.serialization.json.JsonPrimitive)
-                                                        ?.content
-                                                }
-                                                .orEmpty()
-                                        }.getOrDefault(emptyList())
-                                        modelSettingsRaw = dshRepository
-                                            .rpcRaw(activeHostId, "settings/describe", "{}")
-                                            .getOrNull()
-                                        modelProvidersRaw = dshRepository
-                                            .rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}")
-                                            .getOrNull()
-                                        val providerRefs = com.deepseek.dsh.feature.settings
-                                            .parseModelProviders(modelProvidersRaw, modelSettingsRaw, null, officialModelNamespaces)
-                                            .map { it.keyRef }.distinct()
-                                        val refsJson = providerRefs.joinToString(
-                                            prefix = "{\"refs\":[",
-                                            postfix = "]}"
-                                        ) { "\"$it\"" }
-                                        modelCredentialsRaw = dshRepository
-                                            .rpcRaw(activeHostId, "credentials/describe", refsJson)
-                                            .getOrNull()
-                                    }
-                                },
-                                onSaveModelProvider = { provider, key, baseUrl, models ->
-                                    scope.launch {
-                                        if (key.isNotBlank()) {
-                                            val credArgs = org.json.JSONObject()
-                                                .put("ref", provider.keyRef)
-                                                .put("value", key)
-                                                .toString()
-                                            dshRepository.rpcRaw(activeHostId, "credentials/set", credArgs)
-                                        }
-                                        if (provider.settingsNs.isNotBlank()) {
-                                            val ops = org.json.JSONArray()
-                                            if (key.isNotBlank()) {
-                                                ops.put(org.json.JSONObject()
-                                                    .put("op", "set")
-                                                    .put("path", org.json.JSONArray(provider.settingsPath + "apiKeyEnv"))
-                                                    .put("value", provider.keyRef))
-                                            }
-                                            // 非适配器自带的路由必须声明线协议，否则 Host
-                                            // 会以 settings/rejected 拒绝整个 provider。
-                                            if (!provider.declared) {
-                                                ops.put(org.json.JSONObject()
-                                                    .put("op", "set")
-                                                    .put("path", org.json.JSONArray(provider.settingsPath + "api"))
-                                                    .put("value", wireProtocolFor(provider.id)))
-                                            }
-                                            if (baseUrl.isNotBlank()) {
-                                                ops.put(org.json.JSONObject()
-                                                    .put("op", "set")
-                                                    .put("path", org.json.JSONArray(provider.settingsPath + "baseURL"))
-                                                    .put("value", baseUrl))
-                                            }
-                                            if (models.isNotEmpty()) {
-                                                val modelArray = org.json.JSONArray()
-                                                models.forEach { model ->
-                                                    modelArray.put(org.json.JSONObject().put("id", model).put("name", model))
-                                                }
-                                                ops.put(org.json.JSONObject()
-                                                    .put("op", "set")
-                                                    .put("path", org.json.JSONArray(provider.settingsPath + "models"))
-                                                    .put("value", modelArray))
-                                            }
-                                            val args = org.json.JSONObject()
-                                                .put("ns", provider.settingsNs)
-                                                .put("ops", ops)
-                                                .put("expectedRevision", org.json.JSONObject.NULL)
-                                                .toString()
-                                            dshRepository.rpcRaw(activeHostId, "settings/mutate", args)
-                                        }
-                                        modelSettingsRaw = dshRepository
-                                            .rpcRaw(activeHostId, "settings/describe", "{}")
-                                            .getOrNull()
-                                        val refsJson = "{\"refs\":[\"${provider.keyRef}\"]}"
-                                        modelCredentialsRaw = dshRepository
-                                            .rpcRaw(activeHostId, "credentials/describe", refsJson)
-                                            .getOrNull()
-                                        dshRepository.refreshModelCatalog(activeHostId)
-                                    }
-                                },
-                                builtInPlugins = builtInPluginsList,
-
-                                bridgeRegistry = dshRepository.bridge(),
-                                pluginSlotEntries = pluginSlotEntries,
-                                pluginSettingsPages = pluginSettingsPages,
-                                pluginComponentRefresh = dshRepository.pluginComponentRefreshFlow,
-                                // 端口要跟着运行时状态走：Host 是异步启动的，直接读
-                                // Application 上的普通字段拿到的是启动前的 0。
-                                hostPort = status?.port ?: dshApplication.localHostPort,
-                                hostToken = status?.token ?: dshApplication.localHostToken,
-                                hostPortProvider = { dshApplication.localHostPort.takeIf { it > 0 } ?: (status?.port ?: 0) },
-                                pluginRpc = { method, payload ->
-                                    val first = dshRepository.pluginRpc(activeHostId, method, payload.toString())
-                                    val firstText = first.getOrNull() ?: first.exceptionOrNull()?.message
-                                    if (ensureMissingPluginDir(context, firstText)) {
-                                        dshRepository.pluginRpc(activeHostId, method, payload.toString())
-                                    } else {
-                                        first
-                                    }
-                                },
-                                loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
-                                savePluginSettings = { ns, patch, revision ->
-                                    dshRepository.updatePluginSettings(ns, patch, revision)
-                                },
-                                runtimeStatus = status,
-                                onStartRuntime = {
-                                    scope.launch {
-                                        runtimeManager.start(activeWorkspace.absolutePath)
-                                    }
-                                },
-                                onStopRuntime = {
-                                    scope.launch {
-                                        runtimeManager.stop()
-                                    }
-                                },
-                                onOpenSettingsDocument = {
-                                    scope.launch {
-                                        dshRepository.openSettingsDocument(activeHostId)
-                                    }
-                                },
-                                accountName = accountState.profile?.name ?: stringResource(R.string.drawer_default_user),
-                                accountBalance = accountState.wallets.firstOrNull()?.let { formatAmount(it.balance) } ?: "¥0.00",
-                                accountPhone = accountState.profile?.contact ?: "",
-                                isSignedIn = accountState.isSignedIn,
-                                avatarUrl = accountState.profile?.avatarUrl,
-                                onSignIn = { showSignInDialog = true },
-                                onSignOut = hostSignOut,
-                                onManageAccount = {
-                                    openUrl(accountState.platformUrl)
-                                },
-                                onCreateBackup = {
-                                    scope.launch {
-                                        backupAndDiag.createUserDataBackup()
-                                    }
-                                },
-                                onExportDiagnostics = {
-                                    scope.launch {
-                                        backupAndDiag.exportDiagnosticsZip()
-                                    }
-                                },
-                                onClose = {
-                                    activePage = ActivePage.CHAT
+                        ActivePage.SETTINGS -> AppSettingsPage(
+                            settings = currentAppSettings,
+                            onSettingsChange = { updated -> currentAppSettings = updated },
+                            initialSection = settingsInitialSection,
+                            repository = dshRepository,
+                            settingsRepository = settingsRepository,
+                            activeHostId = activeHostId,
+                            scope = scope,
+                            availableModels = availableModelNames,
+                            modelProvidersRaw = modelProvidersRaw,
+                            onProvidersRaw = { modelProvidersRaw = it },
+                            modelSettingsRaw = modelSettingsRaw,
+                            onSettingsRaw = { modelSettingsRaw = it },
+                            modelCredentialsRaw = modelCredentialsRaw,
+                            onCredentialsRaw = { modelCredentialsRaw = it },
+                            routableProviders = registeredProviderIds,
+                            onRoutableProviders = { registeredProviderIds = it },
+                            builtInPlugins = builtInPluginsList,
+                            pluginSlotEntries = pluginSlotEntries,
+                            pluginSettingsPages = pluginSettingsPages,
+                            runtimeStatus = status,
+                            hostPort = status?.port ?: dshApplication.localHostPort,
+                            hostToken = status?.token ?: dshApplication.localHostToken,
+                            hostPortProvider = {
+                                dshApplication.localHostPort.takeIf { it > 0 } ?: (status?.port ?: 0)
+                            },
+                            onStartRuntime = {
+                                scope.launch { runtimeManager.start(activeWorkspace.absolutePath) }
+                            },
+                            onStopRuntime = { scope.launch { runtimeManager.stop() } },
+                            onOpenSettingsDocument = {
+                                scope.launch { dshRepository.openSettingsDocument(activeHostId) }
+                            },
+                            accountName = accountState.profile?.name
+                                ?: stringResource(R.string.drawer_default_user),
+                            accountBalance = accountState.wallets.firstOrNull()
+                                ?.let { formatAmount(it.balance) } ?: "¥0.00",
+                            accountPhone = accountState.profile?.contact ?: "",
+                            isSignedIn = accountState.isSignedIn,
+                            avatarUrl = accountState.profile?.avatarUrl,
+                            onSignIn = { showSignInDialog = true },
+                            onSignOut = hostSignOut,
+                            onManageAccount = { openUrl(accountState.platformUrl) },
+                            onCreateBackup = {
+                                scope.launch { backupAndDiag.createUserDataBackup() }
+                            },
+                            onExportDiagnostics = {
+                                scope.launch { backupAndDiag.exportDiagnosticsZip() }
+                            },
+                            onClose = { activePage = ActivePage.CHAT },
+                            pluginComponentRefresh = dshRepository.pluginComponentRefreshFlow,
+                            pluginRpc = { method, payload ->
+                                val first = dshRepository.pluginRpc(
+                                    activeHostId,
+                                    method,
+                                    payload.toString(),
+                                )
+                                val firstText = first.getOrNull() ?: first.exceptionOrNull()?.message
+                                if (ensureMissingPluginDir(context, firstText)) {
+                                    dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                                } else {
+                                    first
                                 }
-                            )
-                        }
+                            },
+                            loadPluginSettings = { ns -> dshRepository.pluginSettingsDocument(ns) },
+                            savePluginSettings = { ns, patch, revision ->
+                                dshRepository.updatePluginSettings(ns, patch, revision)
+                            },
+                        )
 
                         ActivePage.RUNTIME -> {
                             RuntimeControlScreen(
@@ -3398,134 +3165,43 @@ fun MainAppHost(
 
         // 反向联动：刚装的 JS 插件有原生伴侣时，底部提示可去商店装原生界面。
         nativeCompanionAvailable?.let { companion ->
-            androidx.compose.material3.Surface(
-                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            CompanionAvailableCard(
+                companion = companion,
                 modifier = Modifier
                     .align(androidx.compose.ui.Alignment.BottomCenter)
                     .padding(16.dp)
                     .fillMaxWidth(),
-            ) {
-                androidx.compose.foundation.layout.Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
-                        androidx.compose.material3.Text(
-                            text = stringResource(R.string.companion_available_title, companion.name ?: companion.pluginId),
-                            style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                        )
-                        androidx.compose.material3.Text(
-                            text = stringResource(R.string.companion_available_desc),
-                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    androidx.compose.material3.TextButton(onClick = {
-                        pluginStoreSeedUrl = companion.storeUrl
-                        pluginInitialTab = 1
-                        nativeCompanionAvailable = null
-                        activePage = ActivePage.PLUGINS
-                    }) { androidx.compose.material3.Text(stringResource(R.string.companion_go_install)) }
-                    androidx.compose.material3.TextButton(onClick = { nativeCompanionAvailable = null }) {
-                        androidx.compose.material3.Text(stringResource(R.string.companion_ignore))
-                    }
-                }
-            }
-        }
-
-        // web-island.full：插件整岛 Web UI 的原生容器。只有插件显式注册时才占屏。
-        if (com.deepseek.dsh.plugin.nativesdk.slots.SlotRegistry
-                .resolve(com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.WEB_ISLAND_FULL)
-                .isNotEmpty()
-        ) {
-            androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
-                com.deepseek.dsh.plugin.nativehost.NativeSlot(
-                    slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.WEB_ISLAND_FULL,
-                    spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        // shell.overlay：companion 的原生浮层。宿主只提供安全区全屏画布，
-        // 鲸鱼这类挂件由 companion 自己决定位置、拖动、吸附与动画。
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-        ) {
-            com.deepseek.dsh.plugin.nativehost.NativeSlot(
-                slot = com.deepseek.dsh.plugin.nativesdk.slots.NativeSlot.PLUGIN_OVERLAY,
-                spec = kotlinx.serialization.json.JsonObject(emptyMap()),
-                modifier = Modifier.fillMaxSize(),
+                onGoInstall = {
+                    pluginStoreSeedUrl = companion.storeUrl
+                    pluginInitialTab = 1
+                    nativeCompanionAvailable = null
+                    activePage = ActivePage.PLUGINS
+                },
+                onIgnore = { nativeCompanionAvailable = null },
             )
         }
-
-        // 官方登录对话框：浏览器 OAuth 为主，API Key 为备选。
-        if (showSignInDialog) {
-            com.deepseek.dsh.core.designsystem.DshDialog(
-                onDismiss = { showSignInDialog = false },
-                title = stringResource(R.string.onboarding_title),
-                closeLabel = stringResource(R.string.action_close),
-                description = stringResource(R.string.onboarding_desc),
-                footer = {
-                    com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = stringResource(R.string.onboarding_add_key),
-                        primary = false,
-                        enabled = true,
-                        onClick = {
-                            showSignInDialog = false
-                            showApiKeyDialog = true
-                        },
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = stringResource(R.string.onboarding_login),
-                        primary = true,
-                        enabled = true,
-                        onClick = {
-                            showSignInDialog = false
-                            beginHostSignIn()
-                        },
-                    )
-                },
-            )
-        }
-
-        if (showApiKeyDialog) {
-            com.deepseek.dsh.core.designsystem.DshDialog(
-                onDismiss = { showApiKeyDialog = false },
-                title = stringResource(R.string.onboarding_key_title),
-                closeLabel = stringResource(R.string.action_close),
-                description = stringResource(R.string.onboarding_key_desc),
-                footer = {
-                    com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = stringResource(R.string.action_cancel),
-                        primary = false,
-                        enabled = true,
-                        onClick = { showApiKeyDialog = false },
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    com.deepseek.dsh.core.designsystem.DshDialogButton(
-                        text = stringResource(R.string.onboarding_login),
-                        primary = true,
-                        enabled = apiKeyInput.isNotBlank(),
-                        onClick = {
-                            oauthManager.signInWithApiKey(apiKeyInput)
-                            apiKeyInput = ""
-                            showApiKeyDialog = false
-                        },
-                    )
-                },
-                content = {
-                    com.deepseek.dsh.core.designsystem.DshTextInput(
-                        value = apiKeyInput,
-                        onValueChange = { apiKeyInput = it },
-                        placeholder = stringResource(R.string.onboarding_key_placeholder),
-                    )
-                },
-            )
-        }
+        PluginIslandOverlays()
+        SignInDialogs(
+            showSignIn = showSignInDialog,
+            onDismissSignIn = { showSignInDialog = false },
+            onAddKey = {
+                showSignInDialog = false
+                showApiKeyDialog = true
+            },
+            onSignIn = {
+                showSignInDialog = false
+                beginHostSignIn()
+            },
+            showApiKey = showApiKeyDialog,
+            apiKeyInput = apiKeyInput,
+            onApiKeyChange = { apiKeyInput = it },
+            onDismissApiKey = { showApiKeyDialog = false },
+            onSubmitApiKey = {
+                oauthManager.signInWithApiKey(apiKeyInput)
+                apiKeyInput = ""
+                showApiKeyDialog = false
+            },
+        )
     }
 
 }

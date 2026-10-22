@@ -277,6 +277,18 @@ class DshRepository(
      * Host 刚启动时桥可能还没完成首轮鉴权/扫描：一次失败不能把两条都清空并
      * 再也不重试（调用方会周期性重拉），所以这里分别降级。
      */
+    /**
+     * 官方 Loader 行拥有的设置命名空间（bridge `host-slots` 的归属）。
+     *
+     * 模型页用它区分「官方 provider」与「插件 provider」：插件 provider 的命名空间
+     * 不在这个集合里，因此不会混进官方模型目录。
+     */
+    fun officialSettingsNamespaces(): Set<String> =
+        _pluginSlotSurfacesFlow.value
+            .filter { surface -> surface.module?.startsWith("@deepseek-ai/") == true }
+            .mapNotNull { surface -> surface.id.substringAfterLast('#').takeIf { it.isNotBlank() } }
+            .toSet()
+
     suspend fun refreshPluginSettingsPages() {
         val registry = bridgeRegistry ?: run {
             _pluginSlotSurfacesFlow.value = emptyList()
