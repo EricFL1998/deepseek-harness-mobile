@@ -300,4 +300,8 @@
     <string name="feedback_edit_note">Edit note</string>
     <string name="feedback_note_title">Feedback note</string>
     <string name="feedback_note_hint">What was good or bad?</string>
+<string name="trajectory_title">Trajectory</string>
+    <string name="trajectory_subtitle">%1$d session events</string>
+    <string name="trajectory_empty">No events recorded yet.</string>
+    <string name="trajectory_close">Close</string>
 </resources>

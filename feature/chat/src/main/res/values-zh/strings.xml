@@ -299,4 +299,8 @@
     <string name="feedback_edit_note">编辑备注</string>
     <string name="feedback_note_title">反馈备注</string>
     <string name="feedback_note_hint">哪里好 / 哪里不好？</string>
+<string name="trajectory_title">轨迹</string>
+    <string name="trajectory_subtitle">%1$d 条会话事件</string>
+    <string name="trajectory_empty">还没有记录到事件。</string>
+    <string name="trajectory_close">关闭</string>
 </resources>

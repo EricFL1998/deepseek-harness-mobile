@@ -52,6 +52,8 @@ import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -320,6 +322,7 @@ fun ModernChatScreen(
     }
     var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
     var commandSheetOpen by remember { mutableStateOf(false) }
+    var trajectoryOpen by remember { mutableStateOf(false) }
     // 技能目录随菜单打开现拉：工作区的 .dsh/skills 可能刚被改动。
     val sheetSkills = remember { mutableStateOf(skills) }
     val sheetScope = rememberCoroutineScope()
@@ -696,6 +699,7 @@ fun ModernChatScreen(
                             durationMs = row.durationMs,
                             expanded = collapsedTurns[row.key] == true,
                             onClick = { collapsedTurns[row.key] = collapsedTurns[row.key] != true },
+                            onLongClick = { trajectoryOpen = true },
                         )
                         is ChatRow.Process -> {
                             // 思考链默认折叠：只有用户点开本轮完成头才渲染过程内容。
@@ -784,6 +788,10 @@ fun ModernChatScreen(
 
         toolDetail?.let { detail ->
             ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
+        }
+
+        if (trajectoryOpen) {
+            TrajectoryDialog(onDismiss = { trajectoryOpen = false })
         }
 
         changeDiffIndex?.let { index ->
@@ -1616,8 +1624,14 @@ fun ReasoningCard(
 }
 
 /** 回合结束：官方「已完成，用时 X」+ 分割线，点击折叠/展开整个过程块。 */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick: () -> Unit = {}) {
+private fun TurnCompletedRow(
+    durationMs: Long,
+    expanded: Boolean = true,
+    onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
+) {
     val seconds = (durationMs / 1000).coerceAtLeast(0)
     val duration = when {
         durationMs < 0 -> null
@@ -1626,7 +1640,9 @@ private fun TurnCompletedRow(durationMs: Long, expanded: Boolean = true, onClick
     }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.height(22.dp).clickable(onClick = onClick),
+            modifier = Modifier
+                .height(22.dp)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(

@@ -1087,6 +1087,10 @@ fun MainAppHost(
             dshRepository.watchJobs(activeHostId, sid)
             // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
             dshRepository.watchSession(activeHostId, sid)
+            // 轨迹面板的帧来源（同样走桥，不增加 MainAppHost 参数）。
+            com.deepseek.dsh.feature.chat.SessionFramesBridge.provider = {
+                selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
+            }
             // 消息反馈能力以桥接注入 chat 模块（避免给 MainAppHost 增加参数）。
             com.deepseek.dsh.feature.chat.MessageFeedbackBridge.refresh = {
                 selectedSessionId?.let { dshRepository.listMessageFeedback(activeHostId, it) }
