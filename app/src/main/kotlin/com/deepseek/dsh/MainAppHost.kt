@@ -3110,10 +3110,61 @@ fun MainAppHost(
         // 聊天右侧栏：文件面板。覆盖在内容之上，点遮罩/× 关闭。
         RightSideDrawer(
             open = ui.activePage == ActivePage.CHAT && ui.rightDrawerOpen,
-            title = stringResource(com.deepseek.dsh.feature.files.R.string.files_title),
+            title = stringResource(R.string.right_sidebar_title),
             onClose = { ui.rightDrawerOpen = false },
         ) {
-            workspaceFilesContent()
+            RightSidebarPanel(
+                tab = ui.rightDrawerTab,
+                onTabChange = { ui.rightDrawerTab = it },
+                previewPath = ui.rightDrawerPreviewPath,
+                onPreviewPathChange = { ui.rightDrawerPreviewPath = it },
+                files = files,
+                currentPath = ui.filesDir.absolutePath,
+                onOpenDirectory = { item ->
+                    ui.filesDir = java.io.File(item.absolutePath)
+                },
+                onNavigateUp = ui.filesDir.parentFile?.let { parent ->
+                    {
+                        if (ui.filesDir.absolutePath != activeWorkspace.absolutePath) {
+                            ui.filesDir = parent
+                        }
+                    }
+                },
+                onImport = { filesImportLauncher.launch(arrayOf("*/*")) },
+                onAttachFile = { item ->
+                    // 与文件页一致：加入待发附件，发送时以 @ 相对路径引用。
+                    val rel = item.absolutePath
+                        .removePrefix(activeWorkspace.absolutePath)
+                        .trimStart('/')
+                        .replace('\\', '/')
+                    if (rel.isNotBlank() && chatAttachments.none { it.workspaceRelativePath == rel }) {
+                        chatAttachments.add(
+                            com.deepseek.dsh.feature.chat.ChatAttachment(
+                                displayName = item.name,
+                                workspaceRelativePath = rel,
+                                sizeBytes = item.sizeBytes,
+                            ),
+                        )
+                    }
+                    ui.rightDrawerOpen = false
+                },
+                todos = sessionTodos,
+                deliverables = sessionDeliverables,
+                onOpenDeliverable = { file ->
+                    // Host 的 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
+                    val hostPrefix = "/workspace/"
+                    val localPath = when {
+                        file.path.startsWith(hostPrefix) ->
+                            java.io.File(activeWorkspace, file.path.removePrefix(hostPrefix)).absolutePath
+                        file.path.startsWith(activeWorkspace.absolutePath) -> file.path
+                        else -> null
+                    }
+                    if (localPath != null) {
+                        ui.rightDrawerPreviewPath = localPath
+                        ui.rightDrawerTab = "document"
+                    }
+                },
+            )
         }
 }
 

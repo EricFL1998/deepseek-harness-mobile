@@ -613,4 +613,20 @@
     <string name="schedule_in_days">in %1$d d</string>
 <string name="settings_secret_configured_placeholder">Configured — enter a new value to replace</string>
     <string name="settings_secret_unset_placeholder">Not configured — enter a value</string>
+    <string name="right_sidebar_title">Panel</string>
+    <string name="right_sidebar_tab_files">Files</string>
+    <string name="right_sidebar_tab_document">Document</string>
+    <string name="right_sidebar_tab_plan">Plan</string>
+    <string name="right_sidebar_tab_deliverables">Deliverables</string>
+    <string name="right_sidebar_tab_browser">Browser</string>
+    <string name="right_sidebar_up">Up</string>
+    <string name="right_sidebar_import">Import</string>
+    <string name="right_sidebar_files_empty">This folder is empty.</string>
+    <string name="right_sidebar_document_empty">Pick a file in the Files tab to preview it.</string>
+    <string name="right_sidebar_attach">Attach</string>
+    <string name="right_sidebar_close_preview">Close</string>
+    <string name="right_sidebar_loading">Loading…</string>
+    <string name="right_sidebar_plan_empty">No plan entries for this session yet.</string>
+    <string name="right_sidebar_deliverables_empty">No deliverables from this session yet.</string>
+    <string name="right_sidebar_browser_unavailable">The desktop browser pane is not part of the mobile app; use Terminal or open links externally.</string>
 </resources>
