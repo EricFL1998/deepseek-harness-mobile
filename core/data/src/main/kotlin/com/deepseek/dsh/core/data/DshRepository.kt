@@ -75,6 +75,12 @@ class DshRepository(
     private val _accountExpiredFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 8)
     val accountExpiredFlow: kotlinx.coroutines.flow.SharedFlow<Unit> = _accountExpiredFlow.asSharedFlow()
 
+    /** Host 提示某模型需要重新登录账号（`deepseek-account/model-sign-in-required`）。 */
+    private val _modelSignInRequiredFlow =
+        kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+    val modelSignInRequiredFlow: kotlinx.coroutines.flow.SharedFlow<Unit> =
+        _modelSignInRequiredFlow.asSharedFlow()
+
     /** 已经订阅过 `account/watch` 的 Host，避免重复建流。 */
     private val watchedAccountHosts = mutableSetOf<String>()
 
@@ -1377,6 +1383,16 @@ class DshRepository(
                         // 审批请求：先刷新待审批列表；waterfall 本身回 next 交给 Host 默认处理。
                         // DeepSeek 账号会话过期：交给 UI 清登录态。
                         "deepseek-account/session-expired" -> _accountExpiredFlow.tryEmit(Unit)
+                        // 模型需要重新登录账号：弹官方登录入口。
+                        "deepseek-account/model-sign-in-required" ->
+                            _modelSignInRequiredFlow.tryEmit(Unit)
+                        // 会话活动/错误：刷新会话列表状态。
+                        "api-session/activity", "api-session/error" -> refreshSessions(hostId)
+                        // 权限预置目录变化：刷新设置文档缓存。
+                        "permission-presets/catalog-changed" -> syncRemoteSettings(hostId)
+                        // 会话的 agent 预置或目标状态变化：会话摘要会变。
+                        "agent-preset/selected", "goal/activation-changed" ->
+                            refreshSessions(hostId)
                         else -> Unit
                     }
                 }

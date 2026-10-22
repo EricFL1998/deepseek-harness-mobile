@@ -1060,6 +1060,10 @@ fun MainAppHost(
                 // Host 明确报告 DeepSeek 会话过期：直接清掉本地登录态（API Key 保留）。
                 dshRepository.accountExpiredFlow.collect { oauthManager.signOut() }
             }
+            launch {
+                // 模型需要重新登录账号：直接打开官方登录入口。
+                dshRepository.modelSignInRequiredFlow.collect { showSignInDialog = true }
+            }
         }
     }
 
