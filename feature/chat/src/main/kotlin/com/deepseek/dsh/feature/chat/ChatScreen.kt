@@ -357,6 +357,7 @@ fun ModernChatScreen(
         if (refresh != null && messages.isNotEmpty()) {
             MessageFeedbackBridge.items = refresh()
         }
+        MessageMediaBridge.items = MessageMediaBridge.provider?.invoke() ?: emptyMap()
     }
     val listState = rememberLazyListState()
     val collapsedTurns = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
@@ -663,6 +664,16 @@ fun ModernChatScreen(
                     Column(modifier = Modifier.padding(top = topPadding)) {
                     when (row) {
                         is ChatRow.Single -> Column {
+                            // 官方 user 气泡：图片缩略图在文本上方。
+                            if (row.message.role == MessageRole.USER) {
+                                val refs = MessageMediaBridge.items[row.message.messageId]
+                                if (!refs.isNullOrEmpty()) {
+                                    MessageImagesRow(
+                                        images = refs,
+                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                                    )
+                                }
+                            }
                             ModernMessageItem(
                                 message = row.message,
                                 onRetry = { onSendMessage(row.message.content) },

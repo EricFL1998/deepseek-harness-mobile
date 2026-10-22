@@ -1827,7 +1827,34 @@ class RemoteClient(
                         null
                     }
                 }?.joinToString("").orEmpty()
-                emitDurableMessage(sessionId, hostId, seq, "user_$seq", MessageRole.USER, body)
+                val userMessageId = "user_$seq"
+                emitDurableMessage(sessionId, hostId, seq, userMessageId, MessageRole.USER, body)
+                // 官方 user/message 里的图片块：记下引用，气泡里渲染缩略图。
+                val imageRefs = blocks?.mapNotNull { part ->
+                    val obj = part as? kotlinx.serialization.json.JsonObject
+                        ?: return@mapNotNull null
+                    if (obj["type"]?.toString()?.trim('"') != "image") return@mapNotNull null
+                    val attachment = obj["attachment"] as? kotlinx.serialization.json.JsonObject
+                    val id = (attachment?.get("attachmentId")
+                        as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                        ?: return@mapNotNull null
+                    AttachmentImageRef(
+                        attachmentId = id,
+                        mediaType = (attachment["mediaType"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull.orEmpty(),
+                        width = (attachment["width"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                            ?.toIntOrNull() ?: 0,
+                        height = (attachment["height"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                            ?.toIntOrNull() ?: 0,
+                        name = (attachment["name"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull,
+                    )
+                }.orEmpty()
+                if (imageRefs.isNotEmpty()) {
+                    eventBus.tryEmit(RemoteEvent.UserImages(sessionId, userMessageId, imageRefs))
+                }
             }
             // 官方 present 工具的产物声明：把文件列表交给 UI 展示。
             "deliverables/presented" -> {

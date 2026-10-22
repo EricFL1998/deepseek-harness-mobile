@@ -1088,6 +1088,15 @@ fun MainAppHost(
             // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
             dshRepository.watchSession(activeHostId, sid)
             // 轨迹面板的帧来源（同样走桥，不增加 MainAppHost 参数）。
+            // 用户消息图片：引用快照 + 字节加载能力桥接给 chat 模块。
+            com.deepseek.dsh.feature.chat.MessageMediaBridge.provider = {
+                dshRepository.messageImagesFlow.value
+            }
+            com.deepseek.dsh.feature.chat.MessageMediaBridge.load = { ref ->
+                selectedSessionId?.let {
+                    dshRepository.loadAttachmentImage(activeHostId, it, ref.attachmentId)
+                }
+            }
             com.deepseek.dsh.feature.chat.SessionFramesBridge.provider = {
                 selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
             }

@@ -887,6 +887,39 @@ class DshRepository(
         }
     }
 
+    /** 每个用户消息里的图片附件引用（官方 user/message 的 image 块）。 */
+    private val _messageImagesFlow =
+        MutableStateFlow<Map<String, List<com.deepseek.dsh.core.protocol.AttachmentImageRef>>>(
+            emptyMap(),
+        )
+    val messageImagesFlow:
+        StateFlow<Map<String, List<com.deepseek.dsh.core.protocol.AttachmentImageRef>>> =
+        _messageImagesFlow.asStateFlow()
+
+    /** 读取一张已接纳的图片附件字节（官方 `session/attachment`，base64 解码后返回）。 */
+    suspend fun loadAttachmentImage(
+        hostId: String,
+        sessionId: String,
+        attachmentId: String,
+    ): ByteArray? {
+        val args = buildJsonObject {
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                put("attachmentId", attachmentId)
+            })
+        }
+        val raw = rpcRaw(hostId, "session/attachment", args.toString()).getOrNull() ?: return null
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return null
+        var value = (root["result"] as? JsonObject)?.get("value") as? JsonObject ?: return null
+        if (value["data"] == null) {
+            value = value["value"] as? JsonObject ?: value
+        }
+        val data = (value["data"] as? JsonPrimitive)?.contentOrNull ?: return null
+        return runCatching { android.util.Base64.decode(data, android.util.Base64.DEFAULT) }
+            .getOrNull()
+    }
+
     private val _messageFeedbackFlow =
         MutableStateFlow<Map<String, com.deepseek.dsh.core.model.MessageFeedbackInfo>>(emptyMap())
     val messageFeedbackFlow:
@@ -1700,6 +1733,7 @@ class DshRepository(
             changesSeq = 0L
             _queuedMessagesFlow.value = emptyList()
             _messageFeedbackFlow.value = emptyMap()
+            _messageImagesFlow.value = emptyMap()
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId
@@ -1923,6 +1957,12 @@ class DshRepository(
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
                         if (event.sessionId == viewedSessionId) {
                             _streamingTextFlow.value = _streamingTextFlow.value + event.delta
+                        }
+                    }
+                    is RemoteEvent.UserImages -> {
+                        if (event.sessionId == viewedSessionId) {
+                            _messageImagesFlow.value =
+                                _messageImagesFlow.value + (event.messageId to event.images)
                         }
                     }
                     is RemoteEvent.ChangesAnnounced -> {

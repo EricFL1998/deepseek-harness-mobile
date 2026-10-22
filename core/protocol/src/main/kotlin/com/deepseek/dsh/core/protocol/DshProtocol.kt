@@ -48,6 +48,13 @@ sealed interface RemoteEvent {
     @Serializable
     data class MessageDelta(val sessionId: String, val delta: String) : RemoteEvent
     data class ReasoningDelta(val sessionId: String, val delta: String) : RemoteEvent
+    /** 官方 `user/message` 里的图片附件（用于在气泡里渲染缩略图）。 */
+    data class UserImages(
+        val sessionId: String,
+        val messageId: String,
+        val images: List<AttachmentImageRef>,
+    ) : RemoteEvent
+
     /** 官方 `workspace/changes`：一轮改动已记录，可按 seq 拉 summary。 */
     data class ChangesAnnounced(val sessionId: String, val seq: Long, val turn: Int) : RemoteEvent
 
@@ -126,6 +133,15 @@ data class ChangesDiffInfo(
     val before: Boolean = true,
     val after: Boolean = true,
     val coarse: Boolean = false,
+)
+
+/** 会话里一条已被 Host 接纳的图片附件引用（不携带字节）。 */
+data class AttachmentImageRef(
+    val attachmentId: String,
+    val mediaType: String,
+    val width: Int = 0,
+    val height: Int = 0,
+    val name: String? = null,
 )
 
 /** prompt 里内联的图片（官方 PromptContentPart 的 image 分支，base64）。 */
