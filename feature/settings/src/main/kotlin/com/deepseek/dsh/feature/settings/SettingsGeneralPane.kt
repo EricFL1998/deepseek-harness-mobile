@@ -392,7 +392,8 @@ private fun RowScope.AppearanceCube(
         ),
         modifier = Modifier
             .weight(1f)
-            .heightIn(min = 88.dp),
+            .heightIn(min = 88.dp)
+            .clickable(onClick = onClick),
     ) {
         Column(
             modifier = Modifier
