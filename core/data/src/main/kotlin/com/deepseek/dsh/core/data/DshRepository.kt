@@ -82,11 +82,20 @@ class DshRepository(
     val pendingWaterfallApprovalsFlow: StateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>> =
         _pendingWaterfallApprovalsFlow.asStateFlow()
 
+    /** 等待 App 回答的提问 waterfall（官方 `user-questions/request`）。 */
+    private val _pendingQuestionsFlow = MutableStateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>>(emptyList())
+    val pendingQuestionsFlow: StateFlow<List<com.deepseek.dsh.core.protocol.ForwardedWaterfall>> =
+        _pendingQuestionsFlow.asStateFlow()
+
     /** 已经订阅过 `$events` waterfall 的 Host。 */
     private val watchedWaterfallHosts = mutableSetOf<String>()
 
     private val _sessionStatsFlow = MutableStateFlow<Map<String, ComposerStats>>(emptyMap())
     val sessionStatsFlow: StateFlow<Map<String, ComposerStats>> = _sessionStatsFlow.asStateFlow()
+
+    /** 当前查看会话正在流式输出的助手文本（重连基线 + live chunk）。 */
+    private val _streamingTextFlow = MutableStateFlow("")
+    val streamingTextFlow: StateFlow<String> = _streamingTextFlow.asStateFlow()
 
     private val _builtInPluginsFlow = MutableStateFlow<List<BuiltInPluginInfo>>(emptyList())
     val builtInPluginsFlow: StateFlow<List<BuiltInPluginInfo>> = _builtInPluginsFlow.asStateFlow()
@@ -633,6 +642,13 @@ class DshRepository(
         )
     }
 
+    /** 回答一条提问 waterfall：`{answers:[{id,selected:[label],custom?}]}`。 */
+    suspend fun respondUserQuestion(hostId: String, eventId: String, answersJson: String) {
+        val kept = _pendingQuestionsFlow.value.filter { item -> item.eventId != eventId }
+        _pendingQuestionsFlow.value = kept
+        client.answerWaterfall(hostId, eventId, answersJson)
+    }
+
     /** 官方 `session/fork`：从最近的完整轮次分叉一个新会话，返回新会话 id。 */
     suspend fun forkSession(hostId: String, sessionId: String): String? {
         val args = buildJsonObject {
@@ -959,7 +975,11 @@ class DshRepository(
     val runningSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
     val unreadSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
     private var viewedSessionId: String? = null
-    fun markSessionViewed(sessionId: String?) { viewedSessionId = sessionId; if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId }
+    fun markSessionViewed(sessionId: String?) {
+        if (sessionId != viewedSessionId) _streamingTextFlow.value = ""
+        viewedSessionId = sessionId
+        if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId
+    }
 
     suspend fun refreshSessions(hostId: String) {
         when (val res = client.listSessions(hostId)) {
@@ -1155,15 +1175,26 @@ class DshRepository(
                         } else {
                             runningSessionIdsFlow.value - event.sessionId
                         }
+                        if (event.sessionId == viewedSessionId && !event.running) {
+                            _streamingTextFlow.value = ""
+                        }
                         if (!event.running && event.sessionId != viewedSessionId) {
                             unreadSessionIdsFlow.value = unreadSessionIdsFlow.value + event.sessionId
                         }
                     }
                     is RemoteEvent.MessageDelta -> {
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
+                        if (event.sessionId == viewedSessionId) {
+                            _streamingTextFlow.value = _streamingTextFlow.value + event.delta
+                        }
                     }
                     is RemoteEvent.MessageDone -> {
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.message.sessionId
+                        if (event.message.sessionId == viewedSessionId &&
+                            event.message.role == MessageRole.ASSISTANT
+                        ) {
+                            _streamingTextFlow.value = ""
+                        }
                         dao.touchSession(event.message.hostId, event.message.sessionId, System.currentTimeMillis())
                         dao.insertMessages(
                             listOf(
@@ -1251,6 +1282,10 @@ class DshRepository(
                         val existing = _pendingWaterfallApprovalsFlow.value
                         val kept = existing.filter { item -> item.eventId != waterfall.eventId }
                         _pendingWaterfallApprovalsFlow.value = kept + waterfall
+                    } else if (waterfall.event == "user-questions/request") {
+                        val existing = _pendingQuestionsFlow.value
+                        val kept = existing.filter { item -> item.eventId != waterfall.eventId }
+                        _pendingQuestionsFlow.value = kept + waterfall
                     } else {
                         client.answerWaterfall(hostId, waterfall.eventId, null)
                     }

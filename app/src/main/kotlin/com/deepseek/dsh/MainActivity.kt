@@ -992,6 +992,8 @@ fun MainAppHost(
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
     val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
+    val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
+    val streamingText by dshRepository.streamingTextFlow.collectAsState()
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
@@ -1679,6 +1681,30 @@ fun MainAppHost(
         )
     }
 
+    // 官方 user-questions/request：原生回答弹窗（选项 / 自定义回答）。
+    pendingQuestions.firstOrNull()?.let { waterfall ->
+        val questions = waterfall.request["questions"]
+            as? kotlinx.serialization.json.JsonArray
+            ?: kotlinx.serialization.json.JsonArray(emptyList())
+        UserQuestionDialog(
+            questions = questions,
+            onSubmit = { answers ->
+                scope.launch {
+                    dshRepository.respondUserQuestion(activeHostId, waterfall.eventId, answers)
+                }
+            },
+            onDismiss = {
+                scope.launch {
+                    dshRepository.respondUserQuestion(
+                        activeHostId,
+                        waterfall.eventId,
+                        "{\"answers\":[]}",
+                    )
+                }
+            },
+        )
+    }
+
     deleteWorkspaceFolder?.let { folder ->
         com.deepseek.dsh.core.designsystem.DshDialog(
             onDismiss = { deleteWorkspaceFolder = null },
@@ -2035,6 +2061,7 @@ fun MainAppHost(
 
                             ModernChatScreen(
                                 messages = messages + pendingMessages,
+                                streamingText = streamingText,
                                 onAnswerUserQuestion = { callId, questionId, selected ->
                                     val sid = selectedSessionId
                                     if (sid != null) {

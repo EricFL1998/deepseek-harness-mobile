@@ -579,4 +579,7 @@
     <string name="approval_request_title">需要审批</string>
     <string name="approval_allow_once">允许一次</string>
     <string name="approval_reject">拒绝</string>
+    <string name="question_request_title">需要回答</string>
+    <string name="question_submit">提交</string>
+    <string name="question_custom_placeholder">输入回答</string>
 </resources>

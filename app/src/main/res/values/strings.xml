@@ -579,4 +579,7 @@
     <string name="approval_request_title">Approval required</string>
     <string name="approval_allow_once">Allow once</string>
     <string name="approval_reject">Reject</string>
+    <string name="question_request_title">Answer required</string>
+    <string name="question_submit">Submit</string>
+    <string name="question_custom_placeholder">Type an answer</string>
 </resources>

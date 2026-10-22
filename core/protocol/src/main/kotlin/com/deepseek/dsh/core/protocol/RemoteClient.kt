@@ -1740,6 +1740,34 @@ class RemoteClient(
                             val records = value["records"]
                                 as? kotlinx.serialization.json.JsonArray
                             var minSeq = 0L
+                            // 断线重连时正在输出的助手内容：从 baseline 折叠文本增量，
+                            // 后续 live chunk 继续 append。
+                            val baselineText = buildString {
+                                val active = (value["assistantStream"]
+                                    as? kotlinx.serialization.json.JsonObject)
+                                    ?.get("activeAttempt")
+                                    as? kotlinx.serialization.json.JsonObject
+                                val stream = active?.get("stream")
+                                    as? kotlinx.serialization.json.JsonArray
+                                stream?.forEach { timed ->
+                                    val chunk = (timed as? kotlinx.serialization.json.JsonObject)
+                                        ?.get("chunk")
+                                        as? kotlinx.serialization.json.JsonObject
+                                        ?: return@forEach
+                                    if (chunk["type"]?.toString()?.trim('"') == "text-delta") {
+                                        append(
+                                            (chunk["text"]
+                                                as? kotlinx.serialization.json.JsonPrimitive)
+                                                ?.content.orEmpty(),
+                                        )
+                                    }
+                                }
+                            }
+                            if (baselineText.isNotBlank()) {
+                                eventBus.tryEmit(
+                                    RemoteEvent.MessageDelta(sessionId, baselineText),
+                                )
+                            }
                             records?.forEach { record ->
                                 val entry = record as? kotlinx.serialization.json.JsonObject
                                     ?: return@forEach
@@ -1765,6 +1793,20 @@ class RemoteClient(
                             val event = value["event"]
                                 as? kotlinx.serialization.json.JsonObject ?: return
                             handleDurableEvent(sessionId, hostId, event)
+                        }
+                        // 正在输出的助手文本增量：让 UI 实时显示（而不用等 turn 结束）。
+                        "assistant-stream" -> {
+                            val frame = value["frame"]
+                                as? kotlinx.serialization.json.JsonObject ?: return
+                            if (frame["type"]?.toString()?.trim('"') != "chunk") return
+                            val chunk = frame["chunk"]
+                                as? kotlinx.serialization.json.JsonObject ?: return
+                            if (chunk["type"]?.toString()?.trim('"') != "text-delta") return
+                            val text = (chunk["text"]
+                                as? kotlinx.serialization.json.JsonPrimitive)?.content
+                            if (!text.isNullOrEmpty()) {
+                                eventBus.tryEmit(RemoteEvent.MessageDelta(sessionId, text))
+                            }
                         }
                     }
                 } catch (_: Exception) {
@@ -2119,7 +2161,12 @@ class RemoteClient(
                                         ),
                                     )
                                     forwardedScope.launch {
-                                        kotlinx.coroutines.delay(ANSWER_TIMEOUT_MS)
+                                        val timeout = if (event == "user-questions/request") {
+                                            QUESTION_TIMEOUT_MS
+                                        } else {
+                                            ANSWER_TIMEOUT_MS
+                                        }
+                                        kotlinx.coroutines.delay(timeout)
                                         answerForwardedEvent(eventId, null)
                                     }
                                 } else {
@@ -2220,4 +2267,7 @@ private fun localizedJsonText(element: kotlinx.serialization.json.JsonElement?):
 
 /** waterfall 等待 App 回答的上限；超时回 next 交回 Host。 */
 private const val ANSWER_TIMEOUT_MS = 120_000L
+
+/** 提问类 waterfall 等用户操作的时间上限。 */
+private const val QUESTION_TIMEOUT_MS = 600_000L
 
