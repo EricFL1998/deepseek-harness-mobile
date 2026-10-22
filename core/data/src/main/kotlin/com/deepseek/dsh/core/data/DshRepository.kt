@@ -15,6 +15,8 @@ import com.deepseek.dsh.core.model.BuiltInPluginInfo
 import com.deepseek.dsh.core.model.ChatMessage
 import com.deepseek.dsh.core.model.ComposerStats
 import com.deepseek.dsh.core.model.MessageRole
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -89,6 +91,15 @@ class DshRepository(
 
     /** 已经订阅过 `workspace/follow` 的 Host。 */
     private val watchedWorkspaceHosts = mutableSetOf<String>()
+
+    /** 官方 `workspace/follow` 投影出的工作区树（按 Host 顺序）。 */
+    private val _hostWorkspacesFlow = MutableStateFlow<List<HostWorkspaceInfo>>(emptyList())
+    val hostWorkspacesFlow: StateFlow<List<HostWorkspaceInfo>> =
+        _hostWorkspacesFlow.asStateFlow()
+    private val hostWorkspaces = LinkedHashMap<String, HostWorkspaceInfo>()
+    private val hostWorkspaceOrder = mutableListOf<String>()
+    private val hostArchivedSessionIds = mutableSetOf<String>()
+    private val hostPinnedSessionIds = mutableListOf<String>()
 
     /** workspace/follow 帧触发的会话列表刷新（合并抖动）。 */
     private var workspaceRefreshJob: kotlinx.coroutines.Job? = null
@@ -990,6 +1001,73 @@ class DshRepository(
     val runningSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
     val unreadSessionIdsFlow = kotlinx.coroutines.flow.MutableStateFlow<Set<String>>(emptySet())
     private var viewedSessionId: String? = null
+
+    /** 解析 `workspace/follow` 帧并更新工作区树投影。 */
+    private fun applyWorkspaceFrame(text: String) {
+        val root = runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull()
+            ?: return
+        fun parseWorkspace(element: JsonElement?): HostWorkspaceInfo? {
+            val obj = element as? JsonObject ?: return null
+            val id = (obj["workspaceId"] as? JsonPrimitive)?.contentOrNull ?: return null
+            return HostWorkspaceInfo(
+                id = id,
+                path = (obj["path"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                title = (obj["title"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                sessionIds = (obj["sessionIds"] as? JsonArray)?.mapNotNull {
+                    (it as? JsonPrimitive)?.contentOrNull
+                } ?: emptyList(),
+            )
+        }
+        fun parseBaseline(value: JsonObject) {
+            hostWorkspaces.clear()
+            hostWorkspaceOrder.clear()
+            (value["items"] as? JsonArray)?.forEach { item ->
+                val workspace = parseWorkspace(item) ?: return@forEach
+                hostWorkspaces[workspace.id] = workspace
+                hostWorkspaceOrder.add(workspace.id)
+            }
+            hostArchivedSessionIds.clear()
+            (value["archivedSessionIds"] as? JsonArray)?.forEach { id ->
+                (id as? JsonPrimitive)?.contentOrNull?.let { hostArchivedSessionIds.add(it) }
+            }
+            hostPinnedSessionIds.clear()
+            (value["pinnedSessionIds"] as? JsonArray)?.forEach { id ->
+                (id as? JsonPrimitive)?.contentOrNull?.let { hostPinnedSessionIds.add(it) }
+            }
+        }
+        when ((root["type"] as? JsonPrimitive)?.contentOrNull) {
+            "baseline", "replace" -> (root["value"] as? JsonObject)?.let(::parseBaseline)
+            "upsert" -> parseWorkspace(root["workspace"])?.let { workspace ->
+                hostWorkspaces[workspace.id] = workspace
+                if (workspace.id !in hostWorkspaceOrder) hostWorkspaceOrder.add(workspace.id)
+            }
+            "remove" -> (root["workspaceId"] as? JsonPrimitive)?.contentOrNull?.let { id ->
+                hostWorkspaces.remove(id)
+                hostWorkspaceOrder.remove(id)
+            }
+            "order" -> {
+                val ids = (root["workspaceIds"] as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                    ?: return
+                hostWorkspaceOrder.clear()
+                hostWorkspaceOrder.addAll(ids.filter { hostWorkspaces.containsKey(it) })
+            }
+            "archived" -> {
+                hostArchivedSessionIds.clear()
+                (root["archivedSessionIds"] as? JsonArray)?.forEach { id ->
+                    (id as? JsonPrimitive)?.contentOrNull?.let { hostArchivedSessionIds.add(it) }
+                }
+            }
+            "pinned" -> {
+                hostPinnedSessionIds.clear()
+                (root["pinnedSessionIds"] as? JsonArray)?.forEach { id ->
+                    (id as? JsonPrimitive)?.contentOrNull?.let { hostPinnedSessionIds.add(it) }
+                }
+            }
+        }
+        _hostWorkspacesFlow.value = hostWorkspaceOrder.mapNotNull { hostWorkspaces[it] }
+    }
+
     fun markSessionViewed(sessionId: String?) {
         if (sessionId != viewedSessionId) _streamingTextFlow.value = ""
         viewedSessionId = sessionId
@@ -1303,15 +1381,22 @@ class DshRepository(
                     } else {
                         client.answerWaterfall(hostId, waterfall.eventId, null)
                     }
+                }
+            }
+        }
         // 官方 workspace/follow：工作区/会话树的实时基线 + 增量，刷新会话列表。
         if (synchronized(watchedWorkspaceHosts) { watchedWorkspaceHosts.add(hostId) }) {
             scope.launch(Dispatchers.IO) {
-                client.workspaceFollow(hostId).collect {
+                client.workspaceFollow(hostId).collect { frame ->
+                    applyWorkspaceFrame(frame)
                     workspaceRefreshJob?.cancel()
                     workspaceRefreshJob = scope.launch {
                         kotlinx.coroutines.delay(250)
                         refreshSessions(hostId)
                     }
+                }
+            }
+        }
         // 官方插件安装进度：install-state 相位 + install-log 输出尾部。
         if (synchronized(watchedEventPayloadHosts) { watchedEventPayloadHosts.add(hostId) }) {
             scope.launch(Dispatchers.IO) {
@@ -1357,12 +1442,6 @@ class DshRepository(
                 }
             }
         }
-                }
-            }
-        }
-                }
-            }
-        }
     }
 }
 
@@ -1393,4 +1472,12 @@ data class PluginInstallProgressInfo(
     val index: Int,
     val total: Int,
     val logTail: String,
+)
+
+/** 官方 workspace 投影。 */
+data class HostWorkspaceInfo(
+    val id: String,
+    val path: String,
+    val title: String,
+    val sessionIds: List<String>,
 )

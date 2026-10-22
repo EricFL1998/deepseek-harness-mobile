@@ -972,6 +972,7 @@ fun MainAppHost(
     val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
     val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
     val streamingText by dshRepository.streamingTextFlow.collectAsState()
+    val hostWorkspaces by dshRepository.hostWorkspacesFlow.collectAsState()
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
@@ -1717,22 +1718,35 @@ fun MainAppHost(
     }
 
 
-    val workspaceFolders = remember(sessions, selectedSessionId, activeWorkspace, workspaceRevision) {
+    val workspaceFolders = remember(
+        sessions, selectedSessionId, activeWorkspace, workspaceRevision, hostWorkspaces,
+    ) {
         // 根目录 DSH-Workspace 本身不是工作区，只展示其子文件夹。
         val workspaceDirs = workspaceManager.listWorkspaceDirectories(activeWorkspace)
             .filter { it.absolutePath != activeWorkspace.absolutePath }
-        workspaceDirs.mapIndexed { idx, dir ->
+        // Host 的 workspace/follow 投影决定顺序与显示名；没有投影时退回本地目录名。
+        val hostByPath = hostWorkspaces.associateBy { it.path }
+        val orderedDirs = workspaceDirs.sortedBy { dir ->
+            hostWorkspaces.indexOfFirst { it.path == dir.absolutePath }
+                .let { if (it < 0) Int.MAX_VALUE else it }
+        }
+        orderedDirs.mapIndexed { idx, dir ->
             val dirSessions = sessions.filter { s ->
                 val wsPath = s.workspacePath
                 wsPath != null && (wsPath == dir.absolutePath || wsPath.startsWith(dir.absolutePath))
             }.ifEmpty {
                 if (idx == 0) sessions else emptyList()
             }
+            val hostSessionOrder = hostByPath[dir.absolutePath]?.sessionIds.orEmpty()
+            val orderedSessions = dirSessions.sortedBy { s ->
+                hostSessionOrder.indexOf(s.sessionId).let { if (it < 0) Int.MAX_VALUE else it }
+            }
             com.deepseek.dsh.feature.sessions.WorkspaceFolder(
                 id = "ws_${dir.name.hashCode()}",
-                name = dir.name.ifEmpty { context.getString(R.string.workspace_main) },
+                name = hostByPath[dir.absolutePath]?.title?.takeIf { it.isNotBlank() }
+                    ?: dir.name.ifEmpty { context.getString(R.string.workspace_main) },
                 path = dir.absolutePath,
-                sessions = dirSessions.mapIndexed { sIdx, s ->
+                sessions = orderedSessions.mapIndexed { sIdx, s ->
                     com.deepseek.dsh.feature.sessions.SessionDisplayItem(
                         sessionId = s.sessionId,
                         title = s.title,
