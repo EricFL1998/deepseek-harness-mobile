@@ -220,7 +220,9 @@ class DefaultHostRuntimeManager(
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
         // 34: app-boot 的 internal 模块改走 --expose-internals，绕开缺平台二进制的
         // node-addon-require-builtin（Host 启动报 Cannot find module 的直接原因）。
-        val patchRevision = "34"
+        // 35: bash / fs-search 的 bridge socket 超时从 15s 提到 30min，长命令不再被
+        // android bridge timeout 打断。
+        val patchRevision = "35"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
