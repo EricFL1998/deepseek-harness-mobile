@@ -725,8 +725,6 @@ fun ModernNavigationDrawerContent(
                         onDismiss = { workspaceMenuId = null },
                         onRename = { onRenameWorkspace(folder) },
                         onDelete = { onDeleteWorkspace(folder) },
-                        onMoveUp = { onMoveWorkspace(folder, -1) },
-                        onMoveDown = { onMoveWorkspace(folder, 1) },
                     )
                     }
                 }
@@ -1134,8 +1132,6 @@ private fun WorkspaceRowMenu(
     onDismiss: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
 ) {
     AnchoredMenuPopup(
         expanded = expanded,
@@ -1143,12 +1139,6 @@ private fun WorkspaceRowMenu(
         contentWidth = true,
         anchorGap = 0.dp,
     ) {
-        DshMenuRow(onClick = { onDismiss(); onMoveUp() }) {
-            DshMenuLabel(stringResource(R.string.workspace_move_up))
-        }
-        DshMenuRow(onClick = { onDismiss(); onMoveDown() }) {
-            DshMenuLabel(stringResource(R.string.workspace_move_down))
-        }
         DshMenuRow(onClick = { onDismiss(); onRename() }) {
             DshMenuIcon(com.deepseek.dsh.core.designsystem.R.drawable.ic_action_rename_official)
             DshMenuLabel("重命名")

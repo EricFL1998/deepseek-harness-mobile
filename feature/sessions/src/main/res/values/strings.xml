@@ -204,8 +204,6 @@
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
     <string name="search_host_results">Host search results</string>
-<string name="workspace_move_up">Move up</string>
-<string name="workspace_move_down">Move down</string>
 </resources>
 
 
