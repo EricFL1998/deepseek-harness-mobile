@@ -16,7 +16,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 /** 一个可选权限预设（Host 的 `permissionPresets/catalog` 返回项）。 */
-internal data class PermissionPresetOption(val value: String, val name: String)
+data class PermissionPresetOption(val value: String, val name: String)
 
 /**
  * 默认权限预设的桥：选项来自 Host 的 `permissionPresets/catalog`，当前值来自
@@ -25,7 +25,7 @@ internal data class PermissionPresetOption(val value: String, val name: String)
  * 这样权限模式列表不再由客户端写死，Host 装了新的权限预设（例如 auto review）
  * 时设置页直接出现，无需改 APK。
  */
-internal object PermissionPresetBridge {
+object PermissionPresetBridge {
     /** Host 提供的全部预设；空表示还没读到。 */
     var options by mutableStateOf<List<PermissionPresetOption>>(emptyList())
         private set
