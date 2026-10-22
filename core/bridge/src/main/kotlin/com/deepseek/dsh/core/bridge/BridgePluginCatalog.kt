@@ -60,7 +60,7 @@ object BridgePluginCatalog {
         } else null
 
         val inventory = if (registry.hasPackageInventory()) {
-            when (val result = registry.bundles()) {
+            when (val result = registry.bundles(locale = locale)) {
                 is BridgeResult.Success -> {
                     warnings += result.warnings
                     result.value

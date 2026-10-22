@@ -217,10 +217,15 @@ class BridgeRegistry(
                 ?.let { BridgeArgs.of("locale", it) } ?: BridgeArgs.none(),
         ) { json.decodeFromString(BridgeSlotSurfaceList.serializer(), it.toString()) }
 
-    suspend fun bundles(name: String? = null): BridgeResult<BridgeInventory> = query(
+    suspend fun bundles(
+        name: String? = null,
+        locale: String? = null,
+    ): BridgeResult<BridgeInventory> = query(
         provider = BridgeProtocol.PROVIDER_PACKAGE_INVENTORY,
         op = "bundles",
-        args = if (name == null) BridgeArgs.none() else BridgeArgs.of("name", name),
+        args = (if (name == null) BridgeArgs.none() else BridgeArgs.of("name", name)) +
+            (locale?.takeIf { it.isNotBlank() }?.let { BridgeArgs.of("locale", it) }
+                ?: BridgeArgs.none()),
     ) { json.decodeFromString(BridgeInventory.serializer(), it.toString()) }
 
     /** 读取 Host 的 Loader row 清单。 */
