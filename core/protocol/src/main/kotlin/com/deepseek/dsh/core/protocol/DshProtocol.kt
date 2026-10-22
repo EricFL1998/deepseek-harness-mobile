@@ -190,6 +190,8 @@ interface DshClientProtocol {
      * `pinned` / `replace`），调用方只需据此刷新列表即可。
      */
     fun workspaceFollow(hostId: String): Flow<String>
+    /** 官方 `session/page`：按需加载更早的一页历史（滚动到顶时调用）。 */
+    suspend fun loadOlderHistory(hostId: String, sessionId: String): RemoteResult<Boolean>
     /** 官方 `session/search`：按内容搜索会话（最多 20 条）。 */
     suspend fun searchSessions(hostId: String, query: String): RemoteResult<List<SessionSearchHit>>
     /**

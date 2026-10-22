@@ -675,6 +675,13 @@ class DshRepository(
         return newSessionId
     }
 
+    /** 滚动到顶时加载更早的一页历史（官方 session/page）。 */
+    suspend fun loadOlderMessages(hostId: String, sessionId: String): Boolean =
+        when (val res = client.loadOlderHistory(hostId, sessionId)) {
+            is RemoteResult.Success -> res.data
+            is RemoteResult.Failure -> false
+        }
+
     /** 官方 `session/search`：按内容搜索会话。 */
     suspend fun searchSessions(
         hostId: String,

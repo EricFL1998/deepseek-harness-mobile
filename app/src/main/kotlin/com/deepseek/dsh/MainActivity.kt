@@ -2077,6 +2077,14 @@ fun MainAppHost(
                                 messages = messages + pendingMessages,
                                 streamingText = streamingText,
                                 streamingReasoning = streamingReasoning,
+                                onLoadOlder = {
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            dshRepository.loadOlderMessages(activeHostId, sid)
+                                        }
+                                    }
+                                },
                                 onAnswerUserQuestion = { callId, questionId, selected ->
                                     val sid = selectedSessionId
                                     if (sid != null) {

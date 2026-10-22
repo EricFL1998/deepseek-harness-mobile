@@ -205,6 +205,8 @@ fun ModernChatScreen(
     streamingText: String = "",
     /** 当前会话正在流式输出的推理文本。 */
     streamingReasoning: String = "",
+    /** 列表滚到顶部时请求更早的一页历史。 */
+    onLoadOlder: () -> Unit = {},
     workspaceName: String = "默认工作区",
     /** 系统文件选择器选回的附件；由宿主负责复制进工作区后传回这里。 */
     attachments: List<ChatAttachment> = emptyList(),
@@ -559,6 +561,11 @@ fun ModernChatScreen(
                 }
             }
         } else {
+            LaunchedEffect(listState.firstVisibleItemIndex, messages.size) {
+                if (messages.isNotEmpty() && listState.firstVisibleItemIndex <= 0) {
+                    onLoadOlder()
+                }
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier

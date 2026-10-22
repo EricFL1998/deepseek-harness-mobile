@@ -1611,6 +1611,13 @@ class RemoteClient(
 
     @Volatile
     private var forwardedClientId: String? = null
+
+    /** follow 快照给出的历史游标：sessionId -> 最早的已加载 seq。 */
+    private val historyCursors =
+        java.util.concurrent.ConcurrentHashMap<String, Long>()
+    /** sessionId 是否还有更早的历史可翻。 */
+    private val historyHasMore =
+        java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     private val toolNames = mutableMapOf<String, String>()
     private val toolArgs = mutableMapOf<String, String>()
 
@@ -1708,11 +1715,8 @@ class RemoteClient(
                             val hasMore = value["hasMore"]?.toString() == "true"
                             val cursor = value["cursor"]?.toString()?.toLongOrNull()
                                 ?: minSeq
-                            if (hasMore && cursor > 0) {
-                                forwardedScope.launch {
-                                    loadOlderHistory(sessionId, hostId, cursor)
-                                }
-                            }
+                            if (cursor > 0) historyCursors[sessionId] = cursor
+                            historyHasMore[sessionId] = hasMore
                         }
                         "event" -> {
                             val event = value["event"]
@@ -1886,26 +1890,29 @@ class RemoteClient(
         val minSeq: Long,
     )
 
-    /** snapshot 只带一窗历史：用官方 `session/page` 继续往前翻。 */
-    private suspend fun loadOlderHistory(
-        sessionId: String,
+    /** 按需往前翻一页历史（滚动到顶时由 UI 触发）。 */
+    override suspend fun loadOlderHistory(
         hostId: String,
-        throughSeq: Long,
-    ) {
-        var beforeSeq = throughSeq
-        repeat(20) {
-            val page = fetchSessionPage(sessionId, throughSeq, beforeSeq) ?: return
-            if (page.records.isEmpty()) return
-            page.records.forEach { entry ->
-                if (entry["type"]?.toString()?.trim('"') != "event") return@forEach
-                val event = entry["event"] as? kotlinx.serialization.json.JsonObject
-                    ?: return@forEach
-                handleDurableEvent(sessionId, hostId, event)
-            }
-            if (!page.hasMore) return
-            if (page.minSeq <= 1L) return
-            beforeSeq = page.minSeq
+        sessionId: String,
+    ): RemoteResult<Boolean> {
+        if (historyHasMore[sessionId] != true) return RemoteResult.Success(false)
+        val through = historyCursors[sessionId] ?: return RemoteResult.Success(false)
+        val page = fetchSessionPage(sessionId, through, through)
+            ?: return RemoteResult.Success(false)
+        if (page.records.isEmpty()) {
+            historyHasMore[sessionId] = false
+            return RemoteResult.Success(false)
         }
+        page.records.forEach { entry ->
+            if (entry["type"]?.toString()?.trim('"') != "event") return@forEach
+            val event = entry["event"] as? kotlinx.serialization.json.JsonObject
+                ?: return@forEach
+            handleDurableEvent(sessionId, hostId, event)
+        }
+        if (page.minSeq > 1L) historyCursors[sessionId] = page.minSeq
+        val more = page.hasMore && page.minSeq > 1L
+        historyHasMore[sessionId] = more
+        return RemoteResult.Success(more)
     }
 
     /** 请求一页更早的历史（`session/page`）。 */
