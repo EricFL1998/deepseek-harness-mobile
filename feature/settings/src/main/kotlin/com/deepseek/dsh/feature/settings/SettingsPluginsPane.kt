@@ -285,6 +285,9 @@ private fun PluginCard(
     onToggle: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
+    val languageTag = androidx.compose.ui.platform.LocalConfiguration.current
+        .locales[0]?.language.orEmpty()
+    val localized = localizedBuiltinPlugin(languageTag, plugin)
     SettingsCard(
         horizontalPadding = 0.dp,
         verticalPadding = 0.dp,
@@ -305,7 +308,7 @@ private fun PluginCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = plugin.title,
+                        text = localized.title,
                         style = SettingsText.CardTitle,
                         color = palette.labelPrimary,
                         maxLines = 1,
@@ -330,7 +333,7 @@ private fun PluginCard(
                     SettingsChevronDown(expanded = expanded, size = 12.dp)
                 }
                 Text(
-                    text = plugin.description,
+                    text = localized.description,
                     style = SettingsText.RowDesc,
                     color = palette.labelTertiary,
                     maxLines = if (expanded) Int.MAX_VALUE else 2,
