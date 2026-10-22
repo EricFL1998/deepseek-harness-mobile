@@ -854,6 +854,7 @@ class DefaultHostRuntimeManager(
         // 3. 将 DSH_ANDROID_BRIDGE_PORT 环境变量注入 proot 容器
         // 终端/子进程要在 proot 里解析 uid，先把 passwd/group 覆盖写好。
         layout.ensureIdentityOverlays()
+        layout.ensureNodePatches()
         // 官方 workspace/changes 需要工作区是一个 git 仓库才能取 baseline；没有仓库时
         // 只有官方文件工具的捕获，而 bash（Android shell）改的文件不会被记录，于是
         // turn 尾部永远没有改动卡。这里在启动前用 rootfs 里的 git 给每个工作区子目录

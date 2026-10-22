@@ -1590,6 +1590,9 @@ class RemoteClient(
     }
 
     private val followSockets = mutableListOf<okhttp3.WebSocket>()
+    /** 每个会话只保留一条 follow 连接：打开会话和发送 prompt 都会订阅，重复会翻倍 delta。 */
+    private val followSocketsBySession =
+        java.util.concurrent.ConcurrentHashMap<String, okhttp3.WebSocket>()
     private val eventBus = kotlinx.coroutines.flow.MutableSharedFlow<RemoteEvent>(extraBufferCapacity = 128)
 
     /** Host 全局转发事件（Gateway `$events` 流）的事件名。 */
@@ -1623,6 +1626,7 @@ class RemoteClient(
 
     /** 订阅 session/follow 流，驱动 Host 执行已入队的 prompt，并接收工具/消息帧。 */
     private fun startSessionFollow(sessionId: String, hostId: String) {
+        if (followSocketsBySession[sessionId] != null) return
         val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
         val request = okhttp3.Request.Builder().url(wsUrl).build()
         val socket = client.newWebSocket(request, object : okhttp3.WebSocketListener() {
@@ -1747,10 +1751,16 @@ class RemoteClient(
                 }
             }
             override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
+                followSocketsBySession.remove(sessionId)
                 println("DSH_FOLLOW fail ${t.message} http=${response?.code}")
+            }
+
+            override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                followSocketsBySession.remove(sessionId)
             }
         })
         followSockets.add(socket)
+        followSocketsBySession[sessionId] = socket
     }
 
 

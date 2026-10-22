@@ -152,6 +152,9 @@ object ProotCommandBuilder {
         // （Cannot find module .../node-addon-require-builtin/...）。暴露 internals
         // 后引擎优先走 require('internal/...')，不再依赖那个原生插件。
         cmd.add("--expose-internals")
+        // FUSE 工作区的硬链接兜底（write 工具的原子新建路径）。
+        cmd.add("--require")
+        cmd.add("/root/.dsh/patches/fs-link-fallback.cjs")
         cmd.add("/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js")
         cmd.add("--profile")
         cmd.add("web")

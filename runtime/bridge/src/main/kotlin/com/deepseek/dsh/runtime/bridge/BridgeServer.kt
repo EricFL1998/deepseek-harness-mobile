@@ -172,23 +172,55 @@ class BridgeServer(
     }
 
 
+    /**
+     * 执行一条 bash 工具命令。
+     *
+     * 必须走 proot 里的 `/bin/sh`：Agent 的 bash 工具面对的是工作区（`/workspace`），
+     * 需要 rootfs 里的 git/diff/grep 等工具链；早期实现用 Android 的 `/system/bin/sh`，
+     * 导致 git 不存在、工作区路径也不匹配，还会让 workspace/changes 收不到改动。
+     */
     private fun execShell(command: String, cwd: String, timeoutMs: Long): JsonObject {
+        val nativeLib = context.applicationInfo.nativeLibraryDir
+        val rootfs = java.io.File(context.filesDir, "rootfs").absolutePath
         val visibleWorkspace = java.io.File(
             android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace"
         ).absolutePath
-        fun mapPath(path: String): String = when {
-            path == "/workspace" -> visibleWorkspace
-            path.startsWith("/workspace/") -> visibleWorkspace + path.removePrefix("/workspace")
-            else -> path
+        val passwd = java.io.File(context.filesDir, "runtime/etc/passwd").absolutePath
+        val group = java.io.File(context.filesDir, "runtime/etc/group").absolutePath
+        val env = mutableListOf(
+            "/usr/bin/env",
+            "-i",
+            "HOME=/root",
+            "DSH_HOME=/root/.dsh",
+            "PATH=/opt/dsh/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "LANG=C.UTF-8",
+            "TMPDIR=/root/.dsh/tmp",
+            "/bin/sh",
+            "-lc",
+            command,
+        )
+        val proot = mutableListOf(
+            "$nativeLib/libproot.so", "-r", rootfs,
+            "-b", "/proc", "-b", "/dev", "-b", "/sys",
+            "-b", "$visibleWorkspace:/workspace",
+            "--link2symlink",
+        )
+        if (java.io.File(passwd).isFile) {
+            proot.addAll(listOf("-b", "$passwd:/etc/passwd"))
         }
-        val mappedCommand = command.replace("/workspace", visibleWorkspace)
-        val mappedCwd = mapPath(cwd)
-        val builder = ProcessBuilder("/system/bin/sh", "-c", mappedCommand)
+        if (java.io.File(group).isFile) {
+            proot.addAll(listOf("-b", "$group:/etc/group"))
+        }
+        proot.addAll(listOf("-w", cwd.ifBlank { "/workspace" }))
+        proot.addAll(env)
+        val builder = ProcessBuilder(proot)
         builder.redirectErrorStream(false)
-        if (mappedCwd.isNotBlank()) {
-            val dir = java.io.File(mappedCwd)
-            if (dir.isDirectory) builder.directory(dir)
-        }
+        builder.environment()["PROOT_LOADER"] = "$nativeLib/libproot-loader.so"
+        // libproot.so 依赖 nativeLibraryDir 里的 libtalloc 等库；直接 exec 时必须显式给
+        // LD_LIBRARY_PATH，否则会报 "CANNOT LINK EXECUTABLE ... libtalloc.so not found"。
+        builder.environment()["LD_LIBRARY_PATH"] = nativeLib
+        builder.environment()["PROOT_TMP_DIR"] =
+            java.io.File(context.cacheDir, "proot-tmp").apply { mkdirs() }.absolutePath
         val process = builder.start()
         val stdout = StringBuilder()
         val stderr = StringBuilder()
@@ -224,6 +256,7 @@ class BridgeServer(
         val builder = ProcessBuilder(command)
         builder.redirectErrorStream(false)
         builder.environment()["PROOT_LOADER"] = "$nativeLib/libproot-loader.so"
+        builder.environment()["LD_LIBRARY_PATH"] = nativeLib
         builder.environment()["PROOT_TMP_DIR"] = java.io.File(context.cacheDir, "proot-tmp").apply { mkdirs() }.absolutePath
         return runProcess(builder, timeoutMs)
     }

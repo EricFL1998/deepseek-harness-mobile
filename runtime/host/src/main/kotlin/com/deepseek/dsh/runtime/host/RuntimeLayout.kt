@@ -45,6 +45,61 @@ data class RuntimeLayout(
      * 报 `A system error occurred`。这里把当前 uid/gid 补进 passwd/group，
      * 再用 proot -b 绑定进去。
      */
+    /** 运行前注入的 Node 预载补丁目录（当前只有 fs.link 兜底）。 */
+    val patchDir: File get() = File(dshHomeDir, "patches")
+
+    /** 预载补丁：把 FUSE 上必然 EPERM 的硬链接改成 copy+rename 语义。 */
+    val linkFallbackPatch: File get() = File(patchDir, "fs-link-fallback.cjs")
+
+    /**
+     * 安装 Node 预载补丁。
+     *
+     * 官方 `write` 工具在“新建文件”时用 `link(temp, target)` 做原子发布；Android 的
+     * 外置存储是 FUSE，硬链接直接返回 EPERM（proot 的 --link2symlink 也拦不住
+     * Node 走 linkat 的路径），于是 Agent 的重叠写全失败、只能退回 shell。这里预载
+     * 一个小补丁：link 遇到 EPERM/ENOTSUP/EXDEV 时退化成“复制 + 删除临时文件”，
+     * 保持“目标不存在才成功”的语义。
+     */
+    fun ensureNodePatches() {
+        patchDir.mkdirs()
+        val source = """
+            |'use strict'
+            |const fs = require('node:fs')
+            |const fsp = require('node:fs/promises')
+            |const FALLBACK_CODES = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EXDEV', 'EACCES'])
+            |function fallbackSync(existingPath, newPath) {
+            |  fs.copyFileSync(existingPath, newPath, fs.constants.COPYFILE_EXCL || 1)
+            |  try { fs.unlinkSync(existingPath) } catch (e) {}
+            |}
+            |const originalLinkSync = fs.linkSync
+            |fs.linkSync = function (existingPath, newPath) {
+            |  try { return originalLinkSync(existingPath, newPath) } catch (e) {
+            |    if (!e || !FALLBACK_CODES.has(e.code)) throw e
+            |    return fallbackSync(existingPath, newPath)
+            |  }
+            |}
+            |const originalLink = fs.link
+            |fs.link = function (existingPath, newPath, callback) {
+            |  const done = typeof callback === 'function' ? callback : function () {}
+            |  return originalLink.call(fs, existingPath, newPath, function (error) {
+            |    if (!error || !FALLBACK_CODES.has(error.code)) return done(error)
+            |    try { fallbackSync(existingPath, newPath); done(null) } catch (fallbackError) { done(fallbackError) }
+            |  })
+            |}
+            |const originalLinkPromise = fsp.link
+            |fsp.link = async function (existingPath, newPath) {
+            |  try { return await originalLinkPromise(existingPath, newPath) } catch (e) {
+            |    if (!e || !FALLBACK_CODES.has(e.code)) throw e
+            |    fallbackSync(existingPath, newPath)
+            |  }
+            |}
+            |""".trimMargin()
+        if (!linkFallbackPatch.isFile || linkFallbackPatch.readText() != source) {
+            linkFallbackPatch.writeText(source)
+        }
+        runCatching { linkFallbackPatch.setReadable(true, false) }
+    }
+
     fun ensureIdentityOverlays() {
         runtimeMetaDir.mkdirs()
         passwdOverlay.parentFile?.mkdirs()
@@ -81,6 +136,7 @@ data class RuntimeLayout(
         logsDir.mkdirs()
         backupsDir.mkdirs()
         ensureIdentityOverlays()
+        ensureNodePatches()
     }
 }
 
