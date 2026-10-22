@@ -60,20 +60,25 @@ data class RootfsVersion(
 /**
  * 一次**镜像**更新的性质，供启动流程判断「是否值得打断用户」。
  *
- * 只由 **dsh 段**决定：
+ * 由 **dsh 段**与 **rootfs 段**共同决定，但两者的打扰级别不同：
  *
  * - dsh 段变化 → [MANDATORY]：引擎换了，旧镜像里预置的运行时补丁可能不再匹配，
  *   必须重装镜像。
- * - rootfs 段变化而 dsh 段相同 → [NONE]：这只是重新打包（例如为了把新插件打进
- *   镜像）。rootfs 版本号只是记账，不代表不兼容；插件落后由
- *   [UpdateNeed.PLUGIN_REQUIRED] 在设置页就地升级，不重下镜像、不打断启动。
+ * - dsh 段相同、rootfs 段变化 → [REPACKAGED]：镜像重新打包过。它可能是为了把新
+ *   插件打进镜像（此时插件已能就地升级），也可能是**只存在于镜像里的修复**
+ *   （例如原生依赖/打包缺陷）。启动流程不拦人，只在设置页给一个可选入口，
+ *   让用户能主动换上有修复的镜像。
+ * - 两者都相同 → [NONE]。
  *
- * 早先的实现在这里也看 rootfs 段，于是每次镜像重建都会在启动时弹「重新下载
- * 运行时」——对一个 300MB 的操作来说是完全错误的打扰。
+ * 早先的实现在这里完全忽略 rootfs 段，于是「镜像级修复」没有任何下发路径。
+ * 现在改成：启动横幅仍只认 [MANDATORY]，重打包的镜像只出现在设置 → 更新里。
  */
 enum class RootfsUpdateKind {
     /** 无需重装镜像。 */
     NONE,
+
+    /** 引擎没变、但镜像重新打包过：设置页可选更新，不打断启动。 */
+    REPACKAGED,
 
     /** 必须重装镜像：dsh 引擎换了。 */
     MANDATORY,
@@ -82,21 +87,27 @@ enum class RootfsUpdateKind {
 /**
  * 判断镜像是否需要重装。这是该判断的**唯一实现**，启动流程与设置页都走这里。
  *
- * 只看 dsh 段：引擎换了才必须重装镜像。rootfs 段自增只表示「重新打包过」，
- * 通常就是为了把新插件打进镜像——那种情况应当就地升级插件，而不是让用户
- * 重新下载几百 MB。
- *
- * 任一侧无法解析时返回 [RootfsUpdateKind.MANDATORY]：宁可多问一次，也不能因为
- * 认不出格式就假定「已是最新」而让用户停在跑不起来的运行时上。
+ * 只看 dsh 段判断「是否强制」；dsh 相同而 rootfs 段自增时给 [REPACKAGED]，
+ * 由设置页提供可选更新。任一侧无法解析时返回 [RootfsUpdateKind.MANDATORY]：
+ * 宁可多问一次，也不能因为认不出格式就假定「已是最新」而让用户停在跑不起来的
+ * 运行时上。
  * @param installed 已安装的版本串；null 表示未安装或读不到。
  * @param available 可用的版本串；null 表示拿不到清单。
- * @return 是否需要重装镜像。
+ * @return 镜像更新的性质。
  */
 fun decideRootfsUpdateKind(installed: String?, available: String?): RootfsUpdateKind {
     if (installed == null || available == null) return RootfsUpdateKind.NONE
     val local = RootfsVersion.parse(installed) ?: return RootfsUpdateKind.MANDATORY
     val remote = RootfsVersion.parse(available) ?: return RootfsUpdateKind.MANDATORY
-    return if (local.dsh != remote.dsh) RootfsUpdateKind.MANDATORY else RootfsUpdateKind.NONE
+    // 离线兜底清单可能比已装镜像旧（内置 assets 里的那份不会随发版更新）：
+    // 旧版本不能被当成「可更新」，否则会引导用户降级重下 300MB。
+    val rootfsOrder = comparePluginVersions(remote.rootfs, local.rootfs)
+    if (rootfsOrder != null && rootfsOrder < 0) return RootfsUpdateKind.NONE
+    return when {
+        local.dsh != remote.dsh -> RootfsUpdateKind.MANDATORY
+        local.rootfs != remote.rootfs -> RootfsUpdateKind.REPACKAGED
+        else -> RootfsUpdateKind.NONE
+    }
 }
 
 /**
@@ -219,8 +230,9 @@ fun isPluginBehind(installed: String?, latest: String?): Boolean {
  *    PLUGIN_REQUIRED**。版本按数字段比较，已装版本比最新发布还新时不算落后。
  *    实际在用的版本以 Host 报出的运行中版本为准，读不到时用 profile 内落盘的
  *    版本；都不算「镜像里打包过」，那只是打包记录。
- * 2. 镜像侧（**dsh 段**变化）：**ROOTFS_OPTIONAL**，只在设置页提示。
- *    镜像重建本身（rootfs 段自增）不算变化：那通常只是把新插件打进镜像。
+ * 2. 镜像侧（dsh 段变化或 rootfs 段变化）：**ROOTFS_OPTIONAL**，只在设置页
+ *    提示、不打断启动。dsh 段变化意味着引擎换了；rootfs 段变化意味着镜像重新
+ *    打包，可能带着只存在于镜像里的修复。
  *
  * 插件判断优先于镜像判断：插件是契约对端，镜像只是载体。
  *
@@ -262,9 +274,10 @@ fun assessUpdate(
         }
     }
 
-    // 2. 镜像：只有 dsh 引擎换了才值得重下整包。rootfs 段自增只是重新打包
-    //    （通常是为了把新插件打进镜像），那种情况下插件已经在第 1 步处理。
-    if (decideRootfsUpdateKind(installed, available) == RootfsUpdateKind.MANDATORY) {
+    // 2. 镜像：dsh 引擎换了必须重下整包；引擎没变而镜像重新打包过，也提供
+    //    可选更新——重新打包可能是把新插件打进镜像，也可能带着只存在于镜像里的
+    //    修复（原生依赖/打包缺陷），但用户不该在启动时被打断。
+    if (decideRootfsUpdateKind(installed, available) != RootfsUpdateKind.NONE) {
         return UpdateAssessment(
             need = UpdateNeed.ROOTFS_OPTIONAL,
             installed = installed,

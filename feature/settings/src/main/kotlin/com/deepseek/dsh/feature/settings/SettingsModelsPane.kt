@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,9 +54,26 @@ internal fun SettingsModelsPane(
         parseModelProviders(providersRaw, settingsRaw, credentialsRaw)
     }
     var editingId by remember { mutableStateOf<String?>(null) }
+    var showAddProvider by remember { mutableStateOf(false) }
+    // 已配置的提供商显示为卡片；官方 DeepSeek 始终保留一张卡片；正在编辑的提供商
+    // （含刚从“添加”弹窗选中的未配置项）要渲染编辑器而不是卡片。
+    val visibleProviders = providers.filter {
+        it.configured || it.id == "deepseek" || it.id == editingId
+    }
+    // 未配置的目录项只出现在“添加模型提供商”弹窗里；DeepSeek 已常驻卡片，不再重复列出。
+    val addableProviders = providers.filter { !it.configured && it.id != "deepseek" }
+    // 打开编辑器后滚动到该条目：从“添加”弹窗选中的提供商可能位于列表上方不可见处。
+    // 固定前置条目共 3 项（标题、说明、账号卡片），其后才是 provider 条目。
+    val listState = rememberLazyListState()
+    LaunchedEffect(editingId) {
+        val id = editingId ?: return@LaunchedEffect
+        val index = visibleProviders.indexOfFirst { it.id == id }
+        if (index >= 0) listState.animateScrollToItem(3 + index)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(
             start = SettingsPaneDimens.Horizontal,
             end = SettingsPaneDimens.Horizontal,
@@ -99,7 +118,7 @@ internal fun SettingsModelsPane(
                 }
             }
         }
-        providers.forEach { provider ->
+        visibleProviders.forEach { provider ->
             item(key = "provider_${provider.id}") {
                 if (editingId == provider.id) {
                     ModelProviderEditor(
@@ -145,12 +164,110 @@ internal fun SettingsModelsPane(
         item(key = "models_add") {
             SettingsDashedButton(
                 text = stringResource(R.string.settings_pane_models_add_provider),
-                onClick = onOpenConfigFile,
+                onClick = { showAddProvider = true },
             )
         }
         // settings.models.provider-card：插件声明的 provider 卡片（订阅、用量、
         // 第三方登录等），就地渲染成原生控件，交互经 bridge 回传给插件。
     }
+    if (showAddProvider) {
+        AddModelProviderDialog(
+            providers = addableProviders,
+            // Host 目录还没拉到时（未启动 / 未登录），addableProviders 一定是空的；
+            // 此时不能告诉用户「都配置好了」，那是两件完全不同的事。
+            hostReady = !providersRaw.isNullOrBlank(),
+            onDismiss = { showAddProvider = false },
+            onAdd = { provider ->
+                showAddProvider = false
+                editingId = provider.id
+            },
+            onOpenConfigFile = onOpenConfigFile,
+        )
+    }
+}
+
+/**
+ * 「添加模型提供商」弹窗：列出 Host 目录中尚未配置的提供商（DeepSeek 常驻卡片，不在此列）。
+ * 选中「添加」后关闭弹窗并把 editingId 指向该提供商，由既有 [ModelProviderEditor] 完成密钥录入。
+ *
+ * @param hostReady Host 的提供商目录是否已拿到；false 时说明「暂不可用」而不是「都已配置」。
+ */
+@Composable
+private fun AddModelProviderDialog(
+    providers: List<ModelProviderUi>,
+    hostReady: Boolean,
+    onDismiss: () -> Unit,
+    onAdd: (ModelProviderUi) -> Unit,
+    onOpenConfigFile: () -> Unit,
+) {
+    val palette = LocalSettingsPalette.current
+    com.deepseek.dsh.core.designsystem.DshDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.settings_pane_models_add_title),
+        closeLabel = stringResource(R.string.action_close),
+        description = stringResource(R.string.settings_pane_models_add_desc),
+        content = {
+            if (providers.isEmpty()) {
+                SettingsEmptyState(
+                    text = stringResource(
+                        if (hostReady) {
+                            R.string.settings_pane_models_add_empty
+                        } else {
+                            R.string.settings_pane_models_add_unavailable
+                        }
+                    )
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    providers.forEach { provider ->
+                        SettingsCard(verticalPadding = 10.dp) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = provider.name,
+                                        style = SettingsText.RowTitleMedium,
+                                        color = palette.labelPrimary,
+                                    )
+                                    Text(
+                                        text = provider.id,
+                                        fontSize = 12.sp,
+                                        lineHeight = 18.sp,
+                                        color = palette.labelTertiary,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                SettingsSmallButton(
+                                    text = stringResource(R.string.settings_pane_models_add_action),
+                                    primary = true,
+                                    onClick = { onAdd(provider) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        footer = {
+            com.deepseek.dsh.core.designsystem.DshDialogButton(
+                text = stringResource(R.string.settings_pane_models_open_config),
+                primary = false,
+                enabled = true,
+                onClick = {
+                    onDismiss()
+                    onOpenConfigFile()
+                },
+            )
+            com.deepseek.dsh.core.designsystem.DshDialogButton(
+                text = stringResource(R.string.settings_pane_models_cancel),
+                primary = false,
+                enabled = true,
+                onClick = onDismiss,
+            )
+        },
+    )
 }
 
 @Composable

@@ -5,6 +5,7 @@ import android.content.Intent
 import com.deepseek.dsh.runtime.bridge.BridgeServer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -177,7 +178,14 @@ class DefaultHostRuntimeManager(
             }
         }
         if (result.isSuccess) {
+            // 新镜像换掉了 usr/local 里的引擎文件，而补丁标记/ shim 标记在
+            // /root/.dsh（用户数据，跨镜像保留）里。不先让旧标记失效，
+            // applyBundledRuntimePatches 会以为「已经打过补丁」直接返回，
+            // 新镜像就带着未打补丁的引擎启动（proot 下会再次踩 ENOSYS）。
+            File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision").delete()
+            File(layout.rootfsDir, "root/.dsh/.addon-shim-revision").delete()
             applyBundledRuntimePatches()
+            RuntimeAddonShim.ensure(layout)
             runner.markInstalled()
             if (!layout.prootBinary.isFile) {
                 onProgress(1f, "rootfs 已安装；缺少 ${manifest.prootLibrary}（需按 ABI 打包到 jniLibs）")
@@ -210,7 +218,9 @@ class DefaultHostRuntimeManager(
     private fun applyBundledRuntimePatches() {
         // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
-        val patchRevision = "33"
+        // 34: app-boot 的 internal 模块改走 --expose-internals，绕开缺平台二进制的
+        // node-addon-require-builtin（Host 启动报 Cannot find module 的直接原因）。
+        val patchRevision = "34"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
@@ -458,13 +468,208 @@ class DefaultHostRuntimeManager(
         }
         return lines.joinToString("\n") to removed
     }
-    private fun applyBridgeBundleRow() {
-        val webAppPatch = File(
-            layout.rootfsDir,
-            "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/" +
-                "@deepseek-ai/dsh-web-app/cordis.patch.yml",
-        )
+    /**
+     * web-app 层 patch 在 rootfs 内的固定位置。
+     *
+     * 这一层是「随安装发布的状态」，不受 profile 清单核对影响，bridge 与第三方
+     * 插件的挂载行都写在这里；也正因为它持久化，卸载/半装留下的死行会一直存在。
+     */
+    private fun webAppPatchFile(): File = File(
+        layout.rootfsDir,
+        "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/" +
+            "@deepseek-ai/dsh-web-app/cordis.patch.yml",
+    )
+
+    /** rootfs 全局 `@deepseek-ai` 包目录（官方 bundle 的解析锚点）。 */
+    private fun rootfsGlobalModulesDir(): File =
+        File(layout.rootfsDir, "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules")
+
+    /**
+     * 挂载行里的 `name:` 对应的包是否真的装上了。
+     *
+     * 先看 profile 的 `node_modules`；`@deepseek-ai/<包名>` 与 bridge 插件还可能在 rootfs
+     * 全局目录里（官方 bundle 从那里解析）。`name:` 允许是包子路径（例如
+     * `@deepseek-ai/dsh-tool-subagent/model-selection-settings`），所以先归一到包根名，
+     * 否则会把 web-app 自带的合法子路径行误删。
+     */
+    private fun pluginPackageInstalled(packageName: String): Boolean {
+        val rootName = packageRootName(packageName)
+        if (rootName.isBlank()) return false
+        val profileModules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules")
+        if (File(profileModules, "$rootName/package.json").isFile) return true
+        val mayLiveInRootfs = rootName.startsWith("@deepseek-ai/") ||
+            rootName == BridgePluginManifest.DEFAULT_PACKAGE
+        if (!mayLiveInRootfs) return false
+        return File(rootfsGlobalModulesDir(), "$rootName/package.json").isFile
+    }
+
+    /** `@scope/pkg/sub/path` / `pkg/sub` 归一成包根名。 */
+    private fun packageRootName(specifier: String): String {
+        val name = specifier.trim().trim('"', '\'')
+        if (name.isEmpty()) return ""
+        val parts = name.split('/')
+        return when {
+            name.startsWith("@") -> parts.take(2).joinToString("/")
+            parts[0].isNotEmpty() -> parts[0]
+            else -> name
+        }
+    }
+
+    /**
+     * 启动前自愈 web-app 层 patch 里的悬空挂载行。
+     *
+     * 只处理「本类自己追加的」3 行独立形状（`- insert:` + `- id:` + `name:`，后面
+     * 紧跟空行/下一条顶层行/注释）；带 `config`/`disabled` 等额外字段的块属于插件
+     * 随包发布的 patch，一律不碰。删两类行：
+     * 1. `name:` 指向的包已经不在了（卸载残留、半装失败）——一条这样的 entry 就
+     *    足以让 Web 客户端停在启动失败页；
+     * 2. 同名重复挂载（保留第一条）——同一插件被 apply 两次会直接抛错。
+     *
+     * 与 [prunePluginRows] 的区别：这里按「包是否存在」判断，因此也能清掉
+     * `@deepseek-ai/<包名>` 的悬空行（prunePluginRows 出于安全不碰官方 scope）。
+     */
+    private fun sanitizeWebAppPatchRows() {
+        val webAppPatch = webAppPatchFile()
         if (!webAppPatch.isFile) return
+        try {
+            val original = webAppPatch.readText()
+            val profileModules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules")
+            // 插件随包发布的 patch 内容与「本类追加的独立行」形状可能完全一致，
+            // 必须按内容保护，否则会把插件自己的挂载行当成残留删掉。
+            val protectedPatches = readInstalledBundlePatches(profileModules)
+            // bridge 行自带 `config:` 块，不走下面的独立行形状；包不在时必须整块
+            // 删除，否则一条 import 不到的 entry 就足以让 Web 客户端启动失败。
+            val bridgeInstalled = pluginPackageInstalled(BridgePluginManifest.DEFAULT_PACKAGE)
+            val (sanitized, dropped) = dropDanglingMountRows(
+                text = original,
+                protectedPatches = protectedPatches,
+                dropBridgeRow = !bridgeInstalled,
+            )
+            if (dropped.isEmpty() || sanitized == original) return
+            writeTextAtomically(webAppPatch, sanitized)
+            dropped.forEach { name ->
+                android.util.Log.w(TAG, "web-app patch 移除失效插件挂载行: $name")
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "检查 web-app patch 挂载行失败", e)
+        }
+    }
+
+    /** 先写临时文件再改名：写到一半被杀不会留下半截 YAML 把后续启动全弄坏。 */
+    private fun writeTextAtomically(file: File, text: String) {
+        val temp = File(file.parentFile, "${file.name}.tmp-${System.nanoTime()}")
+        try {
+            temp.writeText(text)
+            if (!temp.renameTo(file)) {
+                file.writeText(text)
+            }
+        } finally {
+            if (temp.exists()) temp.delete()
+        }
+    }
+
+    /**
+     * [sanitizeWebAppPatchRows] 的纯文本部分：返回处理后的内容与被移除的包名。
+     *
+     * 保持逐行删除而不是 YAML 重新序列化：patch 里大量注释与 `!!js` 表达式必须
+     * 原样保留，重排会改变语义。
+     *
+     * @param protectedPatches 插件随包发布的 patch 文本；内容一致的块原样保留。
+     * @param dropBridgeRow bridge 插件包不在时，把它带 `config:` 的整块挂载删掉。
+     */
+    private fun dropDanglingMountRows(
+        text: String,
+        protectedPatches: List<String> = emptyList(),
+        dropBridgeRow: Boolean = false,
+    ): Pair<String, List<String>> {
+        val bridgeResult = if (dropBridgeRow) {
+            dropBridgeMountBlock(text.lines().toMutableList())
+        } else {
+            text.lines().toMutableList() to mutableListOf<String>()
+        }
+        val lines = bridgeResult.first
+        val dropped = bridgeResult.second
+        val keptNames = mutableSetOf<String>()
+        var index = 0
+        while (index + 2 < lines.size) {
+            if (lines[index] != "- insert:") {
+                index += 1
+                continue
+            }
+            val idLine = lines[index + 1]
+            val nameLine = lines[index + 2]
+            if (!idLine.startsWith("    - id: ") || !nameLine.startsWith("      name: ")) {
+                index += 1
+                continue
+            }
+            val following = lines.getOrNull(index + 3)
+            val standalone = following == null || following.isBlank() ||
+                following.startsWith("- ") || following.startsWith("#")
+            if (!standalone) {
+                // 还带着 config/disabled 等字段：插件作者自己的 patch，不动。
+                index += 1
+                continue
+            }
+            val blockText = "${lines[index]}\n${lines[index + 1]}\n${lines[index + 2]}"
+            if (protectedPatches.any { it.contains(blockText) }) {
+                // 与插件随包发布的 patch 内容一致：是它的挂载行，不是本类残留。
+                index += 3
+                continue
+            }
+            val name = nameLine.removePrefix("      name: ").trim().trim('"', '\'')
+            val duplicated = name.isNotEmpty() && name in keptNames
+            if (name.isNotEmpty() && !duplicated && pluginPackageInstalled(name)) {
+                keptNames += name
+                index += 3
+                continue
+            }
+            dropped += name.ifEmpty { idLine.removePrefix("    - id: ").trim().trim('"', '\'') }
+            repeat(3) { if (index < lines.size) lines.removeAt(index) }
+            if (index < lines.size && lines[index].isBlank()) lines.removeAt(index)
+        }
+        return lines.joinToString("\n") to dropped
+    }
+
+    /**
+     * 删除 bridge 插件的整块挂载（含 `config:`）。
+     *
+     * 只认顶层 `- insert:` 到下一个顶层行之前的块，且块里出现 bridge 的 id；
+     * 这样不会误删别的 insert 块，也不会动注释掉的文本。
+     */
+    private fun dropBridgeMountBlock(
+        lines: MutableList<String>,
+    ): Pair<MutableList<String>, MutableList<String>> {
+        val dropped = mutableListOf<String>()
+        var index = 0
+        while (index < lines.size) {
+            if (lines[index] != "- insert:") {
+                index += 1
+                continue
+            }
+            var end = index + 1
+            while (end < lines.size &&
+                !lines[end].startsWith("- ") && !lines[end].startsWith("#")
+            ) {
+                end += 1
+            }
+            val block = lines.subList(index, end)
+            if (block.any { it.contains(BRIDGE_BUNDLE_ID) }) {
+                dropped += BridgePluginManifest.DEFAULT_PACKAGE
+                repeat(end - index) { lines.removeAt(index) }
+                if (index < lines.size && lines[index].isBlank()) lines.removeAt(index)
+                continue
+            }
+            index = end
+        }
+        return lines to dropped
+    }
+
+    private fun applyBridgeBundleRow() {
+        val webAppPatch = webAppPatchFile()
+        if (!webAppPatch.isFile) return
+        // 包不在时绝不补行：Loader 里一条 import 不到的 entry 足以让整个 Web 客户端
+        // 启动失败，比「bridge 缺失」更糟。等插件装好后下一次启动再补。
+        if (!pluginPackageInstalled(BridgePluginManifest.DEFAULT_PACKAGE)) return
         val row = runCatching {
             context.assets.open("rootfs-patches/bridge-bundle-row.yml").bufferedReader().use { it.readText() }
         }.getOrNull() ?: return
@@ -476,6 +681,18 @@ class DefaultHostRuntimeManager(
     }
 
     private companion object {
+        /** Logcat tag。 */
+        const val TAG = "DshHostRuntime"
+
+        /** 启动时等待 `dsh web:` URL 的上限；超时按启动失败处理，不再无限 STARTING。 */
+        const val ENDPOINT_TIMEOUT_MS = 90_000L
+
+        /** 等待端口期间轮询运行时状态的间隔：进程失败时能立刻返回，而不是等满超时。 */
+        const val ENDPOINT_POLL_INTERVAL_MS = 200L
+
+        /** 超时错误文案里附带的最近输出行数（与设置页展示的条数一致）。 */
+        const val LOG_TAIL_ON_ERROR = 8
+
         /** bridge 插件在 cordis 树里的行 id；用于幂等判断。 */
         const val BRIDGE_BUNDLE_ID = "id: dsh-mobile-bridge-plugin"
 
@@ -485,7 +702,9 @@ class DefaultHostRuntimeManager(
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {
         if (runner.isRunning()) return@withLock Result.success(runner.statusFlow.value)
-        withContext(Dispatchers.IO) {
+        // NonCancellable：调用方的 scope 被取消（切页/重组/返回）时，不能把 runner
+        // 丢在 STARTING 里。启动要么跑完、要么落到明确的 ERROR，由看门狗和超时兜底。
+        withContext(Dispatchers.IO + NonCancellable) {
         layout.ensureDirectories()
 
         val hasRootfs = File(layout.rootfsDir, "etc/os-release").isFile ||
@@ -496,6 +715,12 @@ class DefaultHostRuntimeManager(
             )
         }
         applyBundledRuntimePatches()
+        // 图片镜像可能没有打进 node-addon-require-builtin 的平台二进制；缺了就换
+        // 纯 JS 兜底（配合 --expose-internals），否则 Host 在加载 Loader 时直接退出。
+        RuntimeAddonShim.ensure(layout)
+        // 先清掉上次卸载/半装留下的悬空挂载行，再补行：顺序反了会把刚补的又删掉。
+        // 一条 import 不到的 Loader 行就足以让整个 Web 客户端停在启动失败页。
+        sanitizeWebAppPatchRows()
         // 插件挂载层每次启动都核对一遍：卸载留下的「id 在、包不在」的 Loader 行
         // 会让整个 Web 客户端停在启动失败页（一个失败的 entry 就够），而补丁
         // 文件是持久化的，不修就一直是坏的。这是幂等的文件核对，成本只有一次读。
@@ -672,14 +897,44 @@ class DefaultHostRuntimeManager(
             return@withContext Result.failure(launchResult.exceptionOrNull()!!)
         }
 
-        val endpoint = withTimeoutOrNull(30_000L) {
+        // 等端口的同时盯住进程状态：DSH 启动失败（插件 import 不到）通常几秒内
+        // 就退出，不该让调用方把 90 秒超时等满才拿到结果；看门狗落的状态已经带着
+        // 退出码与最近输出，直接用它。STOPPED 表示用户在启动途中主动停止（例如
+        // 划掉任务或前台服务被回收），这是正常结束，不能改写成「启动超时」。
+        val endpoint: ProcessOutputParser.ParsedEndpoint? = withTimeoutOrNull(ENDPOINT_TIMEOUT_MS) {
+            while (!endpointDeferred.isCompleted) {
+                when (runner.statusFlow.value.phase) {
+                    RuntimePhase.ERROR, RuntimePhase.STOPPED -> return@withTimeoutOrNull null
+                    else -> kotlinx.coroutines.delay(ENDPOINT_POLL_INTERVAL_MS)
+                }
+            }
             endpointDeferred.await()
         }
 
         if (endpoint == null) {
+            val failed = runner.statusFlow.value
+            if (failed.phase == RuntimePhase.ERROR) {
+                // 进程已在启动中途退出：保留看门狗写的错误（含退出码/日志尾巴），
+                // 不要用「超时」覆盖掉真正的原因。
+                bridge.stop()
+                return@withContext Result.failure(
+                    IllegalStateException(failed.lastError ?: "Host 进程在启动中途退出")
+                )
+            }
+            if (failed.phase == RuntimePhase.STOPPED) {
+                // 主动停止：保持 STOPPED，不杀进程、不写 ERROR，也不留下半启动的 bridge。
+                bridge.stop()
+                return@withContext Result.success(failed)
+            }
+            // 端口一直没出现：先杀进程，再把最近输出写进状态。用户需要的不是
+            // 一句「未能解析到端口」，而是 Host 最后打印了什么。
             runner.terminate()
+            val tail = runner.statusFlow.value.logTail.takeLast(LOG_TAIL_ON_ERROR)
+            val detail = if (tail.isEmpty()) "无输出" else tail.joinToString("\n")
+            val message = "Host 启动超时（${ENDPOINT_TIMEOUT_MS / 1000} 秒内未解析到端口或 token）：\n$detail"
+            runner.markError(message)
             bridge.stop()
-            return@withContext Result.failure(IllegalStateException("未能解析到 DSH 启动端口或 token"))
+            return@withContext Result.failure(IllegalStateException(message))
         }
 
         // DSH 打印出 Web URL 即代表服务已监听；Android 运行时下额外 HTTP/WS 探针

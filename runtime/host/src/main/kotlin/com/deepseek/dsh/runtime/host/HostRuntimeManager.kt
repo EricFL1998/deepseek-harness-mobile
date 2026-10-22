@@ -18,7 +18,13 @@ data class RuntimeStatus(
     val port: Int? = null,
     val token: String? = null,
     val pid: Long? = null,
-    val lastError: String? = null
+    val lastError: String? = null,
+    /** 最近输出（已脱敏，只保留最后约 120 行）；失败时给设置页直接看。 */
+    val logTail: List<String> = emptyList(),
+    /** 子进程退出码；不是「进程退出」导致的失败时为 null。 */
+    val exitCode: Int? = null,
+    /** 最近一次状态更新时间（epoch millis）。 */
+    val updatedAtMillis: Long = 0L,
 )
 
 interface HostRuntimeManager {

@@ -7,6 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -319,6 +321,16 @@ fun MainAppHost(
     var pendingAgentPreset by remember { mutableStateOf<String?>(null) }
     var isSending by remember { mutableStateOf(false) }
     val pendingMessages = remember { androidx.compose.runtime.mutableStateListOf<ChatMessage>() }
+
+    // 计划模式：横幅状态；placeholder 与发送文案在 ChatScreen 内切换。
+    // 不按会话 id 重置——首个 prompt 会创建会话并改变 selectedSessionId，
+    // 按 id 重置会让刚开启的计划模式在第一次发送后神秘关闭。
+    var chatPlanMode by remember { mutableStateOf(false) }
+
+    // 系统文件选择器选回的附件（已复制进当前工作区 attachments/）。
+    val chatAttachments = remember { androidx.compose.runtime.mutableStateListOf<com.deepseek.dsh.feature.chat.ChatAttachment>() }
+    // 切换会话时清空待发附件，避免附件串到另一个会话。
+    LaunchedEffect(selectedSessionId) { chatAttachments.clear() }
     val liveSessionIds by dshRepository.liveSessionIdsFlow.collectAsState()
     val runningSessionIds by dshRepository.runningSessionIdsFlow.collectAsState()
     val unreadSessionIds by dshRepository.unreadSessionIdsFlow.collectAsState()
@@ -866,16 +878,27 @@ fun MainAppHost(
                     loader.load(installed)
                 }?.let { plugin -> installed to plugin }
             }
-            com.deepseek.dsh.plugin.nativehost.NativePageRegistry.replaceAll(
-                loaded.map { (installed, plugin) ->
-                    com.deepseek.dsh.plugin.nativehost.NativePageRegistration(
-                        pluginId = plugin.descriptor.id,
-                        jsPackage = installed.jsPackage,
-                        pages = com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.forPlacement(
-                            placement = com.deepseek.dsh.plugin.nativesdk.pages.PageEntry.Placement.SETTINGS,
-                            owner = installed.pluginId,
-                        ),
-                    )
+            // 注册的是「这个伴侣最后加载出来的全部页面」，不按 placement 预过滤：
+            // 匹配设置分区时按 id/标题/一一对应兜底，页面自己带 placement 即可。
+            val nativePageRegistrations = loaded.map { (installed, plugin) ->
+                com.deepseek.dsh.plugin.nativehost.NativePageRegistration(
+                    pluginId = plugin.descriptor.id,
+                    jsPackage = installed.jsPackage,
+                    pages = com.deepseek.dsh.plugin.nativesdk.pages.PageRegistry.snapshot()
+                        .filter { (owner, _) -> owner == installed.pluginId }
+                        .map { (_, page) -> page },
+                )
+            }
+            com.deepseek.dsh.plugin.nativehost.NativePageRegistry.replaceAll(nativePageRegistrations)
+            // 伴侣「装了但设置页还是 Web UI」时，先看这条日志：哪个伴侣加载成功、
+            // jsPackage 是什么、注册了哪些页面（placement:id）。
+            android.util.Log.i(
+                "NativePluginHost",
+                "loaded companions=" + nativePageRegistrations.joinToString { registration ->
+                    "${registration.pluginId}/${registration.jsPackage}=" +
+                        registration.pages.joinToString { page ->
+                            "${page.entry.placement}:${page.entry.id}"
+                        }
                 },
             )
             ready.forEach { plugin ->
@@ -1270,6 +1293,10 @@ fun MainAppHost(
     if (rootfsWasInstalled && !hostProgressReady) {
         HostStartupSplash(
             phase = if (hostStartupError) RuntimePhase.ERROR else RuntimePhase.STARTING,
+            // 失败原因和最近输出必须显示在这里：启动页是唯一入口，只给一个
+            // 「重试」按钮会让用户既修不了、也没法把原因发出来。
+            detail = if (hostStartupError) status.lastError else null,
+            logTail = if (hostStartupError) status.logTail else emptyList(),
             onRetry = {
                 hostStartupError = false
                 hostRetryKey += 1
@@ -1278,7 +1305,10 @@ fun MainAppHost(
                         runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
                     }
                 }
-            }
+            },
+            // Host 起不来时仍允许进入应用：设置 → 移动运行时 有完整日志，
+            // 也可以在那里导出脱敏诊断包。
+            onContinue = { hostProgressReady = true },
         )
         return
     }
@@ -1319,6 +1349,35 @@ fun MainAppHost(
     val defaultWorkspaceLabel = stringResource(R.string.workspace_default)
     val activeWorkspaceCwd = "/workspace/$activeWorkspaceName"
     val activeWorkspaceFolderPath = java.io.File(activeWorkspace, activeWorkspaceName).absolutePath
+
+    // 真正的系统文件选择器（SAF）：可多选图片/任意文件，复制进当前工作区后
+    // 在输入卡片显示；发送时以 @<工作区路径> 附在消息开头。
+    val attachmentPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris: List<android.net.Uri> ->
+        if (uris.isNotEmpty()) {
+            val workspaceDir = java.io.File(activeWorkspace, activeWorkspaceName)
+            // 大文件复制放 IO 线程，避免卡住输入法/界面。
+            scope.launch {
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.deepseek.dsh.AttachmentImporter.import(context, workspaceDir, uris)
+                }
+                result.added.forEach { added ->
+                    if (chatAttachments.none { it.workspaceRelativePath == added.workspaceRelativePath }) {
+                        chatAttachments.add(added)
+                    }
+                }
+                workspaceRevision += 1
+                result.skipped.forEach { name ->
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(R.string.attachment_copy_failed, name),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
+    }
     var showAddWorkspaceDialog by remember { mutableStateOf(false) }
     var newWorkspaceName by remember { mutableStateOf("") }
     var renameWorkspaceFolder by remember {
@@ -1820,6 +1879,13 @@ fun MainAppHost(
                                 onSendMessage = { text ->
                                     println("DSH_SEND start text=$text selected=$selectedSessionId live=$liveSessionIds")
                                     val localId = "local_${System.nanoTime()}"
+                                    val isPlanPrompt = chatPlanMode
+                                    val outgoingText = if (isPlanPrompt) {
+                                        context.getString(R.string.plan_prompt_prefix) + text
+                                    } else {
+                                        text
+                                    }
+                                    chatAttachments.clear()
                                     pendingMessages.add(
                                         ChatMessage(
                                             hostId = activeHostId,
@@ -1866,7 +1932,7 @@ fun MainAppHost(
                                                 effectiveModelIdByName[currentModel] ?: currentModel,
                                                 if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
                                             )
-                                            dshRepository.sendMessage(activeHostId, sid, text)
+                                            dshRepository.sendMessage(activeHostId, sid, outgoingText)
                                         } else {
                                             android.widget.Toast.makeText(
                                                 context, context.getString(R.string.session_create_failed), android.widget.Toast.LENGTH_LONG
@@ -2005,9 +2071,16 @@ fun MainAppHost(
                                 bandSnapshot = bandSnapshot,
                                 bandPressing = bandPressing,
                                 onBandPress = { generation, actionId -> pressClaudeCodeBand(generation, actionId) },
-                                onOpenAttachmentMenu = {
-                                    activePage = ActivePage.FILES
-                                }
+                                attachments = chatAttachments,
+                                onRemoveAttachment = { attachment ->
+                                    chatAttachments.remove(attachment)
+                                },
+                                onPickAttachments = {
+                                    // SAF 选择器：任意类型文件 + 图片；图片走同一通道。
+                                    attachmentPickerLauncher.launch(arrayOf("*/*"))
+                                },
+                                planMode = chatPlanMode,
+                                onPlanModeChange = { enabled -> chatPlanMode = enabled },
                             )
                         }
 
@@ -2053,22 +2126,35 @@ fun MainAppHost(
                                     }
                                 },
                                 onOpenSdui = { },
-                                onInstallPlugin = { pkgName ->
+                                onInstallPlugin = { pkgName, onProgress ->
+                                    // 安装耗时以秒计：先报一个「已受理」，再让安装器
+                                    // 把下载/解压/依赖/写盘的每一步透传给对话框。
+                                    onProgress(0.02f, context.getString(R.string.plugins_install_preparing))
                                     val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
                                     // Host 内 pnpm 依赖 proot 的 rename/unlink/mkdtemp，
                                     // 这台设备上全部返回 ENOSYS。失败后改用 App 自己的
                                     // 文件与网络能力完成同一件事，再重启 Host 加载。
                                     val usedFallback = hostRes.isFailure
                                     val result = if (hostRes.isSuccess) {
+                                        onProgress(0.6f, context.getString(R.string.plugins_install_progress_title))
                                         Result.success(pkgName)
                                     } else {
-                                        appPluginInstaller.install(pkgName) { _, _ -> }
+                                        onProgress(0.05f, context.getString(R.string.plugins_install_fallback))
+                                        appPluginInstaller.install(pkgName) { fraction, step ->
+                                            onProgress(0.05f + fraction * 0.75f, step)
+                                        }
                                     }
                                     result.fold(
                                         onSuccess = { installed ->
+                                            var restartFailure: Throwable? = null
                                             if (usedFallback) {
                                                 // 文件已就位，重启 Host 才会让新插件进入 Loader。
-                                                HostRuntimeHolder.restartHost?.invoke()
+                                                // 重启失败不能当成安装成功：界面会显示插件「已装」，
+                                                // 但 Host 里并没有加载它。
+                                                onProgress(0.85f, context.getString(R.string.plugins_install_restarting))
+                                                restartFailure = HostRuntimeHolder.restartHost
+                                                    ?.invoke()
+                                                    ?.exceptionOrNull()
                                                 kotlinx.coroutines.delay(1_200)
                                             }
                                             managedPluginPackages = runCatching {
@@ -2090,7 +2176,20 @@ fun MainAppHost(
                                                     nativeCompanionAvailable = companion.value
                                                 }
                                             }
-                                            Result.success(installed)
+                                            val failure = restartFailure
+                                            if (failure != null) {
+                                                Result.failure(
+                                                    IllegalStateException(
+                                                        context.getString(
+                                                            R.string.plugins_install_restart_failed,
+                                                            failure.message ?: "",
+                                                        )
+                                                    )
+                                                )
+                                            } else {
+                                                onProgress(1f, context.getString(R.string.plugins_install_success, installed))
+                                                Result.success(installed)
+                                            }
                                         },
                                         onFailure = { error ->
                                             Result.failure(
@@ -2609,14 +2708,26 @@ fun MainAppHost(
 private fun HostStartupSplash(
     phase: RuntimePhase,
     title: String = "",
+    /** 失败原因（已由 runner 脱敏）。 */
+    detail: String? = null,
+    /** 最近输出（已脱敏）。 */
+    logTail: List<String> = emptyList(),
     onRetry: () -> Unit,
+    /** Host 不可用时仍进入应用（去设置页看日志/导出诊断包）。 */
+    onContinue: (() -> Unit)? = null,
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val copiedLabel = stringResource(R.string.host_startup_copied)
     androidx.compose.material3.Surface(
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxSize()
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(28.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(28.dp)
+                .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -2640,7 +2751,83 @@ private fun HostStartupSplash(
             )
             Spacer(modifier = Modifier.height(12.dp))
             if (phase == RuntimePhase.ERROR) {
-                androidx.compose.material3.Button(onClick = onRetry) { Text(stringResource(R.string.action_host_retry)) }
+                detail?.takeIf { it.isNotBlank() }?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                val lines = logTail.takeLast(10)
+                if (lines.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.host_startup_log_title),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        lines.forEach { line ->
+                            Text(
+                                text = line,
+                                fontSize = 11.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+                androidx.compose.material3.Button(onClick = onRetry) {
+                    Text(stringResource(R.string.action_host_retry))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        val payload = buildString {
+                            appendLine("DSH Host startup failed")
+                            appendLine("device: ${android.os.Build.BRAND} ${android.os.Build.MODEL}")
+                            appendLine(
+                                "android: ${android.os.Build.VERSION.RELEASE} " +
+                                    "(SDK ${android.os.Build.VERSION.SDK_INT})"
+                            )
+                            appendLine("abi: ${android.os.Build.SUPPORTED_ABIS.joinToString()}")
+                            detail?.takeIf { it.isNotBlank() }?.let { appendLine("error: $it") }
+                            // 全量带上最近输出（已脱敏，最多 120 行）：Host 的报错
+                            // 常常是一段序列化对象，截断后正好丢掉最关键的路径/模块名。
+                            logTail.forEach { appendLine(it) }
+                        }
+                        val clipboard = context.getSystemService(
+                            android.content.Context.CLIPBOARD_SERVICE
+                        ) as? android.content.ClipboardManager
+                        clipboard?.setPrimaryClip(
+                            android.content.ClipData.newPlainText("DSH host startup", payload)
+                        )
+                        android.widget.Toast.makeText(
+                            context,
+                            copiedLabel,
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                ) { Text(stringResource(R.string.host_startup_copy)) }
+                if (onContinue != null) {
+                    androidx.compose.material3.TextButton(onClick = onContinue) {
+                        Text(stringResource(R.string.host_startup_continue))
+                    }
+                    Text(
+                        text = stringResource(R.string.host_startup_continue_hint),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             } else {
                 androidx.compose.material3.CircularProgressIndicator(
                     modifier = Modifier.size(22.dp),

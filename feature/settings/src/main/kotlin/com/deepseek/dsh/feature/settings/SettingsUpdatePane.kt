@@ -297,9 +297,14 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 按钮排两行：三个按钮挤在一行时，屏幕窄的设备会把「重启 Host」
+                // 压成一竖列（中文可逐字换行、英文可断词），看起来像坏了。
+                // 第一行放两个等宽动作，第二行把重启 Host 整宽放开，文案永远单行。
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         enabled = !pluginBusy && assessmentLoaded && assessment.canUpdatePlugin,
+                        modifier = Modifier.weight(1f),
                         onClick = {
                             scope.launch {
                                 pluginBusy = true
@@ -374,14 +379,23 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                             } else {
                                 stringResource(R.string.agent_update_action_update_plugin)
                             },
+                            maxLines = 1,
                         )
+                    }
+                        OutlinedButton(
+                            enabled = !pluginBusy && !rootfsBusy,
+                            modifier = Modifier.weight(1f),
+                            onClick = { scope.launch { refreshAssessment() } },
+                        ) {
+                            Text(
+                                stringResource(R.string.agent_update_action_recheck),
+                                maxLines = 1,
+                            )
+                        }
                     }
                     OutlinedButton(
                         enabled = !pluginBusy && !rootfsBusy,
-                        onClick = { scope.launch { refreshAssessment() } },
-                    ) { Text(stringResource(R.string.agent_update_action_recheck)) }
-                    OutlinedButton(
-                        enabled = !pluginBusy && !rootfsBusy,
+                        modifier = Modifier.fillMaxWidth(),
                         onClick = {
                             scope.launch {
                                 pluginBusy = true
@@ -405,7 +419,12 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                                 pluginBusy = false
                             }
                         },
-                    ) { Text(stringResource(R.string.agent_update_action_restart_host)) }
+                    ) {
+                        Text(
+                            stringResource(R.string.agent_update_action_restart_host),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }

@@ -367,8 +367,13 @@ private fun PluginStoreDetail(
                     fontWeight = FontWeight.Medium,
                 )
                 Spacer(Modifier.height(8.dp))
+                val hasUpdate = installed != null && repo.pushedAt > installed.lastUpdateTime
                 release!!.apks.forEach { asset ->
-                    ApkInstallRow(asset)
+                    ApkInstallRow(
+                        asset = asset,
+                        installed = installed != null,
+                        hasUpdate = hasUpdate,
+                    )
                 }
             }
         }
@@ -376,12 +381,19 @@ private fun PluginStoreDetail(
 }
 
 @Composable
-private fun ApkInstallRow(asset: GitHubApkAsset) {
+private fun ApkInstallRow(
+    asset: GitHubApkAsset,
+    installed: Boolean,
+    hasUpdate: Boolean,
+) {
     val colors = LocalDshPanelColors.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var installing by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var installedNow by remember { mutableStateOf(false) }
+    val isInstalled = installed || installedNow
+    val canInstall = !installing && (!isInstalled || hasUpdate)
 
     Row(
         modifier = Modifier
@@ -405,20 +417,25 @@ private fun ApkInstallRow(asset: GitHubApkAsset) {
             }
         }
         Text(
-            text = if (installing) stringResource(R.string.plugins_store_downloading)
-            else stringResource(R.string.plugins_store_install),
-            color = colors.labelPrimary,
+            text = when {
+                installing -> stringResource(R.string.plugins_store_downloading)
+                isInstalled && hasUpdate -> stringResource(R.string.plugins_store_update)
+                isInstalled -> stringResource(R.string.plugins_store_installed)
+                else -> stringResource(R.string.plugins_store_install)
+            },
+            color = if (isInstalled && !hasUpdate) colors.labelTertiary else colors.labelPrimary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
                 .background(colors.bgModulePlatform)
                 .border(0.5.dp, colors.borderL3, RoundedCornerShape(10.dp))
-                .clickable(enabled = !installing) {
+                .clickable(enabled = canInstall) {
                     installing = true
                     message = null
                     scope.launch {
                         runCatching { downloadAndInstallApk(context, asset) }
+                            .onSuccess { installedNow = true }
                             .onFailure { message = it.message ?: context.getString(R.string.store_install_failed) }
                         installing = false
                     }

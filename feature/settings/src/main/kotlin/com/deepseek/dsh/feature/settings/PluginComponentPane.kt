@@ -59,6 +59,8 @@ fun PluginComponentPane(
     hostPort: Int = 0,
     hostToken: String? = null,
     hostPortProvider: (() -> Int)? = null,
+    /** 原生页未接管的原因（伴侣未加载 / 未注册设置页 / id 不匹配）；null 表示没有原生候选。 */
+    nativeFallbackReason: String? = null,
 ) {
     var webReloadKey by remember { mutableIntStateOf(0) }
     var webLoading by remember { mutableStateOf(true) }
@@ -121,6 +123,17 @@ fun PluginComponentPane(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (nativeFallbackReason != null) {
+                    // 装过伴生 APK 却仍走 Web UI 时，必须让用户看到是哪一步没对上：
+                    // 伴侣没加载、没注册设置页，还是注册的 id 与分区 id 不一致。
+                    Text(
+                        text = nativeFallbackReason,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
             }
             IconButton(onClick = {
                 webFailed = null

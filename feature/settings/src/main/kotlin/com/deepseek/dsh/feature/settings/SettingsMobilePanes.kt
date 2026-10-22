@@ -74,7 +74,8 @@ internal fun SettingsMobileRuntimePane(
         // 运行时状态与运行控制卡片
         item(key = "runtime_status_control") {
             SettingsCard {
-                val phase = runtimeStatus?.phase ?: RuntimePhase.STOPPED
+                val status = runtimeStatus
+                val phase = status?.phase ?: RuntimePhase.STOPPED
                 val isRunning = phase == RuntimePhase.RUNNING
                 val isStarting = phase == RuntimePhase.STARTING || phase == RuntimePhase.INSTALLING
 
@@ -118,43 +119,14 @@ internal fun SettingsMobileRuntimePane(
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = phase.name,
+                                    // 本地化状态名；直接用 phase.name 会在中文界面里露出
+                                    // STARTING / ERROR 这类枚举原文。
+                                    text = runtimePhaseLabel(phase),
                                     fontSize = 11.sp,
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                                     color = statusColor
                                 )
                             }
-                        }
-                        val status = runtimeStatus
-                        val port = status?.port
-                        val portText = if (port != null) {
-                            stringResource(R.string.settings_pane_runtime_port, port)
-                        } else {
-                            null
-                        }
-                        val pid = status?.pid
-                        val pidText = if (pid != null) {
-                            stringResource(R.string.settings_pane_runtime_pid, pid)
-                        } else {
-                            null
-                        }
-                        val lastError = status?.lastError
-                        val errorText = if (lastError != null) {
-                            stringResource(R.string.settings_pane_runtime_last_error, lastError)
-                        } else {
-                            null
-                        }
-                        val detail = buildString {
-                            if (portText != null) append(portText).append("  ")
-                            if (pidText != null) append(pidText).append("  ")
-                            if (errorText != null) append("\n").append(errorText)
-                        }
-                        if (detail.isNotEmpty()) {
-                            Text(
-                                text = detail,
-                                style = SettingsText.RowDesc,
-                                color = palette.labelTertiary,
-                            )
                         }
                     }
 
@@ -169,6 +141,7 @@ internal fun SettingsMobileRuntimePane(
                     } else {
                         androidx.compose.material3.Button(
                             onClick = onStartRuntime,
+                            // STARTING/INSTALLING 期间不能重复点启动；ERROR 允许重试。
                             enabled = !isStarting,
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
@@ -183,6 +156,66 @@ internal fun SettingsMobileRuntimePane(
                             )
                         }
                     }
+                }
+
+                // 端口 / PID：启动成功后最关键的定位信息。
+                val port = status?.port
+                val pid = status?.pid
+                val portText = if (port != null) {
+                    stringResource(R.string.settings_pane_runtime_port, port)
+                } else {
+                    null
+                }
+                val pidText = if (pid != null) {
+                    stringResource(R.string.settings_pane_runtime_pid, pid)
+                } else {
+                    null
+                }
+                val detail = listOfNotNull(portText, pidText).joinToString("  ")
+                if (detail.isNotEmpty()) {
+                    Text(
+                        text = detail,
+                        style = SettingsText.RowDesc,
+                        color = palette.labelTertiary,
+                        modifier = Modifier.padding(start = 34.dp, end = 4.dp),
+                    )
+                }
+
+                if (phase == RuntimePhase.ERROR) {
+                    // 失败时不再只说「ERROR」：错误文案 + 退出码 + 最近输出一起给，
+                    // 用户和开发者都能直接看到 Host 为什么没起来。
+                    val lastError = status?.lastError
+                    if (!lastError.isNullOrEmpty()) {
+                        Text(
+                            text = stringResource(R.string.settings_pane_runtime_last_error, lastError),
+                            style = SettingsText.RowDesc,
+                            color = palette.error,
+                            modifier = Modifier.padding(start = 34.dp, end = 4.dp, top = 6.dp),
+                        )
+                    }
+                    val exitCode = status?.exitCode
+                    if (exitCode != null) {
+                        Text(
+                            text = stringResource(R.string.settings_pane_runtime_exit_code, exitCode),
+                            style = SettingsText.RowDesc,
+                            color = palette.labelTertiary,
+                            modifier = Modifier.padding(start = 34.dp, end = 4.dp, top = 2.dp),
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.settings_pane_runtime_error_hint),
+                        style = SettingsText.RowDesc,
+                        color = palette.labelTertiary,
+                        modifier = Modifier.padding(start = 34.dp, end = 4.dp, top = 4.dp),
+                    )
+                    RuntimeOutputBlock(logTail = status?.logTail.orEmpty())
+                } else if (isStarting) {
+                    Text(
+                        text = stringResource(R.string.settings_pane_runtime_starting_hint),
+                        style = SettingsText.RowDesc,
+                        color = palette.labelTertiary,
+                        modifier = Modifier.padding(start = 34.dp, end = 4.dp, top = 4.dp),
+                    )
                 }
             }
         }
@@ -237,6 +270,63 @@ internal fun SettingsMobileRuntimePane(
                     title = stringResource(R.string.settings_pane_diagnostics_title),
                     subtitle = stringResource(R.string.settings_pane_diagnostics_desc),
                     onClick = onExportDiagnostics,
+                )
+            }
+        }
+    }
+}
+
+/** 运行时阶段徽标文案；枚举名不进 UI。 */
+@Composable
+private fun runtimePhaseLabel(phase: RuntimePhase): String = stringResource(
+    when (phase) {
+        RuntimePhase.UNINSTALLED -> R.string.settings_pane_runtime_phase_uninstalled
+        RuntimePhase.INSTALLING -> R.string.settings_pane_runtime_phase_installing
+        RuntimePhase.STOPPED -> R.string.settings_pane_runtime_phase_stopped
+        RuntimePhase.STARTING -> R.string.settings_pane_runtime_phase_starting
+        RuntimePhase.RUNNING -> R.string.settings_pane_runtime_phase_running
+        RuntimePhase.ERROR -> R.string.settings_pane_runtime_phase_error
+    }
+)
+
+/**
+ * Host 最近输出（已由 runner 脱敏）。
+ *
+ * 启动失败时这是唯一能解释「为什么没起来」的东西：最多 8 行、等宽小字，
+ * 没有输出时给占位文案，而不是留一块空白。
+ */
+@Composable
+private fun RuntimeOutputBlock(logTail: List<String>) {
+    val palette = LocalSettingsPalette.current
+    val lines = logTail.takeLast(8)
+    Text(
+        text = stringResource(R.string.settings_pane_runtime_log_title),
+        fontSize = 11.sp,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+        color = palette.labelSecondary,
+        modifier = Modifier.padding(start = 34.dp, end = 4.dp, top = 8.dp),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 34.dp, end = 4.dp, top = 2.dp)
+    ) {
+        if (lines.isEmpty()) {
+            Text(
+                text = stringResource(R.string.settings_pane_runtime_log_empty),
+                fontSize = 11.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color = palette.labelTertiary,
+            )
+        } else {
+            lines.forEach { line ->
+                Text(
+                    text = line,
+                    fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = palette.labelTertiary,
+                    maxLines = 3,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
         }

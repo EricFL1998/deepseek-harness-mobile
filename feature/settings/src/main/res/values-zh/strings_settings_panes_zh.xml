@@ -8,6 +8,17 @@
     <string name="settings_pane_runtime_stop">停止</string>
     <string name="settings_pane_runtime_start">启动</string>
     <string name="settings_pane_runtime_starting">启动中...</string>
+    <string name="settings_pane_runtime_starting_hint">Host 正在启动，首次启动可能需要一些时间。</string>
+    <string name="settings_pane_runtime_error_hint">Host 启动失败。点击「启动」重试；下方是最近输出，便于定位原因。</string>
+    <string name="settings_pane_runtime_log_title">最近输出</string>
+    <string name="settings_pane_runtime_log_empty">暂无输出。</string>
+    <string name="settings_pane_runtime_exit_code">退出码：%1$d</string>
+    <string name="settings_pane_runtime_phase_uninstalled">未安装</string>
+    <string name="settings_pane_runtime_phase_installing">安装中</string>
+    <string name="settings_pane_runtime_phase_stopped">已停止</string>
+    <string name="settings_pane_runtime_phase_starting">启动中</string>
+    <string name="settings_pane_runtime_phase_running">运行中</string>
+    <string name="settings_pane_runtime_phase_error">启动失败</string>
     <string name="settings_pane_idle_sleep_title">空闲自动休眠</string>
     <string name="settings_pane_idle_sleep_desc">无交互 5 分钟后停止容器进程，极大降低手机功耗与发热</string>
     <string name="settings_pane_keep_alive_title">后台长任务守护</string>
@@ -82,6 +93,15 @@
     <string name="settings_pane_models_add_model">添加模型</string>
     <string name="settings_pane_models_cancel">取消</string>
     <string name="settings_pane_models_save">保存</string>
+    <string name="settings_pane_models_add_title">添加模型提供商</string>
+    <string name="settings_pane_models_add_desc">选择提供商后填入 API 密钥，即可使用它的模型。</string>
+    <string name="settings_pane_models_add_empty">可用的提供商都已配置完成。</string>
+    <string name="settings_pane_models_add_unavailable">尚未获取到模型提供商列表。请先启动 Host，再重新打开此窗口。</string>
+    <string name="settings_pane_models_add_action">添加</string>
+    <string name="settings_pane_models_open_config">打开配置文件</string>
+    <string name="settings_pane_models_configured">已配置</string>
+    <string name="settings_pane_models_not_configured">未配置</string>
+    <string name="settings_pane_models_added">已添加提供商</string>
 
     <!-- 内置插件面板 -->
     <string name="settings_pane_plugins_search_placeholder">搜索插件</string>

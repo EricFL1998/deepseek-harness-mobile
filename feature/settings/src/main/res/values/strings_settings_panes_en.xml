@@ -8,6 +8,17 @@
     <string name="settings_pane_runtime_stop">Stop</string>
     <string name="settings_pane_runtime_start">Start</string>
     <string name="settings_pane_runtime_starting">Starting...</string>
+    <string name="settings_pane_runtime_starting_hint">Host is starting. The first launch can take a while.</string>
+    <string name="settings_pane_runtime_error_hint">Host failed to start. Tap Start to retry; the recent output below shows why.</string>
+    <string name="settings_pane_runtime_log_title">Recent output</string>
+    <string name="settings_pane_runtime_log_empty">No output yet.</string>
+    <string name="settings_pane_runtime_exit_code">Exit code: %1$d</string>
+    <string name="settings_pane_runtime_phase_uninstalled">Not installed</string>
+    <string name="settings_pane_runtime_phase_installing">Installing</string>
+    <string name="settings_pane_runtime_phase_stopped">Stopped</string>
+    <string name="settings_pane_runtime_phase_starting">Starting</string>
+    <string name="settings_pane_runtime_phase_running">Running</string>
+    <string name="settings_pane_runtime_phase_error">Failed</string>
     <string name="settings_pane_idle_sleep_title">Auto-sleep when idle</string>
     <string name="settings_pane_idle_sleep_desc">Stop the container process after 5 minutes without interaction, greatly reducing battery drain and heat</string>
     <string name="settings_pane_keep_alive_title">Background long-task guard</string>
@@ -82,6 +93,15 @@
     <string name="settings_pane_models_add_model">Add model</string>
     <string name="settings_pane_models_cancel">Cancel</string>
     <string name="settings_pane_models_save">Save</string>
+    <string name="settings_pane_models_add_title">Add model provider</string>
+    <string name="settings_pane_models_add_desc">Choose a provider, then enter its API key to use its models.</string>
+    <string name="settings_pane_models_add_empty">Every available provider is already configured.</string>
+    <string name="settings_pane_models_add_unavailable">The provider catalog is not available yet. Start the Host, then reopen this dialog.</string>
+    <string name="settings_pane_models_add_action">Add</string>
+    <string name="settings_pane_models_open_config">Open config file</string>
+    <string name="settings_pane_models_configured">Configured</string>
+    <string name="settings_pane_models_not_configured">Not configured</string>
+    <string name="settings_pane_models_added">Provider added</string>
 
     <!-- Built-in plugins pane -->
     <string name="settings_pane_plugins_search_placeholder">Search plugins</string>

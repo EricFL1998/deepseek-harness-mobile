@@ -88,10 +88,21 @@ class RootfsVersionTest {
     fun `a rebuilt image with the same engine is not a mandatory update`() {
         // 模拟器上真实踩到：1.0.0-dsh0.2.1-rc.2（旧镜像，无插件）升到
         // 1.0.1-dsh0.2.1-rc.2-bridge1.1.0，dsh 段相同，却在启动时弹了
-        // 「重新下载运行时」。rootfs 段自增只是重新打包，不该拦启动。
+        // 「重新下载运行时」。重新打包的镜像只算 REPACKAGED：设置页可选，
+        // 启动流程（只认 MANDATORY）不拦人。
+        assertEquals(
+            RootfsUpdateKind.REPACKAGED,
+            decideRootfsUpdateKind("1.0.0-dsh0.2.1-rc.2", "1.0.1-dsh0.2.1-rc.2-bridge1.1.0"),
+        )
+    }
+
+    @Test
+    fun `an older bundled manifest never offers a downgrade`() {
+        // 内置兜底清单（assets/rootfs-manifest.json）不会随发版更新；离线时它
+        // 可能比已装镜像旧。旧版本不能算「可更新」，否则会引导降级。
         assertEquals(
             RootfsUpdateKind.NONE,
-            decideRootfsUpdateKind("1.0.0-dsh0.2.1-rc.2", "1.0.1-dsh0.2.1-rc.2-bridge1.1.0"),
+            decideRootfsUpdateKind("1.0.9-dsh0.2.1-rc.2-bridge2.0.1", "1.0.4-dsh0.2.1-rc.2-bridge1.3.1"),
         )
     }
 
@@ -187,17 +198,19 @@ class RootfsVersionTest {
     }
 
     @Test
-    fun `a repackaged image with the same engine asks for nothing once the plugin is current`() {
-        // rootfs 段自增只是重新打包（例如为了把新插件打进镜像）。插件已经就地
-        // 更新到最新，因此既不需要重下镜像，也不需要再动插件。
+    fun `a repackaged image with the same engine offers an optional image update`() {
+        // rootfs 段自增说明镜像重新打包过：可能只是把新插件打进去，也可能带着
+        // 只存在于镜像里的修复。插件侧已经是最新，因此只给「可选」的镜像更新，
+        // 且不打断启动。
         val assessment = assessUpdate(
             installed = "1.0.0-dsh0.2.1-rc.2-bridge1.1.0",
             available = "1.0.1-dsh0.2.1-rc.2-bridge1.1.0",
             latestPlugin = "1.1.0",
             installedPlugin = "1.1.0",
         )
-        assertEquals(UpdateNeed.NONE, assessment.need)
-        assertFalse(assessment.hasUpdate)
+        assertEquals(UpdateNeed.ROOTFS_OPTIONAL, assessment.need)
+        assertTrue(assessment.hasUpdate)
+        assertFalse(assessment.canUpdatePlugin)
     }
 
     @Test
@@ -214,10 +227,10 @@ class RootfsVersionTest {
 
     @Test
     fun `without a latest-plugin answer the plugin is not judged`() {
-        // 查询失败时不能凭镜像段推断插件落后，否则会误报。dsh 段相同，
-        // 因此连镜像更新也不该提出。
+        // 查询失败时不能凭镜像段推断插件落后，否则会误报。这里镜像段也一致，
+        // 因此既不该报插件更新，也不该报镜像更新。
         val assessment = assessUpdate(
-            installed = "1.0.0-dsh0.2.1-rc.2-bridge1.0.0",
+            installed = "1.1.0-dsh0.2.1-rc.2-bridge1.0.0",
             available = current,
             latestPlugin = null,
             installedPlugin = "1.0.0",
@@ -252,14 +265,15 @@ class RootfsVersionTest {
     @Test
     fun `a newer installed plugin is never a downgrade target`() {
         // 本地装的是未发布的开发版（1.24.0），仓库最新发布是 1.1.0：
-        // 这不是落后，也不能把按钮变成「更新」（那是降级）。
+        // 这不是落后，也不能把按钮变成「更新」（那是降级）。镜像本身重新打包过，
+        // 因此只允许出现可选的镜像更新。
         val assessment = assessUpdate(
             installed = "1.0.0-dsh0.2.1-rc.2-bridge1.1.0",
             available = current,
             latestPlugin = "1.1.0",
             installedPlugin = "1.24.0",
         )
-        assertEquals(UpdateNeed.NONE, assessment.need)
+        assertEquals(UpdateNeed.ROOTFS_OPTIONAL, assessment.need)
         assertFalse(assessment.pluginOutdated)
         assertFalse(assessment.canUpdatePlugin)
     }

@@ -213,12 +213,23 @@ fun SettingsRootScreen(
             val activeEntry = activePluginComponent
             val activeComponentId = activeEntry?.resolvedComponentId()
                 ?: activeEntry?.let { "${it.module}#${it.slot}" }
-            val activeNativePage = activeComponentId?.let { componentId ->
-                com.deepseek.dsh.plugin.nativehost.NativePageRegistry.find(
+            // 原生页匹配：先精确 id，再标题，最后在「该插件只有一个 settings.section」
+            // 时按一一对应兜底。未命中时把原因带到 Web 兜底页上，避免用户只看到
+            // 「还是 Web UI」而不知道是伴侣没加载、没注册设置页，还是 id 对不上。
+            val activeNativeMatch = activeComponentId?.let { componentId ->
+                val sectionCount = activeEntry?.module?.let { module ->
+                    pluginSlotEntries.count {
+                        it.module == module && it.slot == "settings.section"
+                    }
+                } ?: 0
+                com.deepseek.dsh.plugin.nativehost.NativePageRegistry.findSettingsSection(
                     componentId = componentId,
+                    title = activeEntry?.title,
                     registrations = nativePageRegistrations,
+                    allowSinglePageFallback = sectionCount == 1,
                 )
             }
+            val activeNativePage = activeNativeMatch?.page
             AnimatedContent(
                 targetState = SettingsContentKey(
                     section = activeSection,
@@ -257,6 +268,7 @@ fun SettingsRootScreen(
                             hostPort = hostPort,
                             hostToken = hostToken,
                             hostPortProvider = hostPortProvider,
+                            nativeFallbackReason = activeNativeMatch?.reason,
                         )
                     }
                 } else if (content.settingsPageId != null && activePluginPage != null) {

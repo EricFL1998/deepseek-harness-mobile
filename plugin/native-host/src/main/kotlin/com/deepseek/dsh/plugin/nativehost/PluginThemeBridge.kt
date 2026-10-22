@@ -43,5 +43,28 @@ fun rememberPluginTheme(): PluginTheme {
         textPopupTitle = t.labelSmall.copy(fontWeight = FontWeight.SemiBold),
         textPopupBody = t.bodyMedium.copy(fontSize = 13.sp, lineHeight = 20.sp),
         isDark = androidx.compose.foundation.isSystemInDarkTheme(),
+        // 设置页/面板与 App 的 DshPanel 完全同源：隔层底色、发丝边、三级文字色。
+        colorPanel = panel.bgLayer2,
+        colorPanelBorder = panel.borderL2,
+        colorPanelElevated = panel.bgLayer3,
+        colorLabelPrimary = panel.labelPrimary,
+        colorLabelSecondary = panel.labelSecondary,
+        colorLabelTertiary = panel.labelTertiary,
+        colorLink = c.primary,
+        panelCorner = 16.dp,
+        rowMinHeight = 44.dp,
+        // 按钮/开关/输入框与 App 的 DshDialogButton / DshSwitch 同源。
+        colorButtonPrimary = panel.buttonPrimaryFill,
+        colorButtonPrimaryHover = panel.buttonPrimaryHover,
+        colorButtonTextOnPrimary = panel.labelPrimaryForeground,
+        colorButtonSecondaryBorder = panel.borderL3,
+        colorButtonSecondaryText = panel.labelPrimary,
+        colorButtonDanger = panel.stateErrorPrimary,
+        colorSwitchTrackOff = panel.borderL3,
+        colorSwitchThumb = panel.switchThumb,
+        colorInputBackground = panel.bgLayer3,
+        colorInputBorder = panel.borderL2,
+        colorChipBackground = panel.bgModulePlatform,
+        colorChipText = panel.labelSecondary,
     )
 }

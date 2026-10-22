@@ -134,6 +134,11 @@ object ProotCommandBuilder {
         // 直接用 node 执行 dsh 的 bin.js：绕过 /opt/dsh/bin/dsh 包装脚本，
         // 保证 import.meta.url 指向真实安装目录（否则 profile bundle 解析锚点会错）。
         cmd.add("/usr/local/bin/node")
+        // 引擎的 Loader/app-boot 通过 node-addon-require-builtin 读 Node internal
+        // 模块；该原生插件在部分 rootfs 镜像里缺平台二进制时会直接让 Host 起不来
+        // （Cannot find module .../node-addon-require-builtin/...）。暴露 internals
+        // 后引擎优先走 require('internal/...')，不再依赖那个原生插件。
+        cmd.add("--expose-internals")
         cmd.add("/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js")
         cmd.add("--profile")
         cmd.add("web")

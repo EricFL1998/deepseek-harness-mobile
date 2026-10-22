@@ -221,4 +221,13 @@
     <string name="chat_duration_seconds">%1$d秒</string>
     <string name="chat_thinking_active">思考中…</string>
     <string name="chat_recording">正在录音… %1$d秒</string>
+    <string name="plan_banner_title">计划模式</string>
+    <string name="plan_banner_desc">描述任务，Agent 会先给出计划；确认计划后再执行。</string>
+    <string name="plan_banner_exit">退出计划模式</string>
+    <string name="attachment_remove">移除附件</string>
+    <string name="cmd_goal_hint">输入目标…</string>
+    <string name="cmd_feedback_hint">输入反馈…</string>
+    <string name="cmd_compact_hint">输入压缩要求…</string>
+    <string name="cmd_export_hint">下载日志</string>
+    <string name="cmd_chip_remove">取消命令</string>
 </resources>

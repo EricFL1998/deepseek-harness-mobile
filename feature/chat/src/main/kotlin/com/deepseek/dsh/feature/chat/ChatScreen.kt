@@ -38,6 +38,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -166,6 +167,24 @@ private data class ComposerCommand(
     val iconResId: Int,
 )
 
+/** 文本类斜杠命令的本地化名称（输入框 chip 用）；非文本命令返回 null。 */
+private fun commandLabelRes(token: String): Int? = when (token) {
+    "goal" -> R.string.cmd_goal
+    "feedback" -> R.string.cmd_feedback
+    "compact" -> R.string.cmd_compact
+    "export" -> R.string.cmd_export
+    else -> null
+}
+
+/** 文本类斜杠命令的参数提示（选中命令后的 placeholder）。 */
+private fun commandHintRes(token: String): Int? = when (token) {
+    "goal" -> R.string.cmd_goal_hint
+    "feedback" -> R.string.cmd_feedback_hint
+    "compact" -> R.string.cmd_compact_hint
+    "export" -> R.string.cmd_export_hint
+    else -> null
+}
+
 /**
  * 主聊天页：信息结构 + 手机端（ChatGPT Android）尺度的输入区。
  *
@@ -183,13 +202,20 @@ fun ModernChatScreen(
     onSendMessage: (String) -> Unit,
     isSending: Boolean = false,
     workspaceName: String = "默认工作区",
+    /** 系统文件选择器选回的附件；由宿主负责复制进工作区后传回这里。 */
+    attachments: List<ChatAttachment> = emptyList(),
+    onRemoveAttachment: (ChatAttachment) -> Unit = {},
+    /** 点击「文件」：打开系统文件选择器（图片/任意文件）。 */
+    onPickAttachments: () -> Unit = {},
+    /** 会话级计划模式（横幅状态）；本地 placeholder 与发送文案随之切换。 */
+    planMode: Boolean = false,
+    onPlanModeChange: (Boolean) -> Unit = {},
     /** 可切换的工作区名称，来自 Host 的工作区列表。 */
     workspaceNames: List<String> = emptyList(),
     onWorkspaceSelected: (String) -> Unit = {},
     onAddWorkspace: () -> Unit = {},
     onWorkspaceClick: () -> Unit = {},
     onAnswerUserQuestion: (callId: String, questionId: String, selected: String) -> Unit = { _, _, _ -> },
-    onOpenAttachmentMenu: () -> Unit = {},
     selectedModel: String = "",
     /** 当前模型 id（如 deepseek-account/deepseek-flash、kimi-for-coding），传给 dock 解析 provider。 */
     selectedModelId: String = "",
@@ -255,8 +281,10 @@ fun ModernChatScreen(
         if (voiceTranscript != null) onVoiceTranscriptConsumed()
     }
     var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
-    var isPlanMode by remember { mutableStateOf(false) }
     var commandSheetOpen by remember { mutableStateOf(false) }
+    // 从加号菜单选中的斜杠命令：输入框内显示本地化 chip（如 /目标），
+    // placeholder 变成该命令的参数提示，发送时再还原成 Host 认识的 /goal。
+    var activeCommandToken by remember { mutableStateOf<String?>(null) }
     var toolDetail by remember { mutableStateOf<ToolDetailData?>(null) }
     var workspaceMenuOpen by remember { mutableStateOf(false) }
     var workspaceAnchor by remember { mutableStateOf<Rect?>(null) }
@@ -281,6 +309,10 @@ fun ModernChatScreen(
 
     // showContext=false 时只渲染输入框：工作区/模式只属于新会话界面。
     val composerBlock: @Composable (Boolean) -> Unit = { showContext ->
+        // 计划模式横幅：进入后只生成计划、等用户确认再执行；可随时退出。
+        if (planMode) {
+            PlanModeBanner(onExit = { onPlanModeChange(false) })
+        }
         if (showContext) {
         Row(
             modifier = Modifier
@@ -370,13 +402,30 @@ fun ModernChatScreen(
             }
         }
         }
+        // 已选斜杠命令的本地化展示：/目标、/反馈、/压缩、/下载日志。
+        val activeCommandLabel = activeCommandToken
+            ?.let { token -> commandLabelRes(token)?.let { stringResource(it) } }
+        val activeCommandHint = activeCommandToken
+            ?.let { token -> commandHintRes(token)?.let { stringResource(it) } }
         BottomInputBar(
             inputText = inputText,
             onInputChange = { inputText = it },
+            activeCommandLabel = activeCommandLabel,
+            activeCommandHint = activeCommandHint,
+            onClearCommand = { activeCommandToken = null },
             onSend = {
-                if (inputText.isNotBlank()) {
-                    val text = inputText
+                // 允许「只发附件」：有附件没文字也能发送，消息里只有 @路径。
+                if (inputText.isNotBlank() || attachments.isNotEmpty() || activeCommandToken != null) {
+                    val attachmentBlock = if (attachments.isEmpty()) {
+                        ""
+                    } else {
+                        attachments.joinToString(" ") { it.asMessageReference() } + "\n\n"
+                    }
+                    // 输入框里显示的是本地化 chip（/目标）；发送时还原成 Host 命令 /goal。
+                    val commandPrefix = activeCommandToken?.let { "/$it " } ?: ""
+                    val text = attachmentBlock + commandPrefix + inputText.trim()
                     inputText = ""
+                    activeCommandToken = null
                     onSendMessage(text)
                 }
             },
@@ -421,9 +470,11 @@ fun ModernChatScreen(
                     onPermissionSelected(preset)
                 }
             },
-            isPlanMode = isPlanMode,
+            isPlanMode = planMode,
             isGenerating = isThinking,
             onStop = onStopClick,
+            attachments = attachments,
+            onRemoveAttachment = onRemoveAttachment,
             stats = stats,
             quotaUsage = quotaUsage,
 
@@ -597,11 +648,11 @@ fun ModernChatScreen(
             onDismiss = { commandSheetOpen = false },
             onFile = {
                 commandSheetOpen = false
-                onOpenAttachmentMenu()
+                onPickAttachments()
             },
             onPlan = {
                 commandSheetOpen = false
-                isPlanMode = !isPlanMode
+                onPlanModeChange(!planMode)
             },
             onPermission = {
                 commandSheetOpen = false
@@ -611,9 +662,14 @@ fun ModernChatScreen(
                 commandSheetOpen = false
                 modelMenuOpen = true
             },
-            onCommand = { token ->
+            onCommand = { command ->
                 commandSheetOpen = false
-                inputText = if (inputText.isBlank()) "$token " else "${inputText.trimEnd()} $token "
+                val token = command.trim().removePrefix("/")
+                // 文本类命令在输入框里显示本地化 chip，参数由用户继续输入；
+                // 发送时再还原成 /goal 之类 Host 认识的命令。
+                if (commandLabelRes(token) != null) {
+                    activeCommandToken = token
+                }
             }
         )
     }
@@ -2110,6 +2166,125 @@ fun ModernMessageItem(
 }
 
 /**
+ * 计划模式横幅：提示当前只生成计划，等用户确认后再执行。
+ * 与官方 plan mode 一致：进入后 placeholder 与发送语义切换，可随时退出。
+ */
+@Composable
+private fun PlanModeBanner(onExit: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.plan_banner_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stringResource(R.string.plan_banner_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onExit, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.plan_banner_exit),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp),
+            )
+        }
+    }
+}
+
+/** 输入框里的斜杠命令 chip：显示本地化名称（/目标），发送时还原成 /goal。 */
+@Composable
+private fun ActiveCommandChip(label: String, onClear: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+            .padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "/$label",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 14.sp,
+            maxLines = 1,
+        )
+        Spacer(modifier = Modifier.width(2.dp))
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = stringResource(R.string.cmd_chip_remove),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(12.dp)
+                .clickable(onClick = onClear),
+        )
+    }
+}
+
+/** 输入卡片上方的已选附件行：名称 + 大小，右侧移除。 */
+@Composable
+private fun AttachmentRail(
+    attachments: List<ChatAttachment>,
+    onRemove: (ChatAttachment) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        attachments.forEach { attachment ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(id = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_file),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(13.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = attachment.displayName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                val sizeLabel = attachment.formattedSize()
+                if (sizeLabel.isNotEmpty()) {
+                    Text(
+                        text = sizeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.attachment_remove),
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier
+                        .size(13.dp)
+                        .clickable { onRemove(attachment) },
+                )
+            }
+        }
+    }
+}
+
+/**
  * composer trigger 药丸（模型 / 权限选择器）：
  * 28dp 高、R8、左 8dp / 右 4dp 内边距、4dp 间距、13sp/20 二级色标签、
  * 14dp 菜单/箭头图标，按压用 hover 填充且无 Material 涟漪。
@@ -2196,6 +2371,9 @@ private fun ComposerTrigger(
 fun BottomInputBar(
     inputText: String,
     onInputChange: (String) -> Unit,
+    activeCommandLabel: String? = null,
+    activeCommandHint: String? = null,
+    onClearCommand: () -> Unit = {},
     onSend: () -> Unit,
     onPlusClick: () -> Unit,
     selectedModel: String,
@@ -2219,6 +2397,8 @@ fun BottomInputBar(
     isPlanMode: Boolean,
     isGenerating: Boolean,
     onStop: () -> Unit,
+    attachments: List<ChatAttachment> = emptyList(),
+    onRemoveAttachment: (ChatAttachment) -> Unit = {},
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
@@ -2365,21 +2545,43 @@ fun BottomInputBar(
                     singleLine = false,
                     maxLines = 8,
                     decorationBox = { innerTextField ->
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            if (inputText.isEmpty()) {
-                                Text(
-                                    text = if (isPlanMode) stringResource(R.string.chat_input_placeholder_plan)
-                                    else stringResource(R.string.chat_input_placeholder),
-                                    fontSize = 14.sp,
-                                    lineHeight = 24.sp,
-                                    color = panelColors.labelCaption,
-                                    modifier = Modifier.offset(x = (-2).dp, y = (-3.2).dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (activeCommandLabel != null) {
+                                ActiveCommandChip(
+                                    label = activeCommandLabel,
+                                    onClear = onClearCommand,
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
                             }
-                            innerTextField()
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (inputText.isEmpty()) {
+                                    Text(
+                                        text = activeCommandHint
+                                            ?: if (isPlanMode) stringResource(R.string.chat_input_placeholder_plan)
+                                            else stringResource(R.string.chat_input_placeholder),
+                                        fontSize = 14.sp,
+                                        lineHeight = 24.sp,
+                                        color = panelColors.labelCaption,
+                                        modifier = Modifier.offset(x = (-2).dp, y = (-3.2).dp)
+                                    )
+                                }
+                                innerTextField()
+                            }
                         }
                     }
                 )
+
+                // 已选附件：发送时以 @<工作区路径> 附在消息开头，agent 直接读真实文件。
+                if (attachments.isNotEmpty()) {
+                    AttachmentRail(
+                        attachments = attachments,
+                        onRemove = onRemoveAttachment,
+                        modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 6.dp),
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 

@@ -1781,13 +1781,31 @@ var ResolutionRouter = class {
 		return found;
 	}
 };
+/**
+ * 读取 Node internal 模块。
+ *
+ * 引擎原实现直接依赖原生插件 `node-addon-require-builtin`；部分 rootfs 镜像没有
+ * 打进该插件的平台二进制（Host 启动时报 Cannot find module），整台机器就起不来。
+ * Node 以 `--expose-internals` 启动时可以直接 require 内部模块，因此优先走内置
+ * 路径，原生插件只在没有该 flag（或 require 失败）时兜底。
+ */
+function requireInternalModule(id) {
+	const requireFromHere = createRequire(import.meta.url);
+	if (process.execArgv.includes("--expose-internals")) {
+		try {
+			return requireFromHere(id);
+		} catch {}
+	}
+	const addon = requireFromHere("node-addon-require-builtin");
+	if (typeof addon.requireBuiltin === "function") return addon.requireBuiltin(id);
+	return requireFromHere(id);
+}
 function internalModules() {
-	const addon = createRequire(import.meta.url)("node-addon-require-builtin");
-	const esmModule = addon.requireBuiltin("internal/modules/esm/loader");
-	const cjsModule = addon.requireBuiltin("internal/modules/cjs/loader");
-	const cjsHelpers = addon.requireBuiltin("internal/modules/helpers");
-	const esmUtils = addon.requireBuiltin("internal/modules/esm/utils");
-	const esmResolve = addon.requireBuiltin("internal/modules/esm/resolve");
+	const esmModule = requireInternalModule("internal/modules/esm/loader");
+	const cjsModule = requireInternalModule("internal/modules/cjs/loader");
+	const cjsHelpers = requireInternalModule("internal/modules/helpers");
+	const esmUtils = requireInternalModule("internal/modules/esm/utils");
+	const esmResolve = requireInternalModule("internal/modules/esm/resolve");
 	const esm = esmModule.getOrInitializeCascadedLoader();
 	const modern = "getOrCreateModuleJob" in esm;
 	/* v8 ignore start -- the supported Node 22/24/26 matrix validates each available Internal interface */

@@ -52,6 +52,10 @@ class RuntimeHostTest {
         // 直接跑 dsh 的 bin.js，而不是 /opt/dsh/bin/dsh 包装脚本：包装脚本会让
         // import.meta.url 指向包装层，profile bundle 的解析锚点随之出错。
         assertTrue(cmd.contains("/usr/local/bin/node"))
+        // 引擎通过 --expose-internals 读 Node internal 模块，避免依赖缺失的
+        // node-addon-require-builtin 原生插件（Host 起不来的直接原因）。
+        assertTrue(cmd.contains("--expose-internals"))
+        assertTrue(cmd.indexOf("--expose-internals") < cmd.indexOf("/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"))
         assertTrue(cmd.any { it.endsWith("@deepseek-ai/dsh/lib/bin.js") })
         assertTrue(cmd.contains("--profile"))
         assertTrue(cmd.contains("web"))

@@ -262,19 +262,28 @@ internal fun ensureProfilePresetLink(profileDir: File) {
     ).canonicalFile
     if (!installed.isDirectory) return
 
+    val presetPath = presetLink.toPath()
+    // 悬空符号链接：link 文件还在，但目标已经不存在（rootfs 升级换掉目录、或旧
+    // 相对深度的链接）。不先删掉，下面的 createSymbolicLink 会因「已存在」失败，
+    // 而失败一被吞掉，profile 就永远解析不到 @deepseek-ai/*——Host 启动时报
+    // 「N required plugins did not activate」，端口永远不出现。
+    if (java.nio.file.Files.isSymbolicLink(presetPath) && !presetLink.exists()) {
+        runCatching { java.nio.file.Files.deleteIfExists(presetPath) }
+    }
+
     // 新 rootfs 自带一个真实的 @deepseek-ai 目录（只有 cosmokit/schemastery
     // 这类 hoisted 包）。它不是链接，Host 按名字解析官方 bundle 会失败。
     // 复制整个目录会打乱 profile 的依赖布局，改用符号链接：先备份真实目录，
     // 链接失败时再恢复并用复制兜底。
     // 链接位于 `node_modules/@deepseek-ai`，比 profileDir 多一层。
     val installedLinkTarget = "../../../../../usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai"
-    if (presetLink.exists() && !java.nio.file.Files.isSymbolicLink(presetLink.toPath())) {
+    if (presetLink.exists() && !java.nio.file.Files.isSymbolicLink(presetPath)) {
         val backup = File(nodeModules, "@deepseek-ai.local")
         if (backup.exists()) backup.deleteRecursively()
         if (!presetLink.renameTo(backup)) return
         val linked = runCatching {
             java.nio.file.Files.createSymbolicLink(
-                presetLink.toPath(),
+                presetPath,
                 java.nio.file.Paths.get(installedLinkTarget),
             )
         }.isSuccess
@@ -284,25 +293,37 @@ internal fun ensureProfilePresetLink(profileDir: File) {
         }
         // 链接不可用（文件系统限制）时恢复原目录，并合并缺失的包。
         backup.renameTo(presetLink)
-        installed.listFiles()?.forEach { source ->
-            val target = File(presetLink, source.name)
-            if (!target.exists()) {
-                runCatching {
-                    if (source.isDirectory) source.copyRecursively(target, overwrite = false)
-                    else source.copyTo(target, overwrite = false)
-                }
-            }
-        }
+        mergeInstalledPackages(installed, presetLink)
         return
     }
     if (presetLink.exists()) {
         File(nodeModules, "@deepseek-ai.local").deleteRecursively()
         return
     }
-    runCatching {
+    val linked = runCatching {
         java.nio.file.Files.createSymbolicLink(
-            presetLink.toPath(),
+            presetPath,
             java.nio.file.Paths.get(installedLinkTarget),
         )
+    }.isSuccess
+    if (linked) return
+    // 符号链接不可用：退化成真实目录 + 复制已安装包。不能悄悄什么都不做，
+    // 否则 profile 缺官方 bundle，Host 启动必然失败（用户只看到一直 STARTING）。
+    presetLink.mkdirs()
+    mergeInstalledPackages(installed, presetLink)
+}
+
+/** 把 [installed] 里有、[target] 里没有的包复制过去（符号链接不可用时的兜底）。 */
+private fun mergeInstalledPackages(installed: File, target: File) {
+    installed.listFiles()?.forEach { source ->
+        val destination = File(target, source.name)
+        if (destination.exists()) return@forEach
+        runCatching {
+            if (source.isDirectory) {
+                source.copyRecursively(destination, overwrite = false)
+            } else {
+                source.copyTo(destination, overwrite = false)
+            }
+        }
     }
 }

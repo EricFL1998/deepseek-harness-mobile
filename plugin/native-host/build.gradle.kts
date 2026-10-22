@@ -14,11 +14,11 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
     buildFeatures {
         compose = true
@@ -26,7 +26,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":plugin:native-sdk"))
+    implementation("com.deepseek.dsh.plugin:native-sdk")
     implementation(project(":core:bridge"))
     implementation(project(":core:designsystem"))
     implementation(libs.kotlinx.serialization.json)

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -109,8 +110,14 @@ fun PluginsScreen(
     pluginManagerSnapshot: PluginManagerSnapshot? = null,
     onOpenSurface: (SurfaceItem) -> Unit,
     onOpenSdui: () -> Unit,
-    /** 安装一个插件 spec（包名 / Git 地址 / 本地绝对路径）。挂起：Host 安装耗时以秒计。 */
-    onInstallPlugin: suspend (String) -> Result<String>,
+    /**
+     * 安装一个插件 spec（包名 / Git 地址 / 本地绝对路径）。挂起：Host 安装耗时以秒计。
+     *
+     * 第二个参数是进度回调 `(fraction 0..1, step 文案)`：安装器每完成一步（解析地址 /
+     * 下载 / 解压 / 装依赖 / 写 profile / 重启 Host）就回放一次，「添加插件」对话框据此
+     * 画进度条与步骤文字。不关心进度的地方（例如插件市场 tab）传 `{ _, _ -> }` 即可。
+     */
+    onInstallPlugin: suspend (String, (Float, String) -> Unit) -> Result<String>,
     onToggleBundle: (String, Boolean) -> Unit = { _, _ -> },
     /** 拨动 bundle 总开关并等 Host 结果（详情页开关用；失败时界面回弹并 toast）。 */
     onToggleBundleAwait: suspend (String, Boolean) -> Boolean = { _, _ -> false },
@@ -162,6 +169,11 @@ fun PluginsScreen(
     var showInstallDialog by remember { mutableStateOf(false) }
     var pluginPackageInput by remember { mutableStateOf("") }
     var installStatusMessage by remember { mutableStateOf<String?>(null) }
+    // 安装过程三件套：busy 期间对话框不可关闭、输入与主按钮禁用；进度与步骤由
+    // onInstallPlugin 的回调逐帧写入（安装耗时以秒计，没有这两项就是「点了没反应」）。
+    var installBusy by remember { mutableStateOf(false) }
+    var installProgress by remember { mutableStateOf(0f) }
+    var installStep by remember { mutableStateOf("") }
     var addMenuOpen by remember { mutableStateOf(false) }
     var selectedPlugin by remember { mutableStateOf<SurfaceItem?>(null) }
     // 只记包名：详情每次从最新桥目录取对象，开关后状态才能立刻反映（否则会停留在打开时的快照，表现为「关不掉」）。
@@ -604,7 +616,9 @@ fun PluginsScreen(
                                 loadIndexes = backend.loadIndexes,
                                 search = backend.search,
                                 saveIndexes = backend.saveIndexes,
-                                install = { spec -> onInstallPlugin(spec) },
+                                // 市场安装用不着这里的进度（「发现」tab 自己的页面自带安装态），
+                                // 回调直接丢掉；签名仍要两个参数。
+                                install = { spec -> onInstallPlugin(spec) { _, _ -> } },
                             )
                         }
                         if (hooks == null) {
@@ -847,23 +861,64 @@ fun PluginsScreen(
                 packageInput = pluginPackageInput,
                 onPackageInputChange = { pluginPackageInput = it },
                 statusMessage = installStatusMessage,
-                    onInstall = {
+                busy = installBusy,
+                progress = installProgress,
+                step = installStep,
+                onInstall = {
                     val spec = pluginPackageInput.trim()
-                    if (spec.isNotEmpty()) {
-                        // 安装是 suspend（Host 安装耗时以秒计），包一层协程。
+                    // 双击防抖：busy 期间主按钮已禁用，这里再拦一层（输入法回车 / 无障碍点击）。
+                    if (spec.isNotEmpty() && !installBusy) {
+                        // 老的进度/结论先清掉，否则会顶着上一次的「安装失败」画进度条。
+                        installStatusMessage = null
+                        installBusy = true
+                        installProgress = 0f
+                        installStep = context.getString(R.string.plugins_install_preparing)
+                        // 安装是 suspend（Host 安装耗时以秒计），包一层协程；进度回调可能在
+                        // 安装器的 IO 线程上触发，Compose 快照状态允许跨线程写入。
                         scope.launch {
-                            val result = runCatching { onInstallPlugin(spec) }
-                            installStatusMessage = result.fold(
-                                onSuccess = { "OK: $spec" },
-                                onFailure = { context.getString(R.string.plugin_operation_failed, it.message ?: it.toString()) },
-                            )
-                            if (result.isSuccess) pluginPackageInput = ""
+                            try {
+                                val result = runCatching {
+                                    onInstallPlugin(spec) { fraction, step ->
+                                        installProgress = fraction.coerceIn(0f, 1f)
+                                        installStep = step
+                                    }
+                                }
+                                // 成功/失败都留在对话框里回显，不自动关闭：用户要看结论。
+                                installStatusMessage = result.fold(
+                                    onSuccess = {
+                                        context.getString(R.string.plugins_install_success, spec)
+                                    },
+                                    onFailure = {
+                                        context.getString(
+                                            R.string.plugins_install_failed,
+                                            it.message ?: it.toString(),
+                                        )
+                                    },
+                                )
+                                if (result.isSuccess) pluginPackageInput = ""
+                                // 对话框在安装途中被收起时，结论不能只写进看不见的状态：
+                                // 用系统 Toast 补一条，避免用户以为点了没反应。
+                                if (!showInstallDialog) {
+                                    installStatusMessage?.let { message ->
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            message,
+                                            android.widget.Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                }
+                            } finally {
+                                // 成功、失败、被取消都要复位 busy，否则进度永远停在最后一帧。
+                                installBusy = false
+                            }
                         }
                     }
                 },
                 onDismiss = {
+                    // 安装继续在后台跑，但允许收起对话框：拒绝关闭只会在安装卡住
+                    //（本机安装含重启 Host，最长 90 秒）时把界面困成一个退不出的弹窗。
                     showInstallDialog = false
-                    installStatusMessage = null
+                    if (!installBusy) installStatusMessage = null
                 },
             )
         }
@@ -2509,17 +2564,29 @@ private fun PluginsButton(
  * 「添加插件」对话框：installTitle/installDescription 文案，
  * Modal 材质（[DshDialog]）+ 40dp 输入（[DshTextInput]）+ 整宽 40dp 主按钮。
  * 行为与原 PluginsListScreen 一致：输入包名或地址，可「填入示例」，安装后回显状态并清空输入。
+ *
+ * 安装耗时以秒计，所以 busy 时把过程画出来：6dp 进度条 + 步骤文案 + 百分比 + 「请保持打开」提示；
+ * 同时锁住输入、主按钮与关闭入口（[onDismiss] 由调用方按 busy 拦截），避免重复提交和误关。
+ *
+ * @param statusMessage 上一次安装的结论（成功 / 失败），安装中清空。
+ * @param busy 是否正在安装。
+ * @param progress 安装进度 0..1。
+ * @param step 当前步骤文案（安装器回调给出）。
  */
 @Composable
 private fun PluginsInstallDialog(
     packageInput: String,
     onPackageInputChange: (String) -> Unit,
     statusMessage: String?,
+    busy: Boolean,
+    progress: Float,
+    step: String,
     onInstall: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = LocalDshPanelColors.current
     DshDialog(
+        // 安装中允许收起（安装继续在后台跑）：卡住的安装不能把界面锁死在弹层里。
         onDismiss = onDismiss,
         title = stringResource(R.string.action_add_plugin),
         closeLabel = stringResource(R.string.action_close),
@@ -2528,10 +2595,61 @@ private fun PluginsInstallDialog(
         content = {
             DshTextInput(
                 value = packageInput,
-                onValueChange = onPackageInputChange,
+                // busy 时输入已属于「上一次安装」，改它只会让用户以为改的是本次安装。
+                onValueChange = { if (!busy) onPackageInputChange(it) },
                 placeholder = stringResource(R.string.plugin_add_placeholder),
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (busy) {
+                // 百分比与步骤文案先算好，避免在布局 lambda 里做格式化。
+                val fraction = progress.coerceIn(0f, 1f)
+                val stepText = if (step.isBlank()) {
+                    stringResource(R.string.plugins_install_preparing)
+                } else {
+                    step
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = colors.buttonPrimaryFill,
+                    trackColor = colors.bgLayer2,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stepText,
+                        color = colors.labelSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = "${(fraction * 100).toInt()}%",
+                        color = colors.labelTertiary,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.plugins_install_busy_hint),
+                    color = colors.labelTertiary,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2545,7 +2663,7 @@ private fun PluginsInstallDialog(
                     lineHeight = 18.sp,
                 )
             }
-            if (statusMessage != null) {
+            if (statusMessage != null && !busy) {
                 Text(
                     text = statusMessage,
                     color = colors.labelSecondary,
@@ -2557,9 +2675,12 @@ private fun PluginsInstallDialog(
         },
         footer = {
             DshDialogButton(
-                text = stringResource(R.string.plugins_store_install),
+                // busy 时标签切到「正在安装插件」，既说明状态也解释了为什么点不动。
+                text = stringResource(
+                    if (busy) R.string.plugins_install_progress_title else R.string.plugins_store_install,
+                ),
                 primary = true,
-                enabled = true,
+                enabled = !busy,
                 onClick = onInstall,
                 modifier = Modifier.fillMaxWidth(),
                 height = 40.dp,

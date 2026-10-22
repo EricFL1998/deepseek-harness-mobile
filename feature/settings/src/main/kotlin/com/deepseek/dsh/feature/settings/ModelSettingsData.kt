@@ -17,6 +17,11 @@ data class ModelProviderUi(
     val settingsNs: String = "",
     val settingsPath: List<String> = emptyList(),
     val baseUrl: String = "",
+    /**
+     * 是否已在 Host 侧配置（存在 profile 值或已存密钥）。
+     * 未配置的目录项只在“添加模型提供商”里列出，选中后才进入编辑器。
+     */
+    val configured: Boolean = true,
 )
 
 /** 提取 server-response 里的 result.value。 */
@@ -66,12 +71,11 @@ fun parseModelProviders(
             profile = profile?.get(segment) as? JsonObject ?: null
         }
         if (provider == "deepseek-account") return@mapNotNull null
-        // 仅展示已配置（有 profile 值或已存密钥）的提供商；未启用的目录项不占列表。
-        if (profile == null && credentials["${provider.uppercase().replace('-', '_')}_API_KEY"]?.first != true) {
-            return@mapNotNull null
-        }
+        // 目录项即使尚未配置也保留（configured=false）：设置面板据此决定
+        // 是否显示为卡片，并把未配置项放进“添加模型提供商”列表。
         val apiKeyEnv = (profile?.get("apiKeyEnv") as? JsonPrimitive)?.content
         val keyRef = apiKeyEnv ?: provider.uppercase().replace('-', '_') + "_API_KEY"
+        val credential = credentials[keyRef]
         val baseUrl = (profile?.get("baseURL") as? JsonPrimitive)?.content.orEmpty()
         val modelList = (profile?.get("models") as? JsonArray)?.mapNotNull { model ->
             when (model) {
@@ -87,11 +91,12 @@ fun parseModelProviders(
             name = displayName,
             models = modelList,
             keyRef = keyRef,
-            keyConfigured = credentials[keyRef]?.first ?: false,
-            keyWritable = credentials[keyRef]?.second ?: true,
+            keyConfigured = credential?.first ?: false,
+            keyWritable = credential?.second ?: true,
             settingsNs = settingsNs,
             settingsPath = settingsPath,
             baseUrl = baseUrl,
+            configured = profile != null || credential?.first == true,
         )
     }
     // 官方内置 DeepSeek API 提供商始终存在；Host 目录未返回时也要能看到并配置。
@@ -105,6 +110,7 @@ fun parseModelProviders(
         keyWritable = credentials["DEEPSEEK_API_KEY"]?.second ?: true,
         settingsNs = "llm",
         settingsPath = listOf("providers", "deepseek"),
+        configured = credentials["DEEPSEEK_API_KEY"]?.first == true,
     )
 }
 
