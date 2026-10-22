@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -78,6 +79,7 @@ fun RightSidebarPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .drawBehind {
                 // 与左侧内容分隔的发丝线，官方 dock 分隔线同款。
                 drawRect(
