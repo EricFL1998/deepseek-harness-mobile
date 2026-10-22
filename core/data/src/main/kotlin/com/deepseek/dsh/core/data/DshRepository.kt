@@ -774,7 +774,7 @@ class DshRepository(
 
     /** 刷新当前会话的斜杠命令目录。 */
     suspend fun refreshHostCommands(hostId: String, sessionId: String) {
-        val args = buildJsonObject { put("agent", sessionId) }
+        val args = buildJsonObject { put("agentId", sessionId) }
         val raw = rpcRaw(hostId, "commands/list", args.toString()).getOrNull() ?: return
         val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return
         val value = (root["result"] as? JsonObject)?.get("value") as? JsonArray ?: return
@@ -802,7 +802,7 @@ class DshRepository(
         line: String,
     ): com.deepseek.dsh.core.model.HostCommandResult? {
         val args = buildJsonObject {
-            put("agent", sessionId)
+            put("agentId", sessionId)
             put("line", line)
             put("submittedAttachments", kotlinx.serialization.json.JsonArray(emptyList()))
         }
@@ -974,7 +974,7 @@ class DshRepository(
         actionId: String,
     ): Result<ClaudeCodeBandSnapshot?> {
         val args = buildJsonObject {
-            put("agent", sessionId)
+            put("agentId", sessionId)
             put("generation", generation)
             put("actionId", actionId)
         }

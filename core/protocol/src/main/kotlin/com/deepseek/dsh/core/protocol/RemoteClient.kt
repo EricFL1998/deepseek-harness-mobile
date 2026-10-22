@@ -2360,7 +2360,7 @@ class RemoteClient(
             put("type", "client-request")
             put("rpcId", java.util.UUID.randomUUID().toString())
             put("method", "terminal/environment")
-            put("payload", buildJsonObject { put("args", buildJsonObject { put("agent", sessionId) }) })
+            put("payload", buildJsonObject { put("args", buildJsonObject { put("agentId", sessionId) }) })
         }
         try {
             val request = Request.Builder()
@@ -2405,7 +2405,7 @@ class RemoteClient(
             put("method", "terminal/create")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("agent", sessionId)
+                    put("agentId", sessionId)
                     put("request", buildJsonObject {
                         put("id", terminalId)
                         put("cols", cols)
@@ -2486,7 +2486,7 @@ class RemoteClient(
                         put("endpoint", "terminal/attach")
                         put("payload", buildJsonObject {
                             put("args", buildJsonObject {
-                                put("agent", sessionId)
+                                put("agentId", sessionId)
                                 put("id", terminalId)
                             })
                         })
@@ -2558,7 +2558,7 @@ class RemoteClient(
             put("method", "terminal/close")
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
-                    put("agent", sessionId)
+                    put("agentId", sessionId)
                     put("id", id)
                 })
             })
@@ -2615,7 +2615,7 @@ class RemoteClient(
                     put("streamId", streamId)
                     put("endpoint", "claudeCodeMods/watchBand")
                     put("payload", buildJsonObject {
-                        put("args", buildJsonObject { put("agent", sessionId) })
+                        put("args", buildJsonObject { put("agentId", sessionId) })
                     })
                 }
                 webSocket.send(open.toString())

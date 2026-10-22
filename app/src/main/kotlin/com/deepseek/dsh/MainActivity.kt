@@ -764,7 +764,8 @@ fun MainAppHost(
         dshRepository.refreshPluginSettingsPages()
         dshRepository.refreshAutomationTasks(activeHostId)
         dshRepository.refreshTeamTasks(activeHostId)
-        dshRepository.subscribeRemoteEvents(activeHostId)
+        // 这里不能订阅远程流：Host 还没绑定地址（占位 127.0.0.1:1）时开九个
+        // WebSocket 只会全部连接失败。订阅放到 Host 就绪（port 非空）之后。
     }
     val onboardingPreferences = remember {
         com.deepseek.dsh.feature.runtime.OnboardingPreferences(context)
@@ -1054,7 +1055,10 @@ fun MainAppHost(
     // job/list 跟着当前会话走。
     LaunchedEffect(activeHostId, selectedSessionId) {
         val sid = selectedSessionId
-        if (sid != null) dshRepository.watchJobs(activeHostId, sid)
+        // Host 未绑定时 baseUrl 还是占位 127.0.0.1:1，开流只会连接失败。
+        val bound = (context.applicationContext as DshApplication).localHostPort > 1 ||
+            currentAppSettings.remoteHostUrl.isNotBlank()
+        if (sid != null && bound) dshRepository.watchJobs(activeHostId, sid)
         else dshRepository.unwatchJobs()
     }
     val streamingText by dshRepository.streamingTextFlow.collectAsState()
@@ -1243,7 +1247,12 @@ fun MainAppHost(
             dshRepository.refreshPluginInventory(activeHostId)
             dshRepository.refreshAutomationTasks(activeHostId)
             dshRepository.refreshTeamTasks(activeHostId)
-            dshRepository.subscribeRemoteEvents(activeHostId)
+            val baseUrl = dshApplication.defaultClient.currentBaseUrl()
+            if (baseUrl.endsWith(":1")) {
+                android.util.Log.w("DSH", "Host not bound yet, skip remote streams: $baseUrl")
+            } else {
+                dshRepository.subscribeRemoteEvents(activeHostId)
+            }
             // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
             // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
             dshRepository.refreshBridgePluginCatalog()

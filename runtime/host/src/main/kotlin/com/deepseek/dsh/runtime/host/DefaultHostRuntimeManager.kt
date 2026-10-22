@@ -852,6 +852,8 @@ class DefaultHostRuntimeManager(
         }
 
         // 3. 将 DSH_ANDROID_BRIDGE_PORT 环境变量注入 proot 容器
+        // 终端/子进程要在 proot 里解析 uid，先把 passwd/group 覆盖写好。
+        layout.ensureIdentityOverlays()
         val launchConfig = ProotCommandBuilder.LaunchConfig(
             layout = layout,
             userWorkspacePath = workspacePath,

@@ -79,6 +79,9 @@ class DshApplication : Application() {
      * token 换取访问 cookie；UI 的所有数据请求随后都走这个真实地址。
      */
     suspend fun bindLocalHost(port: Int, token: String?) {
+        // 占位端口 1 表示还没有真正可用的 Host：不要绑定，避免把 UI 的
+        // 所有请求/流指向一个必然拒绝连接的地址。
+        if (port <= 1) return
         val baseUrl = "http://127.0.0.1:$port"
         localHostPort = port
         localHostToken = token

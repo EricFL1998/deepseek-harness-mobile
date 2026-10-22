@@ -61,6 +61,11 @@ object ProotCommandBuilder {
         // 与启动 Host 时相同的缓存绑定：DSH 可能把中间产物写到 /cache。
         cmd.add("-b")
         cmd.add("${layout.cacheDir.absolutePath}:/cache")
+        // passwd/group 覆盖：让 getpwuid(Android uid) 能解析，node-pty 才能起 shell。
+        cmd.add("-b")
+        cmd.add("${layout.passwdOverlay.absolutePath}:/etc/passwd")
+        cmd.add("-b")
+        cmd.add("${layout.groupOverlay.absolutePath}:/etc/group")
         cmd.add("/usr/bin/env")
         cmd.add("-i")
         cmd.add("HOME=/root")
@@ -107,6 +112,14 @@ object ProotCommandBuilder {
         // App 私有缓存与 SAF 镜像
         cmd.add("-b")
         cmd.add("$cache:/cache")
+
+        // passwd/group 覆盖（见 RuntimeLayout.ensureIdentityOverlays）：
+        // proot 里的 uid 是 Android uid，镜像的 passwd 里没有它，node-pty 的
+        // getpwuid 会失败，官方 terminal/create 直接报系统错误。
+        cmd.add("-b")
+        cmd.add("${config.layout.passwdOverlay.absolutePath}:/etc/passwd")
+        cmd.add("-b")
+        cmd.add("${config.layout.groupOverlay.absolutePath}:/etc/group")
 
         // 避免 Android 权限与硬链接异常；显式指定 guest 工作目录。
         // GenUI 等插件会用 process.cwd() 解析相对 artifactRoot（例如 .dsh/genui）。

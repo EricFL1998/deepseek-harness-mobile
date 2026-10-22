@@ -31,6 +31,45 @@ data class RuntimeLayout(
 
     val prootBinary: File get() = File(nativeLibraryDir, "libproot.so")
 
+    /** 覆盖 rootfs /etc/passwd 的绑定文件；Android uid 不在镜像的 passwd 里。 */
+    val passwdOverlay: File get() = File(runtimeMetaDir, "etc/passwd")
+    /** 覆盖 rootfs /etc/group 的绑定文件。 */
+    val groupOverlay: File get() = File(runtimeMetaDir, "etc/group")
+
+    /**
+     * 写入 passwd/group 覆盖文件。
+     *
+     * proot 不带 -0 时 guest 的 uid 就是 Android uid（如 10227），而 rootfs 镜像
+     * 的 /etc/passwd 只有 root 等系统账号。node-pty 起 shell 时 libuv 会
+     * `uv_os_get_passwd`（getpwuid）——查不到就返回 ENOENT，官方终端因此
+     * 报 `A system error occurred`。这里把当前 uid/gid 补进 passwd/group，
+     * 再用 proot -b 绑定进去。
+     */
+    fun ensureIdentityOverlays() {
+        runtimeMetaDir.mkdirs()
+        passwdOverlay.parentFile?.mkdirs()
+        val uid = android.os.Process.myUid()
+        val gid = runCatching { android.system.Os.getgid() }.getOrDefault(uid)
+        val passwd = """
+            root:x:0:0:root:/root:/bin/sh
+            dsh:x:$uid:$gid:dsh:/root:/bin/sh
+        """.trimIndent() + "\n"
+        val group = """
+            root:x:0:
+            dsh:x:$gid:
+        """.trimIndent() + "\n"
+        if (!passwdOverlay.isFile || passwdOverlay.readText() != passwd) {
+            passwdOverlay.writeText(passwd)
+        }
+        if (!groupOverlay.isFile || groupOverlay.readText() != group) {
+            groupOverlay.writeText(group)
+        }
+        runCatching {
+            passwdOverlay.setReadable(true, false)
+            groupOverlay.setReadable(true, false)
+        }
+    }
+
     fun ensureDirectories() {
         baseDir.mkdirs()
         rootfsDir.mkdirs()
@@ -41,6 +80,7 @@ data class RuntimeLayout(
         safDir.mkdirs()
         logsDir.mkdirs()
         backupsDir.mkdirs()
+        ensureIdentityOverlays()
     }
 }
 
