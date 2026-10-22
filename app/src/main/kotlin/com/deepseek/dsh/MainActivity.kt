@@ -1928,23 +1928,21 @@ fun MainAppHost(
                     },
                     onMoveWorkspace = { folder, delta ->
                         val index = hostWorkspaces.indexOfFirst { it.path == folder.path }
-                        if (index >= 0) {
-                            val targetIndex = index + delta
-                            when {
-                                delta < 0 && index == 0 -> Unit
-                                delta > 0 && index == hostWorkspaces.lastIndex -> Unit
-                                else -> {
-                                    val beforeId = hostWorkspaces.getOrNull(
-                                        if (delta < 0) index - 1 else index + 2
-                                    )?.id
-                                    scope.launch {
-                                        dshRepository.moveWorkspace(
-                                            activeHostId,
-                                            hostWorkspaces[index].id,
-                                            beforeId,
-                                        )
-                                    }
-                                }
+                        val targetIndex = index + delta
+                        if (index >= 0 && delta != 0 &&
+                            targetIndex in hostWorkspaces.indices
+                        ) {
+                            // 向下移动时插到目标后一位之前，向上时插到目标之前；
+                            // 目标越界（移到末尾）则省略 beforeWorkspaceId。
+                            val beforeId = hostWorkspaces
+                                .getOrNull(if (delta > 0) targetIndex + 1 else targetIndex)
+                                ?.id
+                            scope.launch {
+                                dshRepository.moveWorkspace(
+                                    activeHostId,
+                                    hostWorkspaces[index].id,
+                                    beforeId,
+                                )
                             }
                         }
                     },

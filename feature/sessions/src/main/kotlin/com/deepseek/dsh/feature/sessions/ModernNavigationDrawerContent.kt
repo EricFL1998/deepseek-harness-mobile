@@ -17,6 +17,10 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -170,6 +174,11 @@ fun ModernNavigationDrawerContent(
 
     var showAccountMenu by remember { mutableStateOf(false) }
     var workspaceMenuId by remember { mutableStateOf<String?>(null) }
+    // 工作区长按拖动排序：拖动的文件夹、纵向位移、目标文件夹。
+    var draggingFolderId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var dragStartCenter by remember { mutableStateOf(0f) }
+    var dragTargetFolderId by remember { mutableStateOf<String?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
     var viewMenuOpen by remember { mutableStateOf(false) }
     var groupMode by remember { mutableStateOf(WorkspaceGroupMode.WORKSPACE) }
@@ -551,12 +560,24 @@ fun ModernNavigationDrawerContent(
                             .height(32.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(
-                                if (folder.name == selectedWorkspaceName && selectedSessionId.isNullOrBlank()) {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                                } else {
-                                    Color.Transparent
+                                when {
+                                    draggingFolderId == folder.id ->
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                                    folder.name == selectedWorkspaceName &&
+                                        selectedSessionId.isNullOrBlank() ->
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                                    draggingFolderId != null &&
+                                        dragTargetFolderId == folder.id ->
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                    else -> Color.Transparent
                                 }
                             )
+                            .zIndex(if (draggingFolderId == folder.id) 1f else 0f)
+                            .graphicsLayer {
+                                if (draggingFolderId == folder.id) {
+                                    translationY = dragOffsetY
+                                }
+                            }
                             .combinedClickable(
                                 onClick = {
                                     onSelectWorkspace(folder)
@@ -564,8 +585,59 @@ fun ModernNavigationDrawerContent(
                                         put(folder.id, !isExpanded)
                                     }
                                 },
-                                onLongClick = { workspaceMenuId = folder.id }
                             )
+                            // 长按后拖动：按拖动中心的相对位置找目标文件夹，松手时回写
+                            // 官方 workspace/insertBefore。
+                            .pointerInput(folder.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        val info = sessionListState.layoutInfo
+                                            .visibleItemsInfo
+                                            .firstOrNull {
+                                                (it.key as? String) == "fld_${folder.id}"
+                                            }
+                                        dragStartCenter = info?.let {
+                                            it.offset + it.size / 2f
+                                        } ?: 0f
+                                        draggingFolderId = folder.id
+                                        dragOffsetY = 0f
+                                        dragTargetFolderId = folder.id
+                                    },
+                                    onDragEnd = {
+                                        val from = visibleWorkspaces
+                                            .indexOfFirst { it.id == folder.id }
+                                        val to = visibleWorkspaces
+                                            .indexOfFirst { it.id == dragTargetFolderId }
+                                        if (from >= 0 && to >= 0 && to != from) {
+                                            onMoveWorkspace(folder, to - from)
+                                        }
+                                        draggingFolderId = null
+                                        dragOffsetY = 0f
+                                        dragTargetFolderId = null
+                                    },
+                                    onDragCancel = {
+                                        draggingFolderId = null
+                                        dragOffsetY = 0f
+                                        dragTargetFolderId = null
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffsetY += amount.y
+                                        val center = dragStartCenter + dragOffsetY
+                                        val folderItems = sessionListState.layoutInfo
+                                            .visibleItemsInfo
+                                            .filter {
+                                                (it.key as? String)
+                                                    ?.startsWith("fld_") == true
+                                            }
+                                        val target = folderItems.firstOrNull {
+                                            center < it.offset + it.size / 2f
+                                        } ?: folderItems.lastOrNull()
+                                        dragTargetFolderId =
+                                            (target?.key as? String)?.removePrefix("fld_")
+                                    },
+                                )
+                            }
                             .padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -595,6 +667,18 @@ fun ModernNavigationDrawerContent(
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        // 长按改为拖动排序后，菜单改由行尾的「⋯」打开。
+                        IconButton(
+                            onClick = { workspaceMenuId = folder.id },
+                            modifier = Modifier.size(24.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreHoriz,
+                                contentDescription = null,
+                                tint = textMuted,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                     }
                     WorkspaceRowMenu(
                         expanded = workspaceMenuId == folder.id,
