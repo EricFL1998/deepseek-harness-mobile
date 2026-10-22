@@ -12,6 +12,14 @@ import com.deepseek.dsh.core.model.BuiltInPluginInfo
 private data class PluginCopy(val title: String, val description: String)
 
 private val ENGLISH_BUILTIN_PLUGINS: Map<String, PluginCopy> = mapOf(
+    "persona" to PluginCopy(
+        "Agent persona",
+        "Gives the agent the role and behavior described by the current preset.",
+    ),
+    "tool-pwsh-persistent" to PluginCopy(
+        "Persistent PowerShell",
+        "Lets the agent keep a PowerShell session whose state survives calls.",
+    ),
     "agent-instructions" to PluginCopy(
         "Agent instructions",
         "Loads AGENTS.md and CLAUDE.md to give the agent workspace rules.",
