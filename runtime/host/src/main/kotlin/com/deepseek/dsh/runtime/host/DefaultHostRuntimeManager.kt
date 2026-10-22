@@ -854,6 +854,11 @@ class DefaultHostRuntimeManager(
         // 3. 将 DSH_ANDROID_BRIDGE_PORT 环境变量注入 proot 容器
         // 终端/子进程要在 proot 里解析 uid，先把 passwd/group 覆盖写好。
         layout.ensureIdentityOverlays()
+        // 官方 workspace/changes 需要工作区是一个 git 仓库才能取 baseline；没有仓库时
+        // 只有官方文件工具的捕获，而 bash（Android shell）改的文件不会被记录，于是
+        // turn 尾部永远没有改动卡。这里在启动前用 rootfs 里的 git 给每个工作区子目录
+        // 做一次 init（已存在 .git 就跳过），之后 Host 的录制器就能按 turn 出 summary。
+        ensureWorkspaceGitBaseline(workspacePath)
         val launchConfig = ProotCommandBuilder.LaunchConfig(
             layout = layout,
             userWorkspacePath = workspacePath,
@@ -956,6 +961,37 @@ class DefaultHostRuntimeManager(
         }
         context.startService(serviceIntent)
         result
+    }
+
+    /**
+     * 给工作区下的每个会话目录初始化 git 仓库（幂等）。
+     *
+     * Host 的 `workspace/changes` 录制器用 git 快照做 turn baseline；没有仓库时它
+     * 只能记录官方文件工具的改动，而移动端的 bash 走 Android shell，改动不会被看见。
+     * rootfs 自带 `/usr/bin/git`，所以这里在 proot 里跑一次 `git init`。
+     */
+    private suspend fun ensureWorkspaceGitBaseline(userWorkspacePath: String) = withContext(Dispatchers.IO) {
+        runCatching {
+            val root = File(userWorkspacePath)
+            val directories = root.listFiles()
+                ?.filter { it.isDirectory && it.name != ".git" }
+                .orEmpty()
+            if (directories.isEmpty()) return@withContext
+            directories.forEach { directory ->
+                if (File(directory, ".git").exists()) return@forEach
+                val hostPath = "/workspace/" + directory.name
+                val exec = ProotCommandBuilder.buildExec(
+                    layout,
+                    listOf("/usr/bin/git", "-C", hostPath, "init", "-q"),
+                )
+                val builder = ProcessBuilder(exec.command)
+                builder.environment().putAll(exec.environment)
+                builder.redirectErrorStream(true)
+                val process = builder.start()
+                process.inputStream.close()
+                process.waitFor()
+            }
+        }
     }
 }
 
