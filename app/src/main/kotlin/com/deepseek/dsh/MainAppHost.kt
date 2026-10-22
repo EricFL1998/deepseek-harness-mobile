@@ -2084,6 +2084,8 @@ fun MainAppHost(
                                         ?: stringResource(R.string.app_name)
                                 },
                                 showModeCapsule = false,
+                                onToggleRightPane = { ui.rightDrawerOpen = !ui.rightDrawerOpen },
+                                rightPaneOpen = ui.rightDrawerOpen,
                                 teamTasks = teamTasks,
                                 hostJobs = hostJobs,
                                 onKillJob = { job ->
