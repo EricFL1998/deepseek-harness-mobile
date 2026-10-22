@@ -242,7 +242,7 @@ fun ModernChatScreen(
         { _, _, _ -> Result.failure(IllegalStateException("Model switching is not supported")) },
     availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
-    onModelSelected: (String) -> Unit = {},
+    onModelSelected: (provider: String, modelId: String, name: String) -> Unit = { _, _, _ -> },
     selectedPermission: PermissionPreset = PermissionPreset.WORKSPACE_WRITE,
     agentPresetLabel: String = "标准模式",
     /** 当前选中的预设 id（standard/cordis），用于菜单打勾。 */
@@ -460,9 +460,9 @@ fun ModernChatScreen(
             },
             onModelMenuDismiss = { modelMenuOpen = false },
             modelMenuOpen = modelMenuOpen,
-            onModelSelected = { model ->
+            onModelSelected = { provider, modelId, name ->
                 modelMenuOpen = false
-                onModelSelected(model)
+                onModelSelected(provider, modelId, name)
             },
             onEffortSelected = { level ->
                 modelMenuOpen = false
@@ -1065,7 +1065,7 @@ private fun ModelEffortMenu(
     reasoningOptions: List<ReasoningOption> = emptyList(),
     selectedReasoningId: String = "",
     onDismiss: () -> Unit,
-    onModelSelected: (String) -> Unit,
+    onModelSelected: (provider: String, modelId: String, name: String) -> Unit,
     onEffortSelected: (ReasoningLevel) -> Unit,
     onReasoningSelected: (ReasoningOption) -> Unit = {},
 ) {
@@ -1128,28 +1128,9 @@ private fun ModelEffortMenu(
             }
 
             1 -> {
-                val modelGenericLabel = stringResource(R.string.model_generic)
-                val fallbackGroups = remember(availableModels, modelGenericLabel) {
-                    if (modelGroups.isNotEmpty()) emptyList()
-                    else availableModels.distinct().groupBy { name ->
-                        if (name.startsWith("DeepSeek", ignoreCase = true)) "DeepSeek 账号"
-                        else name.substringBefore("-").substringBefore(" ").ifBlank { modelGenericLabel }
-                    }.map { (provider, names) ->
-                        com.deepseek.dsh.core.model.ModelProviderGroup(
-                            id = provider,
-                            name = provider,
-                            models = names.map { com.deepseek.dsh.core.model.ModelItem(id = it, name = it) }
-                        )
-                    }
-                }
-                val groups = if (modelGroups.isNotEmpty()) {
-                    modelGroups.map { group ->
-                        group.copy(
-                            name = if (group.id == "deepseek-account") "DeepSeek 账号" else group.name
-                        )
-                    }
-                } else fallbackGroups
-                val totalModels = groups.sumOf { it.models.size }
+                val groups = modelGroups
+                val flatModels = if (groups.isEmpty()) availableModels.distinct() else emptyList()
+                val totalModels = if (groups.isEmpty()) flatModels.size else groups.sumOf { it.models.size }
                 val showSearch = totalModels > 4
                 val query = modelQuery.trim().lowercase()
                 if (showSearch) {
@@ -1182,17 +1163,35 @@ private fun ModelEffortMenu(
                         )
                     }
                 }
-                groups.forEach { group ->
-                    val models = group.models.filter {
-                        query.isEmpty() || it.name.lowercase().contains(query)
-                    }
-                    if (models.isNotEmpty()) {
-                        DshMenuSectionLabel(group.name)
-                        models.forEach { model ->
-                            val selected = model.name == selectedModel
-                            DshMenuRow(onClick = { onModelSelected(model.name) }) {
-                                DshMenuLabel(model.name, Modifier.weight(1f))
+                // 分组与模型名一律用 Host `session/modelCatalog` 的投影：不在客户端按
+                // 名字前缀造分组（那会把 Claude/Gemini/Kimi 拼成假分组）。
+                if (groups.isEmpty()) {
+                    flatModels
+                        .filter { query.isEmpty() || it.lowercase().contains(query) }
+                        .forEach { name ->
+                            val selected = name == selectedModel
+                            DshMenuRow(onClick = { onModelSelected("", name, name) }) {
+                                DshMenuLabel(name, Modifier.weight(1f))
                                 if (selected) DshMenuCheck()
+                            }
+                        }
+                } else {
+                    groups.forEach { group ->
+                        val models = group.models.filter {
+                            query.isEmpty() || it.name.lowercase().contains(query)
+                        }
+                        if (models.isNotEmpty()) {
+                            DshMenuSectionLabel(group.name)
+                            models.forEach { model ->
+                                val selected = model.name == selectedModel
+                                DshMenuRow(
+                                    onClick = {
+                                        onModelSelected(group.id, model.id, model.name)
+                                    },
+                                ) {
+                                    DshMenuLabel(model.name, Modifier.weight(1f))
+                                    if (selected) DshMenuCheck()
+                                }
                             }
                         }
                     }
@@ -2472,7 +2471,7 @@ fun BottomInputBar(
     onOpenModelMenu: () -> Unit,
     modelMenuOpen: Boolean,
     onModelMenuDismiss: () -> Unit,
-    onModelSelected: (String) -> Unit,
+    onModelSelected: (provider: String, modelId: String, name: String) -> Unit,
     onEffortSelected: (ReasoningLevel) -> Unit,
     onReasoningSelected: (ReasoningOption) -> Unit = {},
     currentPermission: PermissionPreset,

@@ -301,7 +301,9 @@ private fun AddModelProviderDialog(
                             onDismiss = { dropdownOpen = false },
                             align = com.deepseek.dsh.core.designsystem.DshMenuAlign.Start,
                             contentWidth = true,
-                            maxHeight = 320.dp,
+                            // 官方目录有 50+ 条：让弹层占满可用高度并靠内部滚动，
+                            // 不要只露出前几条。
+                            maxHeight = 460.dp,
                         ) {
                             providers.forEach { provider ->
                                 com.deepseek.dsh.core.designsystem.DshMenuRow(

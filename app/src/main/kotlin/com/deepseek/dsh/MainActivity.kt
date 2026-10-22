@@ -2601,14 +2601,24 @@ fun MainAppHost(
                                         }
                                     }
                                 },                                modelGroups = catalogInfo.groups.ifEmpty { cachedModelGroups },
-                                onModelSelected = { model ->
+                                onModelSelected = { provider, modelId, name ->
+                                    // provider/模型 id 直接来自 Host 模型目录的分组，
+                                    // 不再按名字猜 provider（否则 Claude/Kimi 会被写成 deepseek-*）。
                                     selectedSessionId?.let { sid ->
                                         scope.launch {
                                             dshRepository.selectModel(
                                                 activeHostId,
                                                 sid,
-                                                effectiveModelIdByName[model] ?: model,
-                                                if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
+                                                modelId.ifBlank {
+                                                    effectiveModelIdByName[name] ?: name
+                                                },
+                                                provider.ifBlank {
+                                                    if (accountState.hasApiKey) {
+                                                        "deepseek-official"
+                                                    } else {
+                                                        "deepseek-account"
+                                                    }
+                                                }
                                             )
                                         }
                                     }
