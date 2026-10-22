@@ -49,6 +49,8 @@ class AppUiState(
     var pluginRestartRunning by mutableStateOf(false)
     var pluginRestartError by mutableStateOf<String?>(null)
 
+    /** 聊天页的右侧栏（文件面板）是否展开。 */
+    var rightDrawerOpen by mutableStateOf(false)
     var sessionInspectorOpen by mutableStateOf(false)
     var pendingAgentPreset by mutableStateOf<String?>(null)
 }

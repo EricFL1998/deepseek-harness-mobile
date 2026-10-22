@@ -774,6 +774,13 @@ fun MainAppHost(
     // 从“JS 已装、伴生 APK 可装”跳转时，直接打开插件商店的对应仓库详情。
 
     val status by runner.statusFlow.collectAsState()
+
+    // 官方 workflow 工具在手机 profile 默认关闭：用官方 API 打开，保持与桌面一致。
+    LaunchedEffect(ui.activeHostId, status.phase) {
+        if (status.phase == RuntimePhase.RUNNING) {
+            ensureOfficialWorkflowEnabled(dshRepository, ui.activeHostId)
+        }
+    }
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
     val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
@@ -1370,7 +1377,7 @@ fun MainAppHost(
 
     // 文件夹名保持固定（用于磁盘路径），界面上按当前语言显示。
     val defaultWorkspaceLabel = stringResource(R.string.workspace_default)
-    val activeWorkspaceCwd = "/workspace/$runtimeUi.activeWorkspaceName"
+    val activeWorkspaceCwd = "/workspace/${runtimeUi.activeWorkspaceName}"
     val activeWorkspaceFolderPath = java.io.File(activeWorkspace, runtimeUi.activeWorkspaceName).absolutePath
 
     // 真正的系统文件选择器（SAF）：可多选图片/任意文件，复制进当前工作区后
@@ -1762,6 +1769,48 @@ fun MainAppHost(
         }
     }
 
+
+
+    // 文件面板内容：FILES 页与聊天右侧栏复用同一份列表与回调。
+    val workspaceFilesContent: @Composable () -> Unit = {
+        FilesScreen(
+            currentPath = ui.filesDir.absolutePath,
+            files = files,
+            onFileClick = { item ->
+                if (item.isDirectory) {
+                    ui.filesDir = java.io.File(item.absolutePath)
+                }
+            },
+            onNavigateUp = ui.filesDir.parentFile?.let { parent ->
+                {
+                    // 不越过工作区根：Host 只能访问这里。
+                    if (ui.filesDir.absolutePath != activeWorkspace.absolutePath) {
+                        ui.filesDir = parent
+                    }
+                }
+            },
+            onImportClick = {
+                filesImportLauncher.launch(arrayOf("*/*"))
+            },
+            onSendFile = { item ->
+                // 中转完成后的文件直接加入待发附件：发送时以 @工作区相对路径 引用。
+                val rel = item.absolutePath
+                    .removePrefix(activeWorkspace.absolutePath)
+                    .trimStart('/')
+                    .replace('\\', '/')
+                if (rel.isNotBlank() && chatAttachments.none { it.workspaceRelativePath == rel }) {
+                    chatAttachments.add(
+                        com.deepseek.dsh.feature.chat.ChatAttachment(
+                            displayName = item.name,
+                            workspaceRelativePath = rel,
+                            sizeBytes = item.sizeBytes,
+                        ),
+                    )
+                }
+                ui.activePage = ActivePage.CHAT
+            },
+        )
+    }
 
     val workspaceFolders = remember(
         sessions, ui.selectedSessionId, activeWorkspace, runtimeUi.workspaceRevision, hostWorkspaces,
@@ -2628,52 +2677,7 @@ fun MainAppHost(
                             )
                         }
 
-                        ActivePage.FILES -> {
-                            FilesScreen(
-                                currentPath = ui.filesDir.absolutePath,
-                                files = files,
-                                onFileClick = { item ->
-                                    if (item.isDirectory) {
-                                        ui.filesDir = java.io.File(item.absolutePath)
-                                    }
-                                },
-                                onNavigateUp = ui.filesDir.parentFile?.let { parent ->
-                                    {
-                                        // 不越过工作区根：Host 只能访问这里。
-                                        if (ui.filesDir.absolutePath !=
-                                            activeWorkspace.absolutePath
-                                        ) {
-                                            ui.filesDir = parent
-                                        }
-                                    }
-                                },
-                                onImportClick = {
-                                    filesImportLauncher.launch(arrayOf("*/*"))
-                                },
-                                onSendFile = { item ->
-                                    // 中转完成后的文件直接加入待发附件：发送时以
-                                    // @工作区相对路径 引用，Host 在 proot 里可直接读。
-                                    val rel = item.absolutePath
-                                        .removePrefix(activeWorkspace.absolutePath)
-                                        .trimStart('/')
-                                        .replace('\\', '/')
-                                    if (rel.isNotBlank() &&
-                                        chatAttachments.none {
-                                            it.workspaceRelativePath == rel
-                                        }
-                                    ) {
-                                        chatAttachments.add(
-                                            com.deepseek.dsh.feature.chat.ChatAttachment(
-                                                displayName = item.name,
-                                                workspaceRelativePath = rel,
-                                                sizeBytes = item.sizeBytes,
-                                            ),
-                                        )
-                                    }
-                                    ui.activePage = ActivePage.CHAT
-                                },
-                            )
-                        }
+                        ActivePage.FILES -> PageContentSlot { workspaceFilesContent() }
 
                         ActivePage.PLUGINS -> PageContentSlot {
                             PluginsScreen(
@@ -3100,6 +3104,15 @@ fun MainAppHost(
                 ui.showApiKeyDialog = false
             },
         )
-    }
+    
+        // 聊天右侧栏：文件面板。覆盖在内容之上，点遮罩/× 关闭。
+        RightSideDrawer(
+            open = ui.activePage == ActivePage.CHAT && ui.rightDrawerOpen,
+            title = stringResource(com.deepseek.dsh.feature.files.R.string.files_title),
+            onClose = { ui.rightDrawerOpen = false },
+        ) {
+            workspaceFilesContent()
+        }
+}
 
 }

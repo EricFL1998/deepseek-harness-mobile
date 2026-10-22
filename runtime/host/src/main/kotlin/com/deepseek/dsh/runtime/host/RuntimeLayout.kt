@@ -102,6 +102,31 @@ data class RuntimeLayout(
         runCatching { linkFallbackPatch.setReadable(true, false) }
     }
 
+    /**
+     * 修正 Host 里已经安装好的 subprocess provider 的空 control 通道缺陷。
+     *
+     * proot 下 `controlPipe()` 可能返回 null；provider 只有 `!== undefined` 判断，
+     * 于是一边把 null 塞进 controlChannels，一边调用 `control.once(...)`，把
+     * workflow 的 worker 启动炸成 `Cannot read properties of null (reading 'once')`。
+     * 这里只把守卫放宽为 null/undefined 都跳过；幂等，随 App 版本生效。
+     */
+    fun ensureHostRuntimePatches() {
+        val provider = java.io.File(
+            rootfsDir,
+            "usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/" +
+                "@deepseek-ai/dsh-subprocess-local/lib/index.js",
+        )
+        if (!provider.isFile) return
+        runCatching {
+            val text = provider.readText()
+            val patched = text.replace(
+                "if (control !== void 0) {",
+                "if (control != null) {",
+            )
+            if (patched != text) provider.writeText(patched)
+        }
+    }
+
     fun ensureIdentityOverlays() {
         runtimeMetaDir.mkdirs()
         passwdOverlay.parentFile?.mkdirs()

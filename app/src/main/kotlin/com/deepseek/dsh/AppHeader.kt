@@ -70,6 +70,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deepseek.dsh.core.designsystem.DshTheme
@@ -329,6 +330,9 @@ fun ModernTopAppBar(
     /** 「开发者工具」插件是否启用；启用才显示会话数据诊断入口。 */
     inspectorEnabled: Boolean = false,
     onOpenInspector: () -> Unit = {},
+    /** 右侧栏开关；null 表示当前页面没有右侧栏。 */
+    onToggleRightPane: (() -> Unit)? = null,
+    rightPaneOpen: Boolean = false,
     onMenuClick: () -> Unit
 ) {
     val barColors = com.deepseek.dsh.core.designsystem.dshPanelColors()
@@ -419,6 +423,27 @@ fun ModernTopAppBar(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            if (onToggleRightPane != null) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (rightPaneOpen) barColors.bgModulePlatform else androidx.compose.ui.graphics.Color.Transparent,
+                    onClick = onToggleRightPane,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = DshIcons.PanelLeftOutline,
+                            contentDescription = "Right sidebar",
+                            tint = barColors.labelPrimary,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .rotate(180f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
             }
 
             // 团队动作：官方由「智能体团队」插件注册到
