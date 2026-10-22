@@ -596,4 +596,6 @@
     <string name="terminal_rename">重命名终端</string>
 <string name="session_export_saved">会话日志已保存到下载目录</string>
     <string name="session_export_failed">导出会话日志失败</string>
+<string name="account_bonus_title">收到奖励</string>
+    <string name="account_bonus_ok">知道了</string>
 </resources>

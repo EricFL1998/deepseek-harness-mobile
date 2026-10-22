@@ -596,4 +596,6 @@
     <string name="terminal_rename">Rename terminal</string>
 <string name="session_export_saved">Session log saved to Downloads</string>
     <string name="session_export_failed">Could not export the session log</string>
+<string name="account_bonus_title">Reward received</string>
+    <string name="account_bonus_ok">Got it</string>
 </resources>

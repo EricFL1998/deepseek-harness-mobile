@@ -1711,6 +1711,53 @@ class DshRepository(
         rpcRaw(hostId, "settings/update", args.toString())
     }
 
+    /** 官方 `account/getUnnotifiedBonuses`：未展示过的奖励列表。 */
+    suspend fun fetchUnnotifiedBonuses(
+        hostId: String,
+    ): Pair<String, List<com.deepseek.dsh.core.model.AccountBonusInfo>>? {
+        val args = buildJsonObject {
+            put("client", buildJsonObject {
+                put("version", "0.2.1")
+                put("locale", "zh")
+                put("timezoneOffsetSeconds", 0)
+            })
+        }
+        val raw = rpcRaw(hostId, "account/getUnnotifiedBonuses", args.toString())
+            .getOrNull() ?: return null
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return null
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject
+            ?: return null
+        val accountId = (value["accountId"] as? JsonPrimitive)?.contentOrNull ?: return null
+        val bonuses = (value["bonuses"] as? JsonArray)?.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val orderId = (obj["orderId"] as? JsonPrimitive)?.contentOrNull
+                ?: return@mapNotNull null
+            com.deepseek.dsh.core.model.AccountBonusInfo(
+                orderId = orderId,
+                title = (obj["title"] as? JsonPrimitive)?.contentOrNull,
+                message = (obj["message"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                expiresAt = (obj["expiresAt"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            )
+        }.orEmpty()
+        return accountId to bonuses
+    }
+
+    /** 官方 `account/ackBonusNotified`：标记一条奖励已展示。 */
+    suspend fun ackBonusNotified(hostId: String, accountId: String, orderId: String): Boolean {
+        val args = buildJsonObject {
+            put("accountId", accountId)
+            put("orderId", orderId)
+            put("client", buildJsonObject {
+                put("version", "0.2.1")
+                put("locale", "zh")
+                put("timezoneOffsetSeconds", 0)
+            })
+        }
+        return rpcRaw(hostId, "account/ackBonusNotified", args.toString())
+            .getOrNull()?.contains("\"ok\":true") == true
+    }
+
     /** 下载当前会话日志 ZIP（官方 `/api/session.export`）。 */
     suspend fun exportSessionLog(hostId: String, sessionId: String): ByteArray? =
         when (val res = client.downloadSessionExport(hostId, sessionId)) {

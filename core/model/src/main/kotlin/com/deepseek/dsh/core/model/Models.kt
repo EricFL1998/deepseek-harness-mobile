@@ -294,6 +294,15 @@ data class HostCommandInfo(
     val acceptsAttachments: Boolean = false,
 )
 
+/** 官方 `account/getUnnotifiedBonuses` 里的一条奖励通知。 */
+@Serializable
+data class AccountBonusInfo(
+    val orderId: String,
+    val title: String? = null,
+    val message: String = "",
+    val expiresAt: String = "",
+)
+
 /** 官方 `messageFeedback` 的一条消息反馈。 */
 @Serializable
 data class MessageFeedbackInfo(

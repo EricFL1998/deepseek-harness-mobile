@@ -650,16 +650,11 @@ fun MainAppHost(
         )
     }
     if (sessionInspectorOpen) {
-        androidx.compose.ui.window.Dialog(
-            onDismissRequest = { sessionInspectorOpen = false },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            SessionInspectorPluginUi.Overlay(
-                frames = rawSessionFrames,
-                sessionId = selectedSessionId,
-                onDismiss = { sessionInspectorOpen = false },
-            )
-        }
+        SessionInspectorOverlayDialog(
+            frames = rawSessionFrames,
+            sessionId = selectedSessionId,
+            onDismiss = { sessionInspectorOpen = false },
+        )
     }
 
     fun pressClaudeCodeBand(generation: Long, actionId: String) {
@@ -987,6 +982,13 @@ fun MainAppHost(
     // 终端页状态：屏幕缓冲（去 ANSI）、状态行、可写标志。
     // Host 客户端是否已绑定到真实地址（决定能否开远程流）。
     var localHostBound by remember { mutableStateOf(false) }
+    // 未读奖励提示（官方 account/getUnnotifiedBonuses）；无奖励时什么都不渲染。
+    AccountBonusHost(
+        repository = dshRepository,
+        hostId = activeHostId,
+        hostBound = localHostBound,
+    )
+
     var terminalBuffer by remember { mutableStateOf("") }
     var terminalStatus by remember { mutableStateOf("") }
     var terminalWritable by remember { mutableStateOf(false) }

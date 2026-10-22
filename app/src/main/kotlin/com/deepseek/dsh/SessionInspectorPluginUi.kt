@@ -286,3 +286,28 @@ private fun InspectorTab(text: String, selected: Boolean, onClick: () -> Unit) {
         )
     }
 }
+
+/**
+ * 全屏调试面板的宿主入口：把 Dialog 包装留在本文件，`MainAppHost` 只保留一行调用。
+ *
+ * @param frames 当前会话原始帧。
+ * @param sessionId 当前会话 id。
+ * @param onDismiss 关闭面板。
+ */
+@Composable
+fun SessionInspectorOverlayDialog(
+    frames: List<SessionRawFrame>,
+    sessionId: String?,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        SessionInspectorPluginUi.Overlay(
+            frames = frames,
+            sessionId = sessionId,
+            onDismiss = onDismiss,
+        )
+    }
+}
