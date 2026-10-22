@@ -33,6 +33,7 @@ object BridgePluginCatalog {
     suspend fun load(
         registry: BridgeRegistry,
         iconSize: Int = DEFAULT_ICON_SIZE,
+        locale: String? = null,
     ): BridgePluginCatalogResult {
         val warnings = mutableListOf<String>()
 
@@ -46,7 +47,7 @@ object BridgePluginCatalog {
         }
 
         val slotList = if (registry.hasClientSlots()) {
-            when (val result = registry.slotRegistrations(PLUGINS_ITEM_SLOT)) {
+            when (val result = registry.slotRegistrations(PLUGINS_ITEM_SLOT, locale)) {
                 is BridgeResult.Success -> {
                     warnings += result.warnings
                     result.value

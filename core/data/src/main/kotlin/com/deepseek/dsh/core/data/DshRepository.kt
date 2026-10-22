@@ -486,7 +486,11 @@ class DshRepository(
             _bridgeWarningsFlow.value = emptyList()
             return
         }
-        val result = BridgePluginCatalog.load(registry, iconSize)
+        val result = BridgePluginCatalog.load(
+            registry,
+            iconSize,
+            java.util.Locale.getDefault().toLanguageTag(),
+        )
         _bridgePluginCatalogFlow.value = result.catalog
         _bridgeWarningsFlow.value = result.warnings
     }
