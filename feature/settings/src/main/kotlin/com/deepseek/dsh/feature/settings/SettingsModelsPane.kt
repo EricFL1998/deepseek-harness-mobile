@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -296,13 +297,18 @@ private fun AddModelProviderDialog(
                         color = palette.labelPrimary,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    // 目录有 50+ 项：选择器下方用真正的悬浮弹层（DropdownMenu 是独立
-                    // Popup 窗口，不会被 Dialog 窗口裁掉），而不是在面板里铺开。
+                    // 目录有 50+ 项：选择器下方用悬浮弹层，材质沿用设置页的
+                    // cardFill + borderL2 + 10dp 圆角，而不是 Material 默认菜单面。
+                    var anchorWidth by remember { mutableStateOf(0) }
+                    val density = androidx.compose.ui.platform.LocalDensity.current
                     Box {
                         SettingsCard(verticalPadding = 10.dp) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .onGloballyPositioned { coordinates ->
+                                        anchorWidth = coordinates.size.width
+                                    }
                                     .clickable { dropdownOpen = true },
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -316,39 +322,64 @@ private fun AddModelProviderDialog(
                                 SettingsChevronDown(expanded = dropdownOpen, size = 12.dp)
                             }
                         }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = dropdownOpen,
-                            onDismissRequest = { dropdownOpen = false },
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .heightIn(max = 280.dp),
-                        ) {
-                            providers.forEach { provider ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(
-                                                provider.name,
-                                                fontSize = 13.sp,
-                                                color = palette.labelPrimary,
-                                            )
-                                            Text(
-                                                provider.id,
-                                                fontSize = 11.sp,
-                                                color = palette.labelTertiary,
-                                            )
+                        if (dropdownOpen) {
+                            androidx.compose.ui.window.Popup(
+                                alignment = Alignment.TopStart,
+                                offset = androidx.compose.ui.unit.IntOffset(
+                                    0,
+                                    with(density) { 54.dp.roundToPx() },
+                                ),
+                                onDismissRequest = { dropdownOpen = false },
+                                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                            ) {
+                                androidx.compose.material3.Surface(
+                                    color = palette.cardFill,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(0.5.dp, palette.borderL2),
+                                    shadowElevation = 10.dp,
+                                    modifier = Modifier.width(
+                                        if (anchorWidth > 0) {
+                                            with(density) { anchorWidth.toDp() }
+                                        } else {
+                                            280.dp
+                                        },
+                                    ),
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .heightIn(max = 320.dp)
+                                            .verticalScroll(rememberScrollState()),
+                                    ) {
+                                        providers.forEach { provider ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        selected = provider
+                                                        dropdownOpen = false
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        provider.name,
+                                                        fontSize = 13.sp,
+                                                        color = palette.labelPrimary,
+                                                    )
+                                                    Text(
+                                                        provider.id,
+                                                        fontSize = 11.sp,
+                                                        color = palette.labelTertiary,
+                                                    )
+                                                }
+                                                if (provider.id == selected?.id) {
+                                                    com.deepseek.dsh.core.designsystem.DshMenuCheck()
+                                                }
+                                            }
                                         }
-                                    },
-                                    trailingIcon = {
-                                        if (provider.id == selected?.id) {
-                                            com.deepseek.dsh.core.designsystem.DshMenuCheck()
-                                        }
-                                    },
-                                    onClick = {
-                                        selected = provider
-                                        dropdownOpen = false
-                                    },
-                                )
+                                    }
+                                }
                             }
                         }
                     }
