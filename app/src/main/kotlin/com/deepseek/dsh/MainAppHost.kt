@@ -3110,7 +3110,6 @@ fun MainAppHost(
         // 聊天右侧栏：文件面板。覆盖在内容之上，点遮罩/× 关闭。
         RightSideDrawer(
             open = ui.activePage == ActivePage.CHAT && ui.rightDrawerOpen,
-            title = stringResource(R.string.right_sidebar_title),
             onClose = { ui.rightDrawerOpen = false },
         ) {
             RightSidebarPanel(
@@ -3150,6 +3149,7 @@ fun MainAppHost(
                 },
                 todos = sessionTodos,
                 deliverables = sessionDeliverables,
+                onClose = { ui.rightDrawerOpen = false },
                 onOpenDeliverable = { file ->
                     // Host 的 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
                     val hostPrefix = "/workspace/"
