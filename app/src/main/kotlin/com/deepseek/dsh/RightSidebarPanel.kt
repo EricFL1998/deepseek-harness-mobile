@@ -75,9 +75,14 @@ fun RightSidebarPanel(
     onOpenDeliverable: (PresentedFileInfo) -> Unit,
     terminalContent: @Composable () -> Unit,
     scheduleContent: @Composable () -> Unit,
+    /** 插件注册的右侧栏标签（App 新增的 RIGHT_PANEL 落点 API）。 */
+    pluginTabs: List<com.deepseek.dsh.plugin.nativehost.NativeRightPaneTab> = emptyList(),
     onClose: () -> Unit,
 ) {
     val palette = dshPanelColors()
+    // 选中的插件标签被卸载后回退到 Files，避免空白页。
+    val knownTabs = RIGHT_TABS + pluginTabs.map { "plugin:${it.key}" }
+    val effectiveTab = if (tab in knownTabs) tab else "files"
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -106,7 +111,7 @@ fun RightSidebarPanel(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RIGHT_TABS.forEach { id ->
-                    val selected = tab == id
+                    val selected = effectiveTab == id
                     val label = stringResource(
                         when (id) {
                             "files" -> R.string.right_sidebar_tab_files
@@ -144,6 +149,35 @@ fun RightSidebarPanel(
                     }
                 }
             }
+            pluginTabs.forEach { pluginTab ->
+                val id = "plugin:${pluginTab.key}"
+                val selected = effectiveTab == id
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .clickable { onTabChange(id) }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = pluginTab.title,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                        color = if (selected) palette.labelPrimary else palette.labelSecondary,
+                        maxLines = 1,
+                    )
+                    if (selected) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(palette.labelPrimary),
+                        )
+                    }
+                }
+            }
             DshDialogCloseButton(onClick = onClose, label = "Close")
             Spacer(modifier = Modifier.width(2.dp))
         }
@@ -154,7 +188,7 @@ fun RightSidebarPanel(
                 .background(palette.borderL2),
         )
         Box(modifier = Modifier.fillMaxSize()) {
-            when (tab) {
+            when (effectiveTab) {
                 "files" -> RightFilesTab(
                     files = files,
                     currentPath = currentPath,
@@ -183,9 +217,17 @@ fun RightSidebarPanel(
                 )
                 "terminal" -> Box(modifier = Modifier.fillMaxSize()) { terminalContent() }
                 "schedule" -> Box(modifier = Modifier.fillMaxSize()) { scheduleContent() }
-                else -> RightInfoTab(
+                "browser" -> RightInfoTab(
                     text = stringResource(R.string.right_sidebar_browser_unavailable),
                 )
+                else -> {
+                    val pluginTab = pluginTabs.firstOrNull { "plugin:${it.key}" == effectiveTab }
+                    if (pluginTab != null) {
+                        Box(modifier = Modifier.fillMaxSize()) { pluginTab.render() }
+                    } else {
+                        RightInfoTab(text = stringResource(R.string.right_sidebar_files_empty))
+                    }
+                }
             }
         }
     }

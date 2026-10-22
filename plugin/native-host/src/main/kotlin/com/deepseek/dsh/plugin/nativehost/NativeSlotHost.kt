@@ -166,7 +166,7 @@ fun NativeSlotHost(
  * 不再尝试重组那段内容（避免一个坏插件每帧都抛）。
  */
 @Composable
-private fun NativeSlotGuard(pluginLabel: String, theme: PluginTheme, content: @Composable () -> Unit) {
+internal fun NativeSlotGuard(pluginLabel: String, theme: PluginTheme, content: @Composable () -> Unit) {
     val failed = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     if (failed.value) {
         Text(
