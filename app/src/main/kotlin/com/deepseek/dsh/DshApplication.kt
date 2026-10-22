@@ -22,6 +22,29 @@ import java.util.concurrent.TimeUnit
 
 class DshApplication : Application() {
 
+    /**
+     * WebSocket 读线程的 EOF 兜底。
+     *
+     * Host 被系统回收时，长连接会以 EOF 结束，而 OkHttp 4 的读线程在个别 teardown
+     * 竞态里会把 `EOFException` 直接抛到线程外，导致进程崩溃。这类异常表示「连接
+     * 已经断开」，没有业务含义，记录日志后让进程继续存活（重连逻辑会在后续调用中
+     * 重新建立连接）。其它未捕获异常仍然走默认崩溃路径，保持可观测。
+     */
+    private fun installTransportEofGuard() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            val cause = generateSequence(error) { it.cause }.lastOrNull() ?: error
+            if (cause is java.io.EOFException) {
+                android.util.Log.w(
+                    "DshTransport",
+                    "websocket closed abruptly on ${thread.name}: ${cause.message}",
+                )
+            } else {
+                previous?.uncaughtException(thread, error)
+            }
+        }
+    }
+
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     lateinit var runtimeLayout: RuntimeLayout
@@ -126,6 +149,7 @@ class DshApplication : Application() {
     }
 
     override fun onCreate() {
+        installTransportEofGuard()
         super.onCreate()
         runtimeLayout = RuntimeLayout(
             baseDir = filesDir,
