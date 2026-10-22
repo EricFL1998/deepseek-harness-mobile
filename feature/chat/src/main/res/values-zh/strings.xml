@@ -231,4 +231,7 @@
     <string name="cmd_export_hint">下载日志</string>
     <string name="cmd_chip_remove">取消命令</string>
 <string name="cmd_section_host">Host 命令</string>
+<string name="presented_file">文件</string>
+<string name="presented_all">全部 (%1$d)</string>
+<string name="presented_collapse">收起</string>
 </resources>

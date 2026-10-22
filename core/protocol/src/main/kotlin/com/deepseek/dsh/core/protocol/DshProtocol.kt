@@ -235,6 +235,8 @@ interface DshClientProtocol {
     fun workspaceFollow(hostId: String): Flow<String>
     /** 订阅官方 `session/control`：全部会话投影的基线 + 增量（模型选择等）。 */
     fun sessionControl(hostId: String): Flow<String>
+    /** 打开一条 `session/follow`：首帧 snapshot 会重放历史（含产物声明）。 */
+    fun followSession(hostId: String, sessionId: String)
     /** 官方 `terminal/environment`：当前目录与尺寸上限。 */
     suspend fun terminalEnvironment(
         hostId: String,

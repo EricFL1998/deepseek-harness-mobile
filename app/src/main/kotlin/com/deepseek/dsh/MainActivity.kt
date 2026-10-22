@@ -980,6 +980,8 @@ fun MainAppHost(
     val sessionGoal by dshRepository.goalFlow.collectAsState()
     val sessionDeliverables by dshRepository.deliverablesFlow.collectAsState()
     // 终端页状态：屏幕缓冲（去 ANSI）、状态行、可写标志。
+    // Host 客户端是否已绑定到真实地址（决定能否开远程流）。
+    var localHostBound by remember { mutableStateOf(false) }
     var terminalBuffer by remember { mutableStateOf("") }
     var terminalStatus by remember { mutableStateOf("") }
     var terminalWritable by remember { mutableStateOf(false) }
@@ -1053,12 +1055,15 @@ fun MainAppHost(
         }
     }
     // job/list 跟着当前会话走。
-    LaunchedEffect(activeHostId, selectedSessionId) {
+    LaunchedEffect(activeHostId, selectedSessionId, localHostBound) {
         val sid = selectedSessionId
         // Host 未绑定时 baseUrl 还是占位 127.0.0.1:1，开流只会连接失败。
-        val bound = (context.applicationContext as DshApplication).localHostPort > 1 ||
-            currentAppSettings.remoteHostUrl.isNotBlank()
-        if (sid != null && bound) dshRepository.watchJobs(activeHostId, sid)
+        val bound = localHostBound || currentAppSettings.remoteHostUrl.isNotBlank()
+        if (sid != null && bound) {
+            dshRepository.watchJobs(activeHostId, sid)
+            // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
+            dshRepository.watchSession(activeHostId, sid)
+        }
         else dshRepository.unwatchJobs()
     }
     val streamingText by dshRepository.streamingTextFlow.collectAsState()
@@ -1251,6 +1256,7 @@ fun MainAppHost(
             if (baseUrl.endsWith(":1")) {
                 android.util.Log.w("DSH", "Host not bound yet, skip remote streams: $baseUrl")
             } else {
+                localHostBound = true
                 dshRepository.subscribeRemoteEvents(activeHostId)
             }
             // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
@@ -2382,14 +2388,19 @@ fun MainAppHost(
                                 goal = sessionGoal,
                                 deliverables = sessionDeliverables,
                                 onOpenDeliverable = { file ->
-                                    // 产物路径在 Host 世界；落在本机工作区时直接定位目录。
-                                    val target = java.io.File(file.path)
-                                    val dir = target.parentFile
-                                    if (dir != null &&
-                                        dir.absolutePath.startsWith(
-                                            activeWorkspace.absolutePath
-                                        )
-                                    ) {
+                                    // Host 路径 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
+                                    val hostPrefix = "/workspace/"
+                                    val localPath = when {
+                                        file.path.startsWith(hostPrefix) -> java.io.File(
+                                            activeWorkspace,
+                                            file.path.removePrefix(hostPrefix),
+                                        ).absolutePath
+                                        file.path.startsWith(activeWorkspace.absolutePath) ->
+                                            file.path
+                                        else -> null
+                                    }
+                                    val dir = localPath?.let { java.io.File(it).parentFile }
+                                    if (dir != null && dir.exists()) {
                                         filesDir = dir
                                         activePage = ActivePage.FILES
                                     } else {

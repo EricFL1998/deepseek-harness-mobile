@@ -1521,7 +1521,7 @@ class RemoteClient(
         }.toString()
 
         // 先订阅会话事件流，再提交 prompt：Host 只在有 follow 订阅者时驱动 turn。
-        followSession(sessionId, hostId)
+        startSessionFollow(sessionId, hostId)
         val request = Request.Builder()
             .url("$baseUrl/api/session/prompt")
             .post(payload.toRequestBody(mediaTypeJson))
@@ -1622,7 +1622,7 @@ class RemoteClient(
     private val toolArgs = mutableMapOf<String, String>()
 
     /** 订阅 session/follow 流，驱动 Host 执行已入队的 prompt，并接收工具/消息帧。 */
-    private fun followSession(sessionId: String, hostId: String) {
+    private fun startSessionFollow(sessionId: String, hostId: String) {
         val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
         val request = okhttp3.Request.Builder().url(wsUrl).build()
         val socket = client.newWebSocket(request, object : okhttp3.WebSocketListener() {
@@ -2815,6 +2815,10 @@ class RemoteClient(
 
     override fun answerWaterfall(hostId: String, eventId: String, valueJson: String?) =
         answerForwardedEvent(eventId, valueJson)
+
+    override fun followSession(hostId: String, sessionId: String) {
+        startSessionFollow(sessionId, hostId)
+    }
 
     override fun subscribeEvents(hostId: String): Flow<RemoteEvent> = eventBus
 }

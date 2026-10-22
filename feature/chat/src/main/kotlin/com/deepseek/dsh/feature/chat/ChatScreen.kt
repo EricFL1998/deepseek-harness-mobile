@@ -682,6 +682,15 @@ fun ModernChatScreen(
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 }
+                // 官方 ui-deliverables：产物卡挂在 turn 尾部（本轮最后一条回复后）。
+                if (deliverables.isNotEmpty()) {
+                    item(key = "presented_files") {
+                        PresentedFilesRow(
+                            files = deliverables,
+                            onOpen = onOpenDeliverable,
+                        )
+                    }
+                }
             }
         }
 
@@ -689,12 +698,10 @@ fun ModernChatScreen(
             ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
         }
 
-        if (goal != null || todos.isNotEmpty() || deliverables.isNotEmpty()) {
+        if (goal != null || todos.isNotEmpty()) {
             SessionPlanDock(
                 goal = goal,
                 todos = todos,
-                deliverables = deliverables,
-                onOpenDeliverable = onOpenDeliverable,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
@@ -2987,8 +2994,6 @@ private fun ComposerCommandRow(
 private fun SessionPlanDock(
     goal: com.deepseek.dsh.core.model.GoalInfo?,
     todos: List<com.deepseek.dsh.core.model.TodoEntryInfo>,
-    deliverables: List<com.deepseek.dsh.core.protocol.PresentedFileInfo> = emptyList(),
-    onOpenDeliverable: (com.deepseek.dsh.core.protocol.PresentedFileInfo) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -3048,27 +3053,6 @@ private fun SessionPlanDock(
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
-                )
-            }
-        }
-        if (deliverables.isNotEmpty()) {
-            Text(
-                text = "FILES " + deliverables.size,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            deliverables.takeLast(6).forEach { file ->
-                Text(
-                    text = "\uD83D\uDCC1 " + file.path.substringAfterLast('/'),
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenDeliverable(file) }
-                        .padding(vertical = 1.dp),
                 )
             }
         }

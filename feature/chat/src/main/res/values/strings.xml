@@ -232,4 +232,7 @@
     <string name="cmd_export_hint">Export log</string>
     <string name="cmd_chip_remove">Remove command</string>
 <string name="cmd_section_host">Host commands</string>
+<string name="presented_file">File</string>
+<string name="presented_all">All (%1$d)</string>
+<string name="presented_collapse">Show less</string>
 </resources>

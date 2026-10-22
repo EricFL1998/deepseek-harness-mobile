@@ -1321,6 +1321,11 @@ class DshRepository(
         )
     }
 
+    /** 打开会话时订阅 `session/follow`，重放历史并恢复产物声明。 */
+    fun watchSession(hostId: String, sessionId: String) {
+        client.followSession(hostId, sessionId)
+    }
+
     fun markSessionViewed(sessionId: String?) {
         if (sessionId != viewedSessionId) {
             _streamingTextFlow.value = ""
