@@ -110,21 +110,20 @@ fun MainAppHost(
     nativePluginRescanFlow: kotlinx.coroutines.flow.StateFlow<Int> =
         kotlinx.coroutines.flow.MutableStateFlow(0),
 ) {
+    val onboardingPreferences = remember {
+        com.deepseek.dsh.feature.runtime.OnboardingPreferences(context)
+    }
+    val runtimeUi = rememberAppRuntimeUiState(
+        initialOnboarding = !onboardingPreferences.isCompleted,
+        initialRootfsProgress = 0f to context.getString(R.string.runtime_checking),
+    )
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    var activePage by remember { mutableStateOf(ActivePage.CHAT) }
     // 插件详情页打开时，顶栏返回/系统返回先退回插件列表，而不是直接离开插件页。
-    var pluginDetailOpen by remember { mutableStateOf(false) }
-    var pluginBackSignal by remember { mutableStateOf(0) }
     // 「原生插件」tab 的列表：NativePluginDiscovery 扫描系统里已装的伴侣 APK。
     // 进入插件页时扫一次；卸载/安装由 PackageManager 广播驱动重扫（见 onResume）。
-    var nativePluginItems by remember {
-        mutableStateOf<List<com.deepseek.dsh.plugin.nativehost.NativePluginItem>>(emptyList())
-    }
-    var settingsInitialSection by remember {
-        mutableStateOf<com.deepseek.dsh.feature.settings.SettingsSectionTab?>(null)
-    }
     val updateInfo by com.deepseek.dsh.feature.settings.UpdateCenter.update.collectAsState()
     val currentVersion = remember {
         com.deepseek.dsh.feature.settings.UpdateCenter.currentVersion(context)
@@ -134,18 +133,10 @@ fun MainAppHost(
     }
 
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
-    var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
 
     val externalWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
     val visibleWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
 
-    var hasAllFilesAccess by remember { mutableStateOf(android.os.Environment.isExternalStorageManager()) }
-    LaunchedEffect(hasAllFilesAccess) {
-        while (!hasAllFilesAccess) {
-            kotlinx.coroutines.delay(1000)
-            hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
-        }
-    }
     val openAllFilesSettings: () -> Unit = {
         runCatching {
             context.startActivity(
@@ -163,6 +154,18 @@ fun MainAppHost(
         externalWorkspaceDir
     }
 
+    val ui = rememberAppUiState(
+        initialSettings = persistedSettings,
+        initialWorkspace = activeWorkspace,
+        initialAllFilesAccess = android.os.Environment.isExternalStorageManager(),
+    )
+    LaunchedEffect(ui.hasAllFilesAccess) {
+        while (!ui.hasAllFilesAccess) {
+            kotlinx.coroutines.delay(1000)
+            ui.hasAllFilesAccess = android.os.Environment.isExternalStorageManager()
+        }
+    }
+
     // UI 一开始就预热 Host，和引导/登录并行，避免用户点击登录时才冷启动。
     LaunchedEffect(Unit) {
         // 首次安装等 rootfs 准备完成后再启动；之后每次重新打开 App 立即启动 Host。
@@ -177,16 +180,15 @@ fun MainAppHost(
             com.deepseek.dsh.core.model.HostDescriptor.Local()
         )
     }
-    var activeHostId by remember { mutableStateOf("local-host") }
     // slot 贡献（composer dock 等）与整页原生页面共用同一个 pluginRpc；在这里
     // 注入给 NativeHost，NativeSlotHost 会把基础 host 升级成 PluginRpcHost。
     val slotPluginRpc: suspend (String, kotlinx.serialization.json.JsonObject) -> Result<String> =
-        remember(activeHostId) {
+        remember(ui.activeHostId) {
             { method, payload ->
-                val first = dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                val first = dshRepository.pluginRpc(ui.activeHostId, method, payload.toString())
                 val firstText = first.getOrNull() ?: first.exceptionOrNull()?.message
                 if (ensureMissingPluginDir(context, firstText)) {
-                    dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                    dshRepository.pluginRpc(ui.activeHostId, method, payload.toString())
                 } else {
                     first
                 }
@@ -194,56 +196,50 @@ fun MainAppHost(
         }
     com.deepseek.dsh.plugin.nativehost.NativeHost.rpcHandler = slotPluginRpc
 
-    val repoSessions by dshRepository.getSessions(activeHostId).collectAsState(initial = emptyList())
+    val repoSessions by dshRepository.getSessions(ui.activeHostId).collectAsState(initial = emptyList())
     val sessions = repoSessions
 
-    var selectedSessionId by remember { mutableStateOf<String?>(null) }
-    var pendingAgentPreset by remember { mutableStateOf<String?>(null) }
-    var isSending by remember { mutableStateOf(false) }
     val pendingMessages = remember { androidx.compose.runtime.mutableStateListOf<ChatMessage>() }
 
     // 计划模式：横幅状态；placeholder 与发送文案在 ChatScreen 内切换。
-    // 不按会话 id 重置——首个 prompt 会创建会话并改变 selectedSessionId，
+    // 不按会话 id 重置——首个 prompt 会创建会话并改变 ui.selectedSessionId，
     // 按 id 重置会让刚开启的计划模式在第一次发送后神秘关闭。
-    var chatPlanMode by remember { mutableStateOf(false) }
 
     // 系统文件选择器选回的附件（已复制进当前工作区 attachments/）。
     val chatAttachments = remember { androidx.compose.runtime.mutableStateListOf<com.deepseek.dsh.feature.chat.ChatAttachment>() }
     // 切换会话时清空待发附件，避免附件串到另一个会话。
-    LaunchedEffect(selectedSessionId) { chatAttachments.clear() }
+    LaunchedEffect(ui.selectedSessionId) { chatAttachments.clear() }
     val liveSessionIds by dshRepository.liveSessionIdsFlow.collectAsState()
     val runningSessionIds by dshRepository.runningSessionIdsFlow.collectAsState()
     val unreadSessionIds by dshRepository.unreadSessionIdsFlow.collectAsState()
-    LaunchedEffect(selectedSessionId) { dshRepository.markSessionViewed(selectedSessionId) }
+    LaunchedEffect(ui.selectedSessionId) { dshRepository.markSessionViewed(ui.selectedSessionId) }
 
     // 会话完成通知：运行中的会话从 running 变为结束且当前不在前台时提醒。
-    var wasSessionRunning by remember { mutableStateOf(false) }
-    val sessionRunningNow = selectedSessionId != null && selectedSessionId in runningSessionIds
+    val sessionRunningNow = ui.selectedSessionId != null && ui.selectedSessionId in runningSessionIds
     LaunchedEffect(sessionRunningNow) {
-        if (wasSessionRunning && !sessionRunningNow) {
-            if (currentAppSettings.notificationsEnabled && currentAppSettings.notifyOnTurnComplete) {
-                val title = sessions.find { it.sessionId == selectedSessionId }?.title ?: context.getString(R.string.notify_session)
+        if (runtimeUi.wasSessionRunning && !sessionRunningNow) {
+            if (ui.currentAppSettings.notificationsEnabled && ui.currentAppSettings.notifyOnTurnComplete) {
+                val title = sessions.find { it.sessionId == ui.selectedSessionId }?.title ?: context.getString(R.string.notify_session)
                 DshNotifications.notify(context, context.getString(R.string.notify_done_title), context.getString(R.string.notify_done_body, title))
             }
         }
-        wasSessionRunning = sessionRunningNow
+        runtimeUi.wasSessionRunning = sessionRunningNow
     }
-    var didInitialResume by remember { mutableStateOf(false) }
     LaunchedEffect(sessions, liveSessionIds) {
         // 每次打开 App：自动进入最近更新的会话，而不是停留在空白新会话页。
-        if (!didInitialResume && sessions.isNotEmpty()) {
-            didInitialResume = true
+        if (!runtimeUi.didInitialResume && sessions.isNotEmpty()) {
+            runtimeUi.didInitialResume = true
             val candidates = sessions.filter { !it.archived }.ifEmpty { sessions }
-            selectedSessionId = (
+            ui.selectedSessionId = (
                 candidates.filter { it.sessionId in liveSessionIds }.ifEmpty { candidates }
                     .maxByOrNull { it.updatedAt }
                 )?.sessionId
         }
     }
 
-    val activeSession = sessions.find { it.sessionId == selectedSessionId }
+    val activeSession = sessions.find { it.sessionId == ui.selectedSessionId }
 
-    val repoMessages by dshRepository.getMessages(activeHostId, selectedSessionId ?: "")
+    val repoMessages by dshRepository.getMessages(ui.activeHostId, ui.selectedSessionId ?: "")
         .collectAsState(initial = emptyList())
     val messages = remember(repoMessages) { repoMessages }
 
@@ -254,74 +250,31 @@ fun MainAppHost(
     val hostModelIdByName = remember(hostModels) { hostModels.associate { it.name to it.id } }
 
     // Host 冷启动需要先拉起 proot/DSH，模型目录返回前用上次缓存让菜单立刻可用。
-    val modelCatalogCache = remember {
-        context.getSharedPreferences("dsh_model_catalog_cache", android.content.Context.MODE_PRIVATE)
-    }
-    // provider 分组也缓存：目录请求失败时仍按真实 provider 分组（Claude/Gemini 同属
-    // Antigravity），不会退化成按模型名前缀拆出来的假分组。
-    var cachedModelGroups by remember {
-        mutableStateOf(
-            runCatching {
-                kotlinx.serialization.json.Json.decodeFromString(
-                    ListSerializer(com.deepseek.dsh.core.model.ModelProviderGroup.serializer()),
-                    modelCatalogCache.getString("groups", "[]").orEmpty(),
-                )
-            }.getOrDefault(emptyList())
-        )
-    }
+    val cachedModels = remember { ModelCatalogCacheState(readCachedModelCatalog(context)) }
     LaunchedEffect(catalogInfo.groups) {
         if (catalogInfo.groups.isNotEmpty()) {
-            cachedModelGroups = catalogInfo.groups
-            runCatching {
-                modelCatalogCache.edit().putString(
-                    "groups",
-                    kotlinx.serialization.json.Json.encodeToString(
-                        ListSerializer(com.deepseek.dsh.core.model.ModelProviderGroup.serializer()),
-                        catalogInfo.groups,
-                    ),
-                ).apply()
-            }
+            cachedModels.groups = catalogInfo.groups
+            writeCachedModelGroups(context, catalogInfo.groups)
         }
     }
     // 模型目录改为事件驱动（对齐官方 model picker）：`$events` 里的
     // llm/adapters-updated、settings/document-updated、credentials/*-updated
     // 会触发 DshRepository 重新拉目录，这里不再轮询。
-    var cachedModelNames by remember {
-        mutableStateOf(
-            modelCatalogCache.getString("names", "").orEmpty()
-                .split('\u0001').filter { it.isNotBlank() }
-        )
-    }
-    var cachedModelIds by remember {
-        mutableStateOf(
-            modelCatalogCache.getString("ids", "").orEmpty()
-                .split('\u0001').filter { it.isNotBlank() }
-        )
-    }
     LaunchedEffect(hostModels) {
         if (hostModels.isNotEmpty()) {
-            cachedModelNames = hostModels.map { it.name }
-            cachedModelIds = hostModels.map { it.id }
-            modelCatalogCache.edit()
-                .putString("names", cachedModelNames.joinToString("\u0001"))
-                .putString("ids", cachedModelIds.joinToString("\u0001"))
-                .apply()
+            cachedModels.names = hostModels.map { it.name }
+            cachedModels.ids = hostModels.map { it.id }
+            writeCachedModelNames(context, cachedModels.names, cachedModels.ids)
         }
     }
 
-    val currentSessionStats by dshRepository.getStatsForSession(selectedSessionId ?: "").collectAsState(
+    val currentSessionStats by dshRepository.getStatsForSession(ui.selectedSessionId ?: "").collectAsState(
         initial = com.deepseek.dsh.core.model.ComposerStats()
     )
 
     // 录音输入：权限、录音与转写由 App 负责；草稿在 ChatScreen 里，转写结果
     // 作为一次性事件传下去（官方 composer activity 的同样职责划分）。
     val voiceRecorder = remember { com.deepseek.dsh.voice.VoiceRecorder() }
-    var voiceRecording by remember { mutableStateOf(false) }
-    var voiceSeconds by remember { mutableStateOf(0) }
-    var voiceLevel by remember { mutableStateOf(0f) }
-    var voiceBusy by remember { mutableStateOf(false) }
-    var voiceError by remember { mutableStateOf<String?>(null) }
-    var voiceTranscript by remember { mutableStateOf<String?>(null) }
     val voiceEnabled = remember(dshRepository.bridgePluginCatalogFlow.value) {
         dshRepository.bridgePluginCatalogFlow.value.bundles.any {
             it.name == VoiceInputPluginUi.bundle && it.enabled
@@ -331,75 +284,75 @@ fun MainAppHost(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) {
-            voiceError = null
-            voiceSeconds = 0
-            voiceRecording = voiceRecorder.start()
-            if (!voiceRecording) voiceError = context.getString(R.string.voice_device_unsupported)
+            runtimeUi.voiceError = null
+            runtimeUi.voiceSeconds = 0
+            runtimeUi.voiceRecording = voiceRecorder.start()
+            if (!runtimeUi.voiceRecording) runtimeUi.voiceError = context.getString(R.string.voice_device_unsupported)
         } else {
-            voiceError = context.getString(R.string.voice_permission_denied)
+            runtimeUi.voiceError = context.getString(R.string.voice_permission_denied)
         }
     }
     fun startVoice() {
         val granted = context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) {
-            voiceError = null
-            voiceSeconds = 0
-            voiceRecording = voiceRecorder.start()
-            if (!voiceRecording) voiceError = context.getString(R.string.voice_device_unsupported)
+            runtimeUi.voiceError = null
+            runtimeUi.voiceSeconds = 0
+            runtimeUi.voiceRecording = voiceRecorder.start()
+            if (!runtimeUi.voiceRecording) runtimeUi.voiceError = context.getString(R.string.voice_device_unsupported)
         } else {
             voicePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
         }
     }
     fun stopVoice() {
         val wav = voiceRecorder.stop()
-        voiceRecording = false
-        voiceLevel = 0f
+        runtimeUi.voiceRecording = false
+        runtimeUi.voiceLevel = 0f
         if (wav == null) {
-            voiceError = context.getString(R.string.voice_no_speech)
+            runtimeUi.voiceError = context.getString(R.string.voice_no_speech)
             return
         }
-        voiceBusy = true
+        runtimeUi.voiceBusy = true
         scope.launch {
-            val catalog = dshRepository.speechCatalog(activeHostId).getOrNull()
+            val catalog = dshRepository.speechCatalog(ui.activeHostId).getOrNull()
             val provider = catalog?.selected
             if (catalog == null || provider == null) {
-                voiceBusy = false
-                voiceError = context.getString(R.string.voice_service_unavailable)
+                runtimeUi.voiceBusy = false
+                runtimeUi.voiceError = context.getString(R.string.voice_service_unavailable)
                 return@launch
             }
             // 本地识别器未就绪时先准备；准备失败要如实告诉用户，
             // 而不是在转写阶段抛出一个笼统的 transcription-failed。
             val phase = provider.preparation?.phase
             if (phase != "ready" && phase != "standby") {
-                voiceError = context.getString(R.string.voice_prepare_required)
-                voiceBusy = false
+                runtimeUi.voiceError = context.getString(R.string.voice_prepare_required)
+                runtimeUi.voiceBusy = false
                 return@launch
             }
             val encoded = android.util.Base64.encodeToString(wav, android.util.Base64.NO_WRAP)
-            dshRepository.speechTranscribe(activeHostId, provider.id, catalog.language, encoded).fold(
+            dshRepository.speechTranscribe(ui.activeHostId, provider.id, catalog.language, encoded).fold(
                 onSuccess = { text ->
                     if (text.isBlank()) {
-                        voiceError = context.getString(R.string.voice_no_speech)
+                        runtimeUi.voiceError = context.getString(R.string.voice_no_speech)
                     } else {
-                        voiceTranscript = text
-                        voiceError = null
+                        runtimeUi.voiceTranscript = text
+                        runtimeUi.voiceError = null
                     }
                 },
                 onFailure = { error ->
-                    voiceError = context.getString(R.string.voice_failed, error.message ?: error.toString())
+                    runtimeUi.voiceError = context.getString(R.string.voice_failed, error.message ?: error.toString())
                 },
             )
-            voiceBusy = false
+            runtimeUi.voiceBusy = false
         }
     }
     fun cancelVoice() {
         voiceRecorder.cancel()
-        voiceRecording = false
-        voiceLevel = 0f
+        runtimeUi.voiceRecording = false
+        runtimeUi.voiceLevel = 0f
     }
     DisposableEffect(voiceRecorder) {
-        voiceRecorder.onLevel = { level -> voiceLevel = level }
+        voiceRecorder.onLevel = { level -> runtimeUi.voiceLevel = level }
         onDispose {
             voiceRecorder.onLevel = null
             voiceRecorder.cancel()
@@ -420,13 +373,11 @@ fun MainAppHost(
             it.name == com.deepseek.dsh.feature.chat.ClaudeCodeModsPluginUi.BUNDLE && it.enabled
         }
     }
-    var bandSnapshot by remember { mutableStateOf<com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot?>(null) }
-    var bandPressing by remember { mutableStateOf(false) }
-    LaunchedEffect(activeHostId, selectedSessionId, claudeCodeModsEnabled) {
-        bandSnapshot = null
-        val sid = selectedSessionId
+    LaunchedEffect(ui.activeHostId, ui.selectedSessionId, claudeCodeModsEnabled) {
+        runtimeUi.bandSnapshot = null
+        val sid = ui.selectedSessionId
         if (claudeCodeModsEnabled && sid != null) {
-            dshRepository.claudeCodeBand(activeHostId, sid).collect { snapshot -> bandSnapshot = snapshot }
+            dshRepository.claudeCodeBand(ui.activeHostId, sid).collect { snapshot -> runtimeUi.bandSnapshot = snapshot }
         }
     }
 
@@ -436,13 +387,9 @@ fun MainAppHost(
             it.name == SessionInspectorPluginUi.BUNDLE && it.enabled
         }
     }
-    var sessionInspectorOpen by remember { mutableStateOf(false) }
-    var rawSessionFrames by remember {
-        mutableStateOf<List<com.deepseek.dsh.core.protocol.SessionRawFrame>>(emptyList())
-    }
-    LaunchedEffect(sessionInspectorOpen, selectedSessionId) {
-        while (sessionInspectorOpen) {
-            rawSessionFrames = selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
+    LaunchedEffect(ui.sessionInspectorOpen, ui.selectedSessionId) {
+        while (ui.sessionInspectorOpen) {
+            runtimeUi.rawSessionFrames = ui.selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
             kotlinx.coroutines.delay(1_000)
         }
     }
@@ -457,15 +404,12 @@ fun MainAppHost(
         else -> context.getString(R.string.restart_reason_generic)
     }
     // 启停插件后 Host 若要求重启或带提示，按官方做法明确告诉用户。
-    var pluginChangeNotice by remember { mutableStateOf<List<String>?>(null) }
-    var pluginRestartRunning by remember { mutableStateOf(false) }
-    var pluginRestartError by remember { mutableStateOf<String?>(null) }
-    pluginChangeNotice?.let { lines ->
+    ui.pluginChangeNotice?.let { lines ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = {
-                if (!pluginRestartRunning) {
-                    pluginChangeNotice = null
-                    pluginRestartError = null
+                if (!ui.pluginRestartRunning) {
+                    ui.pluginChangeNotice = null
+                    ui.pluginRestartError = null
                 }
             },
             title = { Text(stringResource(R.string.restart_needed_title)) },
@@ -485,7 +429,7 @@ fun MainAppHost(
                             modifier = Modifier.padding(bottom = 6.dp),
                         )
                     }
-                    pluginRestartError?.let { message ->
+                    ui.pluginRestartError?.let { message ->
                         Text(
                             text = message,
                             color = MaterialTheme.colorScheme.error,
@@ -497,60 +441,60 @@ fun MainAppHost(
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(
-                    enabled = !pluginRestartRunning,
+                    enabled = !ui.pluginRestartRunning,
                     onClick = {
                         scope.launch {
-                            pluginRestartRunning = true
-                            pluginRestartError = null
+                            ui.pluginRestartRunning = true
+                            ui.pluginRestartError = null
                             val restart = HostRuntimeHolder.restartHost?.invoke()
                                 ?: Result.failure(IllegalStateException(context.getString(R.string.host_not_ready)))
-                            pluginRestartRunning = false
+                            ui.pluginRestartRunning = false
                             if (restart.isSuccess) {
-                                pluginChangeNotice = null
+                                ui.pluginChangeNotice = null
                             } else {
-                                pluginRestartError = restart.exceptionOrNull()?.message ?: context.getString(R.string.restart_failed)
+                                ui.pluginRestartError = restart.exceptionOrNull()?.message ?: context.getString(R.string.restart_failed)
                             }
                         }
                     },
                 ) {
-                    Text(if (pluginRestartRunning) stringResource(R.string.restarting) else stringResource(R.string.restart_now))
+                    Text(if (ui.pluginRestartRunning) stringResource(R.string.restarting) else stringResource(R.string.restart_now))
                 }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(
-                    enabled = !pluginRestartRunning,
+                    enabled = !ui.pluginRestartRunning,
                     onClick = {
-                        pluginChangeNotice = null
-                        pluginRestartError = null
+                        ui.pluginChangeNotice = null
+                        ui.pluginRestartError = null
                     },
                 ) { Text(stringResource(R.string.restart_later)) }
             },
         )
     }
-    if (sessionInspectorOpen) {
+    if (ui.sessionInspectorOpen) {
         SessionInspectorOverlayDialog(
-            frames = rawSessionFrames,
-            sessionId = selectedSessionId,
-            onDismiss = { sessionInspectorOpen = false },
+            frames = runtimeUi.rawSessionFrames,
+            sessionId = ui.selectedSessionId,
+            onDismiss = { ui.sessionInspectorOpen = false },
         )
     }
 
     fun pressClaudeCodeBand(generation: Long, actionId: String) {
-        val sid = selectedSessionId ?: return
+        val sid = ui.selectedSessionId ?: return
         scope.launch {
-            bandPressing = true
-            dshRepository.pressClaudeCodeBand(activeHostId, sid, generation, actionId)
-                .onSuccess { snapshot -> if (snapshot != null) bandSnapshot = snapshot }
-            bandPressing = false
+            runtimeUi.bandPressing = true
+            dshRepository.pressClaudeCodeBand(ui.activeHostId, sid, generation, actionId)
+                .onSuccess { snapshot -> if (snapshot != null) runtimeUi.bandSnapshot = snapshot }
+            runtimeUi.bandPressing = false
         }
     }
 
-    LaunchedEffect(voiceRecording) {
-        while (voiceRecording) {
+    LaunchedEffect(runtimeUi.voiceRecording) {
+        while (runtimeUi.voiceRecording) {
             kotlinx.coroutines.delay(1_000)
-            voiceSeconds += 1
+            runtimeUi.voiceSeconds += 1
             // Host 的录音上限是 120 秒（catalog.maxDurationSeconds），到点自动停止。
-            if (voiceSeconds >= 120) {
+            if (runtimeUi.voiceSeconds >= 120) {
                 stopVoice()
                 break
             }
@@ -573,54 +517,48 @@ fun MainAppHost(
     // 官方/插件归属由后端决定（bridge 的 host-slots 归属），只在需要时读一次。
     val officialModelNamespaces = dshRepository.officialSettingsNamespaces()
 
-    var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
-    var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
-    var modelCredentialsRaw by remember { mutableStateOf<String?>(null) }
     // 已注册（可路由）的 provider：官方添加目录会排除它们，改由各自卡片配置。
-    var registeredProviderIds by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val automationTasks by dshRepository.automationTasksFlow.collectAsState()
     val teamTasks by dshRepository.teamTasksFlow.collectAsState()
     val agentTeam by dshRepository.agentTeamFlow.collectAsState()
-    var agentTeamLoading by remember { mutableStateOf(false) }
     // 团队动作只在「智能体团队」profile 启用时出现（官方由插件注册 header action）。
     val agentTeamEnabled = remember(bridgePluginCatalog) {
         dshRepository.bridgePluginCatalogFlow.value.bundles.any {
             it.name == AgentTeamPluginUi.BUNDLE && it.enabled
         }
     }
-    LaunchedEffect(selectedSessionId, activeHostId, agentTeamEnabled) {
+    LaunchedEffect(ui.selectedSessionId, ui.activeHostId, agentTeamEnabled) {
         if (agentTeamEnabled) {
-            agentTeamLoading = true
-            dshRepository.refreshAgentTeam(activeHostId, selectedSessionId)
-            agentTeamLoading = false
+            runtimeUi.agentTeamLoading = true
+            dshRepository.refreshAgentTeam(ui.activeHostId, ui.selectedSessionId)
+            runtimeUi.agentTeamLoading = false
         }
     }
-    LaunchedEffect(activeHostId, selectedSessionId, messages.size) {
-        selectedSessionId?.let { sid ->
-            dshRepository.refreshSessionStats(activeHostId, sid)
+    LaunchedEffect(ui.activeHostId, ui.selectedSessionId, messages.size) {
+        ui.selectedSessionId?.let { sid ->
+            dshRepository.refreshSessionStats(ui.activeHostId, sid)
         }
     }
 
     // 运行中定期刷新底部统计（tok/s、缓存命中、上下文占用），结束后再刷新一次落定。
-    LaunchedEffect(activeHostId, selectedSessionId, sessionRunningNow) {
-        val sid = selectedSessionId ?: return@LaunchedEffect
+    LaunchedEffect(ui.activeHostId, ui.selectedSessionId, sessionRunningNow) {
+        val sid = ui.selectedSessionId ?: return@LaunchedEffect
         if (sessionRunningNow) {
             while (true) {
-                dshRepository.refreshSessionStats(activeHostId, sid)
+                dshRepository.refreshSessionStats(ui.activeHostId, sid)
                 kotlinx.coroutines.delay(1200)
             }
         } else {
-            dshRepository.refreshSessionStats(activeHostId, sid)
+            dshRepository.refreshSessionStats(ui.activeHostId, sid)
         }
     }
 
     // 订阅插件额度：composer dock 上方的用量窗口（如 Kimi 5 小时额度）。
-    var quotaUsage by remember { mutableStateOf<List<com.deepseek.dsh.feature.chat.ComposerQuota>>(emptyList()) }
-    LaunchedEffect(activeHostId, sessionRunningNow) {
+    LaunchedEffect(ui.activeHostId, sessionRunningNow) {
         while (true) {
-            quotaUsage = parseQuotaWindows(
-                dshRepository.pluginRpc(activeHostId, "subscription-oauth.status", "{}").getOrNull(),
+            runtimeUi.quotaUsage = parseQuotaWindows(
+                dshRepository.pluginRpc(ui.activeHostId, "subscription-oauth.status", "{}").getOrNull(),
                 quotaLabel = context.getString(R.string.quota_label),
             )
             kotlinx.coroutines.delay(if (sessionRunningNow) 15_000L else 60_000L)
@@ -631,21 +569,18 @@ fun MainAppHost(
     // runtime 模块不认识数据层，而重启需要当前工作区路径，只有这里知道。
     // 真正的安装（下载 tag 归档、解压进 rootfs）由 HostRuntimeManager 完成。
 
-    LaunchedEffect(activeHostId) {
-        dshRepository.refreshSessions(activeHostId)
-        dshRepository.refreshModelCatalog(activeHostId)
-        dshRepository.refreshPluginInventory(activeHostId)
+    LaunchedEffect(ui.activeHostId) {
+        dshRepository.refreshSessions(ui.activeHostId)
+        dshRepository.refreshModelCatalog(ui.activeHostId)
+        dshRepository.refreshPluginInventory(ui.activeHostId)
         // bridge 目录与 Host 原生清单并行读取：前者带来官方 slot 与图形，
         // 后者是它不可用时的兜底，两者互不阻塞。
         dshRepository.refreshBridgePluginCatalog()
         dshRepository.refreshPluginSettingsPages()
-        dshRepository.refreshAutomationTasks(activeHostId)
-        dshRepository.refreshTeamTasks(activeHostId)
+        dshRepository.refreshAutomationTasks(ui.activeHostId)
+        dshRepository.refreshTeamTasks(ui.activeHostId)
         // 这里不能订阅远程流：Host 还没绑定地址（占位 127.0.0.1:1）时开九个
         // WebSocket 只会全部连接失败。订阅放到 Host 就绪（port 非空）之后。
-    }
-    val onboardingPreferences = remember {
-        com.deepseek.dsh.feature.runtime.OnboardingPreferences(context)
     }
 
     val backupAndDiag = remember {
@@ -658,9 +593,8 @@ fun MainAppHost(
         com.deepseek.dsh.runtime.host.PluginBundleInstaller(context, layout)
     }
     // App 安装器挂过的包名：用来区分「随安装自带」的官方插件和用户后来装的。
-    var managedPluginPackages by remember { mutableStateOf(emptySet<String>()) }
     LaunchedEffect(appPluginInstaller) {
-        managedPluginPackages = runCatching { appPluginInstaller.managedPackages() }
+        runtimeUi.managedPluginPackages = runCatching { appPluginInstaller.managedPackages() }
             .getOrDefault(emptySet())
     }
 
@@ -721,7 +655,7 @@ fun MainAppHost(
      */
     fun queueCompanionApkUninstalls(jsPackageName: String) {
         val normalized = jsPackageName.substringAfterLast('/').substringBefore('@')
-        nativePluginItems
+        runtimeUi.nativePluginItems
             .filter { it.installed && it.packageName != null && it.jsPackage != null }
             .filter { item ->
                 val declared = item.jsPackage!!
@@ -800,7 +734,7 @@ fun MainAppHost(
                             layout.rootfsDir,
                             "root/.dsh/profiles/web/node_modules/$pkgName/package.json",
                         ).isFile
-                        val managed = managedPluginPackages.any {
+                        val managed = runtimeUi.managedPluginPackages.any {
                             it.equals(pkgName, ignoreCase = true) || it.equals(jsPackage, ignoreCase = true)
                         }
                         if (!inProfile && !managed) {
@@ -812,7 +746,7 @@ fun MainAppHost(
                     }
                 }
             }
-            nativePluginItems = discovered.map { installed ->
+            runtimeUi.nativePluginItems = discovered.map { installed ->
                 com.deepseek.dsh.plugin.nativehost.NativePluginItem(
                     pluginId = installed.pluginId,
                     name = installed.pluginId.substringAfterLast('.'),
@@ -836,15 +770,8 @@ fun MainAppHost(
             }
         }
     }
-    var activeSheetSurface by remember { mutableStateOf<SurfaceItem?>(null) }
-    var activeOverlaySurface by remember { mutableStateOf<SurfaceItem?>(null) }
     // 反向联动：刚装的 JS 插件有原生伴侣时，这里带上它的声明，UI 提示可装。
-    var nativeCompanionAvailable by remember {
-        mutableStateOf<com.deepseek.dsh.core.bridge.BridgeNativeCompanion?>(null)
-    }
     // 从“JS 已装、伴生 APK 可装”跳转时，直接打开插件商店的对应仓库详情。
-    var pluginStoreSeedUrl by remember { mutableStateOf<String?>(null) }
-    var pluginInitialTab by remember { mutableStateOf(0) }
 
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
@@ -861,52 +788,40 @@ fun MainAppHost(
     val sessionQueuedMessages by dshRepository.queuedMessagesFlow.collectAsState()
     // 终端页状态：屏幕缓冲（去 ANSI）、状态行、可写标志。
     // Host 客户端是否已绑定到真实地址（决定能否开远程流）。
-    var localHostBound by remember { mutableStateOf(false) }
     // 未读奖励提示（官方 account/getUnnotifiedBonuses）；无奖励时什么都不渲染。
     AccountBonusHost(
         repository = dshRepository,
-        hostId = activeHostId,
-        hostBound = localHostBound,
+        hostId = ui.activeHostId,
+        hostBound = runtimeUi.localHostBound,
     )
 
-    var terminalBuffer by remember { mutableStateOf("") }
-    var terminalStatus by remember { mutableStateOf("") }
-    var terminalWritable by remember { mutableStateOf(false) }
     // 多终端（官方 terminal/list）：页签集合、当前页签、可用 shell。
-    var terminalList by remember {
-        mutableStateOf<List<com.deepseek.dsh.core.model.TerminalInfo>>(emptyList())
-    }
-    var activeTerminalId by remember { mutableStateOf("main") }
-    var terminalShells by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var terminalConnection by remember {
-        mutableStateOf<com.deepseek.dsh.core.protocol.TerminalConnection?>(null)
-    }
     // ANSI 屏幕模型：光标定位/清屏由它处理，渲染文本给 UI。
     val terminalBufferModel = remember { TerminalBuffer(cols = 80, rows = 24) }
-    DisposableEffect(activePage, selectedSessionId, activeTerminalId) {
-        val sid = selectedSessionId
+    DisposableEffect(ui.activePage, ui.selectedSessionId, runtimeUi.activeTerminalId) {
+        val sid = ui.selectedSessionId
         var job: kotlinx.coroutines.Job? = null
-        if (activePage == ActivePage.TERMINAL && sid != null) {
+        if (ui.activePage == ActivePage.TERMINAL && sid != null) {
             job = scope.launch {
-                terminalList = dshRepository.listTerminals(activeHostId, sid)
-                terminalShells = dshRepository.listTerminalShells(activeHostId, sid)
-                if (terminalList.none { it.id == activeTerminalId }) {
+                runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
+                runtimeUi.terminalShells = dshRepository.listTerminalShells(ui.activeHostId, sid)
+                if (runtimeUi.terminalList.none { it.id == runtimeUi.activeTerminalId }) {
                     val created = dshRepository.createTerminal(
-                        activeHostId, sid, activeTerminalId, shellPath = null, cols = 80, rows = 24,
+                        ui.activeHostId, sid, runtimeUi.activeTerminalId, shellPath = null, cols = 80, rows = 24,
                     )
                     if (created != null) {
-                        terminalList = dshRepository.listTerminals(activeHostId, sid)
+                        runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
                     }
                 }
                 val connection = dshRepository.openTerminal(
-                    activeHostId, sid, 80, 24, activeTerminalId,
+                    ui.activeHostId, sid, 80, 24, runtimeUi.activeTerminalId,
                 )
                 if (connection == null) {
-                    terminalStatus = context.getString(R.string.terminal_unavailable)
+                    runtimeUi.terminalStatus = context.getString(R.string.terminal_unavailable)
                     return@launch
                 }
-                terminalConnection = connection
-                terminalStatus = context.getString(R.string.terminal_connecting)
+                runtimeUi.terminalConnection = connection
+                runtimeUi.terminalStatus = context.getString(R.string.terminal_connecting)
                 connection.frames.collect { raw ->
                     val frame = runCatching {
                         kotlinx.serialization.json.Json.parseToJsonElement(raw)
@@ -918,29 +833,29 @@ fun MainAppHost(
                     when (text("type")) {
                         "snapshot" -> {
                             terminalBufferModel.setScreen(text("screen").orEmpty())
-                            terminalBuffer = terminalBufferModel.render()
-                            terminalWritable = frame["writable"]?.toString() == "true"
+                            runtimeUi.terminalBuffer = terminalBufferModel.render()
+                            runtimeUi.terminalWritable = frame["writable"]?.toString() == "true"
                             val info = frame["info"]
                                 as? kotlinx.serialization.json.JsonObject
-                            terminalStatus = (info?.get("state")
+                            runtimeUi.terminalStatus = (info?.get("state")
                                 as? kotlinx.serialization.json.JsonPrimitive)
                                 ?.contentOrNull.orEmpty()
                         }
                         "output" -> {
                             terminalBufferModel.feed(text("data").orEmpty())
-                            terminalBuffer = terminalBufferModel.render()
+                            runtimeUi.terminalBuffer = terminalBufferModel.render()
                         }
                         "state" -> {
-                            terminalWritable = frame["writable"]?.toString() == "true"
+                            runtimeUi.terminalWritable = frame["writable"]?.toString() == "true"
                             val info = frame["info"]
                                 as? kotlinx.serialization.json.JsonObject
-                            terminalStatus = (info?.get("state")
+                            runtimeUi.terminalStatus = (info?.get("state")
                                 as? kotlinx.serialization.json.JsonPrimitive)
                                 ?.contentOrNull.orEmpty()
                         }
-                        "closed" -> terminalStatus =
+                        "closed" -> runtimeUi.terminalStatus =
                             context.getString(R.string.terminal_closed)
-                        "error" -> terminalStatus =
+                        "error" -> runtimeUi.terminalStatus =
                             text("message").orEmpty()
                     }
                 }
@@ -948,57 +863,57 @@ fun MainAppHost(
         }
         onDispose {
             job?.cancel()
-            terminalConnection?.close()
-            terminalConnection = null
+            runtimeUi.terminalConnection?.close()
+            runtimeUi.terminalConnection = null
         }
     }
     // 斜杠命令目录跟着会话走；commands/change 事件也会触发刷新。
-    LaunchedEffect(activeHostId, selectedSessionId) {
-        val sid = selectedSessionId
+    LaunchedEffect(ui.activeHostId, ui.selectedSessionId) {
+        val sid = ui.selectedSessionId
         if (sid != null) {
-            runCatching { dshRepository.refreshHostCommands(activeHostId, sid) }
-            runCatching { dshRepository.refreshHostSkills(activeHostId, sid) }
+            runCatching { dshRepository.refreshHostCommands(ui.activeHostId, sid) }
+            runCatching { dshRepository.refreshHostSkills(ui.activeHostId, sid) }
         }
     }
     // job/list 跟着当前会话走。
-    LaunchedEffect(activeHostId, selectedSessionId, localHostBound) {
-        val sid = selectedSessionId
+    LaunchedEffect(ui.activeHostId, ui.selectedSessionId, runtimeUi.localHostBound) {
+        val sid = ui.selectedSessionId
         // Host 未绑定时 baseUrl 还是占位 127.0.0.1:1，开流只会连接失败。
-        val bound = localHostBound || currentAppSettings.remoteHostUrl.isNotBlank()
+        val bound = runtimeUi.localHostBound || ui.currentAppSettings.remoteHostUrl.isNotBlank()
         if (sid != null && bound) {
-            dshRepository.watchJobs(activeHostId, sid)
+            dshRepository.watchJobs(ui.activeHostId, sid)
             // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
-            dshRepository.watchSession(activeHostId, sid)
+            dshRepository.watchSession(ui.activeHostId, sid)
             // 轨迹面板的帧来源（同样走桥，不增加 MainAppHost 参数）。
-            ScheduleBridge.wire(dshRepository, activeHostId, scope)
+            ScheduleBridge.wire(dshRepository, ui.activeHostId, scope)
             com.deepseek.dsh.feature.chat.WorkflowRunsBridge.provider = {
-                selectedSessionId?.let { dshRepository.workflowRuns(it) } ?: emptyList()
+                ui.selectedSessionId?.let { dshRepository.workflowRuns(it) } ?: emptyList()
             }
             com.deepseek.dsh.feature.settings.SessionLogUploadBridge.wire(
-                dshRepository, activeHostId, scope,
+                dshRepository, ui.activeHostId, scope,
             )
             // 默认权限预设：选项与当前值都来自 Host（catalog + settings）。
             com.deepseek.dsh.feature.settings.PermissionPresetBridge.wire(
-                dshRepository, activeHostId, scope,
+                dshRepository, ui.activeHostId, scope,
             )
             // 外观（深浅色）与字号来自 Host 的 ui-theme 设置。
             com.deepseek.dsh.feature.settings.ThemeBridge.wire(
-                dshRepository, activeHostId, scope,
+                dshRepository, ui.activeHostId, scope,
             )
             // 会话日志导出（官方 /api/session.export）。
             com.deepseek.dsh.feature.chat.MessageActionBridge.exportSession = {
-                selectedSessionId?.let { session ->
-                    scope.launch { performSessionExport(context, dshRepository, activeHostId, session) }
+                ui.selectedSessionId?.let { session ->
+                    scope.launch { performSessionExport(context, dshRepository, ui.activeHostId, session) }
                 }
             }
             // 消息级操作：从某条消息分叉（session/fork + atSeq）。
             com.deepseek.dsh.feature.chat.MessageActionBridge.forkAt = { seq ->
-                selectedSessionId?.let { session ->
+                ui.selectedSessionId?.let { session ->
                     scope.launch {
-                        val forked = dshRepository.forkSession(activeHostId, session, seq)
+                        val forked = dshRepository.forkSession(ui.activeHostId, session, seq)
                         if (forked != null) {
-                            selectedSessionId = forked
-                            runCatching { dshRepository.watchSession(activeHostId, forked) }
+                            ui.selectedSessionId = forked
+                            runCatching { dshRepository.watchSession(ui.activeHostId, forked) }
                         } else {
                             android.widget.Toast.makeText(
                                 context,
@@ -1014,24 +929,24 @@ fun MainAppHost(
                 dshRepository.messageImagesFlow.value
             }
             com.deepseek.dsh.feature.chat.MessageMediaBridge.load = { ref ->
-                selectedSessionId?.let {
-                    dshRepository.loadAttachmentImage(activeHostId, it, ref.attachmentId)
+                ui.selectedSessionId?.let {
+                    dshRepository.loadAttachmentImage(ui.activeHostId, it, ref.attachmentId)
                 }
             }
             com.deepseek.dsh.feature.chat.SessionFramesBridge.provider = {
-                selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
+                ui.selectedSessionId?.let { dshRepository.rawSessionFrames(it) } ?: emptyList()
             }
             // 消息反馈能力以桥接注入 chat 模块（避免给 MainAppHost 增加参数）。
             com.deepseek.dsh.feature.chat.MessageFeedbackBridge.refresh = {
-                selectedSessionId?.let { dshRepository.listMessageFeedback(activeHostId, it) }
+                ui.selectedSessionId?.let { dshRepository.listMessageFeedback(ui.activeHostId, it) }
                     ?: emptyMap()
             }
             com.deepseek.dsh.feature.chat.MessageFeedbackBridge.submit = { messageId, rating, note ->
-                selectedSessionId?.let { session ->
+                ui.selectedSessionId?.let { session ->
                     scope.launch {
                         com.deepseek.dsh.feature.chat.MessageFeedbackBridge.items =
                             dshRepository.submitMessageFeedback(
-                                activeHostId, session, messageId, rating, note,
+                                ui.activeHostId, session, messageId, rating, note,
                             )
                     }
                 }
@@ -1046,35 +961,32 @@ fun MainAppHost(
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
-            modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
-            modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
+            runtimeUi.modelSettingsRaw = dshRepository.rpcRaw(ui.activeHostId, "settings/describe", "{}").getOrNull()
+            runtimeUi.modelProvidersRaw = dshRepository.rpcRaw(ui.activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
             val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
-                modelProvidersRaw, modelSettingsRaw, null, officialModelNamespaces
+                runtimeUi.modelProvidersRaw, runtimeUi.modelSettingsRaw, null, officialModelNamespaces
             ).map { it.keyRef }.distinct()
             val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
-            modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
-            dshRepository.refreshModelCatalog(activeHostId)
-            dshRepository.refreshPluginInventory(activeHostId)
+            runtimeUi.modelCredentialsRaw = dshRepository.rpcRaw(ui.activeHostId, "credentials/describe", refsJson).getOrNull()
+            dshRepository.refreshModelCatalog(ui.activeHostId)
+            dshRepository.refreshPluginInventory(ui.activeHostId)
         }
     }
     val dshApplication = context.applicationContext as DshApplication
 
     // Host 目录优先；Host 冷启动期间用上次缓存立即渲染，避免“请选择模型”闪烁。
-    val effectiveModelNames = remember(hostModelNames, cachedModelNames) {
-        if (hostModelNames.isNotEmpty()) hostModelNames else cachedModelNames
+    val effectiveModelNames = remember(hostModelNames, cachedModels.names) {
+        if (hostModelNames.isNotEmpty()) hostModelNames else cachedModels.names
     }
     val effectiveModelIdByName = remember(
-        hostModelNames, hostModelIdByName, cachedModelNames, cachedModelIds
+        hostModelNames, hostModelIdByName, cachedModels.names, cachedModels.ids
     ) {
         if (hostModelNames.isNotEmpty()) hostModelIdByName
-        else cachedModelNames.zip(cachedModelIds).toMap()
+        else cachedModels.names.zip(cachedModels.ids).toMap()
     }
     val availableModelNames = effectiveModelNames.distinct()
 
     // 官方账号菜单的登录入口：浏览器 OAuth 为主，API Key 为备选（与官方 SignInDialog 一致）。
-    var showSignInDialog by remember { mutableStateOf(false) }
-    var showApiKeyDialog by remember { mutableStateOf(false) }
-    var apiKeyInput by remember { mutableStateOf("") }
     val openUrl: (String) -> Unit = { url ->
         val intent = android.content.Intent(
             android.content.Intent.ACTION_VIEW,
@@ -1084,37 +996,35 @@ fun MainAppHost(
     }
 
     // 官方 account/watch：登录中/已存凭据/退出都由 Host 推送，整个登录流程不再轮询。
-    var signInPending by remember { mutableStateOf(false) }
-    var signInOpenedUrl by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(activeHostId) {
+    LaunchedEffect(ui.activeHostId) {
         kotlinx.coroutines.coroutineScope {
             launch {
                 dshRepository.hostAccountFlow.collect { view ->
-                    val pending = signInPending
+                    val pending = ui.signInPending
                     when (view?.status) {
                         "credential-stored" -> {
-                            signInPending = false
-                            signInOpenedUrl = null
+                            ui.signInPending = false
+                            ui.signInOpenedUrl = null
                             if (!oauthManager.accountFlow.value.isSignedIn) {
-                                val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
-                                val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
+                                val profile = dshRepository.getAccountProfile(ui.activeHostId).getOrNull()
+                                val balance = dshRepository.getAccountBalance(ui.activeHostId).getOrNull()
                                 oauthManager.applyHostAccount(profile, balance)
                             }
                         }
                         "signed-out" -> {
-                            signInPending = false
+                            ui.signInPending = false
                             if (oauthManager.accountFlow.value.isSignedIn) oauthManager.signOut()
                         }
                         else -> if (pending && view != null) {
                             // Host 异步拿到平台授权链接后由 watch 推送，不需要 getState 轮询。
                             val url = view.authorizeUrl
-                            if (!url.isNullOrBlank() && url != signInOpenedUrl) {
-                                signInOpenedUrl = url
+                            if (!url.isNullOrBlank() && url != ui.signInOpenedUrl) {
+                                ui.signInOpenedUrl = url
                                 openUrl(url)
                             }
                             if (view.attemptPhase in setOf("failed", "expired", "cancelled")) {
-                                signInPending = false
-                                signInOpenedUrl = null
+                                ui.signInPending = false
+                                ui.signInOpenedUrl = null
                                 android.widget.Toast.makeText(
                                     context,
                                     context.getString(R.string.login_incomplete),
@@ -1131,14 +1041,14 @@ fun MainAppHost(
             }
             launch {
                 // 模型需要重新登录账号：直接打开官方登录入口。
-                dshRepository.modelSignInRequiredFlow.collect { showSignInDialog = true }
+                dshRepository.modelSignInRequiredFlow.collect { ui.showSignInDialog = true }
             }
         }
     }
 
     val hostSignOut: () -> Unit = {
         scope.launch {
-            dshRepository.signOutAccount(activeHostId)
+            dshRepository.signOutAccount(ui.activeHostId)
             oauthManager.signOut()
         }
     }
@@ -1147,24 +1057,24 @@ fun MainAppHost(
     // 链接与登录结果都由 account/watch 推送；这里只负责发起 + 兜底提示。
     val beginHostSignIn: () -> Unit = {
         scope.launch {
-            signInPending = true
-            signInOpenedUrl = null
+            ui.signInPending = true
+            ui.signInOpenedUrl = null
             val callbackOrigin = dshApplication.defaultClient.currentBaseUrl()
-            var view = dshRepository.startAccountSignIn(activeHostId, callbackOrigin).getOrNull()
+            var view = dshRepository.startAccountSignIn(ui.activeHostId, callbackOrigin).getOrNull()
             if (view == null) {
                 // Host 冷启动需要时间；等待就绪后再重试，而不是直接报错。
                 runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
                 repeat(10) {
                     kotlinx.coroutines.delay(2000)
                     view = dshRepository.startAccountSignIn(
-                        activeHostId,
+                        ui.activeHostId,
                         dshApplication.defaultClient.currentBaseUrl()
                     ).getOrNull()
                     if (view != null) return@repeat
                 }
             }
             if (view == null) {
-                signInPending = false
+                ui.signInPending = false
                 android.widget.Toast.makeText(
                     context,
                     context.getString(R.string.login_failed_host),
@@ -1173,16 +1083,16 @@ fun MainAppHost(
                 return@launch
             }
             when {
-                view.status == "credential-stored" -> signInPending = false
+                view.status == "credential-stored" -> ui.signInPending = false
                 !view.authorizeUrl.isNullOrBlank() -> {
-                    signInOpenedUrl = view.authorizeUrl
+                    ui.signInOpenedUrl = view.authorizeUrl
                     openUrl(view.authorizeUrl!!)
                 }
                 else -> {
                     // 链接由 watch 异步推送；30 秒还拿不到就提示失败。
                     kotlinx.coroutines.delay(30_000)
-                    if (signInPending && signInOpenedUrl == null) {
-                        signInPending = false
+                    if (ui.signInPending && ui.signInOpenedUrl == null) {
+                        ui.signInPending = false
                         android.widget.Toast.makeText(
                             context,
                             context.getString(R.string.login_failed_link),
@@ -1191,11 +1101,11 @@ fun MainAppHost(
                     }
                 }
             }
-            if (signInPending) {
+            if (ui.signInPending) {
                 // 授权页停留超时：watch 没有报成功/失败时提示一次。
                 kotlinx.coroutines.delay(10 * 60_000)
-                if (signInPending) {
-                    signInPending = false
+                if (ui.signInPending) {
+                    ui.signInPending = false
                     android.widget.Toast.makeText(
                         context,
                         context.getString(R.string.login_incomplete),
@@ -1210,30 +1120,30 @@ fun MainAppHost(
     LaunchedEffect(status.phase, status.port, status.token) {
         val port = status.port
         if (port != null) {
-            if (currentAppSettings.remoteHostUrl.isBlank()) {
+            if (ui.currentAppSettings.remoteHostUrl.isBlank()) {
                 dshApplication.bindLocalHost(port, status.token)
             }
-            dshRepository.refreshSessions(activeHostId)
-            modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
-            modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
+            dshRepository.refreshSessions(ui.activeHostId)
+            runtimeUi.modelSettingsRaw = dshRepository.rpcRaw(ui.activeHostId, "settings/describe", "{}").getOrNull()
+            runtimeUi.modelProvidersRaw = dshRepository.rpcRaw(ui.activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
             val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
-                modelProvidersRaw, modelSettingsRaw, null, officialModelNamespaces
+                runtimeUi.modelProvidersRaw, runtimeUi.modelSettingsRaw, null, officialModelNamespaces
             ).map { it.keyRef }.distinct()
             val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
-            modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
-            dshRepository.refreshModelCatalog(activeHostId)
-            dshRepository.refreshPluginInventory(activeHostId)
-            dshRepository.refreshAutomationTasks(activeHostId)
-            dshRepository.refreshTeamTasks(activeHostId)
+            runtimeUi.modelCredentialsRaw = dshRepository.rpcRaw(ui.activeHostId, "credentials/describe", refsJson).getOrNull()
+            dshRepository.refreshModelCatalog(ui.activeHostId)
+            dshRepository.refreshPluginInventory(ui.activeHostId)
+            dshRepository.refreshAutomationTasks(ui.activeHostId)
+            dshRepository.refreshTeamTasks(ui.activeHostId)
             val baseUrl = dshApplication.defaultClient.currentBaseUrl()
             if (baseUrl.endsWith(":1")) {
                 android.util.Log.w("DSH", "Host not bound yet, skip remote streams: $baseUrl")
             } else {
-                localHostBound = true
-                dshRepository.subscribeRemoteEvents(activeHostId)
+                runtimeUi.localHostBound = true
+                dshRepository.subscribeRemoteEvents(ui.activeHostId)
                 // App 显示语言同步给 Host：英文界面下 Host 返回的文案也用英文。
                 val appLanguage = context.resources.configuration.locales[0].language
-                dshRepository.syncHostLocale(activeHostId, appLanguage)
+                dshRepository.syncHostLocale(ui.activeHostId, appLanguage)
             }
             // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
             // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
@@ -1245,17 +1155,7 @@ fun MainAppHost(
 
     // 首次启动先准备 rootfs：未安装/未下载完成之前不进入 onboarding。
     // 已安装过就直接视为就绪，避免重新打开时闪一下安装进度条；首次安装仍走 null→安装。
-    var rootfsReady by remember { mutableStateOf<Boolean?>(null) }
-    var rootfsSetupProgress by remember { mutableStateOf(0f to context.getString(R.string.runtime_checking)) }
-    var rootfsSetupError by remember { mutableStateOf<String?>(null) }
-    var rootfsInstallAttempt by remember { mutableStateOf(0) }
 
-    var rootfsUpdateAvailable by remember { mutableStateOf(false) }
-    var installedRootfsVersion by remember { mutableStateOf<String?>(null) }
-    var availableRootfsVersion by remember { mutableStateOf<String?>(null) }
-    var showRootfsUpdatePrompt by remember { mutableStateOf(false) }
-    var rootfsUpdateBannerDismissed by remember { mutableStateOf(false) }
-    var forceRootfsInstall by remember { mutableStateOf(false) }
 
     /**
      * 只在镜像**必需**重装时才在启动时提示。
@@ -1264,31 +1164,31 @@ fun MainAppHost(
      * 返回 MANDATORY。插件落后不在这里处理 —— 那是设置页的职责，且可以就地升级，
      * 不该在启动时打断用户。
      */
-    LaunchedEffect(rootfsReady) {
-        if (rootfsReady != true) return@LaunchedEffect
+    LaunchedEffect(runtimeUi.rootfsReady) {
+        if (runtimeUi.rootfsReady != true) return@LaunchedEffect
         val installed = runtimeManager.installedRootfsVersion()
         val available = runtimeManager.availableRootfsVersion()
-        installedRootfsVersion = installed
-        availableRootfsVersion = available
+        runtimeUi.installedRootfsVersion = installed
+        runtimeUi.availableRootfsVersion = available
         val kind = runCatching { runtimeManager.rootfsUpdateKind() }
             .getOrDefault(com.deepseek.dsh.runtime.host.RootfsUpdateKind.NONE)
         val mandatory = kind == com.deepseek.dsh.runtime.host.RootfsUpdateKind.MANDATORY
-        rootfsUpdateAvailable = mandatory
-        showRootfsUpdatePrompt = mandatory
+        runtimeUi.rootfsUpdateAvailable = mandatory
+        runtimeUi.showRootfsUpdatePrompt = mandatory
     }
 
-    if (showRootfsUpdatePrompt) {
+    if (runtimeUi.showRootfsUpdatePrompt) {
         com.deepseek.dsh.core.designsystem.DshDialog(
-            onDismiss = { showRootfsUpdatePrompt = false },
+            onDismiss = { runtimeUi.showRootfsUpdatePrompt = false },
             title = stringResource(R.string.runtime_update_title),
             closeLabel = stringResource(R.string.runtime_update_later),
-            description = stringResource(R.string.runtime_update_desc, availableRootfsVersion ?: "", installedRootfsVersion ?: ""),
+            description = stringResource(R.string.runtime_update_desc, runtimeUi.availableRootfsVersion ?: "", runtimeUi.installedRootfsVersion ?: ""),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.runtime_update_later),
                     primary = false,
                     enabled = true,
-                    onClick = { showRootfsUpdatePrompt = false },
+                    onClick = { runtimeUi.showRootfsUpdatePrompt = false },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
@@ -1296,12 +1196,12 @@ fun MainAppHost(
                     primary = true,
                     enabled = true,
                     onClick = {
-                        showRootfsUpdatePrompt = false
-                        forceRootfsInstall = true
-                        rootfsReady = false
+                        runtimeUi.showRootfsUpdatePrompt = false
+                        runtimeUi.forceRootfsInstall = true
+                        runtimeUi.rootfsReady = false
                         scope.launch {
                             runCatching { runtimeManager.stop() }
-                            rootfsInstallAttempt += 1
+                            runtimeUi.rootfsInstallAttempt += 1
                         }
                     },
                 )
@@ -1310,10 +1210,10 @@ fun MainAppHost(
     }
 
 
-    LaunchedEffect(rootfsInstallAttempt) {
+    LaunchedEffect(runtimeUi.rootfsInstallAttempt) {
         if (runtimeManager.isRootfsInstalled()) {
-            forceRootfsInstall = false
-            rootfsReady = true
+            runtimeUi.forceRootfsInstall = false
+            runtimeUi.rootfsReady = true
             return@LaunchedEffect
         }
         // 旧版 rootfs 仍完整可用时不要自动覆盖：只在**必需**重装时提示，
@@ -1324,30 +1224,30 @@ fun MainAppHost(
             java.io.File(context.filesDir, "rootfs/usr/bin/env").isFile
         val kind = runCatching { runtimeManager.rootfsUpdateKind() }
             .getOrDefault(com.deepseek.dsh.runtime.host.RootfsUpdateKind.NONE)
-        if (!forceRootfsInstall && rootfsFilesPresent &&
+        if (!runtimeUi.forceRootfsInstall && rootfsFilesPresent &&
             kind == com.deepseek.dsh.runtime.host.RootfsUpdateKind.MANDATORY
         ) {
-            installedRootfsVersion = installedVersion
-            availableRootfsVersion = availableVersion
-            rootfsUpdateAvailable = true
-            showRootfsUpdatePrompt = true
-            rootfsReady = true
+            runtimeUi.installedRootfsVersion = installedVersion
+            runtimeUi.availableRootfsVersion = availableVersion
+            runtimeUi.rootfsUpdateAvailable = true
+            runtimeUi.showRootfsUpdatePrompt = true
+            runtimeUi.rootfsReady = true
             return@LaunchedEffect
         }
-        rootfsReady = false
-        rootfsSetupError = null
+        runtimeUi.rootfsReady = false
+        runtimeUi.rootfsSetupError = null
         val result = runtimeManager.installRootfs { progress, message ->
-            rootfsSetupProgress = progress to message
+            runtimeUi.rootfsSetupProgress = progress to message
         }
         result.exceptionOrNull()?.let { error ->
-            rootfsSetupError = error.message ?: context.getString(R.string.rootfs_install_failed)
+            runtimeUi.rootfsSetupError = error.message ?: context.getString(R.string.rootfs_install_failed)
         }
-        if (result.isSuccess) rootfsReady = true
+        if (result.isSuccess) runtimeUi.rootfsReady = true
     }
 
     // rootfs 就绪后再拉起本地 Host，避免在未安装时产生启动错误。
-    LaunchedEffect(rootfsReady) {
-        if (rootfsReady == true &&
+    LaunchedEffect(runtimeUi.rootfsReady) {
+        if (runtimeUi.rootfsReady == true &&
             (status.phase == RuntimePhase.STOPPED ||
                 status.phase == RuntimePhase.UNINSTALLED ||
                 status.phase == RuntimePhase.ERROR)
@@ -1358,7 +1258,7 @@ fun MainAppHost(
         }
     }
 
-    if (rootfsReady == null) {
+    if (runtimeUi.rootfsReady == null) {
         HostStartupSplash(
             phase = RuntimePhase.STARTING,
             title = stringResource(R.string.runtime_checking),
@@ -1367,18 +1267,18 @@ fun MainAppHost(
         return
     }
 
-    if (rootfsReady != true) {
+    if (runtimeUi.rootfsReady != true) {
         RootfsSetupScreen(
-            progress = rootfsSetupProgress.first,
-            message = rootfsSetupProgress.second,
-            error = rootfsSetupError,
-            onRetry = { rootfsInstallAttempt++ },
+            progress = runtimeUi.rootfsSetupProgress.first,
+            message = runtimeUi.rootfsSetupProgress.second,
+            error = runtimeUi.rootfsSetupError,
+            onRetry = { runtimeUi.rootfsInstallAttempt++ },
         )
         return
     }
 
     // 首次进入必须先授予「所有文件访问权限」，否则不能进入引导/主界面。
-    if (!hasAllFilesAccess) {
+    if (!ui.hasAllFilesAccess) {
         StoragePermissionGate(onRequest = openAllFilesSettings)
         return
     }
@@ -1386,17 +1286,13 @@ fun MainAppHost(
     // 已安装后的每次重新打开：等 Host 真正就绪（markReady / RUNNING）再进 UI。
     // 不能只看 endpoint/port：DSH 打印 Web URL 前端口可能已经监听，此时模型、
     // 插件与会话接口还没准备好，提前进主界面会看到空状态或“未就绪”报错。
-    var hostProgressReady by remember { mutableStateOf(false) }
-    var hostStartupError by remember { mutableStateOf(false) }
-    var hostStartupDetail by remember { mutableStateOf<String?>(null) }
-    var hostRetryKey by remember { mutableStateOf(0) }
-    LaunchedEffect(rootfsReady, hostRetryKey) {
-        if (rootfsReady != true) return@LaunchedEffect
+    LaunchedEffect(runtimeUi.rootfsReady, runtimeUi.hostRetryKey) {
+        if (runtimeUi.rootfsReady != true) return@LaunchedEffect
         val startedAt = System.currentTimeMillis()
-        while (!hostProgressReady) {
+        while (!runtimeUi.hostProgressReady) {
             if (System.currentTimeMillis() - startedAt > 90_000L) {
-                hostStartupError = true
-                hostStartupDetail = context.getString(R.string.host_startup_timeout)
+                runtimeUi.hostStartupError = true
+                runtimeUi.hostStartupDetail = context.getString(R.string.host_startup_timeout)
                 break
             }
             val current = runCatching { runtimeManager.getStatus() }.getOrNull()
@@ -1406,30 +1302,30 @@ fun MainAppHost(
             }
             when {
                 current.phase == RuntimePhase.RUNNING -> {
-                    hostProgressReady = true
-                    hostStartupError = false
-                    hostStartupDetail = null
+                    runtimeUi.hostProgressReady = true
+                    runtimeUi.hostStartupError = false
+                    runtimeUi.hostStartupDetail = null
                 }
                 current.phase == RuntimePhase.ERROR -> {
-                    hostStartupError = true
-                    hostStartupDetail = null
+                    runtimeUi.hostStartupError = true
+                    runtimeUi.hostStartupDetail = null
                     break
                 }
                 else -> kotlinx.coroutines.delay(300)
             }
         }
     }
-    if (rootfsReady == true && !hostProgressReady) {
+    if (runtimeUi.rootfsReady == true && !runtimeUi.hostProgressReady) {
         HostStartupSplash(
-            phase = if (hostStartupError) RuntimePhase.ERROR else RuntimePhase.STARTING,
+            phase = if (runtimeUi.hostStartupError) RuntimePhase.ERROR else RuntimePhase.STARTING,
             // 失败原因和最近输出必须显示在这里：启动页是唯一入口，只给一个
             // 「重试」按钮会让用户既修不了、也没法把原因发出来。
-            detail = hostStartupDetail ?: if (hostStartupError) status.lastError else null,
-            logTail = if (hostStartupError) status.logTail else emptyList(),
+            detail = runtimeUi.hostStartupDetail ?: if (runtimeUi.hostStartupError) status.lastError else null,
+            logTail = if (runtimeUi.hostStartupError) status.logTail else emptyList(),
             onRetry = {
-                hostStartupError = false
-                hostStartupDetail = null
-                hostRetryKey += 1
+                runtimeUi.hostStartupError = false
+                runtimeUi.hostStartupDetail = null
+                runtimeUi.hostRetryKey += 1
                 scope.launch {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         runCatching { runtimeManager.start(activeWorkspace.absolutePath) }
@@ -1438,14 +1334,13 @@ fun MainAppHost(
             },
             // Host 起不来时仍允许进入应用：设置 → 移动运行时 有完整日志，
             // 也可以在那里导出脱敏诊断包。
-            onContinue = { hostProgressReady = true },
+            onContinue = { runtimeUi.hostProgressReady = true },
         )
         return
     }
     // 首次打开引导：完全替代旧 Landing 页，完成后写入本地进度，仅首次展示。
-    var showOnboarding by remember { mutableStateOf(!onboardingPreferences.isCompleted) }
 
-    if (showOnboarding) {
+    if (runtimeUi.showOnboarding) {
         val funded = accountState.wallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 } ||
             accountState.bonusWallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 }
         com.deepseek.dsh.feature.runtime.OnboardingScreen(
@@ -1461,24 +1356,22 @@ fun MainAppHost(
             },
             onComplete = { result ->
                 onboardingPreferences.save(result)
-                val updated = currentAppSettings.copy(
+                val updated = ui.currentAppSettings.copy(
                     showCodingView = result.developerTools,
                     transcriptView = result.process.storageValue,
                 )
-                currentAppSettings = updated
+                ui.currentAppSettings = updated
                 scope.launch { settingsRepository.updateSettings { updated } }
-                showOnboarding = false
+                runtimeUi.showOnboarding = false
             }
         )
         return
     }
 
-    var workspaceRevision by remember { mutableStateOf(0) }
-    var activeWorkspaceName by remember { mutableStateOf(DEFAULT_WORKSPACE_DIR_NAME) }
     // 文件夹名保持固定（用于磁盘路径），界面上按当前语言显示。
     val defaultWorkspaceLabel = stringResource(R.string.workspace_default)
-    val activeWorkspaceCwd = "/workspace/$activeWorkspaceName"
-    val activeWorkspaceFolderPath = java.io.File(activeWorkspace, activeWorkspaceName).absolutePath
+    val activeWorkspaceCwd = "/workspace/$runtimeUi.activeWorkspaceName"
+    val activeWorkspaceFolderPath = java.io.File(activeWorkspace, runtimeUi.activeWorkspaceName).absolutePath
 
     // 真正的系统文件选择器（SAF）：可多选图片/任意文件，复制进当前工作区后
     // 在输入卡片显示；发送时以 @<工作区路径> 附在消息开头。
@@ -1486,7 +1379,7 @@ fun MainAppHost(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris: List<android.net.Uri> ->
         if (uris.isNotEmpty()) {
-            val workspaceDir = java.io.File(activeWorkspace, activeWorkspaceName)
+            val workspaceDir = java.io.File(activeWorkspace, runtimeUi.activeWorkspaceName)
             // 大文件复制放 IO 线程，避免卡住输入法/界面。
             scope.launch {
                 val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1497,7 +1390,7 @@ fun MainAppHost(
                         chatAttachments.add(added)
                     }
                 }
-                workspaceRevision += 1
+                runtimeUi.workspaceRevision += 1
                 result.skipped.forEach { name ->
                     android.widget.Toast.makeText(
                         context,
@@ -1508,32 +1401,11 @@ fun MainAppHost(
             }
         }
     }
-    var showAddWorkspaceDialog by remember { mutableStateOf(false) }
-    var newWorkspaceName by remember { mutableStateOf("") }
-    var renameWorkspaceFolder by remember {
-        mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
-    }
-    var renameWorkspaceName by remember { mutableStateOf("") }
-    var renameSessionTarget by remember {
-        mutableStateOf<com.deepseek.dsh.feature.sessions.SessionDisplayItem?>(null)
-    }
-    var renameSessionTitle by remember { mutableStateOf("") }
-    var remoteSearchResults by remember {
-        mutableStateOf<List<Pair<String, String>>>(emptyList())
-    }
     // job/follow 输出窗：目标任务、聚合输出、结算状态行。
-    var jobOutputTarget by remember {
-        mutableStateOf<com.deepseek.dsh.core.protocol.HostJobInfo?>(null)
-    }
-    var jobOutputText by remember { mutableStateOf("") }
-    var jobOutputStatus by remember { mutableStateOf<String?>(null) }
-    var deleteWorkspaceFolder by remember {
-        mutableStateOf<com.deepseek.dsh.feature.sessions.WorkspaceFolder?>(null)
-    }
 
     // bridge 插件更新后需要两件事：读到「正在运行」的版本（bridge manifest），
     // 以及重启 Host 让新代码加载。两者都只有 App 层能提供，因此注入给 runtime。
-    DisposableEffect(activeHostId, activeWorkspace.absolutePath) {
+    DisposableEffect(ui.activeHostId, activeWorkspace.absolutePath) {
         HostRuntimeHolder.runningBridgeVersionProvider = {
             runCatching { dshRepository.bridgePluginVersion(forceRefresh = true) }.getOrNull()
         }
@@ -1556,7 +1428,7 @@ fun MainAppHost(
     // bundle 只补一次，避免反复触发 Host 重载。
     val restoredBundles = remember { mutableSetOf<String>() }
     // 轮询协程只启动一次，用 latest-value 快照读当前会话，避免拿到旧值。
-    val currentSessionForTeam by androidx.compose.runtime.rememberUpdatedState(selectedSessionId)
+    val currentSessionForTeam by androidx.compose.runtime.rememberUpdatedState(ui.selectedSessionId)
     LaunchedEffect(Unit) {
         var ticks = 0
         while (true) {
@@ -1574,10 +1446,10 @@ fun MainAppHost(
                 if (missing.isNotEmpty()) {
                     missing.forEach { name -> restoredBundles += name }
                     missing.forEach { name ->
-                        runCatching { dshRepository.setBundleEnabled(activeHostId, name, true) }
+                        runCatching { dshRepository.setBundleEnabled(ui.activeHostId, name, true) }
                     }
                     runCatching { dshRepository.refreshBridgePluginCatalog() }
-                    runCatching { dshRepository.refreshPluginInventory(activeHostId) }
+                    runCatching { dshRepository.refreshPluginInventory(ui.activeHostId) }
                 }
             }
             // 插件界面的入口不能只依赖「Host 状态刚变成有端口」那一刻：Host 冷启动时
@@ -1594,7 +1466,7 @@ fun MainAppHost(
                     it.name == AgentTeamPluginUi.BUNDLE && it.enabled
                 }
                 if (teamOn) {
-                    runCatching { dshRepository.refreshAgentTeam(activeHostId, currentSessionForTeam) }
+                    runCatching { dshRepository.refreshAgentTeam(ui.activeHostId, currentSessionForTeam) }
                 }
             }
             runCatching {
@@ -1609,9 +1481,9 @@ fun MainAppHost(
             }
         }
     }
-    if (showAddWorkspaceDialog) {
+    if (runtimeUi.showAddWorkspaceDialog) {
         com.deepseek.dsh.core.designsystem.DshDialog(
-            onDismiss = { showAddWorkspaceDialog = false },
+            onDismiss = { runtimeUi.showAddWorkspaceDialog = false },
             title = stringResource(R.string.workspace_new_title),
             closeLabel = stringResource(R.string.action_close),
             footer = {
@@ -1619,80 +1491,80 @@ fun MainAppHost(
                     text = stringResource(R.string.action_cancel),
                     primary = false,
                     enabled = true,
-                    onClick = { showAddWorkspaceDialog = false },
+                    onClick = { runtimeUi.showAddWorkspaceDialog = false },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.action_create),
                     primary = true,
-                    enabled = newWorkspaceName.isNotBlank(),
+                    enabled = runtimeUi.newWorkspaceName.isNotBlank(),
                     onClick = {
-                        val name = newWorkspaceName.trim()
+                        val name = runtimeUi.newWorkspaceName.trim()
                         if (name.isNotEmpty()) {
                             val dir = java.io.File(activeWorkspace, name)
                             dir.mkdirs()
-                            activeWorkspaceName = name
-                            workspaceRevision += 1
+                            runtimeUi.activeWorkspaceName = name
+                            runtimeUi.workspaceRevision += 1
                             scope.launch {
-                                dshRepository.createWorkspace(activeHostId, dir.absolutePath)
+                                dshRepository.createWorkspace(ui.activeHostId, dir.absolutePath)
                             }
                         }
-                        showAddWorkspaceDialog = false
+                        runtimeUi.showAddWorkspaceDialog = false
                     },
                 )
             },
             content = {
                 com.deepseek.dsh.core.designsystem.DshTextInput(
-                    value = newWorkspaceName,
-                    onValueChange = { newWorkspaceName = it },
+                    value = runtimeUi.newWorkspaceName,
+                    onValueChange = { runtimeUi.newWorkspaceName = it },
                     placeholder = stringResource(R.string.workspace_name_placeholder),
                 )
             },
         )
     }
-    renameWorkspaceFolder?.let { folder ->
+    runtimeUi.renameWorkspaceFolder?.let { folder ->
         com.deepseek.dsh.core.designsystem.DshDialog(
-            onDismiss = { renameWorkspaceFolder = null },
+            onDismiss = { runtimeUi.renameWorkspaceFolder = null },
             title = stringResource(R.string.workspace_rename_title),
             closeLabel = stringResource(R.string.action_close),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.action_cancel), primary = false, enabled = true,
-                    onClick = { renameWorkspaceFolder = null },
+                    onClick = { runtimeUi.renameWorkspaceFolder = null },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.action_save), primary = true,
-                    enabled = renameWorkspaceName.isNotBlank(),
+                    enabled = runtimeUi.renameWorkspaceName.isNotBlank(),
                     onClick = {
                         val target = java.io.File(
                             folder.path.ifBlank { java.io.File(activeWorkspace, folder.name).absolutePath }
                         )
-                        val renamed = java.io.File(target.parentFile, renameWorkspaceName.trim())
+                        val renamed = java.io.File(target.parentFile, runtimeUi.renameWorkspaceName.trim())
                         if (target.exists() && renamed.absolutePath != target.absolutePath) {
                             runCatching { target.renameTo(renamed) }
-                            if (folder.name == activeWorkspaceName) activeWorkspaceName = renameWorkspaceName.trim()
-                            workspaceRevision += 1
+                            if (folder.name == runtimeUi.activeWorkspaceName) runtimeUi.activeWorkspaceName = runtimeUi.renameWorkspaceName.trim()
+                            runtimeUi.workspaceRevision += 1
                             // Host 工作区跟着改名（先按原路径找 workspaceId）。
                             val hostWorkspace = hostWorkspaces.firstOrNull { it.path == folder.path }
                             if (hostWorkspace != null) {
                                 scope.launch {
                                     dshRepository.workspaceRename(
-                                        activeHostId,
+                                        ui.activeHostId,
                                         hostWorkspace.id,
-                                        renameWorkspaceName.trim(),
+                                        runtimeUi.renameWorkspaceName.trim(),
                                     )
                                 }
                             }
                         }
-                        renameWorkspaceFolder = null
+                        runtimeUi.renameWorkspaceFolder = null
                     },
                 )
             },
             content = {
                 com.deepseek.dsh.core.designsystem.DshTextInput(
-                    value = renameWorkspaceName,
-                    onValueChange = { renameWorkspaceName = it },
+                    value = runtimeUi.renameWorkspaceName,
+                    onValueChange = { runtimeUi.renameWorkspaceName = it },
                     placeholder = stringResource(R.string.workspace_name_placeholder),
                 )
             },
@@ -1700,26 +1572,26 @@ fun MainAppHost(
     }
 
     // 会话重命名：官方 `session/rename`。
-    renameSessionTarget?.let { target ->
+    runtimeUi.renameSessionTarget?.let { target ->
         com.deepseek.dsh.core.designsystem.DshDialog(
-            onDismiss = { renameSessionTarget = null },
+            onDismiss = { runtimeUi.renameSessionTarget = null },
             title = stringResource(R.string.row_rename),
             closeLabel = stringResource(R.string.action_close),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.action_cancel), primary = false, enabled = true,
-                    onClick = { renameSessionTarget = null },
+                    onClick = { runtimeUi.renameSessionTarget = null },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.action_save), primary = true,
-                    enabled = renameSessionTitle.isNotBlank(),
+                    enabled = runtimeUi.renameSessionTitle.isNotBlank(),
                     onClick = {
-                        val title = renameSessionTitle.trim()
-                        renameSessionTarget = null
+                        val title = runtimeUi.renameSessionTitle.trim()
+                        runtimeUi.renameSessionTarget = null
                         if (title.isNotEmpty() && title != target.title) {
                             scope.launch {
-                                dshRepository.renameSession(activeHostId, target.sessionId, title)
+                                dshRepository.renameSession(ui.activeHostId, target.sessionId, title)
                             }
                         }
                     },
@@ -1727,8 +1599,8 @@ fun MainAppHost(
             },
             content = {
                 com.deepseek.dsh.core.designsystem.DshTextInput(
-                    value = renameSessionTitle,
-                    onValueChange = { renameSessionTitle = it },
+                    value = runtimeUi.renameSessionTitle,
+                    onValueChange = { runtimeUi.renameSessionTitle = it },
                     placeholder = stringResource(R.string.row_rename),
                 )
             },
@@ -1743,7 +1615,7 @@ fun MainAppHost(
             as? kotlinx.serialization.json.JsonPrimitive)?.content
         fun answer(approved: Boolean) {
             scope.launch {
-                dshRepository.respondApprovalWaterfall(activeHostId, waterfall.eventId, approved)
+                dshRepository.respondApprovalWaterfall(ui.activeHostId, waterfall.eventId, approved)
             }
         }
         com.deepseek.dsh.core.designsystem.DshDialog(
@@ -1775,13 +1647,13 @@ fun MainAppHost(
             questions = questions,
             onSubmit = { answers ->
                 scope.launch {
-                    dshRepository.respondUserQuestion(activeHostId, waterfall.eventId, answers)
+                    dshRepository.respondUserQuestion(ui.activeHostId, waterfall.eventId, answers)
                 }
             },
             onDismiss = {
                 scope.launch {
                     dshRepository.respondUserQuestion(
-                        activeHostId,
+                        ui.activeHostId,
                         waterfall.eventId,
                         "{\"answers\":[]}",
                     )
@@ -1791,25 +1663,25 @@ fun MainAppHost(
     }
 
     // job/follow 输出窗。
-    jobOutputTarget?.let { job ->
+    runtimeUi.jobOutputTarget?.let { job ->
         JobOutputDialog(
             job = job,
-            output = jobOutputText,
-            statusLine = jobOutputStatus,
-            onDismiss = { jobOutputTarget = null },
+            output = runtimeUi.jobOutputText,
+            statusLine = runtimeUi.jobOutputStatus,
+            onDismiss = { runtimeUi.jobOutputTarget = null },
         )
     }
 
-    deleteWorkspaceFolder?.let { folder ->
+    runtimeUi.deleteWorkspaceFolder?.let { folder ->
         com.deepseek.dsh.core.designsystem.DshDialog(
-            onDismiss = { deleteWorkspaceFolder = null },
+            onDismiss = { runtimeUi.deleteWorkspaceFolder = null },
             title = stringResource(R.string.workspace_delete_title),
             closeLabel = stringResource(R.string.action_close),
             description = stringResource(R.string.workspace_delete_desc, folder.name),
             footer = {
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
                     text = stringResource(R.string.action_cancel), primary = false, enabled = true,
-                    onClick = { deleteWorkspaceFolder = null },
+                    onClick = { runtimeUi.deleteWorkspaceFolder = null },
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 com.deepseek.dsh.core.designsystem.DshDialogButton(
@@ -1821,12 +1693,12 @@ fun MainAppHost(
                         // 先取消 Host 注册，再删本地目录。
                         val hostWorkspace = hostWorkspaces.firstOrNull { it.path == folder.path }
                         if (hostWorkspace != null) {
-                            scope.launch { dshRepository.deleteWorkspace(activeHostId, hostWorkspace.id) }
+                            scope.launch { dshRepository.deleteWorkspace(ui.activeHostId, hostWorkspace.id) }
                         }
                         runCatching { target.deleteRecursively() }
-                        if (folder.name == activeWorkspaceName) activeWorkspaceName = DEFAULT_WORKSPACE_DIR_NAME
-                        workspaceRevision += 1
-                        deleteWorkspaceFolder = null
+                        if (folder.name == runtimeUi.activeWorkspaceName) runtimeUi.activeWorkspaceName = DEFAULT_WORKSPACE_DIR_NAME
+                        runtimeUi.workspaceRevision += 1
+                        runtimeUi.deleteWorkspaceFolder = null
                     },
                 )
             },
@@ -1834,12 +1706,10 @@ fun MainAppHost(
     }
     // 文件页：展示工作区（Host 只能看到 Documents/DSH-Workpace），
     // 手机其它位置的文件用系统 picker 选后复制进工作区做「中转」。
-    var filesRevision by remember { mutableStateOf(0) }
-    var filesDir by remember(activeWorkspace) { mutableStateOf(activeWorkspace) }
-    DisposableEffect(activePage, filesDir) {
-        val observer = if (activePage == ActivePage.FILES) {
+    DisposableEffect(ui.activePage, ui.filesDir) {
+        val observer = if (ui.activePage == ActivePage.FILES) {
             object : android.os.FileObserver(
-                filesDir.absolutePath,
+                ui.filesDir.absolutePath,
                 android.os.FileObserver.CREATE or
                     android.os.FileObserver.DELETE or
                     android.os.FileObserver.MOVED_FROM or
@@ -1849,7 +1719,7 @@ fun MainAppHost(
                     android.os.FileObserver.CLOSE_WRITE,
             ) {
                 override fun onEvent(event: Int, path: String?) {
-                    filesRevision += 1
+                    runtimeUi.filesRevision += 1
                 }
             }.apply { startWatching() }
         } else {
@@ -1857,8 +1727,8 @@ fun MainAppHost(
         }
         onDispose { observer?.stopWatching() }
     }
-    val files = remember(activePage, filesDir, filesRevision) {
-        workspaceManager.listFiles(filesDir)
+    val files = remember(ui.activePage, ui.filesDir, runtimeUi.filesRevision) {
+        workspaceManager.listFiles(ui.filesDir)
     }
     // 全文件选择器 → 复制进当前浏览目录（工作区内），Host 才能访问。
     val filesImportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -1867,10 +1737,10 @@ fun MainAppHost(
         if (uris.isNotEmpty()) {
             scope.launch {
                 val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    com.deepseek.dsh.AttachmentImporter.importInto(context, filesDir, uris)
+                    com.deepseek.dsh.AttachmentImporter.importInto(context, ui.filesDir, uris)
                 }
-                filesRevision += 1
-                workspaceRevision += 1
+                runtimeUi.filesRevision += 1
+                runtimeUi.workspaceRevision += 1
                 if (result.added.isNotEmpty()) {
                     android.widget.Toast.makeText(
                         context,
@@ -1894,7 +1764,7 @@ fun MainAppHost(
 
 
     val workspaceFolders = remember(
-        sessions, selectedSessionId, activeWorkspace, workspaceRevision, hostWorkspaces,
+        sessions, ui.selectedSessionId, activeWorkspace, runtimeUi.workspaceRevision, hostWorkspaces,
     ) {
         // 根目录 DSH-Workspace 本身不是工作区，只展示其子文件夹。
         val workspaceDirs = workspaceManager.listWorkspaceDirectories(activeWorkspace)
@@ -1939,7 +1809,7 @@ fun MainAppHost(
                                 else -> context.getString(R.string.time_days, (elapsed / (24 * 60 * 60 * 1000)).toInt())
                             }
                         },
-                        isActiveDot = (s.sessionId == selectedSessionId)
+                        isActiveDot = (s.sessionId == ui.selectedSessionId)
                     )
                 },
                 isExpanded = idx == 0
@@ -1960,8 +1830,8 @@ fun MainAppHost(
                     },
                     onUpdateClick = {
                         scope.launch { drawerState.close() }
-                        settingsInitialSection = com.deepseek.dsh.feature.settings.SettingsSectionTab.UPDATE
-                        activePage = ActivePage.SETTINGS
+                        ui.settingsInitialSection = com.deepseek.dsh.feature.settings.SettingsSectionTab.UPDATE
+                        ui.activePage = ActivePage.SETTINGS
                     },
                     userTag = if (accountState.isSignedIn) {
                         stringResource(R.string.account_official_tag)
@@ -1970,43 +1840,43 @@ fun MainAppHost(
                     },
                     accountBalance = accountState.wallets.firstOrNull()?.let { formatAmount(it.balance) } ?: "¥0.00",
                     isSignedIn = accountState.isSignedIn,
-                    onSignIn = { showSignInDialog = true },
+                    onSignIn = { ui.showSignInDialog = true },
                     onSignOut = hostSignOut,
                     workspaces = workspaceFolders,
                     workspaceDisplayName = { name ->
                         if (name == DEFAULT_WORKSPACE_DIR_NAME) defaultWorkspaceLabel else name
                     },
-                    selectedWorkspaceName = activeWorkspaceName,
-                    onSelectWorkspace = { folder -> activeWorkspaceName = folder.name },
-                    selectedSessionId = selectedSessionId,
+                    selectedWorkspaceName = runtimeUi.activeWorkspaceName,
+                    onSelectWorkspace = { folder -> runtimeUi.activeWorkspaceName = folder.name },
+                    selectedSessionId = ui.selectedSessionId,
                     onSelectSession = { sessionId ->
-                        selectedSessionId = sessionId
-                        activePage = ActivePage.CHAT
+                        ui.selectedSessionId = sessionId
+                        ui.activePage = ActivePage.CHAT
                         scope.launch { drawerState.close() }
                     },
                     onRenameSession = { item ->
-                        renameSessionTarget = item
-                        renameSessionTitle = item.title
+                        runtimeUi.renameSessionTarget = item
+                        runtimeUi.renameSessionTitle = item.title
                     },
                     onTogglePinSession = { item ->
                         scope.launch {
-                            dshRepository.setSessionPinned(activeHostId, item.sessionId, !item.pinned)
+                            dshRepository.setSessionPinned(ui.activeHostId, item.sessionId, !item.pinned)
                         }
                     },
                     onToggleArchiveSession = { item ->
                         scope.launch {
-                            dshRepository.setSessionArchived(activeHostId, item.sessionId, !item.archived)
+                            dshRepository.setSessionArchived(ui.activeHostId, item.sessionId, !item.archived)
                         }
                     },
-                    remoteSearchResults = remoteSearchResults,
+                    remoteSearchResults = runtimeUi.remoteSearchResults,
                     onSearchQueryChange = { query ->
                         if (query.isBlank()) {
-                            remoteSearchResults = emptyList()
+                            runtimeUi.remoteSearchResults = emptyList()
                         } else {
                             scope.launch {
-                                val hits = dshRepository.searchSessions(activeHostId, query)
+                                val hits = dshRepository.searchSessions(ui.activeHostId, query)
                                 val titles = sessions.associate { it.sessionId to it.title }
-                                remoteSearchResults = hits.map { hit ->
+                                runtimeUi.remoteSearchResults = hits.map { hit ->
                                     val title = titles[hit.sessionId]
                                     hit.sessionId to if (title.isNullOrBlank()) {
                                         hit.snippet
@@ -2019,10 +1889,10 @@ fun MainAppHost(
                     },
                     onForkSession = { item ->
                         scope.launch {
-                            val forked = dshRepository.forkSession(activeHostId, item.sessionId)
+                            val forked = dshRepository.forkSession(ui.activeHostId, item.sessionId)
                             if (forked != null) {
-                                selectedSessionId = forked
-                                activePage = ActivePage.CHAT
+                                ui.selectedSessionId = forked
+                                ui.activePage = ActivePage.CHAT
                                 drawerState.close()
                             } else {
                                 android.widget.Toast.makeText(
@@ -2036,50 +1906,50 @@ fun MainAppHost(
                     onNewChatClick = {
                         // 官方行为：新会话在发出第一条消息前不创建 Host 会话；
                         // 离开后自然消失，不会留下空白会话。
-                        selectedSessionId = null
-                        activePage = ActivePage.CHAT
+                        ui.selectedSessionId = null
+                        ui.activePage = ActivePage.CHAT
                         scope.launch { drawerState.close() }
                     },
                     onNavigatePlugins = {
                         scope.launch {
                             drawerState.close()
-                            activePage = ActivePage.PLUGINS
+                            ui.activePage = ActivePage.PLUGINS
                         }
                     },
                     onNavigateTerminal = {
                         scope.launch {
                             drawerState.close()
-                            activePage = ActivePage.TERMINAL
+                            ui.activePage = ActivePage.TERMINAL
                         }
                     },
                     onNavigateSchedule = {
                         scope.launch {
                             drawerState.close()
-                            activePage = ActivePage.AUTOMATION
+                            ui.activePage = ActivePage.AUTOMATION
                         }
                     },
                     onNavigateRuntime = {
                         scope.launch {
                             drawerState.close()
-                            activePage = ActivePage.RUNTIME
+                            ui.activePage = ActivePage.RUNTIME
                         }
                     },
                     onNavigateFiles = {
                         scope.launch {
                             drawerState.close()
-                            activePage = ActivePage.FILES
+                            ui.activePage = ActivePage.FILES
                         }
                     },
                     onAddWorkspace = {
-                        newWorkspaceName = ""
-                        showAddWorkspaceDialog = true
+                        runtimeUi.newWorkspaceName = ""
+                        runtimeUi.showAddWorkspaceDialog = true
                     },
                     onRenameWorkspace = { folder ->
-                        renameWorkspaceFolder = folder
-                        renameWorkspaceName = folder.name
+                        runtimeUi.renameWorkspaceFolder = folder
+                        runtimeUi.renameWorkspaceName = folder.name
                     },
                     onDeleteWorkspace = { folder ->
-                        deleteWorkspaceFolder = folder
+                        runtimeUi.deleteWorkspaceFolder = folder
                     },
                     onMoveWorkspace = { folder, delta ->
                         val index = hostWorkspaces.indexOfFirst { it.path == folder.path }
@@ -2094,7 +1964,7 @@ fun MainAppHost(
                                 ?.id
                             scope.launch {
                                 dshRepository.moveWorkspace(
-                                    activeHostId,
+                                    ui.activeHostId,
                                     hostWorkspaces[index].id,
                                     beforeId,
                                 )
@@ -2104,7 +1974,7 @@ fun MainAppHost(
                     onNavigateSettings = {
                         scope.launch {
                             drawerState.close()
-                            activePage = ActivePage.SETTINGS
+                            ui.activePage = ActivePage.SETTINGS
                         }
                     }
                     )
@@ -2118,20 +1988,20 @@ fun MainAppHost(
         ) {
             // 对话页使用完整顶栏；设置页自带标题栏（不再叠加）；其余全屏页只保留返回条，
             // 避免出现双 header。
-            BackHandler(enabled = activePage != ActivePage.CHAT) {
+            BackHandler(enabled = ui.activePage != ActivePage.CHAT) {
                 // 插件子页面（详情 / 更多插件）打开时，系统返回先关子页面；顶栏返回走同一个
                 // 信号，两条返回路径的行为保持一致。
-                if (activePage == ActivePage.PLUGINS && pluginDetailOpen) {
-                    pluginBackSignal += 1
+                if (ui.activePage == ActivePage.PLUGINS && ui.pluginDetailOpen) {
+                    ui.pluginBackSignal += 1
                 } else {
-                    activePage = ActivePage.CHAT
+                    ui.activePage = ActivePage.CHAT
                 }
             }
             BackHandler(enabled = drawerState.isOpen) {
                 scope.launch { drawerState.close() }
             }
-            val chatPage = activePage == ActivePage.CHAT
-            val pageHasOwnHeader = activePage == ActivePage.SETTINGS
+            val chatPage = ui.activePage == ActivePage.CHAT
+            val pageHasOwnHeader = ui.activePage == ActivePage.SETTINGS
             Scaffold(
                 topBar = {
                     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxWidth()) {
@@ -2141,28 +2011,28 @@ fun MainAppHost(
                                 title = if (messages.isEmpty()) {
                                     ""
                                 } else {
-                                    sessions.find { it.sessionId == selectedSessionId }?.title
+                                    sessions.find { it.sessionId == ui.selectedSessionId }?.title
                                         ?: stringResource(R.string.app_name)
                                 },
                                 showModeCapsule = false,
                                 teamTasks = teamTasks,
                                 hostJobs = hostJobs,
                                 onKillJob = { job ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
-                                            dshRepository.killJob(activeHostId, sid, job.id)
+                                            dshRepository.killJob(ui.activeHostId, sid, job.id)
                                         }
                                     }
                                 },
                                 onOpenJobOutput = { job ->
-                                    jobOutputTarget = job
-                                    jobOutputText = ""
-                                    jobOutputStatus = null
+                                    runtimeUi.jobOutputTarget = job
+                                    runtimeUi.jobOutputText = ""
+                                    runtimeUi.jobOutputStatus = null
                                     scope.launch {
                                         dshRepository.followJob(
-                                            activeHostId,
-                                            job.owner ?: selectedSessionId,
+                                            ui.activeHostId,
+                                            job.owner ?: ui.selectedSessionId,
                                             job.id,
                                         ).collect { frameJson ->
                                             val frame = runCatching {
@@ -2183,7 +2053,7 @@ fun MainAppHost(
                                                             as? kotlinx.serialization.json.JsonPrimitive)
                                                             ?.content
                                                         if (!text.isNullOrEmpty()) {
-                                                            jobOutputText = (jobOutputText + text)
+                                                            runtimeUi.jobOutputText = (runtimeUi.jobOutputText + text)
                                                                 .takeLast(60000)
                                                         }
                                                     }
@@ -2197,7 +2067,7 @@ fun MainAppHost(
                                                     val detail = (settled?.get("detail")
                                                         as? kotlinx.serialization.json.JsonPrimitive)
                                                         ?.content
-                                                    jobOutputStatus = buildString {
+                                                    runtimeUi.jobOutputStatus = buildString {
                                                         append(status)
                                                         if (!detail.isNullOrBlank()) {
                                                             append(" · ")
@@ -2210,29 +2080,29 @@ fun MainAppHost(
                                     }
                                 },
                                 inspectorEnabled = sessionInspectorEnabled,
-                                onOpenInspector = { sessionInspectorOpen = true },
+                                onOpenInspector = { ui.sessionInspectorOpen = true },
                                 agentTeam = agentTeam,
-                                agentTeamLoading = agentTeamLoading,
+                                agentTeamLoading = runtimeUi.agentTeamLoading,
                                 teamEnabled = agentTeamEnabled,
-                                currentSessionId = selectedSessionId,
+                                currentSessionId = ui.selectedSessionId,
                                 onOpenMember = { memberSessionId ->
-                                    selectedSessionId = memberSessionId
-                                    activePage = ActivePage.CHAT
+                                    ui.selectedSessionId = memberSessionId
+                                    ui.activePage = ActivePage.CHAT
                                     scope.launch {
-                                        dshRepository.refreshAgentTeam(activeHostId, memberSessionId)
+                                        dshRepository.refreshAgentTeam(ui.activeHostId, memberSessionId)
                                     }
                                 },
                                 onMenuClick = { scope.launch { drawerState.open() } },
                             )
 
                             !pageHasOwnHeader -> PageBackBar(
-                                title = pageTitleOf(activePage),
+                                title = pageTitleOf(ui.activePage),
                                 onBack = {
                                     // 插件详情页打开时，App 的返回先关详情；再按一次才离开插件页。
-                                    if (activePage == ActivePage.PLUGINS && pluginDetailOpen) {
-                                        pluginBackSignal += 1
+                                    if (ui.activePage == ActivePage.PLUGINS && ui.pluginDetailOpen) {
+                                        ui.pluginBackSignal += 1
                                     } else {
-                                        activePage = ActivePage.CHAT
+                                        ui.activePage = ActivePage.CHAT
                                     }
                                 },
                             )
@@ -2261,26 +2131,26 @@ fun MainAppHost(
                     // 更新提示属于页面内容，不属于顶栏：放进内容区顶部，随内容滚动，
                     // 不再压住页面自己的标题栏。
                     Column(modifier = Modifier.fillMaxSize()) {
-                        if (rootfsUpdateAvailable && !rootfsUpdateBannerDismissed) {
+                        if (runtimeUi.rootfsUpdateAvailable && !runtimeUi.rootfsUpdateBannerDismissed) {
                             RootfsUpdateBanner(
-                                installed = installedRootfsVersion.orEmpty(),
-                                available = availableRootfsVersion.orEmpty(),
-                                onUpdate = { showRootfsUpdatePrompt = true },
-                                onDismiss = { rootfsUpdateBannerDismissed = true },
+                                installed = runtimeUi.installedRootfsVersion.orEmpty(),
+                                available = runtimeUi.availableRootfsVersion.orEmpty(),
+                                onUpdate = { runtimeUi.showRootfsUpdatePrompt = true },
+                                onDismiss = { runtimeUi.rootfsUpdateBannerDismissed = true },
                             )
                         }
                         Box(modifier = Modifier.weight(1f)) {
-                    when (activePage) {
+                    when (ui.activePage) {
                         ActivePage.CHAT -> PageContentSlot {
                             var reasoningLevel by remember {
                                 mutableStateOf(
                                     runCatching {
-                                        com.deepseek.dsh.feature.chat.ReasoningLevel.valueOf(currentAppSettings.defaultReasoningLevel)
+                                        com.deepseek.dsh.feature.chat.ReasoningLevel.valueOf(ui.currentAppSettings.defaultReasoningLevel)
                                     }.getOrDefault(com.deepseek.dsh.feature.chat.ReasoningLevel.FAST)
                                 )
                             }
 
-                            val configuredModel = activeSession?.model ?: currentAppSettings.defaultModel
+                            val configuredModel = activeSession?.model ?: ui.currentAppSettings.defaultModel
                             val modelPrefs = remember {
                                 context.getSharedPreferences("dsh_model_prefs", android.content.Context.MODE_PRIVATE)
                             }
@@ -2305,7 +2175,7 @@ fun MainAppHost(
                                 }
                             }
                             // 官方 session/control：其它客户端切了模型时同步标签。
-                            val hostModelName = selectedSessionId?.let { sid ->
+                            val hostModelName = ui.selectedSessionId?.let { sid ->
                                 hostSessionModels[sid]?.let { modelId ->
                                     effectiveModelIdByName.entries
                                         .firstOrNull { it.value == modelId }?.key
@@ -2362,15 +2232,15 @@ fun MainAppHost(
                                 hostCommands = hostCommands,
                                 skills = hostSkills,
                                 loadSkills = {
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid == null) emptyList()
-                                    else dshRepository.listSkills(activeHostId, sid)
+                                    else dshRepository.listSkills(ui.activeHostId, sid)
                                 },
                                 onRefreshSkills = {
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
-                                            runCatching { dshRepository.refreshHostSkills(activeHostId, sid) }
+                                            runCatching { dshRepository.refreshHostSkills(ui.activeHostId, sid) }
                                         }
                                     }
                                 },
@@ -2379,18 +2249,18 @@ fun MainAppHost(
                                 deliverables = sessionDeliverables,
                                 queuedMessages = sessionQueuedMessages,
                                 onQueueAction = { id, kind, text ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
-                                            dshRepository.updateQueue(activeHostId, sid, id, kind, text)
+                                            dshRepository.updateQueue(ui.activeHostId, sid, id, kind, text)
                                         }
                                     }
                                 },
                                 changes = sessionChanges,
                                 onLoadChangeDiff = { index ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid == null) null
-                                    else dshRepository.loadChangeDiff(activeHostId, sid, index)
+                                    else dshRepository.loadChangeDiff(ui.activeHostId, sid, index)
                                 },
                                 onOpenDeliverable = { file ->
                                     // Host 路径 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
@@ -2406,8 +2276,8 @@ fun MainAppHost(
                                     }
                                     val dir = localPath?.let { java.io.File(it).parentFile }
                                     if (dir != null && dir.exists()) {
-                                        filesDir = dir
-                                        activePage = ActivePage.FILES
+                                        ui.filesDir = dir
+                                        ui.activePage = ActivePage.FILES
                                     } else {
                                         android.widget.Toast.makeText(
                                             context,
@@ -2417,11 +2287,11 @@ fun MainAppHost(
                                     }
                                 },
                                 onHostCommand = { line ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
                                             val result = dshRepository.executeHostCommand(
-                                                activeHostId, sid, line,
+                                                ui.activeHostId, sid, line,
                                             )
                                             val message = result?.text
                                                 ?: result?.kind
@@ -2435,36 +2305,36 @@ fun MainAppHost(
                                     }
                                 },
                                 onLoadOlder = {
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
-                                            dshRepository.loadOlderMessages(activeHostId, sid)
+                                            dshRepository.loadOlderMessages(ui.activeHostId, sid)
                                         }
                                     }
                                 },
                                 onAnswerUserQuestion = { callId, questionId, selected ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
                                             dshRepository.answerUserQuestion(
-                                                activeHostId, sid, callId, questionId, selected
+                                                ui.activeHostId, sid, callId, questionId, selected
                                             )
                                         }
                                     }
                                 },
                                 onSendMessage = { text ->
-                                    println("DSH_SEND start text=$text selected=$selectedSessionId live=$liveSessionIds")
+                                    println("DSH_SEND start text=$text selected=$ui.selectedSessionId live=$liveSessionIds")
                                     // 斜杠命令走官方 commands/execute；Host 不认识的
                                     // 回退成普通 prompt。
                                     val commandLine = text.trim()
-                                    val commandSession = selectedSessionId
+                                    val commandSession = ui.selectedSessionId
                                     val handledAsCommand = commandLine.startsWith("/") &&
                                         commandSession != null
                                     if (handledAsCommand) {
                                         val sid = commandSession!!
                                         scope.launch {
                                             val result = dshRepository.executeHostCommand(
-                                                activeHostId, sid, commandLine,
+                                                ui.activeHostId, sid, commandLine,
                                             )
                                             if (result != null) {
                                                 val message = result.text ?: result.kind
@@ -2474,13 +2344,13 @@ fun MainAppHost(
                                                     android.widget.Toast.LENGTH_SHORT,
                                                 ).show()
                                                 dshRepository.refreshSessionStats(
-                                                    activeHostId, sid,
+                                                    ui.activeHostId, sid,
                                                 )
                                             } else {
                                                 // Host 不认识这条命令：按普通消息发送。
                                                 runCatching {
                                                     dshRepository.sendMessage(
-                                                        activeHostId, sid, commandLine,
+                                                        ui.activeHostId, sid, commandLine,
                                                     )
                                                 }
                                             }
@@ -2488,7 +2358,7 @@ fun MainAppHost(
                                     }
                                     if (!handledAsCommand) {
                                     val localId = "local_${System.nanoTime()}"
-                                    val isPlanPrompt = chatPlanMode
+                                    val isPlanPrompt = runtimeUi.chatPlanMode
                                     val outgoingText = if (isPlanPrompt) {
                                         context.getString(R.string.plan_prompt_prefix) + text
                                     } else {
@@ -2513,7 +2383,7 @@ fun MainAppHost(
                                         val file = listOf(
                                             java.io.File(relative),
                                             java.io.File(activeWorkspace, relative),
-                                            java.io.File(java.io.File(activeWorkspace, activeWorkspaceName), relative),
+                                            java.io.File(java.io.File(activeWorkspace, runtimeUi.activeWorkspaceName), relative),
                                         ).firstOrNull { it.isFile }
                                         if (file == null || !file.isFile || file.length() > 20L * 1024 * 1024) {
                                             return@mapNotNull null
@@ -2531,24 +2401,24 @@ fun MainAppHost(
                                     chatAttachments.clear()
                                     pendingMessages.add(
                                         ChatMessage(
-                                            hostId = activeHostId,
-                                            sessionId = selectedSessionId ?: "pending",
+                                            hostId = ui.activeHostId,
+                                            sessionId = ui.selectedSessionId ?: "pending",
                                             messageId = localId,
                                             role = MessageRole.USER,
                                             content = text,
                                             createdAt = System.currentTimeMillis()
                                         )
                                     )
-                                    isSending = true
+                                    runtimeUi.isSending = true
                                     scope.launch {
                                         try {
-                                        var sid = selectedSessionId
+                                        var sid = ui.selectedSessionId
                                         if (sid == null || sid !in liveSessionIds) {
                                             suspend fun createOnce(): String? = dshRepository.createSession(
-                                                activeHostId,
+                                                ui.activeHostId,
                                                 text.take(24),
                                                 activeWorkspaceCwd,
-                                                (pendingAgentPreset ?: currentAppSettings.transcriptView).takeIf { it.isNotBlank() }
+                                                (ui.pendingAgentPreset ?: ui.currentAppSettings.transcriptView).takeIf { it.isNotBlank() }
                                             ).getOrNull()?.sessionId
                                             sid = createOnce()
                                             if (sid == null) {
@@ -2562,20 +2432,20 @@ fun MainAppHost(
                                                 // Host 会把工作区目录名中的非 ASCII 码点转义为 ~XXXX。
                                                 java.io.File(
                                                     context.filesDir,
-                                                    "rootfs/root/.dsh/sessions/${workspaceSessionDirName(activeWorkspaceName)}/$sid"
+                                                    "rootfs/root/.dsh/sessions/${workspaceSessionDirName(runtimeUi.activeWorkspaceName)}/$sid"
                                                 ).mkdirs()
-                                                selectedSessionId = sid
+                                                ui.selectedSessionId = sid
                                             }
                                         }
                                         if (sid != null) {
                                             println("DSH_SEND session=$sid")
                                             dshRepository.selectModel(
-                                                activeHostId,
+                                                ui.activeHostId,
                                                 sid,
                                                 effectiveModelIdByName[currentModel] ?: currentModel,
                                                 if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
                                             )
-                                            dshRepository.sendMessage(activeHostId, sid, outgoingText, outgoingImages)
+                                            dshRepository.sendMessage(ui.activeHostId, sid, outgoingText, outgoingImages)
                                         } else {
                                             android.widget.Toast.makeText(
                                                 context, context.getString(R.string.session_create_failed), android.widget.Toast.LENGTH_LONG
@@ -2583,39 +2453,39 @@ fun MainAppHost(
                                         }
                                         } finally {
                                             pendingMessages.removeAll { it.messageId == localId }
-                                            isSending = false
+                                            runtimeUi.isSending = false
                                         }
                                     }
                                     }
                                 },
-                                isSending = isSending,
-                                workspaceName = if (activeWorkspaceName == DEFAULT_WORKSPACE_DIR_NAME) {
+                                isSending = runtimeUi.isSending,
+                                workspaceName = if (runtimeUi.activeWorkspaceName == DEFAULT_WORKSPACE_DIR_NAME) {
                                     defaultWorkspaceLabel
                                 } else {
-                                    activeWorkspaceName
+                                    runtimeUi.activeWorkspaceName
                                 },
                                 // 工作区列表来自 Host；选中即切换当前工作区，末行开新建对话框。
                                 workspaceNames = workspaceFolders.map { folder ->
                                     if (folder.name == DEFAULT_WORKSPACE_DIR_NAME) defaultWorkspaceLabel else folder.name
                                 },
-                                onWorkspaceSelected = { name -> activeWorkspaceName = name },
-                                onAddWorkspace = { newWorkspaceName = ""; showAddWorkspaceDialog = true },
+                                onWorkspaceSelected = { name -> runtimeUi.activeWorkspaceName = name },
+                                onAddWorkspace = { runtimeUi.newWorkspaceName = ""; runtimeUi.showAddWorkspaceDialog = true },
                                 onWorkspaceClick = { scope.launch { drawerState.open() } },
-                                isThinking = selectedSessionId != null && selectedSessionId in runningSessionIds,
+                                isThinking = ui.selectedSessionId != null && ui.selectedSessionId in runningSessionIds,
                                 onStopClick = {
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
-                                        scope.launch { dshRepository.cancelSession(activeHostId, sid) }
+                                        scope.launch { dshRepository.cancelSession(ui.activeHostId, sid) }
                                     }
                                 },
                                 selectedModel = currentModel,
                                 selectedModelId = effectiveModelIdByName[currentModel] ?: currentModel,
                                 onNativeModelSelect = { provider, model, effort ->
                                     runCatching {
-                                        val sid = selectedSessionId
+                                        val sid = ui.selectedSessionId
                                             ?: error(context.getString(R.string.no_active_session_fast))
                                         dshRepository.selectModel(
-                                            activeHostId,
+                                            ui.activeHostId,
                                             sid,
                                             model,
                                             provider,
@@ -2625,25 +2495,25 @@ fun MainAppHost(
                                 },
                                 availableModels = availableModelNames,
                                 agentPresetLabel = com.deepseek.dsh.feature.chat.agentPresetLabel(
-                                    pendingAgentPreset ?: currentAppSettings.transcriptView
+                                    ui.pendingAgentPreset ?: ui.currentAppSettings.transcriptView
                                 ),
-                                agentPresetSelectedId = pendingAgentPreset ?: currentAppSettings.transcriptView,
+                                agentPresetSelectedId = ui.pendingAgentPreset ?: ui.currentAppSettings.transcriptView,
                                 onAgentPresetSelected = { preset ->
                                     // 立即生效：新会话用新预设；当前会话保持原样。
-                                    pendingAgentPreset = preset
+                                    ui.pendingAgentPreset = preset
                                     scope.launch {
                                         settingsRepository.updateSettings { current ->
                                             current.copy(transcriptView = preset)
                                         }
                                     }
-                                },                                modelGroups = catalogInfo.groups.ifEmpty { cachedModelGroups },
+                                },                                modelGroups = catalogInfo.groups.ifEmpty { cachedModels.groups },
                                 onModelSelected = { provider, modelId, name ->
                                     // provider/模型 id 直接来自 Host 模型目录的分组，
                                     // 不再按名字猜 provider（否则 Claude/Kimi 会被写成 deepseek-*）。
-                                    selectedSessionId?.let { sid ->
+                                    ui.selectedSessionId?.let { sid ->
                                         scope.launch {
                                             dshRepository.selectModel(
-                                                activeHostId,
+                                                ui.activeHostId,
                                                 sid,
                                                 modelId.ifBlank {
                                                     effectiveModelIdByName[name] ?: name
@@ -2667,9 +2537,9 @@ fun MainAppHost(
                                         com.deepseek.dsh.feature.chat.PermissionPreset.AUTO_REVIEW -> "auto_review"
                                         else -> "workspace_write"
                                     }
-                                    selectedSessionId?.let { sid ->
+                                    ui.selectedSessionId?.let { sid ->
                                         scope.launch {
-                                            dshRepository.selectPermissionPreset(activeHostId, sid, presetStr)
+                                            dshRepository.selectPermissionPreset(ui.activeHostId, sid, presetStr)
                                         }
                                     }
                                 },
@@ -2683,9 +2553,9 @@ fun MainAppHost(
                                         settingsRepository.updateSettings { current ->
                                             current.copy(defaultReasoningLevel = option.id)
                                         }
-                                        selectedSessionId?.let { sid ->
+                                        ui.selectedSessionId?.let { sid ->
                                             dshRepository.selectModel(
-                                                activeHostId,
+                                                ui.activeHostId,
                                                 sid,
                                                 effectiveModelIdByName[currentModel] ?: currentModel,
                                                 currentProviderGroup?.id,
@@ -2701,29 +2571,29 @@ fun MainAppHost(
                                     }
                                 },
                                 stats = currentSessionStats,
-                                quotaUsage = quotaUsage,
+                                quotaUsage = runtimeUi.quotaUsage,
                                 voiceEnabled = voiceEnabled,
-                                voiceRecording = voiceRecording,
-                                voiceSeconds = voiceSeconds,
-                                voiceLevel = voiceLevel,
-                                voiceBusy = voiceBusy,
-                                voiceError = voiceError,
-                                voiceTranscript = voiceTranscript,
+                                voiceRecording = runtimeUi.voiceRecording,
+                                voiceSeconds = runtimeUi.voiceSeconds,
+                                voiceLevel = runtimeUi.voiceLevel,
+                                voiceBusy = runtimeUi.voiceBusy,
+                                voiceError = runtimeUi.voiceError,
+                                voiceTranscript = runtimeUi.voiceTranscript,
                                 onVoiceStart = { startVoice() },
                                 onVoiceStop = { stopVoice() },
                                 onVoiceCancel = { cancelVoice() },
-                                onVoiceTranscriptConsumed = { voiceTranscript = null },
+                                onVoiceTranscriptConsumed = { runtimeUi.voiceTranscript = null },
                                 translateReasoning = if (cotTranslationEnabled) {
                                     { text ->
                                         dshRepository.cotTranslationTranslate(
-                                            activeHostId,
+                                            ui.activeHostId,
                                             text,
-                                            selectedSessionId ?: "",
+                                            ui.selectedSessionId ?: "",
                                         )
                                     }
                                 } else null,
-                                bandSnapshot = bandSnapshot,
-                                bandPressing = bandPressing,
+                                bandSnapshot = runtimeUi.bandSnapshot,
+                                bandPressing = runtimeUi.bandPressing,
                                 onBandPress = { generation, actionId -> pressClaudeCodeBand(generation, actionId) },
                                 attachments = chatAttachments,
                                 onRemoveAttachment = { attachment ->
@@ -2733,27 +2603,27 @@ fun MainAppHost(
                                     // SAF 选择器：任意类型文件 + 图片；图片走同一通道。
                                     attachmentPickerLauncher.launch(arrayOf("*/*"))
                                 },
-                                planMode = chatPlanMode,
-                                onPlanModeChange = { enabled -> chatPlanMode = enabled },
+                                planMode = runtimeUi.chatPlanMode,
+                                onPlanModeChange = { enabled -> runtimeUi.chatPlanMode = enabled },
                             )
                         }
 
                         ActivePage.FILES -> {
                             FilesScreen(
-                                currentPath = filesDir.absolutePath,
+                                currentPath = ui.filesDir.absolutePath,
                                 files = files,
                                 onFileClick = { item ->
                                     if (item.isDirectory) {
-                                        filesDir = java.io.File(item.absolutePath)
+                                        ui.filesDir = java.io.File(item.absolutePath)
                                     }
                                 },
-                                onNavigateUp = filesDir.parentFile?.let { parent ->
+                                onNavigateUp = ui.filesDir.parentFile?.let { parent ->
                                     {
                                         // 不越过工作区根：Host 只能访问这里。
-                                        if (filesDir.absolutePath !=
+                                        if (ui.filesDir.absolutePath !=
                                             activeWorkspace.absolutePath
                                         ) {
-                                            filesDir = parent
+                                            ui.filesDir = parent
                                         }
                                     }
                                 },
@@ -2780,7 +2650,7 @@ fun MainAppHost(
                                             ),
                                         )
                                     }
-                                    activePage = ActivePage.CHAT
+                                    ui.activePage = ActivePage.CHAT
                                 },
                             )
                         }
@@ -2792,9 +2662,9 @@ fun MainAppHost(
                                 pluginRows = pluginRows,
                                 bridgeCatalog = bridgePluginCatalog,
                                 bridgeWarnings = bridgeWarnings,
-                                managedPluginPackages = managedPluginPackages,
-                                storeSeedUrl = pluginStoreSeedUrl,
-                                initialTab = pluginInitialTab,
+                                managedPluginPackages = runtimeUi.managedPluginPackages,
+                                storeSeedUrl = ui.pluginStoreSeedUrl,
+                                initialTab = ui.pluginInitialTab,
                                 hostSettingsPages = pluginSettingsPages,
                                 rowConfigSurfaces = pluginSlotSurfaces,
                                 // 「内置插件配置」的每行背后是一个 Host 设置命名空间：
@@ -2805,17 +2675,17 @@ fun MainAppHost(
                                 },
                                 // 凭据域不是设置文档：官方页面的 API Key 走 Host 的
                                 // credentials 接口，bridge 没有这层，直接调 Host Remote API。
-                                loadCredential = { ref -> dshRepository.credentialStatus(activeHostId, ref) },
+                                loadCredential = { ref -> dshRepository.credentialStatus(ui.activeHostId, ref) },
                                 saveCredential = { ref, value ->
-                                    dshRepository.setCredential(activeHostId, ref, value)
+                                    dshRepository.setCredential(ui.activeHostId, ref, value)
                                 },
-                                backSignal = pluginBackSignal,
-                                onDetailOpenChange = { pluginDetailOpen = it },
+                                backSignal = ui.pluginBackSignal,
+                                onDetailOpenChange = { ui.pluginDetailOpen = it },
                                 onOpenSurface = { item ->
                                     if (item.kind == SurfaceKind.OVERLAY) {
-                                        activeOverlaySurface = item
+                                        ui.activeOverlaySurface = item
                                     } else {
-                                        activeSheetSurface = item
+                                        ui.activeSheetSurface = item
                                     }
                                 },
                                 onOpenSdui = { },
@@ -2823,24 +2693,24 @@ fun MainAppHost(
                                     installPluginWithProgress(
                                         context = context,
                                         repository = dshRepository,
-                                        hostId = activeHostId,
+                                        hostId = ui.activeHostId,
                                         pkgName = pkgName,
                                         installer = appPluginInstaller,
                                         onProgress = onProgress,
-                                        onManagedPackages = { managedPluginPackages = it },
-                                        onNativeCompanion = { nativeCompanionAvailable = it },
+                                        onManagedPackages = { runtimeUi.managedPluginPackages = it },
+                                        onNativeCompanion = { ui.nativeCompanionAvailable = it },
                                     )
                                 },
                                 onToggleBundle = { packageName, enabled ->
                                     scope.launch {
-                                        val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                        val result = dshRepository.setBundleEnabled(ui.activeHostId, packageName, enabled)
                                         // profile 的 bundle 清单在 Host 启动时会被重置成模板，
                                         // 所以把用户明确拨动过的开关记一份，Host 起来后补回去。
                                         result.fold(
                                             onSuccess = { outcome ->
                                                 rememberBundleSelection(packageName, enabled)
                                                 if (outcome.restartRequired) {
-                                                    pluginChangeNotice = listOf(
+                                                    ui.pluginChangeNotice = listOf(
                                                         context.getString(R.string.restart_dsh_hint),
                                                         restartReasonText(outcome.restartReason),
                                                     )
@@ -2865,16 +2735,16 @@ fun MainAppHost(
                                         // 这只是确认；失败时它会把开关拨回真实状态，而不是
                                         // 让界面停在用户按下的那个位置。
                                         dshRepository.refreshBridgePluginCatalog()
-                                        dshRepository.refreshPluginInventory(activeHostId)
+                                        dshRepository.refreshPluginInventory(ui.activeHostId)
                                     }
                                 },
                                 onToggleBundleAwait = { packageName, enabled ->
-                                    val result = dshRepository.setBundleEnabled(activeHostId, packageName, enabled)
+                                    val result = dshRepository.setBundleEnabled(ui.activeHostId, packageName, enabled)
                                     result.fold(
                                         onSuccess = { outcome ->
                                             rememberBundleSelection(packageName, enabled)
                                             if (outcome.restartRequired) {
-                                                pluginChangeNotice = listOf(
+                                                ui.pluginChangeNotice = listOf(
                                                     context.getString(R.string.restart_dsh_hint),
                                                     restartReasonText(outcome.restartReason),
                                                 )
@@ -2895,7 +2765,7 @@ fun MainAppHost(
                                         },
                                     )
                                     dshRepository.refreshBridgePluginCatalog()
-                                    dshRepository.refreshPluginInventory(activeHostId)
+                                    dshRepository.refreshPluginInventory(ui.activeHostId)
                                     result.isSuccess
                                 },
                                 onTogglePluginRow = { entryId, enabled ->
@@ -2903,7 +2773,7 @@ fun MainAppHost(
                                         // 行插件不是 bundle：Host 用 setPluginEnabled 写
                                         // profile patch 的 disabled 覆盖，立即生效；失败时
                                         // refreshPluginInventory 会把开关拨回真实状态。
-                                        dshRepository.setPluginEnabled(activeHostId, entryId, enabled)
+                                        dshRepository.setPluginEnabled(ui.activeHostId, entryId, enabled)
                                         // profile patch 每次启动都会被重建，所以再把覆盖
                                         // 持久化到 web-app patch，重启后开关状态不丢。
                                         val patchId = entryId.removePrefix("include:")
@@ -2919,7 +2789,7 @@ fun MainAppHost(
                                         // （`- id: <rowId> / disabled: true`）并只重载这一行，
                                         // bundle 其余部分照常运行。失败时
                                         // refreshPluginInventory 会把开关拨回真实状态。
-                                        dshRepository.setPluginEnabled(activeHostId, entryId, enabled)
+                                        dshRepository.setPluginEnabled(ui.activeHostId, entryId, enabled)
                                         dshRepository.refreshBridgePluginCatalog()
                                         dshRepository.refreshPluginSettingsPages()
                                     }
@@ -2934,52 +2804,52 @@ fun MainAppHost(
                                             // Host 的 removeBundle 对非 bundle 目标不适用，
                                             // 而且可能长时间不返回，不能先等它。
                                             appPluginInstaller.uninstall(item.pluginId).onSuccess {
-                                                managedPluginPackages = runCatching {
+                                                runtimeUi.managedPluginPackages = runCatching {
                                                     appPluginInstaller.managedPackages()
-                                                }.getOrDefault(managedPluginPackages)
+                                                }.getOrDefault(runtimeUi.managedPluginPackages)
                                                 HostRuntimeHolder.restartHost?.invoke()
                                                 kotlinx.coroutines.delay(1_200)
                                             }
                                         } else {
-                                            dshRepository.uninstallPlugin(activeHostId, item.pluginId)
+                                            dshRepository.uninstallPlugin(ui.activeHostId, item.pluginId)
                                             // 同包名可能曾被 App 兜底以 Loader 行挂上：摘掉
                                             // 残留的挂载名，避免 Host 重建后它又出现。
                                             appPluginInstaller.stripRowMountName(item.pluginId)
                                         }
                                         surfaceStore.removeSurfaceItem(item.pluginId, item.slot)
-                                        dshRepository.refreshPluginInventory(activeHostId)
+                                        dshRepository.refreshPluginInventory(ui.activeHostId)
                                         dshRepository.refreshBridgePluginCatalog()
                                         dshRepository.refreshPluginSettingsPages()
                                     }
                                 }
                             ,
                                 onCreatePlugin = {
-                                    pendingAgentPreset = "cordis"
-                                    selectedSessionId = null
-                                    activePage = ActivePage.CHAT
+                                    ui.pendingAgentPreset = "cordis"
+                                    ui.selectedSessionId = null
+                                    ui.activePage = ActivePage.CHAT
                                 },
-                                nativePluginItems = nativePluginItems,
+                                nativePluginItems = runtimeUi.nativePluginItems,
                                 // 「发现」tab 的数据源：Host 的 pluginMarket Remote。
                                 marketBackend = MarketBackend(
-                                    loadIndexes = { dshRepository.marketIndexes(activeHostId) },
+                                    loadIndexes = { dshRepository.marketIndexes(ui.activeHostId) },
                                     search = { url, query ->
-                                        dshRepository.marketSearch(activeHostId, url, query)
+                                        dshRepository.marketSearch(ui.activeHostId, url, query)
                                     },
                                     saveIndexes = { urls ->
-                                        dshRepository.marketSetIndexes(activeHostId, urls)
+                                        dshRepository.marketSetIndexes(ui.activeHostId, urls)
                                     },
                                 ),
                                 // 语音输入插件的 Host speech 接口（准备卡片 / 选择服务）。
                                 speechHooks = SpeechHooks(
-                                    catalog = { dshRepository.speechCatalog(activeHostId) },
+                                    catalog = { dshRepository.speechCatalog(ui.activeHostId) },
                                     configure = { providerId, language ->
-                                        dshRepository.speechConfigure(activeHostId, providerId, language)
+                                        dshRepository.speechConfigure(ui.activeHostId, providerId, language)
                                     },
                                     prepare = { providerId, source ->
-                                        dshRepository.speechPrepare(activeHostId, providerId, source)
+                                        dshRepository.speechPrepare(ui.activeHostId, providerId, source)
                                     },
                                     cancelPrepare = { providerId ->
-                                        dshRepository.speechCancelPrepare(activeHostId, providerId)
+                                        dshRepository.speechCancelPrepare(ui.activeHostId, providerId)
                                     },
                                 ),
                                 onUninstallCompanion = { companion ->
@@ -2990,16 +2860,16 @@ fun MainAppHost(
 
                         ActivePage.AUTOMATION -> PageContentSlot {
                             SchedulesScreen(
-                                onCreateTask = { activePage = ActivePage.CHAT },
+                                onCreateTask = { ui.activePage = ActivePage.CHAT },
                             )
                         }
 
                         ActivePage.HOSTS -> {
                             com.deepseek.dsh.feature.hosts.HostsScreen(
                                 hosts = availableHosts,
-                                activeHostId = activeHostId,
+                                activeHostId = ui.activeHostId,
                                 onSelectHost = { host ->
-                                    activeHostId = host.id
+                                    ui.activeHostId = host.id
                                 },
                                 onScanPairClick = {
                                     val newRemote = com.deepseek.dsh.core.model.HostDescriptor.Remote(
@@ -3015,51 +2885,51 @@ fun MainAppHost(
 
                         ActivePage.TERMINAL -> PageContentSlot {
                             TerminalScreen(
-                                buffer = terminalBuffer,
-                                status = terminalStatus,
-                                writable = terminalWritable,
-                                terminals = terminalList,
-                                activeTerminalId = activeTerminalId,
-                                shellChoices = terminalShells,
-                                onSelectTerminal = { id -> activeTerminalId = id },
+                                buffer = runtimeUi.terminalBuffer,
+                                status = runtimeUi.terminalStatus,
+                                writable = runtimeUi.terminalWritable,
+                                terminals = runtimeUi.terminalList,
+                                activeTerminalId = runtimeUi.activeTerminalId,
+                                shellChoices = runtimeUi.terminalShells,
+                                onSelectTerminal = { id -> runtimeUi.activeTerminalId = id },
                                 onCreateTerminal = { shellPath ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
                                             val id = "term-" + System.currentTimeMillis()
                                             dshRepository.createTerminal(
-                                                activeHostId, sid, id, shellPath, 80, 24,
+                                                ui.activeHostId, sid, id, shellPath, 80, 24,
                                             )
-                                            terminalList = dshRepository.listTerminals(activeHostId, sid)
-                                            activeTerminalId = id
+                                            runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
+                                            runtimeUi.activeTerminalId = id
                                         }
                                     }
                                 },
                                 onRenameTerminal = { id, title ->
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
-                                            dshRepository.renameTerminal(activeHostId, sid, id, title)
-                                            terminalList = dshRepository.listTerminals(activeHostId, sid)
+                                            dshRepository.renameTerminal(ui.activeHostId, sid, id, title)
+                                            runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
                                         }
                                     }
                                 },
                                 onInput = { line ->
-                                    terminalConnection?.write(line + "\r")
+                                    runtimeUi.terminalConnection?.write(line + "\r")
                                 },
                                 onQuickKey = { key ->
-                                    terminalConnection?.write(key)
+                                    runtimeUi.terminalConnection?.write(key)
                                 },
                                 onClose = {
-                                    val sid = selectedSessionId
+                                    val sid = ui.selectedSessionId
                                     if (sid != null) {
                                         scope.launch {
                                             dshRepository.closeTerminal(
-                                                activeHostId, sid, activeTerminalId,
+                                                ui.activeHostId, sid, runtimeUi.activeTerminalId,
                                             )
-                                            terminalConnection?.close()
-                                            terminalConnection = null
-                                            terminalStatus = context.getString(
+                                            runtimeUi.terminalConnection?.close()
+                                            runtimeUi.terminalConnection = null
+                                            runtimeUi.terminalStatus = context.getString(
                                                 R.string.terminal_closed
                                             )
                                         }
@@ -3069,22 +2939,22 @@ fun MainAppHost(
                         }
 
                         ActivePage.SETTINGS -> AppSettingsPage(
-                            settings = currentAppSettings,
-                            onSettingsChange = { updated -> currentAppSettings = updated },
-                            initialSection = settingsInitialSection,
+                            settings = ui.currentAppSettings,
+                            onSettingsChange = { updated -> ui.currentAppSettings = updated },
+                            initialSection = ui.settingsInitialSection,
                             repository = dshRepository,
                             settingsRepository = settingsRepository,
-                            activeHostId = activeHostId,
+                            activeHostId = ui.activeHostId,
                             scope = scope,
                             availableModels = availableModelNames,
-                            modelProvidersRaw = modelProvidersRaw,
-                            onProvidersRaw = { modelProvidersRaw = it },
-                            modelSettingsRaw = modelSettingsRaw,
-                            onSettingsRaw = { modelSettingsRaw = it },
-                            modelCredentialsRaw = modelCredentialsRaw,
-                            onCredentialsRaw = { modelCredentialsRaw = it },
-                            routableProviders = registeredProviderIds,
-                            onRoutableProviders = { registeredProviderIds = it },
+                            modelProvidersRaw = runtimeUi.modelProvidersRaw,
+                            onProvidersRaw = { runtimeUi.modelProvidersRaw = it },
+                            modelSettingsRaw = runtimeUi.modelSettingsRaw,
+                            onSettingsRaw = { runtimeUi.modelSettingsRaw = it },
+                            modelCredentialsRaw = runtimeUi.modelCredentialsRaw,
+                            onCredentialsRaw = { runtimeUi.modelCredentialsRaw = it },
+                            routableProviders = runtimeUi.registeredProviderIds,
+                            onRoutableProviders = { runtimeUi.registeredProviderIds = it },
                             builtInPlugins = builtInPluginsList,
                             pluginSlotEntries = pluginSlotEntries,
                             pluginSettingsPages = pluginSettingsPages,
@@ -3099,7 +2969,7 @@ fun MainAppHost(
                             },
                             onStopRuntime = { scope.launch { runtimeManager.stop() } },
                             onOpenSettingsDocument = {
-                                scope.launch { dshRepository.openSettingsDocument(activeHostId) }
+                                scope.launch { dshRepository.openSettingsDocument(ui.activeHostId) }
                             },
                             accountName = accountState.profile?.name
                                 ?: stringResource(R.string.drawer_default_user),
@@ -3108,7 +2978,7 @@ fun MainAppHost(
                             accountPhone = accountState.profile?.contact ?: "",
                             isSignedIn = accountState.isSignedIn,
                             avatarUrl = accountState.profile?.avatarUrl,
-                            onSignIn = { showSignInDialog = true },
+                            onSignIn = { ui.showSignInDialog = true },
                             onSignOut = hostSignOut,
                             onManageAccount = { openUrl(accountState.platformUrl) },
                             onCreateBackup = {
@@ -3117,17 +2987,17 @@ fun MainAppHost(
                             onExportDiagnostics = {
                                 scope.launch { backupAndDiag.exportDiagnosticsZip() }
                             },
-                            onClose = { activePage = ActivePage.CHAT },
+                            onClose = { ui.activePage = ActivePage.CHAT },
                             pluginComponentRefresh = dshRepository.pluginComponentRefreshFlow,
                             pluginRpc = { method, payload ->
                                 val first = dshRepository.pluginRpc(
-                                    activeHostId,
+                                    ui.activeHostId,
                                     method,
                                     payload.toString(),
                                 )
                                 val firstText = first.getOrNull() ?: first.exceptionOrNull()?.message
                                 if (ensureMissingPluginDir(context, firstText)) {
-                                    dshRepository.pluginRpc(activeHostId, method, payload.toString())
+                                    dshRepository.pluginRpc(ui.activeHostId, method, payload.toString())
                                 } else {
                                     first
                                 }
@@ -3152,27 +3022,27 @@ fun MainAppHost(
         }
 
         // 插件 Surface Sheet 呈现 (v4.0 §7.5)
-        activeSheetSurface?.let { item ->
+        ui.activeSheetSurface?.let { item ->
             SurfaceSheet(
                 item = item,
                 hostPort = status.port ?: 8080,
                 token = status.token,
-                onDismissRequest = { activeSheetSurface = null }
+                onDismissRequest = { ui.activeSheetSurface = null }
             )
         }
 
         // 插件单例悬浮窗 (v4.0 §7.7)
-        activeOverlaySurface?.let { item ->
+        ui.activeOverlaySurface?.let { item ->
             PluginOverlayContainer(
                 item = item,
                 hostPort = status.port ?: 8080,
                 token = status.token,
-                onClose = { activeOverlaySurface = null }
+                onClose = { ui.activeOverlaySurface = null }
             )
         }
 
         // 反向联动：刚装的 JS 插件有原生伴侣时，底部提示可去商店装原生界面。
-        nativeCompanionAvailable?.let { companion ->
+        ui.nativeCompanionAvailable?.let { companion ->
             CompanionAvailableCard(
                 companion = companion,
                 modifier = Modifier
@@ -3180,34 +3050,34 @@ fun MainAppHost(
                     .padding(16.dp)
                     .fillMaxWidth(),
                 onGoInstall = {
-                    pluginStoreSeedUrl = companion.storeUrl
-                    pluginInitialTab = 1
-                    nativeCompanionAvailable = null
-                    activePage = ActivePage.PLUGINS
+                    ui.pluginStoreSeedUrl = companion.storeUrl
+                    ui.pluginInitialTab = 1
+                    ui.nativeCompanionAvailable = null
+                    ui.activePage = ActivePage.PLUGINS
                 },
-                onIgnore = { nativeCompanionAvailable = null },
+                onIgnore = { ui.nativeCompanionAvailable = null },
             )
         }
         PluginIslandOverlays()
         SignInDialogs(
-            showSignIn = showSignInDialog,
-            onDismissSignIn = { showSignInDialog = false },
+            showSignIn = ui.showSignInDialog,
+            onDismissSignIn = { ui.showSignInDialog = false },
             onAddKey = {
-                showSignInDialog = false
-                showApiKeyDialog = true
+                ui.showSignInDialog = false
+                ui.showApiKeyDialog = true
             },
             onSignIn = {
-                showSignInDialog = false
+                ui.showSignInDialog = false
                 beginHostSignIn()
             },
-            showApiKey = showApiKeyDialog,
-            apiKeyInput = apiKeyInput,
-            onApiKeyChange = { apiKeyInput = it },
-            onDismissApiKey = { showApiKeyDialog = false },
+            showApiKey = ui.showApiKeyDialog,
+            apiKeyInput = ui.apiKeyInput,
+            onApiKeyChange = { ui.apiKeyInput = it },
+            onDismissApiKey = { ui.showApiKeyDialog = false },
             onSubmitApiKey = {
-                oauthManager.signInWithApiKey(apiKeyInput)
-                apiKeyInput = ""
-                showApiKeyDialog = false
+                oauthManager.signInWithApiKey(ui.apiKeyInput)
+                ui.apiKeyInput = ""
+                ui.showApiKeyDialog = false
             },
         )
     }
