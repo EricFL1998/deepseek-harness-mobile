@@ -117,6 +117,17 @@ interface DshClientProtocol {
     suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
     /**
+     * 订阅 Host 全局转发事件（Gateway `$events` 流）的事件名。
+     *
+     * 官方客户端用 `ctx.remote.$on(...)` 监听 `llm/adapters-updated`、
+     * `settings/document-updated`、凭据记录/引用更新等事件刷新模型目录；
+     * App 这里只取事件名，由数据层决定刷新什么。
+     *
+     * @param hostId Host 标识。
+     * @returns 事件名流；连接建立后持续投递，断开后在内部重连。
+     */
+    fun forwardedHostEvents(hostId: String): Flow<String>
+    /**
      * 订阅会话的 Claude Code 模组横幅（流式 `claudeCodeMods/watchBand`）。
      *
      * @param hostId Host 标识。

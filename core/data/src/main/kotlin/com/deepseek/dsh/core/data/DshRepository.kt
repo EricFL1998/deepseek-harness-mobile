@@ -61,6 +61,9 @@ class DshRepository(
     )
     val modelCatalogFlow: StateFlow<ModelCatalogInfo> = _modelCatalogFlow.asStateFlow()
 
+    /** 已经建立 Host `$events` 转订阅的 Host，避免重复连接。 */
+    private val forwardedEventHosts = mutableSetOf<String>()
+
     private val _sessionStatsFlow = MutableStateFlow<Map<String, ComposerStats>>(emptyMap())
     val sessionStatsFlow: StateFlow<Map<String, ComposerStats>> = _sessionStatsFlow.asStateFlow()
 
@@ -1118,11 +1121,34 @@ class DshRepository(
                 }
             }
         }
+        // 官方 model picker 监听的 Host 全局事件：settings/凭据/llm 适配器一变就
+        // 重新拉模型目录（对齐 `ctx.remote.$on(...)` 的四个 refresh 触发器）。
+        if (synchronized(forwardedEventHosts) { forwardedEventHosts.add(hostId) }) {
+            scope.launch(Dispatchers.IO) {
+                client.forwardedHostEvents(hostId).collect { eventName ->
+                    if (eventName in MODEL_CATALOG_REFRESH_EVENTS) {
+                        refreshModelCatalog(hostId)
+                    }
+                }
+            }
+        }
     }
 }
 
 /** 原生设置页位置；bridge 用这个名字说明条目该落在设置里。 */
 private const val SETTINGS_PAGE_SLOT = "settings.page"
+
+/**
+ * 官方 model picker 同样监听这四个 Host 事件刷新模型目录：
+ * `ctx.remote.$on('llm/adapters-updated' | 'settings/document-updated' |
+ * 'credentials/record-updated' | 'credentials/reference-updated')`。
+ */
+private val MODEL_CATALOG_REFRESH_EVENTS = setOf(
+    "llm/adapters-updated",
+    "settings/document-updated",
+    "credentials/record-updated",
+    "credentials/reference-updated",
+)
 
 // 凭据接口的响应只是 Host 自己的 JSON：这里单独一个宽松实例，不影响其他解码。
 private val credentialJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }

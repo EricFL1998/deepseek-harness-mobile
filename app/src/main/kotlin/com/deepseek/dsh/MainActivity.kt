@@ -404,13 +404,9 @@ fun MainAppHost(
             }
         }
     }
-    // 模型目录随插件启用/登录态变化：定时轻量刷新，避免整个进程只吃启动时的缓存。
-    LaunchedEffect(activeHostId) {
-        while (true) {
-            dshRepository.refreshModelCatalog(activeHostId)
-            kotlinx.coroutines.delay(30_000L)
-        }
-    }
+    // 模型目录改为事件驱动（对齐官方 model picker）：`$events` 里的
+    // llm/adapters-updated、settings/document-updated、credentials/*-updated
+    // 会触发 DshRepository 重新拉目录，这里不再轮询。
     var cachedModelNames by remember {
         mutableStateOf(
             modelCatalogCache.getString("names", "").orEmpty()

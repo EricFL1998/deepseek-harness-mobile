@@ -28,6 +28,8 @@ import com.deepseek.dsh.core.model.TeamTaskItem
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -1624,6 +1626,15 @@ class RemoteClient(
 
     private val followSockets = mutableListOf<okhttp3.WebSocket>()
     private val eventBus = kotlinx.coroutines.flow.MutableSharedFlow<RemoteEvent>(extraBufferCapacity = 128)
+
+    /** Host 全局转发事件（Gateway `$events` 流）的事件名。 */
+    private val forwardedBus =
+        kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 64)
+    private val forwardedSockets = mutableListOf<okhttp3.WebSocket>()
+    private val forwardedStarted = mutableSetOf<String>()
+    private val forwardedScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
+    )
     private val toolNames = mutableMapOf<String, String>()
     private val toolArgs = mutableMapOf<String, String>()
 
@@ -1798,6 +1809,112 @@ class RemoteClient(
         awaitClose {
             runCatching { socket.send("{\"type\":\"cancel\",\"streamId\":\"$streamId\"}") }
             runCatching { socket.close(1000, "client closed") }
+        }
+    }
+
+    /**
+     * Host 全局转发事件（Gateway `$events` 流）的事件名。
+     *
+     * 官方客户端用 `ctx.remote.$on(...)` 监听 `llm/adapters-updated`、
+     * `settings/document-updated`、凭据记录/引用更新来刷新模型目录；
+     * 这里只把事件名转出来，由数据层决定刷新范围。
+     */
+    override fun forwardedHostEvents(hostId: String): Flow<String> =
+        forwardedBus.onStart { ensureForwardedStream(hostId) }
+
+    private fun ensureForwardedStream(hostId: String) {
+        synchronized(forwardedStarted) {
+            if (!forwardedStarted.add(hostId)) return
+        }
+        forwardedScope.launch {
+            while (true) {
+                runCatching { pumpForwardedStream(hostId) }
+                kotlinx.coroutines.delay(2_000L)
+            }
+        }
+    }
+
+    /** 一条 `$events` 连接；连接结束（正常/失败）后返回，交给 [ensureForwardedStream] 重连。 */
+    private suspend fun pumpForwardedStream(hostId: String) {
+        if (baseUrl.isBlank()) return
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val streamId = java.util.UUID.randomUUID().toString()
+        val closed = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var clientId: String? = null
+        val socket = client.newWebSocket(
+            okhttp3.Request.Builder().url(wsUrl).build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    val open = buildJsonObject {
+                        put("type", "open")
+                        put("streamId", streamId)
+                        put("endpoint", "\$events")
+                        put("payload", buildJsonObject { put("args", buildJsonObject { }) })
+                    }
+                    webSocket.send(open.toString())
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    runCatching {
+                        val root = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+                            ?: return@runCatching
+                        if (root["type"]?.toString()?.trim('"') != "item") return@runCatching
+                        if (root["streamId"]?.toString()?.trim('"') != streamId) return@runCatching
+                        val value = root["value"] as? kotlinx.serialization.json.JsonObject
+                            ?: return@runCatching
+                        when (value["type"]?.toString()?.trim('"')) {
+                            "ready" -> clientId = value["clientId"]?.toString()?.trim('"')
+                            "emit" -> value["event"]?.toString()?.trim('"')
+                                ?.let { forwardedBus.tryEmit(it) }
+                            "waterfall" -> {
+                                val eventId = value["eventId"]?.toString()?.trim('"')
+                                    ?: return@runCatching
+                                clientId?.let { answerForwardedEvent(it, eventId) }
+                            }
+                        }
+                    }
+                }
+
+                override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
+                    closed.complete(Unit)
+                }
+
+                override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                    closed.complete(Unit)
+                }
+            },
+        )
+        synchronized(forwardedSockets) { forwardedSockets.add(socket) }
+        try {
+            closed.await()
+        } finally {
+            synchronized(forwardedSockets) { forwardedSockets.remove(socket) }
+            runCatching { socket.close(1000, "client closed") }
+        }
+    }
+
+    /** 客户端不实现的 Host waterfall 一律回 `next`，让 Host 继续默认处理。 */
+    private fun answerForwardedEvent(clientId: String, eventId: String) {
+        forwardedScope.launch {
+            runCatching {
+                val payload = buildJsonObject {
+                    put("type", "client-request")
+                    put("rpcId", java.util.UUID.randomUUID().toString())
+                    put("method", "\$events/result")
+                    put("payload", buildJsonObject {
+                        put("args", buildJsonObject {
+                            put("clientId", clientId)
+                            put("eventId", eventId)
+                            put("outcome", buildJsonObject { put("kind", "next") })
+                        })
+                    })
+                }
+                val request = okhttp3.Request.Builder()
+                    .url("$baseUrl/api/\$events/result")
+                    .post(payload.toString().toRequestBody(mediaTypeJson))
+                    .build()
+                client.newCall(request).execute().close()
+            }
         }
     }
 
