@@ -151,7 +151,7 @@ internal val LocalSettingsPalette = staticCompositionLocalOf { LightSettingsPale
 @Composable
 internal fun SettingsTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(
-        LocalSettingsPalette provides if (isSystemInDarkTheme()) {
+        LocalSettingsPalette provides if (com.deepseek.dsh.core.designsystem.LocalDshDarkTheme.current) {
             DarkSettingsPalette
         } else {
             LightSettingsPalette

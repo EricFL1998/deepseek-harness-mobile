@@ -58,15 +58,31 @@ private val LightColorScheme = lightColorScheme(
  */
 val LocalConversationFontSize = androidx.compose.runtime.compositionLocalOf { 14 }
 
+/**
+ * 当前界面是否为深色主题（由 DshTheme 提供）。
+ *
+ * 自定义面板/设置页以前直接读系统深浅色：Host 把主题设成 dark 而手机系统是
+ * light 时会出现混搭。所有自绘配色都应该读这个值。
+ */
+val LocalDshDarkTheme = androidx.compose.runtime.compositionLocalOf { false }
+
 @Composable
 fun DshTheme(
     darkTheme: Boolean = isSystemInDarkTheme(), // 严格跟随手机系统深浅色模式
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    // 自绘面板也跟随主题：以前它只读系统深浅色，Host 选择暗色而系统是浅色时
+    // 会出现「深色背景 + 浅色输入框」的混搭。
+    val panelColors = if (darkTheme) DshDarkPanelColors else DshLightPanelColors
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalDshPanelColors provides panelColors,
+        LocalDshDarkTheme provides darkTheme,
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            content = content
+        )
+    }
 }

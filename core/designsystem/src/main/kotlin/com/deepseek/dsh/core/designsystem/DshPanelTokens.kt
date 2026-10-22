@@ -132,7 +132,16 @@ val DshDarkPanelColors = DshPanelColors(
 
 /** Resolve the panel tokens for the current light/dark mode. */
 @Composable
-fun dshPanelColors(): DshPanelColors = if (isSystemInDarkTheme()) DshDarkPanelColors else DshLightPanelColors
+fun dshPanelColors(): DshPanelColors {
+    val provided = LocalDshPanelColors.current
+    // DshTheme 会按实际主题 provide；未被 provide（默认 light）时，深色系统仍取暗色，
+    // 保持预览与旧调用点的行为。
+    return if (provided.isDark || !isSystemInDarkTheme()) {
+        provided
+    } else {
+        DshDarkPanelColors
+    }
+}
 
 /** Panel palette for descendants; defaults to light so previews stay deterministic. */
 val LocalDshPanelColors = staticCompositionLocalOf { DshLightPanelColors }

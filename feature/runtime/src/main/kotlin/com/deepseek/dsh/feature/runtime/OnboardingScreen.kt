@@ -352,7 +352,7 @@ private val LocalOnboardingPalette = staticCompositionLocalOf<OnboardingPalette>
 
 @Composable
 private fun rememberOnboardingPalette(): OnboardingPalette =
-    if (isSystemInDarkTheme()) DarkOnboardingPalette else LightOnboardingPalette
+    if (com.deepseek.dsh.core.designsystem.LocalDshDarkTheme.current) DarkOnboardingPalette else LightOnboardingPalette
 
 // Conic border stops (--dsw-gradient-onboarding-*-stops), seam included.
 private val BlueCardBorder = listOf(
@@ -616,7 +616,7 @@ private fun OnboardingPage(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun OnboardingArtwork(welcome: Boolean, maxHeight: Dp) {
-    val dark = isSystemInDarkTheme()
+    val dark = com.deepseek.dsh.core.designsystem.LocalDshDarkTheme.current
     val locales = LocalConfiguration.current.locales
     val chinese = locales.size() > 0 && locales.get(0).language == "zh"
     val artwork = when {
