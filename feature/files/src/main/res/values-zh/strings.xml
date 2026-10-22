@@ -125,4 +125,7 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
+<string name="files_import">导入</string>
+<string name="files_up">上级</string>
+<string name="files_imported">已导入 %1$d 个文件到工作区</string>
 </resources>

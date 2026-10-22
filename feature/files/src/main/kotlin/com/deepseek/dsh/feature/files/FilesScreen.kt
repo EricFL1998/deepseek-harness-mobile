@@ -34,21 +34,49 @@ fun FilesScreen(
     currentPath: String,
     files: List<FileItem>,
     onFileClick: (FileItem) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 返回上级目录；null 表示已经在存储根，不显示。 */
+    onNavigateUp: (() -> Unit)? = null,
+    /** 从手机任意位置选文件，导入当前工作区（Host 可见）做中转。 */
+    onImportClick: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.files_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+            )
+            if (onImportClick != null) {
+                Text(
+                    text = stringResource(R.string.files_import),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable(onClick = onImportClick)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            if (onNavigateUp != null) {
+                Text(
+                    text = stringResource(R.string.files_up),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable(onClick = onNavigateUp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+        }
         Text(
-            text = stringResource(R.string.files_title),
-            style = MaterialTheme.typography.titleLarge
-        )
-        Text(
-            text = stringResource(R.string.files_subtitle, currentPath),
+            text = currentPath,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.secondary
+            color = MaterialTheme.colorScheme.secondary,
+            maxLines = 1,
         )
 
         Spacer(modifier = Modifier.padding(8.dp))

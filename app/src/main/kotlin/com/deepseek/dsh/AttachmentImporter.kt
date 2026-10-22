@@ -52,6 +52,36 @@ object AttachmentImporter {
         return Result(added = added, skipped = skipped)
     }
 
+    /** 中转导入：把 SAF 选中的任意文件复制进指定工作区目录（Host 可见）。 */
+    fun importInto(context: Context, targetDir: File, uris: List<Uri>): Result {
+        targetDir.mkdirs()
+        val added = mutableListOf<ChatAttachment>()
+        val skipped = mutableListOf<String>()
+        for (uri in uris) {
+            val meta = queryMeta(context, uri)
+            val displayName = meta?.first ?: "file-${System.currentTimeMillis()}"
+            val target = uniqueFile(targetDir, displayName)
+            val copied = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                } ?: error("openInputStream returned null")
+            }
+            if (copied.isSuccess) {
+                added.add(
+                    ChatAttachment(
+                        displayName = target.name,
+                        workspaceRelativePath = target.absolutePath,
+                        sizeBytes = target.length(),
+                    ),
+                )
+            } else {
+                runCatching { target.delete() }
+                skipped.add(displayName)
+            }
+        }
+        return Result(added = added, skipped = skipped)
+    }
+
     /** 从 SAF 取文件名与大小；失败时返回 null（用回退名）。 */
     private fun queryMeta(context: Context, uri: Uri): Pair<String, Long>? = runCatching {
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->

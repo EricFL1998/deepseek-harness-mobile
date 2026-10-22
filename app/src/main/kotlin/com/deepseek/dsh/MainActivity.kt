@@ -1762,8 +1762,64 @@ fun MainAppHost(
             },
         )
     }
-    val files = remember(activePage, activeWorkspace) {
-        workspaceManager.listFiles(activeWorkspace)
+    // 文件页：展示工作区（Host 只能看到 Documents/DSH-Workpace），
+    // 手机其它位置的文件用系统 picker 选后复制进工作区做「中转」。
+    var filesRevision by remember { mutableStateOf(0) }
+    var filesDir by remember(activeWorkspace) { mutableStateOf(activeWorkspace) }
+    DisposableEffect(activePage, filesDir) {
+        val observer = if (activePage == ActivePage.FILES) {
+            object : android.os.FileObserver(
+                filesDir.absolutePath,
+                android.os.FileObserver.CREATE or
+                    android.os.FileObserver.DELETE or
+                    android.os.FileObserver.MOVED_FROM or
+                    android.os.FileObserver.MOVED_TO or
+                    android.os.FileObserver.MOVE_SELF or
+                    android.os.FileObserver.ATTRIB or
+                    android.os.FileObserver.CLOSE_WRITE,
+            ) {
+                override fun onEvent(event: Int, path: String?) {
+                    filesRevision += 1
+                }
+            }.apply { startWatching() }
+        } else {
+            null
+        }
+        onDispose { observer?.stopWatching() }
+    }
+    val files = remember(activePage, filesDir, filesRevision) {
+        workspaceManager.listFiles(filesDir)
+    }
+    // 全文件选择器 → 复制进当前浏览目录（工作区内），Host 才能访问。
+    val filesImportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris: List<android.net.Uri> ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.deepseek.dsh.AttachmentImporter.importInto(context, filesDir, uris)
+                }
+                filesRevision += 1
+                workspaceRevision += 1
+                if (result.added.isNotEmpty()) {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(
+                            com.deepseek.dsh.feature.files.R.string.files_imported,
+                            result.added.size,
+                        ),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                result.skipped.forEach { name ->
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(R.string.attachment_copy_failed, name),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        }
     }
 
 
@@ -2455,9 +2511,26 @@ fun MainAppHost(
 
                         ActivePage.FILES -> {
                             FilesScreen(
-                                currentPath = activeWorkspace.absolutePath,
+                                currentPath = filesDir.absolutePath,
                                 files = files,
-                                onFileClick = { }
+                                onFileClick = { item ->
+                                    if (item.isDirectory) {
+                                        filesDir = java.io.File(item.absolutePath)
+                                    }
+                                },
+                                onNavigateUp = filesDir.parentFile?.let { parent ->
+                                    {
+                                        // 不越过工作区根：Host 只能访问这里。
+                                        if (filesDir.absolutePath !=
+                                            activeWorkspace.absolutePath
+                                        ) {
+                                            filesDir = parent
+                                        }
+                                    }
+                                },
+                                onImportClick = {
+                                    filesImportLauncher.launch(arrayOf("*/*"))
+                                },
                             )
                         }
 
