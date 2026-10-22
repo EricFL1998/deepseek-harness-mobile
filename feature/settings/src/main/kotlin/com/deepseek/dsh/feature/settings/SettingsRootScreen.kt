@@ -119,7 +119,11 @@ fun SettingsRootScreen(
     modelProvidersRaw: String? = null,
     modelSettingsRaw: String? = null,
     modelCredentialsRaw: String? = null,
+    /** Host 当前已注册（可路由）的 provider id；它们不该再出现在“添加”列表里。 */
+    routableProviders: List<String> = emptyList(),
     onSaveModelProvider: (ModelProviderUi, String, String, List<String>) -> Unit = { _, _, _, _ -> },
+    /** 打开模型设置/添加弹窗时从 Host 重新拉提供商目录（不用旧快照）。 */
+    onRefreshModelProviders: () -> Unit = {},
     builtInPlugins: List<BuiltInPluginInfo> = emptyList(),
     pluginSnapshot: PluginInventorySnapshotInfo? = null,
     runtimeStatus: com.deepseek.dsh.runtime.host.RuntimeStatus? = null,
@@ -410,6 +414,8 @@ fun SettingsRootScreen(
                             credentialsRaw = modelCredentialsRaw,
                             onOpenConfigFile = onOpenSettingsDocument,
                             onSaveProvider = onSaveModelProvider,
+                            onRefreshProviders = onRefreshModelProviders,
+                            routableProviders = routableProviders,
                             bridgeRegistry = bridgeRegistry,
                             pluginComponentRefresh = pluginComponentRefresh,
                         )

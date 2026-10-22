@@ -45,6 +45,10 @@ internal fun SettingsModelsPane(
     credentialsRaw: String?,
     onOpenConfigFile: () -> Unit,
     onSaveProvider: (ModelProviderUi, String, String, List<String>) -> Unit,
+    /** 从 Host 重新拉提供商目录；页面进入与打开添加弹窗时各拉一次。 */
+    onRefreshProviders: () -> Unit = {},
+    /** 已注册（可路由）的 provider id：官方把它们的配置放在卡片里，不再进添加目录。 */
+    routableProviders: List<String> = emptyList(),
     modifier: Modifier = Modifier,
     /** 插件声明的 settings.models.provider-card 组件（componentId 列表）。 */
     /** bridge 门面；为 null 时插件组件不渲染。 */
@@ -53,6 +57,7 @@ internal fun SettingsModelsPane(
     pluginComponentRefresh: kotlinx.coroutines.flow.SharedFlow<String>? = null,
 ) {
     val palette = LocalSettingsPalette.current
+    LaunchedEffect(Unit) { onRefreshProviders() }
     val providers = remember(providersRaw, settingsRaw, credentialsRaw) {
         parseModelProviders(providersRaw, settingsRaw, credentialsRaw)
     }
@@ -70,7 +75,11 @@ internal fun SettingsModelsPane(
     }
     // 未配置的目录项只出现在“添加模型提供商”弹窗里；DeepSeek 已常驻卡片，不再重复列出。
     val addableProviders = allProviders.filter {
-        !it.configured && it.id != "deepseek" && it.id != "deepseek-official"
+        !it.configured &&
+            it.id != "deepseek" &&
+            it.id != "deepseek-official" &&
+            it.id != "deepseek-account" &&
+            it.id !in routableProviders
     }
     // 打开编辑器后滚动到该条目：从“添加”弹窗选中的提供商可能位于列表上方不可见处。
     // 固定前置条目共 3 项（标题、说明、账号卡片），其后才是 provider 条目。
@@ -174,7 +183,11 @@ internal fun SettingsModelsPane(
         item(key = "models_add") {
             SettingsDashedButton(
                 text = stringResource(R.string.settings_pane_models_add_provider),
-                onClick = { showAddProvider = true },
+                onClick = {
+                    // 目录随插件/订阅/凭据变化，打开弹窗前以 Host 为准重拉一次。
+                    onRefreshProviders()
+                    showAddProvider = true
+                },
             )
         }
         // settings.models.provider-card：插件声明的 provider 卡片（订阅、用量、

@@ -3122,6 +3122,27 @@ fun MainAppHost(
                                 modelProvidersRaw = modelProvidersRaw,
                                 modelSettingsRaw = modelSettingsRaw,
                                 modelCredentialsRaw = modelCredentialsRaw,
+                                routableProviders = catalogInfo.routableProviders,
+                                onRefreshModelProviders = {
+                                    scope.launch {
+                                        modelSettingsRaw = dshRepository
+                                            .rpcRaw(activeHostId, "settings/describe", "{}")
+                                            .getOrNull()
+                                        modelProvidersRaw = dshRepository
+                                            .rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}")
+                                            .getOrNull()
+                                        val providerRefs = com.deepseek.dsh.feature.settings
+                                            .parseModelProviders(modelProvidersRaw, modelSettingsRaw, null)
+                                            .map { it.keyRef }.distinct()
+                                        val refsJson = providerRefs.joinToString(
+                                            prefix = "{\"refs\":[",
+                                            postfix = "]}"
+                                        ) { "\"$it\"" }
+                                        modelCredentialsRaw = dshRepository
+                                            .rpcRaw(activeHostId, "credentials/describe", refsJson)
+                                            .getOrNull()
+                                    }
+                                },
                                 onSaveModelProvider = { provider, key, baseUrl, models ->
                                     scope.launch {
                                         if (key.isNotBlank()) {
