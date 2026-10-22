@@ -18,8 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +36,9 @@ import com.deepseek.dsh.core.model.ScheduleInfo
  * 宿主只注入引用，`MainAppHost` 不再增加参数。
  */
 object ScheduleBridge {
-    var items by mutableStateOf<List<ScheduleInfo>>(emptyList())
+    /** 计划任务目录的实时数据源（取消后会自动跟着刷新）。 */
+    var flow: kotlinx.coroutines.flow.StateFlow<List<ScheduleInfo>>? = null
+        private set
 
     /** 宿主在会话 effect 里调用一次即可，避免把 lambda 内联进 MainAppHost。 */
     fun wire(
@@ -45,6 +46,7 @@ object ScheduleBridge {
         hostId: String,
         scope: kotlinx.coroutines.CoroutineScope,
     ) {
+        flow = repository.scheduleCatalogFlow
         scope.launch {
             runCatching { repository.refreshScheduleCatalog(hostId) }
         }
@@ -72,7 +74,8 @@ object ScheduleBridge {
  */
 @Composable
 fun SchedulesScreen(onCreateTask: () -> Unit) {
-    val schedules = ScheduleBridge.items
+    val source = ScheduleBridge.flow
+    val schedules = if (source == null) emptyList() else source.collectAsState().value
     Column(
         modifier = Modifier
             .fillMaxSize()

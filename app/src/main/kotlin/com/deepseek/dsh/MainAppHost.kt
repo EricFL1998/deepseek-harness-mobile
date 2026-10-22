@@ -3069,9 +3069,6 @@ fun MainAppHost(
                         }
 
                         ActivePage.AUTOMATION -> {
-                            androidx.compose.runtime.LaunchedEffect(Unit) {
-                                ScheduleBridge.items = dshRepository.scheduleCatalogFlow.value
-                            }
                             SchedulesScreen(
                                 onCreateTask = { activePage = ActivePage.CHAT },
                             )
