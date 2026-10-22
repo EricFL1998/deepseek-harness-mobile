@@ -811,6 +811,33 @@ class DshRepository(
     val hostSkillsFlow: StateFlow<List<com.deepseek.dsh.core.model.SkillInfo>> =
         _hostSkillsFlow.asStateFlow()
 
+    /** 读取当前会话的技能目录并返回（打开加号菜单时直接渲染）。 */
+    suspend fun listSkills(
+        hostId: String,
+        sessionId: String,
+    ): List<com.deepseek.dsh.core.model.SkillInfo> {
+        val args = buildJsonObject {
+            put("request", buildJsonObject { put("sessionId", sessionId) })
+        }
+        val raw = rpcRaw(hostId, "skills/list", args.toString()).getOrNull() ?: return emptyList()
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+            ?: return emptyList()
+        val value = (root["result"] as? JsonObject)?.get("value") as? JsonObject
+            ?: return emptyList()
+        val skills = value["skills"] as? JsonArray ?: return emptyList()
+        println("DSH_SKILLS count=${skills.size}")
+        return skills.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val name = (obj["name"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            com.deepseek.dsh.core.model.SkillInfo(
+                name = name,
+                description = (obj["description"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                whenToUse = (obj["whenToUse"] as? JsonPrimitive)?.contentOrNull,
+                modelInvocable = (obj["modelInvocable"] as? JsonPrimitive)?.contentOrNull == "true",
+            )
+        }
+    }
+
     /** 刷新当前会话的技能目录（`skills/list`，冷读，不激活 Agent）。 */
     suspend fun refreshHostSkills(hostId: String, sessionId: String) {
         val args = buildJsonObject {

@@ -59,6 +59,7 @@ import kotlin.math.roundToInt
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -215,6 +216,8 @@ fun ModernChatScreen(
     skills: List<com.deepseek.dsh.core.model.SkillInfo> = emptyList(),
     /** 打开加号菜单前刷新技能目录（冷读 skills/list）。 */
     onRefreshSkills: () -> Unit = {},
+    /** 直接读取技能目录（菜单打开时用返回值渲染，避免状态管道丢失）。 */
+    loadSkills: suspend () -> List<com.deepseek.dsh.core.model.SkillInfo> = { emptyList() },
     /** 官方 `todos` 投影（当前会话待办）。 */
     todos: List<com.deepseek.dsh.core.model.TodoEntryInfo> = emptyList(),
     /** 官方 `goal` 投影（当前会话目标）。 */
@@ -312,6 +315,12 @@ fun ModernChatScreen(
     }
     var currentPermission by remember(selectedPermission) { mutableStateOf(selectedPermission) }
     var commandSheetOpen by remember { mutableStateOf(false) }
+    // 技能目录随菜单打开现拉：工作区的 .dsh/skills 可能刚被改动。
+    val sheetSkills = remember { mutableStateOf(skills) }
+    val sheetScope = rememberCoroutineScope()
+    LaunchedEffect(skills) {
+        if (skills.isNotEmpty()) sheetSkills.value = skills
+    }
     // 从加号菜单选中的斜杠命令：输入框内显示本地化 chip（如 /目标），
     // placeholder 变成该命令的参数提示，发送时再还原成 Host 认识的 /goal。
     var activeCommandToken by remember { mutableStateOf<String?>(null) }
@@ -473,6 +482,10 @@ fun ModernChatScreen(
                 // 技能来自工作区 .dsh/skills，可能刚被创建/修改；打开菜单前冷读一次。
                 onRefreshSkills()
                 commandSheetOpen = true
+                sheetScope.launch {
+                    val loaded = runCatching { loadSkills() }.getOrNull().orEmpty()
+                    if (loaded.isNotEmpty()) sheetSkills.value = loaded
+                }
             },
             selectedModel = selectedModel,
             selectedModelId = selectedModelId,
@@ -772,7 +785,7 @@ fun ModernChatScreen(
         ComposerCommandSheet(
             onDismiss = { commandSheetOpen = false },
             hostCommands = hostCommands,
-            skills = skills,
+            skills = sheetSkills.value,
             onSkill = { name ->
                 commandSheetOpen = false
                 inputText = (if (inputText.isBlank()) "" else inputText.trimEnd() + " ") + "/$name "

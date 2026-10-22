@@ -2394,6 +2394,11 @@ fun MainAppHost(
                                 streamingReasoning = streamingReasoning,
                                 hostCommands = hostCommands,
                                 skills = hostSkills,
+                                loadSkills = {
+                                    val sid = selectedSessionId
+                                    if (sid == null) emptyList()
+                                    else dshRepository.listSkills(activeHostId, sid)
+                                },
                                 onRefreshSkills = {
                                     val sid = selectedSessionId
                                     if (sid != null) {
