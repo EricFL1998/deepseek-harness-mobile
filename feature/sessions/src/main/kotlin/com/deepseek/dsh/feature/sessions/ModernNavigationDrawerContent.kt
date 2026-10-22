@@ -507,22 +507,32 @@ fun ModernNavigationDrawerContent(
             }
 
             val remoteFolder = if (searching && remoteSearchResults.isNotEmpty()) {
-                val remoteTitle = remoteSearchTitle
-                listOf(
-                    WorkspaceFolder(
-                        id = "__remote",
-                        name = remoteTitle,
-                        sessions = remoteSearchResults.map { (sessionId, snippet) ->
-                            SessionDisplayItem(
-                                sessionId = sessionId,
-                                title = snippet,
-                                timeAgo = "",
-                                isActiveDot = sessionId == selectedSessionId,
-                            )
-                        },
-                        isExpanded = true,
+                val visibleIds = visibleWorkspaces
+                    .flatMap { it.sessions }
+                    .map { it.sessionId }
+                    .toSet()
+                val remoteRows = remoteSearchResults
+                    .filterNot { (sessionId, _) -> sessionId in visibleIds }
+                    .map { (sessionId, snippet) ->
+                        SessionDisplayItem(
+                            sessionId = sessionId,
+                            title = snippet,
+                            timeAgo = "",
+                            isActiveDot = sessionId == selectedSessionId,
+                        )
+                    }
+                if (remoteRows.isEmpty()) {
+                    emptyList()
+                } else {
+                    listOf(
+                        WorkspaceFolder(
+                            id = "__remote",
+                            name = remoteSearchTitle,
+                            sessions = remoteRows,
+                            isExpanded = true,
+                        )
                     )
-                )
+                }
             } else {
                 emptyList()
             }

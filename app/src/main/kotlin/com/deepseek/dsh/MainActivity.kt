@@ -1831,7 +1831,15 @@ fun MainAppHost(
                         } else {
                             scope.launch {
                                 val hits = dshRepository.searchSessions(activeHostId, query)
-                                remoteSearchResults = hits.map { it.sessionId to it.snippet }
+                                val titles = sessions.associate { it.sessionId to it.title }
+                                remoteSearchResults = hits.map { hit ->
+                                    val title = titles[hit.sessionId]
+                                    hit.sessionId to if (title.isNullOrBlank()) {
+                                        hit.snippet
+                                    } else {
+                                        "$title · ${hit.snippet}"
+                                    }
+                                }
                             }
                         }
                     },
