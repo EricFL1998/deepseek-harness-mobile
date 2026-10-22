@@ -120,4 +120,9 @@
     <string name="settings_pane_plugins_running">运行中</string>
     <string name="settings_pane_plugins_fact_source">来自</string>
     <string name="settings_pane_plugins_source_preset">Agent 预设</string>
+<string name="settings_pane_models_provider_label">提供商</string>
+    <string name="settings_pane_models_provider_select">请选择提供商</string>
+    <string name="settings_pane_models_env_missing">未检测到环境变量。请填写 API 密钥，或设置 %1$s。</string>
+<string name="settings_pane_models_models_label">模型 ID（逗号分隔）</string>
+    <string name="settings_pane_models_models_hint">留空沿用提供商目录；填写的 ID 会出现在模型选择器里。</string>
 </resources>

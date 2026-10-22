@@ -17,6 +17,10 @@ data class ModelProviderUi(
     val settingsNs: String = "",
     val settingsPath: List<String> = emptyList(),
     val baseUrl: String = "",
+    /** 目录路由由适配器自带（true）；false 表示要自己声明 api 协议。 */
+    val declared: Boolean = true,
+    /** 目录声明的默认端点，作为自定义设置里的占位。 */
+    val defaultBaseUrl: String = "",
     /**
      * 是否已在 Host 侧配置（存在 profile 值或已存密钥）。
      * 未配置的目录项只在“添加模型提供商”里列出，选中后才进入编辑器。
@@ -86,9 +90,12 @@ fun parseModelProviders(
             }
         }.orEmpty().distinct()
 
+        val declared = obj["declared"]?.toString() != "false"
         ModelProviderUi(
             id = provider,
             name = displayName,
+            declared = declared,
+            defaultBaseUrl = (obj["defaultBaseURL"] as? JsonPrimitive)?.content.orEmpty(),
             models = modelList,
             keyRef = keyRef,
             keyConfigured = credential?.first ?: false,
@@ -99,9 +106,18 @@ fun parseModelProviders(
             configured = profile != null || credential?.first == true,
         )
     }
+    // Host 目录里同时有官方的 `deepseek-official` 和 pi-ai 的通用 `deepseek`
+    // 路由，两者显示名几乎一样（DeepSeek / deepseek），会让设置页出现两张
+    // 重复的 DeepSeek 卡片。有官方路由时丢掉通用路由。
+    val hasOfficialDeepSeek = parsed.any { it.id == "deepseek-official" }
+    val deduped = if (hasOfficialDeepSeek) {
+        parsed.filterNot { it.id == "deepseek" }
+    } else {
+        parsed
+    }
     // 官方内置 DeepSeek API 提供商始终存在；Host 目录未返回时也要能看到并配置。
-    val hasDeepSeek = parsed.any { it.id.contains("deepseek", ignoreCase = true) || it.name.contains("DeepSeek", ignoreCase = true) }
-    return if (hasDeepSeek) parsed else parsed + ModelProviderUi(
+    val hasDeepSeek = deduped.any { it.id.contains("deepseek", ignoreCase = true) || it.name.contains("DeepSeek", ignoreCase = true) }
+    return if (hasDeepSeek) deduped else deduped + ModelProviderUi(
         id = "deepseek",
         name = "DeepSeek",
         models = emptyList(),

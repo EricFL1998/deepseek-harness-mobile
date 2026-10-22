@@ -226,4 +226,9 @@
     <string name="settings_plugins_desc">View the list of built-in deployed plugins</string>
     <string name="settings_agent_presets_desc">Choose the agent tools and working style. Use Standard for daily tasks and Create to extend DSH.</string>
     <string name="settings_models_desc">Enter the API key for each provider to use its models.</string>
-    <string name="settings_update_desc">Client, compatibility plugin and underlying runtime</string></resources>
+    <string name="settings_update_desc">Client, compatibility plugin and underlying runtime</string><string name="settings_pane_models_add_tab_catalog">Choose provider</string>
+    <string name="settings_pane_models_add_tab_custom">Custom</string>
+    <string name="settings_pane_models_custom_id">Provider ID</string>
+    <string name="settings_pane_models_custom_id_placeholder">e.g. my-gateway</string>
+    <string name="settings_pane_models_custom_id_invalid">Use letters, digits, dots or dashes</string>
+</resources>

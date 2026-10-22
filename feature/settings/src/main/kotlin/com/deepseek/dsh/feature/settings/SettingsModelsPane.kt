@@ -2,6 +2,7 @@ package com.deepseek.dsh.feature.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -55,13 +56,20 @@ internal fun SettingsModelsPane(
     }
     var editingId by remember { mutableStateOf<String?>(null) }
     var showAddProvider by remember { mutableStateOf(false) }
+    // 自定义提供商的草稿：目录里没有它，但保存/编辑要和目录项走同一套编辑器。
+    var customDraft by remember { mutableStateOf<ModelProviderUi?>(null) }
+    val allProviders = remember(providers, customDraft) {
+        if (customDraft == null) providers else providers + customDraft!!
+    }
     // 已配置的提供商显示为卡片；官方 DeepSeek 始终保留一张卡片；正在编辑的提供商
     // （含刚从“添加”弹窗选中的未配置项）要渲染编辑器而不是卡片。
-    val visibleProviders = providers.filter {
+    val visibleProviders = allProviders.filter {
         it.configured || it.id == "deepseek" || it.id == editingId
     }
     // 未配置的目录项只出现在“添加模型提供商”弹窗里；DeepSeek 已常驻卡片，不再重复列出。
-    val addableProviders = providers.filter { !it.configured && it.id != "deepseek" }
+    val addableProviders = allProviders.filter {
+        !it.configured && it.id != "deepseek" && it.id != "deepseek-official"
+    }
     // 打开编辑器后滚动到该条目：从“添加”弹窗选中的提供商可能位于列表上方不可见处。
     // 固定前置条目共 3 项（标题、说明、账号卡片），其后才是 provider 条目。
     val listState = rememberLazyListState()
@@ -177,9 +185,10 @@ internal fun SettingsModelsPane(
             // 此时不能告诉用户「都配置好了」，那是两件完全不同的事。
             hostReady = !providersRaw.isNullOrBlank(),
             onDismiss = { showAddProvider = false },
-            onAdd = { provider ->
+            onSave = { provider, key, baseUrl, models ->
+                if (providers.none { it.id == provider.id }) customDraft = provider
                 showAddProvider = false
-                editingId = provider.id
+                onSaveProvider(provider, key, baseUrl, models)
             },
             onOpenConfigFile = onOpenConfigFile,
         )
@@ -197,74 +206,291 @@ private fun AddModelProviderDialog(
     providers: List<ModelProviderUi>,
     hostReady: Boolean,
     onDismiss: () -> Unit,
-    onAdd: (ModelProviderUi) -> Unit,
+    onSave: (ModelProviderUi, String, String, List<String>) -> Unit,
     onOpenConfigFile: () -> Unit,
 ) {
     val palette = LocalSettingsPalette.current
+    var mode by remember { mutableStateOf(0) }
+    var selected by remember(providers) { mutableStateOf<ModelProviderUi?>(null) }
+    var dropdownOpen by remember { mutableStateOf(false) }
+    var expanderOpen by remember { mutableStateOf(false) }
+    var keyInput by remember { mutableStateOf("") }
+    var baseUrlInput by remember { mutableStateOf("") }
+    var modelsInput by remember { mutableStateOf("") }
+    var customId by remember { mutableStateOf("") }
+    var customBaseUrl by remember { mutableStateOf("") }
+    var customKey by remember { mutableStateOf("") }
+    val customValid = customId.matches(Regex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"))
     com.deepseek.dsh.core.designsystem.DshDialog(
         onDismiss = onDismiss,
         title = stringResource(R.string.settings_pane_models_add_title),
         closeLabel = stringResource(R.string.action_close),
         description = stringResource(R.string.settings_pane_models_add_desc),
         content = {
-            if (providers.isEmpty()) {
-                SettingsEmptyState(
-                    text = stringResource(
-                        if (hostReady) {
-                            R.string.settings_pane_models_add_empty
-                        } else {
-                            R.string.settings_pane_models_add_unavailable
-                        }
-                    )
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    providers.forEach { provider ->
-                        SettingsCard(verticalPadding = 10.dp) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = provider.name,
-                                        style = SettingsText.RowTitleMedium,
-                                        color = palette.labelPrimary,
-                                    )
-                                    Text(
-                                        text = provider.id,
-                                        fontSize = 12.sp,
-                                        lineHeight = 18.sp,
-                                        color = palette.labelTertiary,
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                SettingsSmallButton(
-                                    text = stringResource(R.string.settings_pane_models_add_action),
-                                    primary = true,
-                                    onClick = { onAdd(provider) },
-                                )
-                            }
+            // 官方 ModelsSection：一个卡片 + 段选择（第三方目录 / 自定义），目录项
+            // 用下拉折叠而不是铺开整张清单。
+            SettingsCard(verticalPadding = 6.dp) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    listOf(
+                        stringResource(R.string.settings_pane_models_add_tab_catalog),
+                        stringResource(R.string.settings_pane_models_add_tab_custom),
+                    ).forEachIndexed { index, label ->
+                        val active = mode == index
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { mode = index }
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 13.sp,
+                                fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+                                color = if (active) palette.labelPrimary else palette.labelSecondary,
+                            )
                         }
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            if (mode == 0) {
+                if (providers.isEmpty()) {
+                    SettingsEmptyState(
+                        text = stringResource(
+                            if (hostReady) {
+                                R.string.settings_pane_models_add_empty
+                            } else {
+                                R.string.settings_pane_models_add_unavailable
+                            }
+                        )
+                    )
+                } else {
+                    Text(
+                        stringResource(R.string.settings_pane_models_provider_label),
+                        style = SettingsText.RowTitle,
+                        color = palette.labelPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box {
+                        SettingsCard(verticalPadding = 10.dp) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { dropdownOpen = true },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = selected?.name
+                                        ?: stringResource(R.string.settings_pane_models_provider_select),
+                                    fontSize = 14.sp,
+                                    color = if (selected == null) palette.labelTertiary else palette.labelPrimary,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                SettingsChevronDown(expanded = dropdownOpen, size = 12.dp)
+                            }
+                        }
+                        com.deepseek.dsh.core.designsystem.AnchoredMenuPopup(
+                            expanded = dropdownOpen,
+                            onDismiss = { dropdownOpen = false },
+                            align = com.deepseek.dsh.core.designsystem.DshMenuAlign.Start,
+                            contentWidth = true,
+                            maxHeight = 320.dp,
+                        ) {
+                            providers.forEach { provider ->
+                                com.deepseek.dsh.core.designsystem.DshMenuRow(
+                                    onClick = {
+                                        selected = provider
+                                        dropdownOpen = false
+                                    },
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            provider.name,
+                                            fontSize = 13.sp,
+                                            color = palette.labelPrimary,
+                                        )
+                                        Text(
+                                            provider.id,
+                                            fontSize = 11.sp,
+                                            color = palette.labelTertiary,
+                                        )
+                                    }
+                                    if (provider.id == selected?.id) {
+                                        com.deepseek.dsh.core.designsystem.DshMenuCheck()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        stringResource(R.string.settings_pane_models_api_key),
+                        style = SettingsText.RowTitle,
+                        color = palette.labelPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    com.deepseek.dsh.core.designsystem.DshTextInput(
+                        value = keyInput,
+                        onValueChange = { keyInput = it },
+                        placeholder = stringResource(
+                            R.string.settings_pane_models_key_placeholder,
+                            selected?.keyRef ?: "",
+                        ),
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expanderOpen = !expanderOpen },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SettingsChevronDown(expanded = expanderOpen, size = 12.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.settings_pane_models_custom_settings),
+                            style = SettingsText.RowTitle,
+                            color = palette.labelSecondary,
+                        )
+                    }
+                    if (expanderOpen) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.settings_pane_models_api_base_url),
+                            style = SettingsText.RowTitle,
+                            color = palette.labelPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        com.deepseek.dsh.core.designsystem.DshTextInput(
+                            value = baseUrlInput,
+                            onValueChange = { baseUrlInput = it },
+                            placeholder = selected?.baseUrl.orEmpty(),
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.settings_pane_models_models_label),
+                            style = SettingsText.RowTitle,
+                            color = palette.labelPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        com.deepseek.dsh.core.designsystem.DshTextInput(
+                            value = modelsInput,
+                            onValueChange = { modelsInput = it },
+                            placeholder = selected?.models.orEmpty().joinToString(", "),
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            stringResource(R.string.settings_pane_models_models_hint),
+                            fontSize = 12.sp,
+                            color = palette.labelTertiary,
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    stringResource(R.string.settings_pane_models_custom_id),
+                    style = SettingsText.RowTitle,
+                    color = palette.labelPrimary,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = customId,
+                    onValueChange = { customId = it },
+                    placeholder = stringResource(R.string.settings_pane_models_custom_id_placeholder),
+                )
+                if (customId.isNotEmpty() && !customValid) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        stringResource(R.string.settings_pane_models_custom_id_invalid),
+                        fontSize = 12.sp,
+                        color = palette.warning,
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.settings_pane_models_api_base_url),
+                    style = SettingsText.RowTitle,
+                    color = palette.labelPrimary,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = customBaseUrl,
+                    onValueChange = { customBaseUrl = it },
+                    placeholder = "https://api.example.com/v1",
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.settings_pane_models_api_key),
+                    style = SettingsText.RowTitle,
+                    color = palette.labelPrimary,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = customKey,
+                    onValueChange = { customKey = it },
+                    placeholder = stringResource(R.string.settings_pane_models_api_key),
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.settings_pane_models_models_label),
+                    style = SettingsText.RowTitle,
+                    color = palette.labelPrimary,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                com.deepseek.dsh.core.designsystem.DshTextInput(
+                    value = modelsInput,
+                    onValueChange = { modelsInput = it },
+                    placeholder = "deepseek-chat, deepseek-reasoner",
+                )
+            }
         },
         footer = {
-            com.deepseek.dsh.core.designsystem.DshDialogButton(
-                text = stringResource(R.string.settings_pane_models_open_config),
-                primary = false,
-                enabled = true,
-                onClick = {
-                    onDismiss()
-                    onOpenConfigFile()
-                },
-            )
             com.deepseek.dsh.core.designsystem.DshDialogButton(
                 text = stringResource(R.string.settings_pane_models_cancel),
                 primary = false,
                 enabled = true,
                 onClick = onDismiss,
+            )
+            com.deepseek.dsh.core.designsystem.DshDialogButton(
+                text = stringResource(R.string.settings_pane_models_save),
+                primary = true,
+                enabled = if (mode == 0) selected != null else customValid,
+                onClick = {
+                    if (mode == 0) {
+                        val provider = selected ?: return@DshDialogButton
+                        val typedModels = modelsInput.split(',', '\n')
+                            .map { it.trim() }
+                            .filter { it.isNotEmpty() }
+                        onSave(
+                            provider,
+                            keyInput.trim(),
+                            baseUrlInput.trim(),
+                            if (typedModels.isEmpty()) provider.models else typedModels,
+                        )
+                    } else {
+                        val id = customId.trim()
+                        onSave(
+                            ModelProviderUi(
+                                id = id,
+                                name = id,
+                                models = emptyList(),
+                                keyRef = id.uppercase().replace('-', '_')
+                                    .replace('.', '_') + "_API_KEY",
+                                keyConfigured = false,
+                                settingsNs = "llm-pi-ai",
+                                settingsPath = listOf("providers", id),
+                                baseUrl = customBaseUrl.trim(),
+                                declared = false,
+                                configured = false,
+                            ),
+                            customKey.trim(),
+                            customBaseUrl.trim(),
+                            modelsInput.split(',', '\n')
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() },
+                        )
+                    }
+                },
             )
         },
     )

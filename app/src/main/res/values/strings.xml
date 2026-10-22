@@ -587,4 +587,9 @@
 <string name="terminal_unavailable">Terminal unavailable</string>
 <string name="terminal_connecting">Connecting…</string>
 <string name="terminal_closed">Closed</string>
+<string name="settings_pane_models_add_tab_catalog">Choose provider</string>
+<string name="settings_pane_models_add_tab_custom">Custom</string>
+<string name="settings_pane_models_custom_id">Provider ID</string>
+<string name="settings_pane_models_custom_id_placeholder">e.g. my-gateway</string>
+<string name="settings_pane_models_custom_id_invalid">Use letters, digits, dots or dashes</string>
 </resources>

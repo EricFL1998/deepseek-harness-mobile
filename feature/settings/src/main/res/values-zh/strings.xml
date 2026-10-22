@@ -226,4 +226,9 @@
     <string name="settings_plugins_desc">查看内置部署的插件列表</string>
     <string name="settings_agent_presets_desc">选择 Agent 的工具和工作方式。日常任务用「标准模式」，扩展 DSH 的能力用「创造模式」。</string>
     <string name="settings_models_desc">填入各提供商的 API 密钥即可使用其模型。</string>
-    <string name="settings_update_desc">客户端、兼容层插件与底层运行时</string></resources>
+    <string name="settings_update_desc">客户端、兼容层插件与底层运行时</string><string name="settings_pane_models_add_tab_catalog">选择提供商</string>
+    <string name="settings_pane_models_add_tab_custom">自定义</string>
+    <string name="settings_pane_models_custom_id">提供商 ID</string>
+    <string name="settings_pane_models_custom_id_placeholder">例如 my-gateway</string>
+    <string name="settings_pane_models_custom_id_invalid">只能包含字母、数字、点或短横线</string>
+</resources>

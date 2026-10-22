@@ -120,4 +120,9 @@
     <string name="settings_pane_plugins_running">Running</string>
     <string name="settings_pane_plugins_fact_source">From</string>
     <string name="settings_pane_plugins_source_preset">Agent preset</string>
+<string name="settings_pane_models_provider_label">Provider</string>
+    <string name="settings_pane_models_provider_select">Select a provider</string>
+    <string name="settings_pane_models_env_missing">No environment variable detected. Enter an API key or set %1$s.</string>
+<string name="settings_pane_models_models_label">Model IDs (comma separated)</string>
+    <string name="settings_pane_models_models_hint">Leave blank to keep the provider catalogue; add IDs to expose them in the model picker.</string>
 </resources>

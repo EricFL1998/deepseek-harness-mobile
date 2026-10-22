@@ -3129,6 +3129,14 @@ fun MainAppHost(
                                                     .put("path", org.json.JSONArray(provider.settingsPath + "apiKeyEnv"))
                                                     .put("value", provider.keyRef))
                                             }
+                                            // 非适配器自带的路由必须声明线协议，否则 Host
+                                            // 会以 settings/rejected 拒绝整个 provider。
+                                            if (!provider.declared) {
+                                                ops.put(org.json.JSONObject()
+                                                    .put("op", "set")
+                                                    .put("path", org.json.JSONArray(provider.settingsPath + "api"))
+                                                    .put("value", wireProtocolFor(provider.id)))
+                                            }
                                             if (baseUrl.isNotBlank()) {
                                                 ops.put(org.json.JSONObject()
                                                     .put("op", "set")
@@ -4353,4 +4361,10 @@ private const val PLUGIN_SELECTION_KEY = "enabled_bundles"
 /** 磁盘上的默认工作区目录名；界面显示走 R.string.workspace_default。 */
 private const val DEFAULT_WORKSPACE_DIR_NAME = "默认工作区"
 
-
+/** 自定义/未声明路由的默认线协议（官方 llm-pi-ai 的 api 取值）。 */
+private fun wireProtocolFor(providerId: String): String = when {
+    providerId.contains("anthropic", ignoreCase = true) -> "anthropic-messages"
+    providerId.contains("google", ignoreCase = true) -> "google-generative-ai"
+    providerId.contains("openai-responses", ignoreCase = true) -> "openai-responses"
+    else -> "openai-completions"
+}
