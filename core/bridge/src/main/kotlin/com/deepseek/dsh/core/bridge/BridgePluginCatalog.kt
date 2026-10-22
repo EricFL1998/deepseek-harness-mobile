@@ -109,6 +109,12 @@ object BridgePluginCatalog {
                 availability = bundle.availability,
                 errorCode = bundle.errorCode,
                 iconDataUrl = bundle.icon,
+                profileRoot = bundle.profileRoot,
+                pinned = bundle.pinned,
+                order = bundle.order,
+                hidden = bundle.hidden,
+                market = bundle.market,
+                locked = bundle.locked,
                 rows = bundle.rows.map { row ->
                     BridgePluginRowSummary(
                         rowId = row.rowId,
@@ -250,6 +256,12 @@ data class BridgePluginBundleSummary(
     val availability: String = "",
     val errorCode: String?,
     val iconDataUrl: String?,
+    val profileRoot: Boolean = false,
+    val pinned: Boolean = false,
+    val order: Int = 0,
+    val hidden: Boolean = false,
+    val market: Boolean = false,
+    val locked: Boolean = false,
     val rows: List<BridgePluginRowSummary> = emptyList(),
 )
 

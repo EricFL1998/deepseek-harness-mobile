@@ -261,6 +261,13 @@ data class BridgeBundle(
     val icon: String? = null,
     val rows: List<BridgeBundleRow> = emptyList(),
     val errorCode: String? = null,
+    /** bridge 下发的官方插件页策略（旧版 bridge 缺省时回落 App 侧）。 */
+    val profileRoot: Boolean = false,
+    val pinned: Boolean = false,
+    val order: Int = 0,
+    val hidden: Boolean = false,
+    val market: Boolean = false,
+    val locked: Boolean = false,
 )
 
 /** bundle 的一条 row。 */

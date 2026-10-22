@@ -570,6 +570,18 @@ fun MainAppHost(
     // Host 声明的行级/页面级设置位置：插件页的「内置插件配置」用它把官方设置页
     // 映射到真正的设置命名空间。
     val pluginSlotSurfaces by dshRepository.pluginSlotSurfacesFlow.collectAsState()
+    // 官方/插件归属由后端决定：bridge 只把官方 Loader 行拥有的设置命名空间列进
+    // host-slots，模型页据此判断哪些 provider 属于官方目录（其余属于插件）。
+    val officialModelNamespaces = remember(pluginSlotSurfaces) {
+        pluginSlotSurfaces
+            .filter { surface ->
+                surface.module?.startsWith("@deepseek-ai/") == true
+            }
+            .mapNotNull { surface ->
+                surface.id.substringAfterLast('#').takeIf { it.isNotBlank() }
+            }
+            .toSet()
+    }
 
     var modelProvidersRaw by remember { mutableStateOf<String?>(null) }
     var modelSettingsRaw by remember { mutableStateOf<String?>(null) }
@@ -1039,7 +1051,7 @@ fun MainAppHost(
             modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
             modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
             val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
-                modelProvidersRaw, modelSettingsRaw, null
+                modelProvidersRaw, modelSettingsRaw, null, officialModelNamespaces
             ).map { it.keyRef }.distinct()
             val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
             modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
@@ -1207,7 +1219,7 @@ fun MainAppHost(
             modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
             modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
             val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
-                modelProvidersRaw, modelSettingsRaw, null
+                modelProvidersRaw, modelSettingsRaw, null, officialModelNamespaces
             ).map { it.keyRef }.distinct()
             val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
             modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
@@ -3202,7 +3214,7 @@ fun MainAppHost(
                                             .rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}")
                                             .getOrNull()
                                         val providerRefs = com.deepseek.dsh.feature.settings
-                                            .parseModelProviders(modelProvidersRaw, modelSettingsRaw, null)
+                                            .parseModelProviders(modelProvidersRaw, modelSettingsRaw, null, officialModelNamespaces)
                                             .map { it.keyRef }.distinct()
                                         val refsJson = providerRefs.joinToString(
                                             prefix = "{\"refs\":[",

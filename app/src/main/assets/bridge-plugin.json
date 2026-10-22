@@ -1,6 +1,6 @@
 {
   "packageName": "dsh-mobile-bridge-plugin",
-  "version": "2.0.3",
+  "version": "2.0.6",
   "repository": "https://github.com/EricFL1998/deepseek-harness-mobile-bridge-plugin",
   "_comment": "\u63d2\u4ef6\u4ece GitHub \u6e90\u7801\u5b89\u88c5\uff0c\u4e0d\u8fdb APK\u3002'version' \u53ea\u8bb0\u5f55\u5f53\u524d rootfs \u955c\u50cf\uff08rootfs-v1.0.9\uff09\u91cc\u6253\u5305\u7684\u63d2\u4ef6\u7248\u672c\uff0c\u4e0e GitHub \u6700\u65b0 release \u4fdd\u6301\u540c\u6b65\uff1b\u5b9e\u9645\u66f4\u65b0\u76ee\u6807\u6c38\u8fdc\u53d6\u63d2\u4ef6\u4ed3\u5e93\u7684\u6700\u65b0 release tag\uff0c\u4e0d\u6539\u8fd9\u91cc\u3002"
 }

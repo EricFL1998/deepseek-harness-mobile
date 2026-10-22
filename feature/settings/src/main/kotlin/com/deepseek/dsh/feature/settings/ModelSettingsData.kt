@@ -41,8 +41,14 @@ fun responseValue(raw: String?): JsonElement? {
     }.getOrNull()
 }
 
-/** 官方内置的模型 provider 命名空间白名单（其余命名空间都属于插件）。 */
-val OFFICIAL_MODEL_NAMESPACES: Set<String> = setOf(
+/**
+ * 官方 provider 命名空间白名单的兜底值。
+ *
+ * 正常路径下官方/插件的归属来自 Host：bridge 的 `host-slots` 只列出官方 Loader 行
+ * 拥有的设置命名空间（[parseModelProviders] 的 `officialNamespaces`）。这里只在
+ * bridge 尚未就绪（拿不到归属）时兜底，避免模型页整页空白。
+ */
+private val FALLBACK_OFFICIAL_MODEL_NAMESPACES: Set<String> = setOf(
     "llm-deepseek",
     "llm-deepseek-account",
     "llm-pi-ai",
@@ -52,6 +58,8 @@ fun parseModelProviders(
     providersRaw: String?,
     settingsRaw: String?,
     credentialsRaw: String?,
+    /** Host 报告的官方设置命名空间；null 表示 bridge 尚未提供归属。 */
+    officialNamespaces: Set<String>? = null,
 ): List<ModelProviderUi> {
     val providers = (responseValue(providersRaw) as? JsonArray) ?: JsonArray(emptyList())
     val namespaces = runCatching {
@@ -89,7 +97,9 @@ fun parseModelProviders(
         // 我们自己的订阅插件（llm-subscription-oauth：Kimi/Grok/GLM/Ark/MiMo/
         // WorkBuddy/Antigravity）以及未来任何新插件都在里面。用白名单而不是黑名单，
         // 以后新增插件不会漏进官方目录；插件 provider 只由插件自己的页面管理。
-        if (settingsNs !in OFFICIAL_MODEL_NAMESPACES) return@mapNotNull null
+        val officialNames = officialNamespaces?.takeIf { it.isNotEmpty() }
+            ?: FALLBACK_OFFICIAL_MODEL_NAMESPACES
+        if (settingsNs !in officialNames) return@mapNotNull null
         // 目录项即使尚未配置也保留（configured=false）：设置面板据此决定
         // 是否显示为卡片，并把未配置项放进“添加模型提供商”列表。
         val apiKeyEnv = (profile?.get("apiKeyEnv") as? JsonPrimitive)?.content

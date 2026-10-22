@@ -1,5 +1,12 @@
 package com.deepseek.dsh.feature.chat
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -8,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -70,15 +76,29 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
                         .padding(start = (16 * block.depth).dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = block.marker,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    // 固定宽度的标记列：圆点、序号与复选框占同样宽度，正文才能对齐。
+                    Box(
+                        modifier = Modifier.width(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (block.checked != null) {
+                            ChecklistBox(checked = block.checked)
+                        } else {
+                            Text(
+                                text = block.marker,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     Text(
                         text = inlineMarkdown(block.text, color),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = color,
+                        color = if (block.checked == true) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            color
+                        },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -194,10 +214,50 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
 private sealed interface MarkdownBlock {
     data class Heading(val level: Int, val text: String) : MarkdownBlock
     data class Paragraph(val text: String) : MarkdownBlock
-    data class ListItem(val marker: String, val text: String, val depth: Int = 0) : MarkdownBlock
+    data class ListItem(
+        val marker: String,
+        val text: String,
+        val depth: Int = 0,
+        /** 任务列表的勾选状态；null 表示普通列表项。 */
+        val checked: Boolean? = null,
+    ) : MarkdownBlock
     data class Code(val code: String) : MarkdownBlock
     data class Table(val rows: List<List<String>>) : MarkdownBlock
     data class Quote(val text: String) : MarkdownBlock
+}
+
+/** Markdown 任务项的复选框：勾选后实心强调色，否则描边空框。 */
+@Composable
+private fun ChecklistBox(checked: Boolean) {
+    val shape = RoundedCornerShape(3.dp)
+    Box(
+        modifier = Modifier
+            .size(12.dp)
+            .clip(shape)
+            .background(
+                if (checked) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape,
+            )
+            .border(
+                1.dp,
+                if (checked) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outline,
+                shape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (checked) {
+            Text(
+                text = "✓",
+                fontSize = 9.sp,
+                lineHeight = 10.sp,
+                color = MaterialTheme.colorScheme.onPrimary,
+                style = TextStyle(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                ),
+            )
+        }
+    }
 }
 
 private val headingRegex = Regex("^(#{1,6})\\s+(.*)$")
@@ -269,16 +329,16 @@ private fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
                 var itemText = match.groupValues[3].trim()
                 // 任务列表：- [ ] / - [x]
                 val task = taskRegex.find(itemText)
-                val marker = when {
-                    task != null -> if (task.groupValues[1].equals("x", ignoreCase = true)) "☑" else "☐"
-                    rawMarker.first().isDigit() -> rawMarker
-                    else -> "•"
+                val checked = task?.let {
+                    it.groupValues[1].equals("x", ignoreCase = true)
                 }
+                val marker = if (rawMarker.first().isDigit()) rawMarker else "•"
                 if (task != null) itemText = task.groupValues[2].trim()
                 blocks += MarkdownBlock.ListItem(
                     marker = marker,
                     text = itemText,
                     depth = depth,
+                    checked = checked,
                 )
             }
             trimmed.isEmpty() -> flushParagraph()

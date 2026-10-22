@@ -194,7 +194,7 @@ fun PluginsScreen(
     // 「发现」tab 由「自定义插件市场」bundle 的客户端插件注册；bundle 关闭时没有
     // 这个页签（官方页面同样只在插件注册了 plugins.tab 时才画页签条）。
     val marketEnabled = remember(bridgeCatalog) {
-        bridgeCatalog.bundles.any { it.name == PLUGIN_MARKET_BUNDLE && it.enabled }
+        bridgeCatalog.bundles.any { it.market && it.enabled }
     }
     LaunchedEffect(marketEnabled) {
         if (!marketEnabled && pluginsTabIndex == 2) pluginsTabIndex = 0
@@ -239,8 +239,8 @@ fun PluginsScreen(
      * 设置文档，而不是假装打开）。
      */
     fun namespacesForRow(rowId: String, packageName: String?): List<String> {
-        // 有逐字段复刻的官方页面时，用它自己声明的命名空间（最准确）。
-        officialSettingsNamespaces(rowId)?.let { declared -> return declared }
+        // 命名空间归属来自 bridge 的 host-slots（`<bundle>#<namespace>`），
+        // 不再维护「页面 id → 文档」的本地映射表。
         val family = packageName
             ?.substringAfterLast("settings-")
             ?.takeIf { it.isNotBlank() && it != packageName }
@@ -261,9 +261,13 @@ fun PluginsScreen(
     // `@deepseek-ai/dsh-cordis-client-runner` 的注册要排除：它把「插槽目录示例」
     // 也当成了真实注册（每个 slot 都有一条 `id: my-entry / label: My entry`），
     // 那不是插件页面，列出来只会在设置里多一行永远打不开的「My entry」。
-    val officialConfigItems = remember(bridgeCatalog, settingsNamespaces) {
+    // bridge 策略里标记为隐藏的 bundle（例如只提供插槽示例的 runner）不列出来。
+    val hiddenBundlePackages = remember(bridgeCatalog) {
+        bridgeCatalog.bundles.filter { it.hidden }.map { it.name }.toSet()
+    }
+    val officialConfigItems = remember(bridgeCatalog, settingsNamespaces, hiddenBundlePackages) {
         bridgeCatalog.categories
-            .filter { it.packageName != CORDIS_CLIENT_RUNNER_PACKAGE }
+            .filter { it.packageName == null || it.packageName !in hiddenBundlePackages }
             .map { category ->
                 ConfigEntryRow(
                     id = category.id,
@@ -290,10 +294,11 @@ fun PluginsScreen(
      */
     val derivedExperimentalBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
         val fromBridge = bridgeCatalog.bundles
-            .filter { it.optional }
+            .filter { it.optional && !it.hidden && !it.profileRoot }
             .map { it.toPluginBundleItem() }
-            .filter(::pinnedToMainList)
-            .sortedBy { optionalBundleRank(it.packageName) }
+            // 主列表 = 后端标记为常驻的，加上用户已启用的。
+            .filter { it.pinned || it.enabled }
+            .sortedBy { it.order }
         fromBridge.ifEmpty { pluginManagerSnapshot?.experimentalBundles.orEmpty() }
     }
     /**
@@ -307,21 +312,19 @@ fun PluginsScreen(
         bridgeCatalog.bundles
             .map { it.toPluginBundleItem() }
             .filter { bundle ->
-                bundle.official && (
+                !bundle.hidden && !bundle.profileRoot && bundle.official && (
                     if (bundle.isExperimental) {
-                        !pinnedToMainList(bundle)
+                        !bundle.pinned
                     } else {
                         !bundle.installed && bundle.availability != "installation"
                     }
                     )
             }
-            .filterNot { BUILTIN_PROFILE_BUNDLES.contains(it.packageName) }
-            .sortedBy { optionalBundleRank(it.packageName) }
+            .sortedBy { it.order }
     }
     val derivedInstalledBundles = remember(bridgeCatalog, pluginManagerSnapshot) {
         val fromBridge = bridgeCatalog.bundles
-            .filter { it.installed && !it.official && !it.optional }
-            .filterNot { BUILTIN_PROFILE_BUNDLES.contains(it.name) }
+            .filter { it.installed && !it.official && !it.optional && !it.hidden && !it.profileRoot }
             .map { it.toPluginBundleItem() }
         fromBridge.ifEmpty { pluginManagerSnapshot?.installedBundles.orEmpty() }
     }
@@ -473,27 +476,15 @@ fun PluginsScreen(
             if (configDetail != null) {
                 // 「内置插件配置」的详情。
                 //
-                // 四个官方页面（子智能体 / 网页搜索 / Agent 循环 / 终端）在
-                // `OfficialSettings.kt` 里有逐字段的原生复刻（文案逐条对照官方
-                // 中文词典、保存语义与官方一致），优先走它；其余条目用 Host
-                // 投影出来的通用表单兜底，保证每一行都能打开且能写回 Host。
-                if (hasOfficialPluginSettingsPage(configDetail.id)) {
-                    OfficialPluginSettingsPage(
-                        itemId = configDetail.id,
-                        onBack = { selectedConfig = null },
-                        loadDocument = loadPluginSettings,
-                        saveDocument = savePluginSettings,
-                        loadCredential = loadCredential,
-                        saveCredential = saveCredential,
-                    )
-                } else {
-                    PluginSettingsEditorPage(
-                        title = configDetail.title,
-                        namespaces = configDetail.namespaces,
-                        load = loadPluginSettings,
-                        save = savePluginSettings,
-                    )
-                }
+                // 字段、标签与控件类型全部来自 Host 的 `settings/describe`
+                // schema（bridge 投影），不再逐页复刻官方客户端：官方页面改了
+                // 字段，这里跟着 Host 一起变；官方页面没注册的命名空间同样能打开。
+                PluginSettingsEditorPage(
+                    title = configDetail.title,
+                    namespaces = configDetail.namespaces,
+                    load = loadPluginSettings,
+                    save = savePluginSettings,
+                )
             } else if (nativeDetail != null) {
                 NativePluginDetailPage(
                     item = nativeDetail,
@@ -715,7 +706,7 @@ fun PluginsScreen(
                                 onOpen = { selectedBundleName = bundle.packageName },
                                 onToggle = { enabled -> onToggleBundle(bundle.packageName, enabled) },
                                 onUninstall = { },
-                                locked = isLockedBundle(bundle.packageName),
+                                locked = bundle.locked,
                             )
                         }
                     }
@@ -777,7 +768,7 @@ fun PluginsScreen(
                                             )
                                         )
                                     },
-                                    locked = isLockedBundle(bundle.packageName),
+                                    locked = bundle.locked,
                                 )
                             }
                         }
@@ -953,7 +944,13 @@ private fun BridgePluginBundleSummary.toPluginBundleItem(): PluginBundleItem = P
     removable = removable,
     error = errorCode,
     iconData = iconDataUrl,
-            rows = rows.map { row ->
+    profileRoot = profileRoot,
+    pinned = pinned,
+    order = order,
+    hidden = hidden,
+    market = market,
+    locked = locked,
+    rows = rows.map { row ->
         PluginComponentInfo(
             rowId = row.rowId,
             moduleName = row.moduleName,
@@ -992,67 +989,6 @@ internal fun companionsOf(
         item.installed && (declared == moduleName || normalizeModuleName(declared) == moduleName)
     }
 
-
-
-/**
- * 官方插件页的分组规则，逐条对应 `ui-plugin-manager` 的实现。
- *
- * 这些包名是官方页面的固定清单，不是内容数据：它们决定「哪些默认显示、哪些先收起来、
- * 哪些开关默认是开的」。内容（标题/描述/图标/开关状态）全部来自 Host。
- */
-/** 基础层 bundle：`/plugins` 页面永远不列它们，即使 profile 声明为依赖。 */
-private const val PLUGIN_MARKET_BUNDLE = "@deepseek-ai/dsh-experimental-plugin-market-bundle"
-
-private val BUILTIN_PROFILE_BUNDLES = setOf(
-    "@deepseek-ai/dsh-base",
-    "@deepseek-ai/dsh-web-app",
-    "@deepseek-ai/dsh-headless",
-    "@deepseek-ai/dsh-sdk-app",
-    "@deepseek-ai/dsh-acp-app",
-    "@deepseek-ai/dsh-sdk-minimal",
-)
-
-/** 实验性插件里常驻主列表的四个，顺序即显示顺序。 */
-private val EXTENSION_BUNDLES = listOf(
-    "@deepseek-ai/dsh-experimental-agent-team-profile",
-    "@deepseek-ai/dsh-experimental-voice-input-bundle",
-    "@deepseek-ai/dsh-experimental-auto-review",
-    "@deepseek-ai/dsh-experimental-inspector-profile",
-)
-
-/** 其余实验性插件：默认收在「更多插件」里，一旦启用就升进主列表。 */
-private val MORE_BUNDLES = listOf(
-    "@deepseek-ai/dsh-experimental-tool-worktree",
-    "@deepseek-ai/dsh-experimental-cot-translation-bundle",
-    "@deepseek-ai/dsh-experimental-terminal-bundle",
-    "@deepseek-ai/dsh-experimental-session-search",
-    "@deepseek-ai/dsh-experimental-session-titles-bundle",
-    "@deepseek-ai/dsh-experimental-badge-skill-bundle",
-    "@deepseek-ai/dsh-experimental-ralph-bundle",
-    "@deepseek-ai/dsh-experimental-plugin-market-bundle",
-    "@deepseek-ai/dsh-subagent-codex",
-    "@deepseek-ai/dsh-subagent-claude-code",
-)
-
-/**
- * 官方页面的排序：常驻的按固定顺序，不认识的排在其后，被收起的按「更多」顺序。
- * @param name 包名。
- * @returns 排序键。
- */
-private fun optionalBundleRank(name: String): Int {
-    val alwaysHeld = EXTENSION_BUNDLES.indexOf(name)
-    if (alwaysHeld >= 0) return alwaysHeld
-    val heldBack = MORE_BUNDLES.indexOf(name)
-    return if (heldBack < 0) EXTENSION_BUNDLES.size else EXTENSION_BUNDLES.size + 1 + heldBack
-}
-
-/**
- * 一个实验性插件是否进主列表：常驻的那四个总是进，被收起的只有启用后才进。
- * @param bundle 实验性 bundle。
- * @returns 是否在主列表显示。
- */
-private fun pinnedToMainList(bundle: PluginBundleItem): Boolean =
-    !MORE_BUNDLES.contains(bundle.packageName) || bundle.enabled
 
 
 /**
@@ -1144,8 +1080,6 @@ private fun isBuiltInBundle(packageName: String): Boolean =
  * 整页退化成原生清单。因此它只能在设置里升级，不能在插件页关掉。
  * @param packageName bundle 的包名。
  */
-private fun isLockedBundle(packageName: String): Boolean = packageName == BRIDGE_PLUGIN_PACKAGE
-
 /** 页面与卡片的间距/圆角常量（PluginManagerPage.module.css + ui-primitives）。 */
 internal object PluginsDimens {    /** 手机页面左右安全边距（clamp(24px, 4vw, 48px) 的下限）。 */
     val PageHorizontal = 24.dp
@@ -1540,7 +1474,7 @@ private fun BundleDetailContent(
                 }
             }
             Spacer(Modifier.width(10.dp))
-            if (isLockedBundle(bundle.packageName)) {
+            if (bundle.locked) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -1682,7 +1616,7 @@ private fun BundleDetailContent(
             monospace = !builtIn,
         )
         DetailFactRow(label = stringResource(R.string.plugin_current_version), value = bundle.version ?: "—")
-        if (bundle.removable && !isLockedBundle(bundle.packageName)) {
+        if (bundle.removable && !bundle.locked) {
             Spacer(Modifier.height(16.dp))
             UninstallButton(onClick = onUninstall)
         }
@@ -1799,8 +1733,6 @@ private const val OTHER_SETTINGS_ROW_ID = "__other_settings__"
  * 每个 slot 都有一条；那不是插件页面，列出来只会在设置里多一行打不开的
  * 「My entry」，所以在装配「内置插件配置」时整体排除。
  */
-private const val CORDIS_CLIENT_RUNNER_PACKAGE = "@deepseek-ai/dsh-cordis-client-runner"
-
 @Composable
 private fun OfficialConfigRow(
     item: ConfigEntryRow,
@@ -2746,7 +2678,7 @@ private fun MorePluginsScreen(
                     onOpen = { onOpen(bundle) },
                     onToggle = { enabled -> onToggle(bundle, enabled) },
                     onUninstall = { },
-                    locked = isLockedBundle(bundle.packageName),
+                    locked = bundle.locked,
                     // 设备上装不上的包（`availability = missing`）没有可拨的状态。
                     toggleEnabled = bundle.availability != "missing",
                 )

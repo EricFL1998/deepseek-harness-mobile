@@ -410,6 +410,13 @@ data class PluginBundleItem(
     val error: String? = null,
     val rows: List<PluginComponentInfo> = emptyList(),
     val iconData: String? = null,
+    // 插件页策略由 bridge 下发（旧版 bridge 缺省时这些值保持 false/0）。
+    val profileRoot: Boolean = false,
+    val pinned: Boolean = false,
+    val order: Int = 0,
+    val hidden: Boolean = false,
+    val market: Boolean = false,
+    val locked: Boolean = false,
 )
 
 @Serializable
