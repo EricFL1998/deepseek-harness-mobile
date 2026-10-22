@@ -63,6 +63,12 @@ import java.io.File
 private const val STORE_TOPIC = "dsh-mobile-plugin"
 private const val STORE_API = "https://api.github.com"
 
+/** GitHub Action 定时生成的商店索引（Pages 托管）；App 不直接打 GitHub API。 */
+private const val STORE_INDEX_URL = "https://ericfl1998.github.io/dsh-mobile-plugin-sdk/store/index.json"
+
+/** 索引里已带 releases/latest 的仓库 → Release，详情页不再逐仓请求 API。 */
+private val storeIndexReleases = java.util.concurrent.ConcurrentHashMap<String, GitHubRelease>()
+
 private val storeClient = OkHttpClient()
 private val storeJson = Json { ignoreUnknownKeys = true }
 
@@ -128,7 +134,8 @@ internal fun PluginStoreTab(
     LaunchedEffect(reloadKey) {
         error = null
         repos = null
-        runCatching { fetchTopicRepos() }
+        runCatching { fetchStoreIndex() }
+            .recoverCatching { fetchTopicRepos() }
             .onSuccess { repos = it }
             .onFailure { error = it.message ?: context.getString(R.string.store_github_failed) }
     }
@@ -511,6 +518,44 @@ private fun samePluginRepo(
     }
 }
 
+/**
+ * 优先读静态商店索引：一次 HTTPS 请求拿到仓库列表与 latest release，
+ * 不受 GitHub 匿名 API 60 次/小时限制。失败时调用方回退 [fetchTopicRepos]。
+ */
+private suspend fun fetchStoreIndex(): List<GitHubPluginRepo> = withContext(Dispatchers.IO) {
+    val json = getJson(STORE_INDEX_URL)
+    json["repos"]?.jsonArray.orEmpty().mapNotNull { element ->
+        val item = element.jsonObject
+        val fullName = item["fullName"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        item["release"]?.takeIf { it is JsonObject }?.let { releaseElement ->
+            val release = releaseElement.jsonObject
+            val apks = release["apks"]?.jsonArray.orEmpty().mapNotNull { assetElement ->
+                val asset = assetElement.jsonObject
+                val name = asset["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val url = asset["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                GitHubApkAsset(
+                    name = name,
+                    url = url,
+                    sizeBytes = asset["sizeBytes"]?.jsonPrimitive?.longOrNull ?: 0L,
+                )
+            }
+            storeIndexReleases[fullName] = GitHubRelease(
+                tag = release["tag"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                htmlUrl = release["htmlUrl"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                publishedAt = release["publishedAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+                apks = apks,
+            )
+        }
+        GitHubPluginRepo(
+            fullName = fullName,
+            description = item["description"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            stars = item["stars"]?.jsonPrimitive?.intOrNull ?: 0,
+            htmlUrl = item["htmlUrl"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            pushedAt = item["pushedAt"]?.jsonPrimitive?.longOrNull ?: 0L,
+        )
+    }
+}
+
 private suspend fun fetchTopicRepos(): List<GitHubPluginRepo> = withContext(Dispatchers.IO) {
     val url = "$STORE_API/search/repositories?q=topic:$STORE_TOPIC&sort=updated&order=desc&per_page=50"
     val json = getJson(url)
@@ -528,6 +573,7 @@ private suspend fun fetchTopicRepos(): List<GitHubPluginRepo> = withContext(Disp
 }
 
 private suspend fun fetchLatestRelease(fullName: String): GitHubRelease? = withContext(Dispatchers.IO) {
+    storeIndexReleases[fullName]?.let { return@withContext it }
     val json = getJson("$STORE_API/repos/$fullName/releases/latest")
     val assets = json["assets"]?.jsonArray.orEmpty().mapNotNull { element ->
         val asset = element.jsonObject
