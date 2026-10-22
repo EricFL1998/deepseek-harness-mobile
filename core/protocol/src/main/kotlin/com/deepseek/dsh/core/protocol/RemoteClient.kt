@@ -1657,7 +1657,9 @@ class RemoteClient(
                             var minSeq = 0L
                             // 断线重连时正在输出的助手内容：从 baseline 折叠文本增量，
                             // 后续 live chunk 继续 append。
-                            val baselineText = buildString {
+                            val baselineText = StringBuilder()
+                            val baselineReasoning = StringBuilder()
+                            run {
                                 val active = (value["assistantStream"]
                                     as? kotlinx.serialization.json.JsonObject)
                                     ?.get("activeAttempt")
@@ -1669,18 +1671,26 @@ class RemoteClient(
                                         ?.get("chunk")
                                         as? kotlinx.serialization.json.JsonObject
                                         ?: return@forEach
-                                    if (chunk["type"]?.toString()?.trim('"') == "text-delta") {
-                                        append(
-                                            (chunk["text"]
-                                                as? kotlinx.serialization.json.JsonPrimitive)
-                                                ?.content.orEmpty(),
-                                        )
+                                    val text = (chunk["text"]
+                                        as? kotlinx.serialization.json.JsonPrimitive)
+                                        ?.content.orEmpty()
+                                    when (chunk["type"]?.toString()?.trim('"')) {
+                                        "text-delta" -> baselineText.append(text)
+                                        "reasoning-delta" -> baselineReasoning.append(text)
                                     }
                                 }
                             }
+                            if (baselineReasoning.isNotBlank()) {
+                                eventBus.tryEmit(
+                                    RemoteEvent.ReasoningDelta(
+                                        sessionId,
+                                        baselineReasoning.toString(),
+                                    ),
+                                )
+                            }
                             if (baselineText.isNotBlank()) {
                                 eventBus.tryEmit(
-                                    RemoteEvent.MessageDelta(sessionId, baselineText),
+                                    RemoteEvent.MessageDelta(sessionId, baselineText.toString()),
                                 )
                             }
                             records?.forEach { record ->
@@ -1716,11 +1726,16 @@ class RemoteClient(
                             if (frame["type"]?.toString()?.trim('"') != "chunk") return
                             val chunk = frame["chunk"]
                                 as? kotlinx.serialization.json.JsonObject ?: return
-                            if (chunk["type"]?.toString()?.trim('"') != "text-delta") return
                             val text = (chunk["text"]
                                 as? kotlinx.serialization.json.JsonPrimitive)?.content
-                            if (!text.isNullOrEmpty()) {
-                                eventBus.tryEmit(RemoteEvent.MessageDelta(sessionId, text))
+                            if (text.isNullOrEmpty()) return
+                            when (chunk["type"]?.toString()?.trim('"')) {
+                                "text-delta" -> eventBus.tryEmit(
+                                    RemoteEvent.MessageDelta(sessionId, text),
+                                )
+                                "reasoning-delta" -> eventBus.tryEmit(
+                                    RemoteEvent.ReasoningDelta(sessionId, text),
+                                )
                             }
                         }
                     }

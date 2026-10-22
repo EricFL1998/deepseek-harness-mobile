@@ -47,6 +47,7 @@ sealed interface RemoteEvent {
 
     @Serializable
     data class MessageDelta(val sessionId: String, val delta: String) : RemoteEvent
+    data class ReasoningDelta(val sessionId: String, val delta: String) : RemoteEvent
 
     @Serializable
     data class MessageDone(val sessionId: String, val message: ChatMessage) : RemoteEvent

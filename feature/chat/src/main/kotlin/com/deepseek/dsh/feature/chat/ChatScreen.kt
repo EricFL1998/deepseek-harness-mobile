@@ -203,6 +203,8 @@ fun ModernChatScreen(
     isSending: Boolean = false,
     /** 当前会话正在流式输出的助手文本（重连基线 + live chunk）；空串表示没有。 */
     streamingText: String = "",
+    /** 当前会话正在流式输出的推理文本。 */
+    streamingReasoning: String = "",
     workspaceName: String = "默认工作区",
     /** 系统文件选择器选回的附件；由宿主负责复制进工作区后传回这里。 */
     attachments: List<ChatAttachment> = emptyList(),
@@ -615,16 +617,33 @@ fun ModernChatScreen(
                     } // 行间距容器
                 }
 
-                if (streamingText.isNotBlank()) {
+                if (streamingReasoning.isNotBlank() || streamingText.isNotBlank()) {
                     item(key = "streaming_assistant") {
-                        Text(
-                            text = streamingText,
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp),
-                        )
+                        Column {
+                            if (streamingReasoning.isNotBlank()) {
+                                Text(
+                                    text = streamingReasoning,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    fontSize = 13.sp,
+                                    lineHeight = 20.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                )
+                            }
+                            if (streamingText.isNotBlank()) {
+                                Text(
+                                    text = streamingText,
+                                    fontSize = 14.sp,
+                                    lineHeight = 22.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            top = if (streamingReasoning.isNotBlank()) 6.dp else 12.dp,
+                                        ),
+                                )
+                            }
+                        }
                     }
                 }
                 val hasOpenProcess = chatRows.any { row ->

@@ -114,6 +114,11 @@ class DshRepository(
     private val _streamingTextFlow = MutableStateFlow("")
     val streamingTextFlow: StateFlow<String> = _streamingTextFlow.asStateFlow()
 
+    /** 当前查看会话正在流式输出的推理文本。 */
+    private val _streamingReasoningFlow = MutableStateFlow("")
+    val streamingReasoningFlow: StateFlow<String> =
+        _streamingReasoningFlow.asStateFlow()
+
     /** 官方 `plugin-manager/install-state` 的实时安装进度。 */
     private val _installProgressFlow = MutableStateFlow<PluginInstallProgressInfo?>(null)
     val installProgressFlow: StateFlow<PluginInstallProgressInfo?> =
@@ -1069,7 +1074,10 @@ class DshRepository(
     }
 
     fun markSessionViewed(sessionId: String?) {
-        if (sessionId != viewedSessionId) _streamingTextFlow.value = ""
+        if (sessionId != viewedSessionId) {
+            _streamingTextFlow.value = ""
+            _streamingReasoningFlow.value = ""
+        }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId
     }
@@ -1270,6 +1278,7 @@ class DshRepository(
                         }
                         if (event.sessionId == viewedSessionId && !event.running) {
                             _streamingTextFlow.value = ""
+                            _streamingReasoningFlow.value = ""
                         }
                         if (!event.running && event.sessionId != viewedSessionId) {
                             unreadSessionIdsFlow.value = unreadSessionIdsFlow.value + event.sessionId
@@ -1281,12 +1290,20 @@ class DshRepository(
                             _streamingTextFlow.value = _streamingTextFlow.value + event.delta
                         }
                     }
+                    is RemoteEvent.ReasoningDelta -> {
+                        runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
+                        if (event.sessionId == viewedSessionId) {
+                            _streamingReasoningFlow.value =
+                                _streamingReasoningFlow.value + event.delta
+                        }
+                    }
                     is RemoteEvent.MessageDone -> {
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.message.sessionId
                         if (event.message.sessionId == viewedSessionId &&
                             event.message.role == MessageRole.ASSISTANT
                         ) {
                             _streamingTextFlow.value = ""
+                            _streamingReasoningFlow.value = ""
                         }
                         dao.touchSession(event.message.hostId, event.message.sessionId, System.currentTimeMillis())
                         dao.insertMessages(

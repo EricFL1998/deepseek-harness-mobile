@@ -972,6 +972,7 @@ fun MainAppHost(
     val pendingApprovalWaterfalls by dshRepository.pendingWaterfallApprovalsFlow.collectAsState()
     val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
     val streamingText by dshRepository.streamingTextFlow.collectAsState()
+    val streamingReasoning by dshRepository.streamingReasoningFlow.collectAsState()
     val hostWorkspaces by dshRepository.hostWorkspacesFlow.collectAsState()
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
@@ -2067,6 +2068,7 @@ fun MainAppHost(
                             ModernChatScreen(
                                 messages = messages + pendingMessages,
                                 streamingText = streamingText,
+                                streamingReasoning = streamingReasoning,
                                 onAnswerUserQuestion = { callId, questionId, selected ->
                                     val sid = selectedSessionId
                                     if (sid != null) {
