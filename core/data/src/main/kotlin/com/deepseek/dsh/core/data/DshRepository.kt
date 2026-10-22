@@ -1321,6 +1321,21 @@ class DshRepository(
         )
     }
 
+    /**
+     * 把 Host 的界面语言同步成 App 当前语言（官方 settings 的 `locale` 命名空间）。
+     *
+     * Host 生成的文案（命令描述、定时任务、插件设置页等）随它走，App 是英文时
+     * Host 也切英文，避免中英混排；`preference` 缺省时官方会跟随浏览器语言。
+     */
+    suspend fun syncHostLocale(hostId: String, languageTag: String) {
+        val locale = if (languageTag.lowercase().startsWith("zh")) "zh" else "en"
+        val args = buildJsonObject {
+            put("ns", "locale")
+            put("patch", buildJsonObject { put("preference", locale) })
+        }
+        rpcRaw(hostId, "settings/update", args.toString())
+    }
+
     /** 打开会话时订阅 `session/follow`，重放历史并恢复产物声明。 */
     fun watchSession(hostId: String, sessionId: String) {
         client.followSession(hostId, sessionId)
@@ -1562,7 +1577,8 @@ class DshRepository(
                         }
                     }
                     is RemoteEvent.MessageDone -> {
-                        runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.message.sessionId
+                        // 运行态只由 turn/start / turn/end 决定：这里再标记会导致
+                        // turn/end 之后又被一条 message 拉回 running（停止按钮卡住）。
                         if (event.message.sessionId == viewedSessionId &&
                             event.message.role == MessageRole.ASSISTANT
                         ) {

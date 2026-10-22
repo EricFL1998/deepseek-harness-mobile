@@ -1258,6 +1258,9 @@ fun MainAppHost(
             } else {
                 localHostBound = true
                 dshRepository.subscribeRemoteEvents(activeHostId)
+                // App 显示语言同步给 Host：英文界面下 Host 返回的文案也用英文。
+                val appLanguage = context.resources.configuration.locales[0].language
+                dshRepository.syncHostLocale(activeHostId, appLanguage)
             }
             // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
             // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。

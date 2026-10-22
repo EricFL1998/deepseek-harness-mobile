@@ -239,7 +239,7 @@ fun ModernChatScreen(
     selectedModelId: String = "",
     /** 原生落点要求切换模型/推理档位（如插件 fast-mode 按钮）。 */
     onNativeModelSelect: suspend (provider: String, model: String, reasoningEffort: String?) -> Result<Unit> =
-        { _, _, _ -> Result.failure(IllegalStateException("不支持切换模型")) },
+        { _, _, _ -> Result.failure(IllegalStateException("Model switching is not supported")) },
     availableModels: List<String> = emptyList(),
     modelGroups: List<com.deepseek.dsh.core.model.ModelProviderGroup> = emptyList(),
     onModelSelected: (String) -> Unit = {},
@@ -973,7 +973,7 @@ private fun WorkspaceMenu(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            DshMenuLabel("添加工作区…", Modifier.alignByBaseline())
+            DshMenuLabel(stringResource(R.string.workspace_add), Modifier.alignByBaseline())
         }
     }
 }
@@ -1112,7 +1112,7 @@ private fun ModelEffortMenu(
             0 -> {
                 if (availableModels.distinct().isEmpty()) {
                     // 官方空目录文案：暂无可用模型。
-                    DshMenuSectionLabel("暂无可用模型")
+                    DshMenuSectionLabel(stringResource(R.string.model_none_available))
                 } else {
                     MenuNavRow(
                         label = stringResource(R.string.model_menu_model),
@@ -1128,11 +1128,12 @@ private fun ModelEffortMenu(
             }
 
             1 -> {
-                val fallbackGroups = remember(availableModels) {
+                val modelGenericLabel = stringResource(R.string.model_generic)
+                val fallbackGroups = remember(availableModels, modelGenericLabel) {
                     if (modelGroups.isNotEmpty()) emptyList()
                     else availableModels.distinct().groupBy { name ->
                         if (name.startsWith("DeepSeek", ignoreCase = true)) "DeepSeek 账号"
-                        else name.substringBefore("-").substringBefore(" ").ifBlank { "模型" }
+                        else name.substringBefore("-").substringBefore(" ").ifBlank { modelGenericLabel }
                     }.map { (provider, names) ->
                         com.deepseek.dsh.core.model.ModelProviderGroup(
                             id = provider,
@@ -1174,7 +1175,7 @@ private fun ModelEffortMenu(
                             modifier = Modifier.fillMaxWidth(),
                             decorationBox = { inner ->
                                 if (modelQuery.isEmpty()) {
-                                    Text("搜索模型...", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                                    Text(stringResource(R.string.model_search_hint), fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
                                 }
                                 inner()
                             }
@@ -1538,7 +1539,7 @@ private fun ToolProcessGroup(
 ) {
     val running = items.firstOrNull { it.role == MessageRole.TOOL && toolStatus(it) == "running" }
     val isRunning = running != null
-    val summary = remember(items) { processSummary(items) }
+    val summary = processSummary(items)
     val activeName = running?.content?.split(2.toChar())?.getOrNull(3).orEmpty()
     Column(modifier = Modifier.fillMaxWidth()) {
         if (header) {
@@ -1720,7 +1721,7 @@ private fun ToolMessageItem(
             )
             if (status == "running" || status == "error") {
                 Text(
-                    text = if (status == "running") "运行中" else "失败",
+                    text = stringResource(if (status == "running") R.string.tool_detail_running else R.string.tool_detail_error),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (status == "error") MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.outline,
@@ -1948,23 +1949,32 @@ private fun buildChatRows(messages: List<ChatMessage>, isThinking: Boolean): Lis
 private fun toolStatus(message: ChatMessage): String =
     message.content.split(2.toChar()).getOrNull(4).orEmpty()
 
+@Composable
 private fun processVerb(name: String, done: Boolean): String = when {
-    name.contains("bash") || name.contains("shell") -> if (done) "执行了命令" else "运行命令"
-    name.contains("image") -> if (done) "已读取图片" else "读取图片"
-    name.contains("read") -> if (done) "已读取文件" else "读取文件"
-    name.contains("write") || name.contains("edit") -> if (done) "已编辑文件" else "编辑文件"
-    name.contains("grep") || name.contains("glob") -> if (done) "已搜索文件" else "搜索文件"
-    name.contains("ask_user_question") -> if (done) "已询问" else "等待回答"
-    name.contains("web") -> if (done) "已获取网页" else "获取网页"
-    else -> if (done) "已调用工具" else "调用工具"
+    name.contains("bash") || name.contains("shell") ->
+        stringResource(if (done) R.string.tool_cmd_done else R.string.tool_cmd)
+    name.contains("image") ->
+        stringResource(if (done) R.string.tool_image_done else R.string.tool_image)
+    name.contains("read") ->
+        stringResource(if (done) R.string.tool_read_done else R.string.tool_read)
+    name.contains("write") || name.contains("edit") ->
+        stringResource(if (done) R.string.tool_edit_done else R.string.tool_edit)
+    name.contains("grep") || name.contains("glob") ->
+        stringResource(if (done) R.string.tool_search_done else R.string.tool_search)
+    name.contains("ask_user_question") ->
+        stringResource(if (done) R.string.tool_ask_done else R.string.tool_ask)
+    name.contains("web") ->
+        stringResource(if (done) R.string.tool_web_done else R.string.tool_web)
+    else -> stringResource(if (done) R.string.tool_generic_done else R.string.tool_generic)
 }
 
+@Composable
 private fun processSummary(tools: List<ChatMessage>): String {
     val verbs = tools.filter { it.role == MessageRole.TOOL }.mapNotNull { message ->
         val name = message.content.split(2.toChar()).getOrNull(3) ?: return@mapNotNull null
         processVerb(name, done = true)
     }.distinct()
-    return verbs.joinToString("并")
+    return verbs.joinToString(stringResource(R.string.tool_join))
 }
 data class ToolDetailData(
     val callId: String,
@@ -1994,9 +2004,9 @@ private fun ToolDetailSheet(detail: ToolDetailData, onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = when (detail.status) {
-                        "running" -> "运行中"
-                        "error" -> "失败"
-                        else -> "已完成"
+                        "running" -> stringResource(R.string.tool_detail_running)
+                        "error" -> stringResource(R.string.tool_detail_error)
+                        else -> stringResource(R.string.tool_detail_done)
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = if (detail.status == "error") MaterialTheme.colorScheme.error
@@ -2020,7 +2030,7 @@ private fun ToolDetailSheet(detail: ToolDetailData, onDismiss: () -> Unit) {
             }
             if (prettyArgs.isNotBlank()) {
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("参数", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                Text(stringResource(R.string.tool_detail_args), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     shape = RoundedCornerShape(10.dp),
@@ -2042,7 +2052,10 @@ private fun ToolDetailSheet(detail: ToolDetailData, onDismiss: () -> Unit) {
             if (detail.body.isNotBlank()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = if (detail.status == "error") "错误" else "输出",
+                    text = stringResource(
+                        if (detail.status == "error") R.string.tool_detail_error_output
+                        else R.string.tool_detail_output
+                    ),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (detail.status == "error") MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.outline
@@ -2112,18 +2125,21 @@ private fun toolExpandedText(
 }
 
 private fun toolIcon(name: String) = Icons.Default.Build
+@Composable
 private fun toolTitle(name: String): String = when {
-    name.contains("bash") || name.contains("shell") -> "运行命令"
-    name.contains("read") -> "读取"
-    name.contains("write") -> "写入"
-    name.contains("edit") -> "编辑"
-    name.contains("grep") -> "搜索文件内容"
-    name.contains("glob") -> "查找文件"
-    name.contains("ask_user_question") -> "询问"
-    name.contains("create_goal") || name.contains("update_goal") -> "目标"
-    name.contains("subagent") -> "子任务"
-    name.contains("web_search") || name.contains("web_fetch") -> "网页"
-    else -> "工具调用"
+    name.contains("bash") || name.contains("shell") -> stringResource(R.string.tool_title_cmd)
+    name.contains("read") -> stringResource(R.string.tool_title_read)
+    name.contains("write") -> stringResource(R.string.tool_title_write)
+    name.contains("edit") -> stringResource(R.string.tool_title_edit)
+    name.contains("grep") -> stringResource(R.string.tool_title_grep)
+    name.contains("glob") -> stringResource(R.string.tool_title_glob)
+    name.contains("ask_user_question") -> stringResource(R.string.tool_title_ask)
+    name.contains("create_goal") || name.contains("update_goal") ->
+        stringResource(R.string.tool_title_goal)
+    name.contains("subagent") -> stringResource(R.string.tool_title_subagent)
+    name.contains("web_search") || name.contains("web_fetch") ->
+        stringResource(R.string.tool_title_web)
+    else -> stringResource(R.string.tool_title_generic)
 }
 
 private fun toolSummary(name: String, args: String, body: String, status: String): String {
