@@ -455,3 +455,9 @@ val PLACEMENT_LABELS: Map<String, String> = mapOf(
     "toast" to "提示",
     "other" to "其他位置",
 )
+
+/** 官方 inbox 投影里一条待发消息（下一轮队列）。 */
+data class QueuedMessageInfo(
+    val id: String,
+    val text: String,
+)

@@ -285,4 +285,12 @@
     <string name="changes_all">All %1$d files</string>
     <string name="changes_collapse">Show less</string>
     <string name="changes_diff_failed">Could not load this diff</string>
+<string name="queue_title">%1$d queued</string>
+    <string name="queue_edit">Edit</string>
+    <string name="queue_remove">Remove</string>
+    <string name="queue_steer">Steer</string>
+    <string name="queue_edit_title">Edit queued message</string>
+    <string name="queue_edit_placeholder">Queued message</string>
+    <string name="queue_save">Save</string>
+    <string name="queue_cancel">Cancel</string>
 </resources>

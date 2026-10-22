@@ -219,6 +219,10 @@ fun ModernChatScreen(
     deliverables: List<com.deepseek.dsh.core.protocol.PresentedFileInfo> = emptyList(),
     /** 当前会话最近一轮的改动汇总（workspace/changes）。 */
     changes: com.deepseek.dsh.core.protocol.ChangesSummaryInfo? = null,
+    /** 官方 inbox 投影里的排队消息（运行中发送的消息）。 */
+    queuedMessages: List<com.deepseek.dsh.core.model.QueuedMessageInfo> = emptyList(),
+    /** 排队消息操作：kind = edit / remove / steer。 */
+    onQueueAction: (id: String, kind: String, text: String?) -> Unit = { _, _, _ -> },
     /** 打开某个改动文件的 diff（下标是 summary.files 的原始下标）。 */
     onLoadChangeDiff: suspend (Int) -> com.deepseek.dsh.core.protocol.ChangesDiffInfo? = { null },
     /** 点开一份产物（切到文件页并定位到该目录）。 */
@@ -732,6 +736,16 @@ fun ModernChatScreen(
             )
         }
 
+        if (queuedMessages.isNotEmpty()) {
+            QueuedMessagesDock(
+                messages = queuedMessages,
+                running = isThinking,
+                onEdit = { message, text -> onQueueAction(message.id, "edit", text) },
+                onRemove = { message -> onQueueAction(message.id, "remove", null) },
+                onSteer = { message -> onQueueAction(message.id, "steer", null) },
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
         if (goal != null || todos.isNotEmpty()) {
             SessionPlanDock(
                 goal = goal,

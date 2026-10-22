@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -112,6 +113,12 @@ class DshRepository(
     private val _todosFlow = MutableStateFlow<List<com.deepseek.dsh.core.model.TodoEntryInfo>>(emptyList())
     val todosFlow: StateFlow<List<com.deepseek.dsh.core.model.TodoEntryInfo>> =
         _todosFlow.asStateFlow()
+
+    /** 官方 `inbox` 投影：下一轮待发消息队列（运行中发送的消息排在这里）。 */
+    private val _queuedMessagesFlow =
+        MutableStateFlow<List<com.deepseek.dsh.core.model.QueuedMessageInfo>>(emptyList())
+    val queuedMessagesFlow: StateFlow<List<com.deepseek.dsh.core.model.QueuedMessageInfo>> =
+        _queuedMessagesFlow.asStateFlow()
 
     /** 当前会话最近一轮的改动汇总（官方 `workspace/changes` + `/api/changes.summary`）。 */
     private val _changesFlow =
@@ -1278,6 +1285,8 @@ class DshRepository(
                     if (sessionId == viewedSessionId) {
                         _todosFlow.value = parseTodos(values?.get("todos"))
                         _goalFlow.value = parseGoal(values?.get("goal"))
+                        _queuedMessagesFlow.value =
+                            parseQueue(values?.get("inbox"))
                     }
                 }
             }
@@ -1294,13 +1303,66 @@ class DshRepository(
                     "goal" -> if (sessionId == viewedSessionId) {
                         _goalFlow.value = parseGoal(root["value"])
                     }
+                    "inbox" -> if (sessionId == viewedSessionId) {
+                        _queuedMessagesFlow.value = parseQueue(root["value"])
+                    }
                 }
             }
         }
         _sessionModelFlow.value = sessionModels.toMap()
     }
 
-    /** 解析官方 `todos` 投影值。 */
+    /** 解析官方 `inbox` 投影里的下一轮队列（next-turn）。 */
+    private fun parseQueue(value: JsonElement?): List<com.deepseek.dsh.core.model.QueuedMessageInfo> {
+        val rows = (value as? JsonObject)?.get("next-turn") as? JsonArray ?: return emptyList()
+        return rows.mapNotNull { row ->
+            val obj = row as? JsonObject ?: return@mapNotNull null
+            val id = (obj["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            val blocks = obj["content"] as? JsonArray
+            val text = blocks?.mapNotNull { block ->
+                val part = block as? JsonObject ?: return@mapNotNull null
+                if ((part["type"] as? JsonPrimitive)?.contentOrNull == "text") {
+                    (part["text"] as? JsonPrimitive)?.contentOrNull
+                } else {
+                    null
+                }
+            }?.joinToString("").orEmpty()
+            if (text.isBlank()) return@mapNotNull null
+            com.deepseek.dsh.core.model.QueuedMessageInfo(id = id, text = text)
+        }
+    }
+
+    /** 官方 `session/updateQueue`：编辑 / 移除 / 转成 steering。 */
+    suspend fun updateQueue(
+        hostId: String,
+        sessionId: String,
+        itemId: String,
+        action: String,
+        text: String? = null,
+    ): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                put("itemId", itemId)
+                put("action", buildJsonObject {
+                    put("kind", action)
+                    if (action == "edit") {
+                        put("content", buildJsonArray {
+                            add(buildJsonObject {
+                                put("type", "text")
+                                put("text", text.orEmpty())
+                            })
+                        })
+                    }
+                })
+            })
+        }
+        return rpcRaw(hostId, "session/updateQueue", args.toString())
+            .getOrNull()
+            ?.contains("\"ok\":true") == true
+    }
+
+    /** 解析官方 `todos` 投影值。 */    /** 解析官方 `todos` 投影值。 */
     private fun parseTodos(value: JsonElement?): List<com.deepseek.dsh.core.model.TodoEntryInfo> {
         val array = value as? JsonArray ?: return emptyList()
         return array.mapNotNull { item ->
@@ -1369,6 +1431,7 @@ class DshRepository(
             _deliverablesFlow.value = emptyList()
             _changesFlow.value = null
             changesSeq = 0L
+            _queuedMessagesFlow.value = emptyList()
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId

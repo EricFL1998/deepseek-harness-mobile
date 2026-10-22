@@ -284,4 +284,12 @@
     <string name="changes_all">全部 %1$d 个文件</string>
     <string name="changes_collapse">收起</string>
     <string name="changes_diff_failed">无法加载这个文件的改动</string>
+<string name="queue_title">已排队 %1$d 条</string>
+    <string name="queue_edit">编辑</string>
+    <string name="queue_remove">移除</string>
+    <string name="queue_steer">转插话</string>
+    <string name="queue_edit_title">编辑排队消息</string>
+    <string name="queue_edit_placeholder">排队中的消息</string>
+    <string name="queue_save">保存</string>
+    <string name="queue_cancel">取消</string>
 </resources>

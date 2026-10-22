@@ -982,6 +982,7 @@ fun MainAppHost(
     val sessionGoal by dshRepository.goalFlow.collectAsState()
     val sessionDeliverables by dshRepository.deliverablesFlow.collectAsState()
     val sessionChanges by dshRepository.changesFlow.collectAsState()
+    val sessionQueuedMessages by dshRepository.queuedMessagesFlow.collectAsState()
     // 终端页状态：屏幕缓冲（去 ANSI）、状态行、可写标志。
     // Host 客户端是否已绑定到真实地址（决定能否开远程流）。
     var localHostBound by remember { mutableStateOf(false) }
@@ -2393,6 +2394,15 @@ fun MainAppHost(
                                 todos = sessionTodos,
                                 goal = sessionGoal,
                                 deliverables = sessionDeliverables,
+                                queuedMessages = sessionQueuedMessages,
+                                onQueueAction = { id, kind, text ->
+                                    val sid = selectedSessionId
+                                    if (sid != null) {
+                                        scope.launch {
+                                            dshRepository.updateQueue(activeHostId, sid, id, kind, text)
+                                        }
+                                    }
+                                },
                                 changes = sessionChanges,
                                 onLoadChangeDiff = { index ->
                                     val sid = selectedSessionId
