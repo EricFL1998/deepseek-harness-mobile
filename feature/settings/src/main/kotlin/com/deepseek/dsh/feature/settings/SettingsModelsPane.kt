@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -295,46 +296,37 @@ private fun AddModelProviderDialog(
                         color = palette.labelPrimary,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    SettingsCard(verticalPadding = 10.dp) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { dropdownOpen = !dropdownOpen },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = selected?.name
-                                    ?: stringResource(R.string.settings_pane_models_provider_select),
-                                fontSize = 14.sp,
-                                color = if (selected == null) palette.labelTertiary else palette.labelPrimary,
-                                modifier = Modifier.weight(1f),
-                            )
-                            SettingsChevronDown(expanded = dropdownOpen, size = 12.dp)
-                        }
-                    }
-                    if (dropdownOpen) {
-                        // 目录有 50+ 项：在对话框内给固定高度并自己滚动。用弹层会被
-                        // Dialog 窗口裁掉，既看不到全部也滚不动。
-                        Spacer(modifier = Modifier.height(6.dp))
-                        SettingsCard(verticalPadding = 4.dp) {
-                            Column(
+                    // 目录有 50+ 项：选择器下方用真正的悬浮弹层（DropdownMenu 是独立
+                    // Popup 窗口，不会被 Dialog 窗口裁掉），而不是在面板里铺开。
+                    Box {
+                        SettingsCard(verticalPadding = 10.dp) {
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(220.dp)
-                                    .verticalScroll(rememberScrollState()),
+                                    .clickable { dropdownOpen = true },
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                providers.forEach { provider ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selected = provider
-                                                dropdownOpen = false
-                                            }
-                                            .padding(horizontal = 6.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = selected?.name
+                                        ?: stringResource(R.string.settings_pane_models_provider_select),
+                                    fontSize = 14.sp,
+                                    color = if (selected == null) palette.labelTertiary else palette.labelPrimary,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                SettingsChevronDown(expanded = dropdownOpen, size = 12.dp)
+                            }
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = dropdownOpen,
+                            onDismissRequest = { dropdownOpen = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .heightIn(max = 280.dp),
+                        ) {
+                            providers.forEach { provider ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = {
+                                        Column {
                                             Text(
                                                 provider.name,
                                                 fontSize = 13.sp,
@@ -346,11 +338,17 @@ private fun AddModelProviderDialog(
                                                 color = palette.labelTertiary,
                                             )
                                         }
+                                    },
+                                    trailingIcon = {
                                         if (provider.id == selected?.id) {
                                             com.deepseek.dsh.core.designsystem.DshMenuCheck()
                                         }
-                                    }
-                                }
+                                    },
+                                    onClick = {
+                                        selected = provider
+                                        dropdownOpen = false
+                                    },
+                                )
                             }
                         }
                     }
