@@ -433,12 +433,14 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
             }
         }
 
-        // ── rootfs 镜像：只有 DSH 引擎换代时才提示 ────────────────────────────
-        if (engineUpdateAvailable) item {
+        // ── rootfs 镜像：区块常驻；只有 DSH 引擎换代时才提示更新 ────────────────
+        item {
             UpdateCard {
                 SectionTitle(
                     stringResource(R.string.agent_update_section_rootfs),
-                    badge = if (assessment.need == UpdateNeed.ROOTFS_OPTIONAL) {
+                    badge = if (engineUpdateAvailable &&
+                        assessment.need == UpdateNeed.ROOTFS_OPTIONAL
+                    ) {
                         stringResource(R.string.agent_update_badge_optional)
                     } else {
                         null
@@ -449,7 +451,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                     !assessmentLoaded -> LoadingRow(
                         stringResource(R.string.agent_update_loading_rootfs_version),
                     )
-                    assessment.need == UpdateNeed.ROOTFS_OPTIONAL -> Text(
+                    engineUpdateAvailable && assessment.need == UpdateNeed.ROOTFS_OPTIONAL -> Text(
                         stringResource(R.string.agent_update_rootfs_optional_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -460,7 +462,9 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                assessment.available?.takeIf { assessment.need == UpdateNeed.ROOTFS_OPTIONAL }?.let { target ->
+                assessment.available?.takeIf {
+                    engineUpdateAvailable && assessment.need == UpdateNeed.ROOTFS_OPTIONAL
+                }?.let { target ->
                     Spacer(Modifier.height(6.dp))
                     Text(
                         stringResource(
@@ -476,6 +480,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                     Spacer(Modifier.height(8.dp))
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
+                if (engineUpdateAvailable) {
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     enabled = !rootfsBusy && !pluginBusy && assessment.need == UpdateNeed.ROOTFS_OPTIONAL,
@@ -525,6 +530,7 @@ internal fun SettingsUpdatePane(modifier: Modifier = Modifier) {
                             stringResource(R.string.agent_update_action_update_rootfs)
                         },
                     )
+                }
                 }
             }
         }
