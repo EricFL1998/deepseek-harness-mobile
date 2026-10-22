@@ -979,7 +979,15 @@ class DefaultHostRuntimeManager(
                 .orEmpty()
             if (directories.isEmpty()) return@withContext
             directories.forEach { directory ->
-                if (File(directory, ".git").exists()) return@forEach
+                val gitDir = File(directory, ".git")
+                if (gitDir.exists()) {
+                    // 中断过的 init 会留下缺 objects/refs 的残缺仓库（git 会报
+                    // "not a git repository"，workspace/changes 也取不到 baseline）。
+                    val complete = File(gitDir, "objects").isDirectory &&
+                        File(gitDir, "refs").isDirectory
+                    if (complete) return@forEach
+                    runCatching { gitDir.deleteRecursively() }
+                }
                 val hostPath = "/workspace/" + directory.name
                 val exec = ProotCommandBuilder.buildExec(
                     layout,
