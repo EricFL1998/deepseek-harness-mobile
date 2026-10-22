@@ -121,10 +121,11 @@ object ProotCommandBuilder {
         cmd.add("-b")
         cmd.add("${config.layout.groupOverlay.absolutePath}:/etc/group")
 
-        // 避免 Android 权限与硬链接异常；显式指定 guest 工作目录。
-        // GenUI 等插件会用 process.cwd() 解析相对 artifactRoot（例如 .dsh/genui）。
-        // cwd=/ 会错误地变成 /.dsh/genui；与 HOME=/root 对齐后落到 /root/.dsh/genui。
-        cmd.add("--link2symlink")
+        // 注意：Host 进程不能加 --link2symlink。该 flag 会让 proot 把 link() 模拟成
+        // `.l2s.*` 中间文件并移走源文件，在 FUSE 工作区上导致官方 write 工具的
+        // “临时文件 + 硬链接”原子发布报 ENOENT。这里改用 Node 预载补丁：link 在
+        // FUSE 上拿到 EPERM 后退化成 copy+unlink（见 RuntimeLayout.ensureNodePatches）。
+        // 插件安装等 buildExec 命令仍保留 --link2symlink，那是它们需要的语义。
         cmd.add("-w")
         cmd.add("/root")
 

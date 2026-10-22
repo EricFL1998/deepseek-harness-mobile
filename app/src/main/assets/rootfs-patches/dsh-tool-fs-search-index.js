@@ -1307,6 +1307,6 @@ async function androidBridgeShell(command, cwd, timeoutMs = 120000) {
 		socket.setEncoding("utf8");
 		socket.on("data", (chunk) => { buffer += chunk; const index = buffer.indexOf("\n"); if (index < 0) return; const line = buffer.slice(0, index); socket.destroy(); try { const message = JSON.parse(line); if (message.error) reject(new Error(message.error.message)); else resolve(message.result); } catch (error) { reject(error); } });
 		socket.on("error", reject);
-		socket.setTimeout(15000, () => { socket.destroy(); reject(new Error("android bridge timeout")); });
+		socket.setTimeout(1_800_000, () => { socket.destroy(); reject(new Error("android bridge timeout")); });
 	});
 }

@@ -2871,40 +2871,40 @@ fun BottomInputBar(
                         }
                     }
 
-                    // 生成中：发送按钮切换为停止按钮，两者不同时出现。
+                    // 生成中：停止与发送并存（官方行为）——输入框里的内容要能继续
+                    // 排到下一轮（inbox next-turn），所以发送按钮不能消失。
                     if (isGenerating) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.error,
-                                onClick = onStop,
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = DshIcons.StopFill,
-                                        contentDescription = stringResource(R.string.action_stop),
-                                        tint = MaterialTheme.colorScheme.onError,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        } else {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                onClick = onSend,
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = DshIcons.SendUpArrow,
-                                        contentDescription = stringResource(R.string.action_send),
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.error,
+                            onClick = onStop,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = DshIcons.StopFill,
+                                    contentDescription = stringResource(R.string.action_stop),
+                                    tint = MaterialTheme.colorScheme.onError,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = onSend,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = DshIcons.SendUpArrow,
+                                contentDescription = stringResource(R.string.action_send),
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     }
                 }
             }

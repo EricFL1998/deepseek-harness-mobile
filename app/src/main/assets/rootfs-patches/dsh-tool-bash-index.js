@@ -406,7 +406,7 @@ async function bridgeExec(command, cwd, timeoutMs) {
 			} catch (error) { reject(error); }
 		});
 		socket.on("error", reject);
-		socket.setTimeout(15000, () => { socket.destroy(); reject(new Error("android bridge timeout")); });
+		socket.setTimeout(1_800_000, () => { socket.destroy(); reject(new Error("android bridge timeout")); });
 	});
 }
 	const bashTool = (jobs) => {
