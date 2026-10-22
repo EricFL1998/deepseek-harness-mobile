@@ -268,6 +268,23 @@ data class AgentTeamSummary(
     val failure: String? = null,
 )
 
+/** 官方 `todos` 投影的一条待办。 */
+@Serializable
+data class TodoEntryInfo(
+    val content: String,
+    val status: String, // pending | in_progress | completed
+)
+
+/** 官方 `goal` 投影的当前目标。 */
+@Serializable
+data class GoalInfo(
+    val objective: String,
+    val phase: String,
+    val blockedReason: String? = null,
+    val roundsStarted: Int = 0,
+    val maxGoalRounds: Int = 0,
+)
+
 /** 官方 `commands/list` 的一条斜杠命令描述。 */
 @Serializable
 data class HostCommandInfo(

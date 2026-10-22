@@ -211,6 +211,10 @@ fun ModernChatScreen(
     hostCommands: List<com.deepseek.dsh.core.model.HostCommandInfo> = emptyList(),
     /** 执行一条 Host 斜杠命令（commands/execute）。 */
     onHostCommand: (String) -> Unit = {},
+    /** 官方 `todos` 投影（当前会话待办）。 */
+    todos: List<com.deepseek.dsh.core.model.TodoEntryInfo> = emptyList(),
+    /** 官方 `goal` 投影（当前会话目标）。 */
+    goal: com.deepseek.dsh.core.model.GoalInfo? = null,
     workspaceName: String = "默认工作区",
     /** 系统文件选择器选回的附件；由宿主负责复制进工作区后传回这里。 */
     attachments: List<ChatAttachment> = emptyList(),
@@ -679,6 +683,14 @@ fun ModernChatScreen(
 
         toolDetail?.let { detail ->
             ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
+        }
+
+        if (goal != null || todos.isNotEmpty()) {
+            SessionPlanDock(
+                goal = goal,
+                todos = todos,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
         }
 
         if (!(messages.isEmpty() && !isSending)) {
@@ -2962,121 +2974,74 @@ private fun ComposerCommandRow(
         DshMenuDescription(stringResource(descResId))
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/**
+ * 目标 / 待办 dock（官方 `goal` + `todos` 投影）：输入框上方的紧凑卡片。
+ */
+@Composable
+private fun SessionPlanDock(
+    goal: com.deepseek.dsh.core.model.GoalInfo?,
+    todos: List<com.deepseek.dsh.core.model.TodoEntryInfo>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp),
+    ) {
+        goal?.let { current ->
+            Text(
+                text = current.objective,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                maxLines = 2,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            val meta = buildString {
+                append(current.phase)
+                if (current.roundsStarted > 0) {
+                    append(" \u00b7 round ")
+                    append(current.roundsStarted)
+                    if (current.maxGoalRounds > 0) {
+                        append("/")
+                        append(current.maxGoalRounds)
+                    }
+                }
+                current.blockedReason?.takeIf { it.isNotBlank() }?.let {
+                    append(" \u00b7 ")
+                    append(it)
+                }
+            }
+            Text(
+                text = meta,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        if (todos.isNotEmpty()) {
+            val done = todos.count { it.status == "completed" }
+            Text(
+                text = "TODO " + done + "/" + todos.size,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            todos.take(6).forEach { todo ->
+                Text(
+                    text = when (todo.status) {
+                        "completed" -> "\u2713 " + todo.content
+                        "in_progress" -> "\u25B6 " + todo.content
+                        else -> "\u25CB " + todo.content
+                    },
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 1,
+                    color = if (todo.status == "completed") {
+                        MaterialTheme.colorScheme.outline
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
+        }
+    }
+}

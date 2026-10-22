@@ -108,6 +108,15 @@ class DshRepository(
     private var jobsHostId: String? = null
     private var jobsJob: kotlinx.coroutines.Job? = null
 
+    /** 当前会话的待办（官方 `todos` 投影）。 */
+    private val _todosFlow = MutableStateFlow<List<com.deepseek.dsh.core.model.TodoEntryInfo>>(emptyList())
+    val todosFlow: StateFlow<List<com.deepseek.dsh.core.model.TodoEntryInfo>> =
+        _todosFlow.asStateFlow()
+
+    /** 当前会话的目标（官方 `goal` 投影）。 */
+    private val _goalFlow = MutableStateFlow<com.deepseek.dsh.core.model.GoalInfo?>(null)
+    val goalFlow: StateFlow<com.deepseek.dsh.core.model.GoalInfo?> = _goalFlow.asStateFlow()
+
     /** 官方 `session/control` 投影出的每会话模型选择（model id）。 */
     private val _sessionModelFlow = MutableStateFlow<Map<String, String>>(emptyMap())
     val sessionModelFlow: StateFlow<Map<String, String>> = _sessionModelFlow.asStateFlow()
@@ -1236,22 +1245,65 @@ class DshRepository(
                     val values = (projection as? JsonObject)?.get("values") as? JsonObject
                     val model = modelOf(values?.get("modelSelection"))
                     if (model != null) sessionModels[sessionId] = model
+                    if (sessionId == viewedSessionId) {
+                        _todosFlow.value = parseTodos(values?.get("todos"))
+                        _goalFlow.value = parseGoal(values?.get("goal"))
+                    }
                 }
             }
             "projection" -> {
                 val sessionId = (root["sessionId"] as? JsonPrimitive)?.contentOrNull ?: return
-                if ((root["key"] as? JsonPrimitive)?.contentOrNull != "modelSelection") return
-                val model = modelOf(root["value"])
-                if (model != null) sessionModels[sessionId] = model
+                when ((root["key"] as? JsonPrimitive)?.contentOrNull) {
+                    "modelSelection" -> {
+                        val model = modelOf(root["value"])
+                        if (model != null) sessionModels[sessionId] = model
+                    }
+                    "todos" -> if (sessionId == viewedSessionId) {
+                        _todosFlow.value = parseTodos(root["value"])
+                    }
+                    "goal" -> if (sessionId == viewedSessionId) {
+                        _goalFlow.value = parseGoal(root["value"])
+                    }
+                }
             }
         }
         _sessionModelFlow.value = sessionModels.toMap()
+    }
+
+    /** 解析官方 `todos` 投影值。 */
+    private fun parseTodos(value: JsonElement?): List<com.deepseek.dsh.core.model.TodoEntryInfo> {
+        val array = value as? JsonArray ?: return emptyList()
+        return array.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val content = (obj["content"] as? JsonPrimitive)?.contentOrNull
+                ?: return@mapNotNull null
+            com.deepseek.dsh.core.model.TodoEntryInfo(
+                content = content,
+                status = (obj["status"] as? JsonPrimitive)?.contentOrNull ?: "pending",
+            )
+        }
+    }
+
+    /** 解析官方 `goal` 投影值。 */
+    private fun parseGoal(value: JsonElement?): com.deepseek.dsh.core.model.GoalInfo? {
+        val obj = value as? JsonObject ?: return null
+        val goal = obj["goal"] as? JsonObject ?: return null
+        val blocked = goal["blockedReason"] as? JsonObject
+        return com.deepseek.dsh.core.model.GoalInfo(
+            objective = (goal["objective"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            phase = (goal["phase"] as? JsonPrimitive)?.contentOrNull ?: "active",
+            blockedReason = (blocked?.get("message") as? JsonPrimitive)?.contentOrNull,
+            roundsStarted = obj["roundsStarted"]?.toString()?.trim('"')?.toIntOrNull() ?: 0,
+            maxGoalRounds = goal["maxGoalRounds"]?.toString()?.trim('"')?.toIntOrNull() ?: 0,
+        )
     }
 
     fun markSessionViewed(sessionId: String?) {
         if (sessionId != viewedSessionId) {
             _streamingTextFlow.value = ""
             _streamingReasoningFlow.value = ""
+            _todosFlow.value = emptyList()
+            _goalFlow.value = null
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId

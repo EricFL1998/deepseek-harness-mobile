@@ -973,6 +973,8 @@ fun MainAppHost(
     val pendingQuestions by dshRepository.pendingQuestionsFlow.collectAsState()
     val hostJobs by dshRepository.jobsFlow.collectAsState()
     val hostCommands by dshRepository.hostCommandsFlow.collectAsState()
+    val sessionTodos by dshRepository.todosFlow.collectAsState()
+    val sessionGoal by dshRepository.goalFlow.collectAsState()
     // 斜杠命令目录跟着会话走；commands/change 事件也会触发刷新。
     LaunchedEffect(activeHostId, selectedSessionId) {
         val sid = selectedSessionId
@@ -2292,6 +2294,8 @@ fun MainAppHost(
                                 streamingText = streamingText,
                                 streamingReasoning = streamingReasoning,
                                 hostCommands = hostCommands,
+                                todos = sessionTodos,
+                                goal = sessionGoal,
                                 onHostCommand = { line ->
                                     val sid = selectedSessionId
                                     if (sid != null) {
