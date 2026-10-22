@@ -185,6 +185,8 @@ class MainActivity : ComponentActivity() {
                     settingsRepository = app.settingsRepository,
                     nativePluginRescanFlow = nativePluginRescanFlow,
                 )
+                // bridge 插件落后时在启动后弹窗提醒；rootfs 可选更新只在设置页出现。
+                BridgeUpdatePrompt()
             }
             }
         }
