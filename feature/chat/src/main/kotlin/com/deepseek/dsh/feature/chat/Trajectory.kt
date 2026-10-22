@@ -61,15 +61,30 @@ data class TrajectoryRow(
 
 private val trajectoryJson = Json { ignoreUnknownKeys = true }
 
-/** 从原始帧里解析出轨迹行：只保留真正有语义的会话事件。 */
+/**
+ * 从原始帧里解析出轨迹行：只保留真正有语义的会话事件。
+ *
+ * follow 流有两种 item 帧：`{type:'item', value:{type:'snapshot', records:[…]}}`
+ * 与 `{type:'item', value:{type:'event', event:{…}}}`，两者都要展开。
+ */
 fun buildTrajectory(frames: List<SessionRawFrame>): List<TrajectoryRow> {
-    val rows = mutableListOf<TrajectoryRow>()
-    for (frame in frames) {
+    val events = frames.flatMap { frame ->
         val root = runCatching {
             trajectoryJson.parseToJsonElement(frame.text) as? JsonObject
-        }.getOrNull() ?: continue
-        if (root["type"]?.jsonPrimitive?.contentOrNull != "item") continue
-        val event = root["event"] as? JsonObject ?: continue
+        }.getOrNull() ?: return@flatMap emptyList()
+        if (root["type"]?.jsonPrimitive?.contentOrNull != "item") return@flatMap emptyList()
+        val value = root["value"] as? JsonObject ?: return@flatMap emptyList()
+        when (value["type"]?.jsonPrimitive?.contentOrNull) {
+            "snapshot" -> (value["records"] as? kotlinx.serialization.json.JsonArray)
+                ?.mapNotNull { record ->
+                    ((record as? JsonObject)?.get("event") as? JsonObject)
+                }.orEmpty()
+            "event" -> listOfNotNull(value["event"] as? JsonObject)
+            else -> emptyList()
+        }
+    }
+    val rows = mutableListOf<TrajectoryRow>()
+    for (event in events) {
         val type = event["type"]?.jsonPrimitive?.contentOrNull ?: continue
         val seq = event["seq"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: continue
         val data = event["data"] as? JsonObject
@@ -103,7 +118,7 @@ fun buildTrajectory(frames: List<SessionRawFrame>): List<TrajectoryRow> {
             detail = detail,
             turn = turn,
             step = step,
-            raw = frame.text,
+            raw = event.toString(),
         )
     }
     return rows.sortedBy { it.seq }
