@@ -113,6 +113,12 @@ class DshRepository(
     val todosFlow: StateFlow<List<com.deepseek.dsh.core.model.TodoEntryInfo>> =
         _todosFlow.asStateFlow()
 
+    /** 当前会话本轮产出的文件（官方 `deliverables/presented`）。 */
+    private val _deliverablesFlow =
+        MutableStateFlow<List<com.deepseek.dsh.core.protocol.PresentedFileInfo>>(emptyList())
+    val deliverablesFlow: StateFlow<List<com.deepseek.dsh.core.protocol.PresentedFileInfo>> =
+        _deliverablesFlow.asStateFlow()
+
     /** 当前会话的目标（官方 `goal` 投影）。 */
     private val _goalFlow = MutableStateFlow<com.deepseek.dsh.core.model.GoalInfo?>(null)
     val goalFlow: StateFlow<com.deepseek.dsh.core.model.GoalInfo?> = _goalFlow.asStateFlow()
@@ -1304,6 +1310,7 @@ class DshRepository(
             _streamingReasoningFlow.value = ""
             _todosFlow.value = emptyList()
             _goalFlow.value = null
+            _deliverablesFlow.value = emptyList()
         }
         viewedSessionId = sessionId
         if (sessionId != null) unreadSessionIdsFlow.value = unreadSessionIdsFlow.value - sessionId
@@ -1515,6 +1522,14 @@ class DshRepository(
                         runningSessionIdsFlow.value = runningSessionIdsFlow.value + event.sessionId
                         if (event.sessionId == viewedSessionId) {
                             _streamingTextFlow.value = _streamingTextFlow.value + event.delta
+                        }
+                    }
+                    is RemoteEvent.DeliverablesPresented -> {
+                        if (event.sessionId == viewedSessionId) {
+                            // 同一路径去重后按最新顺序排列。
+                            val merged = (_deliverablesFlow.value + event.files)
+                                .distinctBy { it.path }
+                            _deliverablesFlow.value = merged
                         }
                     }
                     is RemoteEvent.ReasoningDelta -> {

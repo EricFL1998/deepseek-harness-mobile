@@ -975,6 +975,7 @@ fun MainAppHost(
     val hostCommands by dshRepository.hostCommandsFlow.collectAsState()
     val sessionTodos by dshRepository.todosFlow.collectAsState()
     val sessionGoal by dshRepository.goalFlow.collectAsState()
+    val sessionDeliverables by dshRepository.deliverablesFlow.collectAsState()
     // 斜杠命令目录跟着会话走；commands/change 事件也会触发刷新。
     LaunchedEffect(activeHostId, selectedSessionId) {
         val sid = selectedSessionId
@@ -2296,6 +2297,26 @@ fun MainAppHost(
                                 hostCommands = hostCommands,
                                 todos = sessionTodos,
                                 goal = sessionGoal,
+                                deliverables = sessionDeliverables,
+                                onOpenDeliverable = { file ->
+                                    // 产物路径在 Host 世界；落在本机工作区时直接定位目录。
+                                    val target = java.io.File(file.path)
+                                    val dir = target.parentFile
+                                    if (dir != null &&
+                                        dir.absolutePath.startsWith(
+                                            activeWorkspace.absolutePath
+                                        )
+                                    ) {
+                                        filesDir = dir
+                                        activePage = ActivePage.FILES
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            file.path,
+                                            android.widget.Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                },
                                 onHostCommand = { line ->
                                     val sid = selectedSessionId
                                     if (sid != null) {

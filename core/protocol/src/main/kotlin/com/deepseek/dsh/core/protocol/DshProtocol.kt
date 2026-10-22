@@ -48,6 +48,11 @@ sealed interface RemoteEvent {
     @Serializable
     data class MessageDelta(val sessionId: String, val delta: String) : RemoteEvent
     data class ReasoningDelta(val sessionId: String, val delta: String) : RemoteEvent
+    /** 官方 `deliverables/presented`：本轮产出的文件。 */
+    data class DeliverablesPresented(
+        val sessionId: String,
+        val files: List<PresentedFileInfo>,
+    ) : RemoteEvent
 
     @Serializable
     data class MessageDone(val sessionId: String, val message: ChatMessage) : RemoteEvent
@@ -78,6 +83,12 @@ data class ForwardedWaterfall(
     val eventId: String,
     val agentId: String?,
     val request: kotlinx.serialization.json.JsonObject,
+)
+
+/** 官方 `deliverables/presented` 里的一份产物。 */
+data class PresentedFileInfo(
+    val path: String,
+    val description: String? = null,
 )
 
 /** Host 转发事件（事件名 + 参数）。 */

@@ -1807,6 +1807,26 @@ class RemoteClient(
                 }?.joinToString("").orEmpty()
                 emitDurableMessage(sessionId, hostId, seq, "user_$seq", MessageRole.USER, body)
             }
+            // 官方 present 工具的产物声明：把文件列表交给 UI 展示。
+            "deliverables/presented" -> {
+                val files = (data["files"] as? kotlinx.serialization.json.JsonArray)
+                    ?.mapNotNull { item ->
+                        val obj = item as? kotlinx.serialization.json.JsonObject
+                            ?: return@mapNotNull null
+                        val path = (obj["path"] as? kotlinx.serialization.json.JsonPrimitive)
+                            ?.contentOrNull ?: return@mapNotNull null
+                        PresentedFileInfo(
+                            path = path,
+                            description = (obj["description"]
+                                as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull,
+                        )
+                    } ?: emptyList()
+                if (files.isNotEmpty()) {
+                    eventBus.tryEmit(
+                        RemoteEvent.DeliverablesPresented(sessionId, files),
+                    )
+                }
+            }
             "turn/start" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, true))
             "turn/end" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
             "assistant/message" -> {

@@ -215,6 +215,10 @@ fun ModernChatScreen(
     todos: List<com.deepseek.dsh.core.model.TodoEntryInfo> = emptyList(),
     /** 官方 `goal` 投影（当前会话目标）。 */
     goal: com.deepseek.dsh.core.model.GoalInfo? = null,
+    /** 官方 `deliverables/presented` 的产物列表。 */
+    deliverables: List<com.deepseek.dsh.core.protocol.PresentedFileInfo> = emptyList(),
+    /** 点开一份产物（切到文件页并定位到该目录）。 */
+    onOpenDeliverable: (com.deepseek.dsh.core.protocol.PresentedFileInfo) -> Unit = {},
     workspaceName: String = "默认工作区",
     /** 系统文件选择器选回的附件；由宿主负责复制进工作区后传回这里。 */
     attachments: List<ChatAttachment> = emptyList(),
@@ -685,10 +689,12 @@ fun ModernChatScreen(
             ToolDetailSheet(detail = detail, onDismiss = { toolDetail = null })
         }
 
-        if (goal != null || todos.isNotEmpty()) {
+        if (goal != null || todos.isNotEmpty() || deliverables.isNotEmpty()) {
             SessionPlanDock(
                 goal = goal,
                 todos = todos,
+                deliverables = deliverables,
+                onOpenDeliverable = onOpenDeliverable,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
@@ -2981,6 +2987,8 @@ private fun ComposerCommandRow(
 private fun SessionPlanDock(
     goal: com.deepseek.dsh.core.model.GoalInfo?,
     todos: List<com.deepseek.dsh.core.model.TodoEntryInfo>,
+    deliverables: List<com.deepseek.dsh.core.protocol.PresentedFileInfo> = emptyList(),
+    onOpenDeliverable: (com.deepseek.dsh.core.protocol.PresentedFileInfo) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -3040,6 +3048,27 @@ private fun SessionPlanDock(
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
+                )
+            }
+        }
+        if (deliverables.isNotEmpty()) {
+            Text(
+                text = "FILES " + deliverables.size,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            deliverables.takeLast(6).forEach { file ->
+                Text(
+                    text = "\uD83D\uDCC1 " + file.path.substringAfterLast('/'),
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenDeliverable(file) }
+                        .padding(vertical = 1.dp),
                 )
             }
         }
