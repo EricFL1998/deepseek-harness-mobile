@@ -805,10 +805,18 @@ fun MainAppHost(
     // 多终端（官方 terminal/list）：页签集合、当前页签、可用 shell。
     // ANSI 屏幕模型：光标定位/清屏由它处理，渲染文本给 UI。
     val terminalBufferModel = remember { TerminalBuffer(cols = 80, rows = 24) }
-    DisposableEffect(ui.activePage, ui.selectedSessionId, runtimeUi.activeTerminalId) {
+    DisposableEffect(
+        ui.activePage,
+        ui.selectedSessionId,
+        runtimeUi.activeTerminalId,
+        ui.rightDrawerOpen,
+        ui.rightDrawerTab,
+    ) {
         val sid = ui.selectedSessionId
         var job: kotlinx.coroutines.Job? = null
-        if (ui.activePage == ActivePage.TERMINAL && sid != null) {
+        val terminalVisible = ui.activePage == ActivePage.TERMINAL ||
+            (ui.rightDrawerOpen && ui.rightDrawerTab == "terminal")
+        if (terminalVisible && sid != null) {
             job = scope.launch {
                 runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
                 runtimeUi.terminalShells = dshRepository.listTerminalShells(ui.activeHostId, sid)
