@@ -195,6 +195,7 @@
     <string name="host_startup_copied">诊断信息已复制</string>
     <string name="host_startup_continue">仍然进入</string>
     <string name="host_startup_continue_hint">进入后可到「设置 → 移动运行时」查看原因并重试。</string>
+    <string name="host_startup_timeout">本地 Host 启动超时（90 秒）</string>
     <string name="host_starting">正在启动本地 Host…</string>
     <string name="action_host_retry">重试</string>
     <string name="storage_permission_title">需要文件访问权限</string>

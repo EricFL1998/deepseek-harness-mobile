@@ -1256,20 +1256,20 @@ fun MainAppHost(
         return
     }
 
-    // 已安装后的每次重新打开：轮询 Host 的真实运行状态；
-    // 一旦 endpoint（port）就绪就进入 UI，不等 markReady/RUNNING。
-    val rootfsWasInstalled = remember {
-        java.io.File(context.filesDir, "rootfs/etc/os-release").exists()
-    }
-    var hostProgressReady by remember { mutableStateOf(!rootfsWasInstalled) }
+    // 已安装后的每次重新打开：等 Host 真正就绪（markReady / RUNNING）再进 UI。
+    // 不能只看 endpoint/port：DSH 打印 Web URL 前端口可能已经监听，此时模型、
+    // 插件与会话接口还没准备好，提前进主界面会看到空状态或“未就绪”报错。
+    var hostProgressReady by remember { mutableStateOf(false) }
     var hostStartupError by remember { mutableStateOf(false) }
+    var hostStartupDetail by remember { mutableStateOf<String?>(null) }
     var hostRetryKey by remember { mutableStateOf(0) }
-    LaunchedEffect(rootfsWasInstalled, hostRetryKey) {
-        if (!rootfsWasInstalled) return@LaunchedEffect
+    LaunchedEffect(rootfsReady, hostRetryKey) {
+        if (rootfsReady != true) return@LaunchedEffect
         val startedAt = System.currentTimeMillis()
         while (!hostProgressReady) {
-            if (System.currentTimeMillis() - startedAt > 20_000L) {
-                hostProgressReady = true
+            if (System.currentTimeMillis() - startedAt > 90_000L) {
+                hostStartupError = true
+                hostStartupDetail = context.getString(R.string.host_startup_timeout)
                 break
             }
             val current = runCatching { runtimeManager.getStatus() }.getOrNull()
@@ -1278,27 +1278,30 @@ fun MainAppHost(
                 continue
             }
             when {
-                current.phase == RuntimePhase.RUNNING || current.port != null -> {
+                current.phase == RuntimePhase.RUNNING -> {
                     hostProgressReady = true
                     hostStartupError = false
+                    hostStartupDetail = null
                 }
                 current.phase == RuntimePhase.ERROR -> {
                     hostStartupError = true
+                    hostStartupDetail = null
                     break
                 }
                 else -> kotlinx.coroutines.delay(300)
             }
         }
     }
-    if (rootfsWasInstalled && !hostProgressReady) {
+    if (rootfsReady == true && !hostProgressReady) {
         HostStartupSplash(
             phase = if (hostStartupError) RuntimePhase.ERROR else RuntimePhase.STARTING,
             // 失败原因和最近输出必须显示在这里：启动页是唯一入口，只给一个
             // 「重试」按钮会让用户既修不了、也没法把原因发出来。
-            detail = if (hostStartupError) status.lastError else null,
+            detail = hostStartupDetail ?: if (hostStartupError) status.lastError else null,
             logTail = if (hostStartupError) status.logTail else emptyList(),
             onRetry = {
                 hostStartupError = false
+                hostStartupDetail = null
                 hostRetryKey += 1
                 scope.launch {
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
