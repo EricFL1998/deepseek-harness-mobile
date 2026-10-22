@@ -29,6 +29,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -50,6 +52,9 @@ internal fun SettingsGeneralPane(
     settings: AppSettings,
     onUpdateSettings: (AppSettings) -> Unit,
     modifier: Modifier = Modifier,
+    /** 当前语言选择：`system` / `zh` / `en`。 */
+    languageTag: String = "system",
+    onLanguageChange: (String) -> Unit = {},
 ) {
     val palette = LocalSettingsPalette.current
     androidx.compose.runtime.LaunchedEffect(Unit) { SessionLogUploadBridge.refresh() }
@@ -77,12 +82,52 @@ internal fun SettingsGeneralPane(
             GeneralRowDivider()
         }
         item(key = "general_language") {
+            var showLanguageDialog by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(false)
+            }
             PreferenceSelectorRow(
                 title = stringResource(R.string.settings_pane_general_language_title),
                 description = "",
-                value = stringResource(R.string.settings_pane_general_language_value),
-                onClick = {}
+                value = when (languageTag) {
+                    "zh" -> stringResource(R.string.settings_pane_general_language_chinese)
+                    "en" -> stringResource(R.string.settings_pane_general_language_english)
+                    else -> stringResource(R.string.settings_pane_general_language_system)
+                },
+                onClick = { showLanguageDialog = true },
             )
+            if (showLanguageDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showLanguageDialog = false },
+                    title = {
+                        Text(stringResource(R.string.settings_pane_general_language_title))
+                    },
+                    text = {
+                        Column {
+                            listOf(
+                                "system" to R.string.settings_pane_general_language_system,
+                                "zh" to R.string.settings_pane_general_language_chinese,
+                                "en" to R.string.settings_pane_general_language_english,
+                            ).forEach { (value, label) ->
+                                Text(
+                                    text = stringResource(label),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            showLanguageDialog = false
+                                            onLanguageChange(value)
+                                        }
+                                        .padding(vertical = 14.dp),
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { showLanguageDialog = false }) {
+                            Text(stringResource(android.R.string.cancel))
+                        }
+                    },
+                )
+            }
             GeneralRowDivider()
         }
         item(key = "general_appearance") {

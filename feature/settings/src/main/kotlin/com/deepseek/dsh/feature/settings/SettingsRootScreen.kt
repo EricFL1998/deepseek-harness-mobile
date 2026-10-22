@@ -83,6 +83,43 @@ enum class SettingsSectionTab(
  * 手机竖屏状态下，设置主页采用左侧导航（分区列表）-> 点击深入右侧 Section 面板，
  * 支持平滑返回；每个内容页严格对齐 dsh-upstream 对应 settings section 的右侧面板样式。
  */
+/**
+ * 设置主页的分区顺序来自后端：官方的 `settings.section` 槽注册（bridge 的
+ * client-slots）给出每个分区的 id 与 order。App 只负责“这个 id 怎么画”，
+ * 排序与「是否出现」都以注册为准；手机专属分区（运行环境/通知/远程/更新）不在
+ * 官方注册里，作为附加项排在官方分区之后。
+ *
+ * @param registrations 插件槽注册（含 `settings.section`）。
+ * @returns 排好序的分区列表。
+ */
+private fun orderedSections(
+    registrations: List<com.deepseek.dsh.core.model.PluginSlotEntry>,
+): List<SettingsSectionTab> {
+    val backendOrder = registrations
+        .filter { it.slot == "settings.section" }
+        .mapNotNull { entry -> entry.order?.let { order -> entry.id to order } }
+        .toMap()
+    val mobileOnly = setOf(
+        SettingsSectionTab.MOBILE_RUNTIME.id,
+        SettingsSectionTab.NOTIFICATIONS.id,
+        SettingsSectionTab.REMOTE.id,
+        SettingsSectionTab.UPDATE.id,
+        SettingsSectionTab.ARCHIVED.id,
+    )
+    return SettingsSectionTab.values().sortedWith(
+        compareBy(
+            { tab ->
+                if (backendOrder.isEmpty() || tab.id in mobileOnly) {
+                    // 没有后端数据时保持声明顺序；手机专属分区固定排在官方分区之后。
+                    if (backendOrder.isEmpty()) tab.ordinal else 1000 + tab.ordinal
+                } else {
+                    backendOrder[tab.id] ?: (1000 + tab.ordinal)
+                }
+            },
+        ),
+    )
+}
+
 @Composable
 fun SettingsRootScreen(
     settings: AppSettings,
@@ -110,6 +147,10 @@ fun SettingsRootScreen(
     hostPortProvider: (() -> Int)? = null,
     /** 原生伴生页面调用 Host 插件 RPC；参数原样传递，不包 args。 */
     pluginRpc: (suspend (method: String, payload: kotlinx.serialization.json.JsonObject) -> Result<String>)? = null,
+    /** 当前界面语言选择：`system` / `zh` / `en`。 */
+    languageTag: String = "system",
+    /** 用户切换界面语言（同时同步 Host）。 */
+    onLanguageChange: (String) -> Unit = {},
     /** 读取一份插件设置表单。 */
     loadPluginSettings: suspend (String) -> com.deepseek.dsh.core.model.PluginSettingsDocument? = { null },
     /** 回写插件设置字段。 */
@@ -324,11 +365,11 @@ fun SettingsRootScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Column {
-                                    val totalRows = SettingsSectionTab.values().size +
+                                    val totalRows = orderedSections(pluginSlotEntries).size +
                                         pluginEntryRows.size +
                                         pluginSettingsPages.size
                                     var rowIndex = 0
-                                    SettingsSectionTab.values().forEach { tab ->
+                                    orderedSections(pluginSlotEntries).forEach { tab ->
                                         SettingsNavRow(
                                             tab = tab,
                                             onClick = { activeSection = tab },
@@ -399,6 +440,8 @@ fun SettingsRootScreen(
 
                         SettingsSectionTab.GENERAL -> SettingsGeneralPane(
                             settings = currentSettings,
+                            languageTag = languageTag,
+                            onLanguageChange = onLanguageChange,
                             onUpdateSettings = {
                                 currentSettings = it
                                 onUpdateSettings(it)

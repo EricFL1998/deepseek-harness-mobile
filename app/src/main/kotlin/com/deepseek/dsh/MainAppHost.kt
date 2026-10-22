@@ -135,6 +135,9 @@ fun MainAppHost(
 
     val persistedSettings by settingsRepository.settingsFlow.collectAsState()
     var currentAppSettings by remember(persistedSettings) { mutableStateOf(persistedSettings) }
+    // 界面语言：在「设置 → 通用 → 语言」里选择，选择同时写给 Host 的 locale 设置。
+    val languageContext = androidx.compose.ui.platform.LocalContext.current
+    var currentLanguageTag by remember { mutableStateOf(AppLanguage.selection(languageContext)) }
 
     val externalWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
     val visibleWorkspaceDir = remember { java.io.File(android.os.Environment.getExternalStorageDirectory(), "Documents/DSH-Workspace") }
@@ -3175,6 +3178,17 @@ fun MainAppHost(
                             com.deepseek.dsh.feature.settings.SettingsRootScreen(
                                 settings = currentAppSettings,
                                 initialSection = settingsInitialSection,
+                                languageTag = currentLanguageTag,
+                                onLanguageChange = { selection ->
+                                    currentLanguageTag = selection
+                                    AppLanguage.apply(languageContext, selection)
+                                    scope.launch {
+                                        dshRepository.syncHostLocale(
+                                            activeHostId,
+                                            AppLanguage.effectiveTag(languageContext),
+                                        )
+                                    }
+                                },
                                 onUpdateSettings = { updated ->
                                     currentAppSettings = updated
                                     scope.launch {

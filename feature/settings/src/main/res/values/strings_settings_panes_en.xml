@@ -55,6 +55,9 @@
     <string name="settings_pane_general_permission_full">Full access</string>
     <string name="settings_pane_general_language_title">Language</string>
     <string name="settings_pane_general_language_value">Chinese</string>
+    <string name="settings_pane_general_language_system">Follow system</string>
+    <string name="settings_pane_general_language_english">English</string>
+    <string name="settings_pane_general_language_chinese">Chinese (Simplified)</string>
     <string name="settings_pane_general_steps_title">Work step display</string>
     <string name="settings_pane_general_steps_desc">Choose how much tool call detail to see</string>
     <string name="settings_pane_general_collapse_title">When to collapse work steps</string>

@@ -145,6 +145,9 @@ class MainActivity : ComponentActivity() {
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
 
+        // 先套用用户选过的界面语言，再组合界面，避免首帧用错语言。
+        AppLanguage.applySaved(this)
+
         // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
         setContent {
 
