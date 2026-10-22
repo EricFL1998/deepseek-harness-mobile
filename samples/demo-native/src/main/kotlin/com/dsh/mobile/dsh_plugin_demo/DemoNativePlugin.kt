@@ -21,10 +21,17 @@ import com.deepseek.dsh.plugin.nativesdk.theme.PluginTheme
 import kotlinx.serialization.json.JsonObject
 
 /**
- * 纯虚构的 Demo 插件：不是真实业务插件，只演示 SDK 的每一种 UI 插入方式。
+ * 纯虚构的 Demo 插件：不是真实业务插件，只演示 SDK 的每一种接入方式。
+ *
+ * 它与 `samples/demo-js`（npm 包 `dsh-plugin-demo`）配对：
+ *
+ * - JS 半边：`demo.*` RPC、Host 状态、原生动作处理（见 demo-js/lib）；
+ * - 原生半边：本 APK。设置页与 dock 通过 `PluginRpcHost.callRpc` 读 Host 状态，
+ *   通过 `dispatchEvent` 把用户动作回传给 JS 插件；
+ * - 其余落点用 `DemoSlotContribution` 标记，证明「每个 NativeSlot 都能插」。
  *
  * 覆盖：
- * - PageContent（设置页整页）
+ * - PageContent（设置页整页，RPC 驱动）
  * - 全部 NativeSlot 的 SlotContribution（dock、输入栏、消息动作、工具卡片、
  *   provider 卡片、overlay、侧栏、chat stream、web island 等）
  * - PluginPopover（贴锚点 + App 菜单材质）
@@ -48,8 +55,8 @@ class DemoNativePlugin : DshUiPlugin {
 
     init {
         PageRegistry.register(DemoSettingsPage())
-        // 只注入宿主位置已经正确的落点；宿主待修的落点仍在 Demo 页列出，
-        // 但不向真实界面注入，避免用错误布局硬顶。
+        // 注入全部「可注入」的落点；WEB_ISLAND_FULL 虽然已有宿主，但它是整岛
+        // Web 回退容器，注入 Demo 卡片会整屏盖住 App，因此只在本页列出说明。
         DemoSlots.entries
             .filter { it.hostReady && it.slot != NativeSlot.COMPOSER_DOCK }
             .forEach { SlotRegistry.register(DemoSlotContribution(it)) }
@@ -63,7 +70,13 @@ data class DemoSlotEntry(
     val slot: NativeSlot,
     val title: String,
     val detail: String,
-    /** App 是否已有正确的宿主位置；false 时 Demo 页只展示说明，不注入真实界面。 */
+    /**
+     * 是否向真实界面注入。
+     *
+     * 宿主位置都已就绪；`false` 表示这个落点「有宿主但不该由 Demo 占用」
+     * （目前只有 `WEB_ISLAND_FULL`：整岛 Web 回退容器，注入会整屏覆盖 App）。
+     * Demo 页仍列出它，并说明原因。
+     */
     val hostReady: Boolean = true,
 )
 
@@ -91,7 +104,7 @@ object DemoSlots {
         DemoSlotEntry(NativeSlot.MESSAGE_ACTION, "消息动作", "assistant-actions"),
         DemoSlotEntry(NativeSlot.TOOL_VIEW_SHEET, "工具详情", "tool.call.toolview"),
         DemoSlotEntry(NativeSlot.CHAT_STREAM, "聊天流", "chat.flow / chat.node"),
-        DemoSlotEntry(NativeSlot.WEB_ISLAND_FULL, "Web 岛", "完整 Web 回退", hostReady = false),
+        DemoSlotEntry(NativeSlot.WEB_ISLAND_FULL, "Web 岛", "完整 Web 回退（Demo 不注入，避免整岛覆盖）", hostReady = false),
     )
 }
 

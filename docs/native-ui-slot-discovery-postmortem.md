@@ -63,7 +63,7 @@ Host 的权威 slot 注册表投影成 App 端的可执行清单。结果：
 ### 2.4 页面契约先行，slot 契约后补
 
 `PageEntry` 只支持 `SETTINGS` / `PLUGINS` 两种 placement，对应 `settings.*` 与
-`plugins.tab`。第一个示例插件（subscription-native）用页面契约就能跑通，于是
+`plugins.tab`。第一个示例插件只做了页面契约就能跑通，于是
 “原生 UI = 原生设置页”成为事实上的第一版模型。composer、sidebar、tool、overlay
 这些非页面落点没有进入第一版的验收路径。
 
@@ -148,9 +148,12 @@ python tools/plugin_ui_scanner.py --plugin /path/to/dsh-plugin-x \
 - 组件 JSX 树、可见文案、按钮动作、locale 文案；
 - 未映射或没有宿主的位置（`--check` 失败）。
 
-对订阅插件的实际扫描结果：4 个注册落点（composer.dock、input.right、
+早期对一个真实插件的实际扫描结果：4 个注册落点（composer.dock、input.right、
 settings.section、settings.models.provider-card）、24 个 RPC 端点，其中
 `settings.models.provider-card` 被明确标成“未映射”，不再靠用户截图发现。
+
+> 现在 SDK 维护 `samples/demo-native` 作为“注册全部落点”的示例 APK，配套 JS
+> 半边是 `samples/demo-js`；扫描输出见 `docs/plugin-ui-inventory-example.md`。
 
 原生接入按报告逐项落：
 
@@ -188,4 +191,5 @@ python tools/official_ui_inventory.py --rootfs /path/to/rootfs --check
 - **先清单，后界面**：没有 slot inventory 不动手。
 - **默认显式降级**：每个官方 slot 要么原生认领，要么明确走 Web/隐藏，不允许“未定义”。
 - **用测试锁住覆盖**：官方 slot 常量新增时，映射测试必须失败。
-- **端到端示例**：维护一个注册全部落点的示例 APK，作为每次改动的冒烟基线。
+- **端到端示例**：维护一个注册全部落点的示例 APK，作为每次改动的冒烟基线
+  （已落地：`samples/demo-native`）。

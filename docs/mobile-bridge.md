@@ -169,8 +169,8 @@ absent root as "no bundles", so the gate bought nothing and cost correctness.
 tables (`const en = {…}` / `const zh = {…}`), and many packages ship no
 `locale/` directory. The static reader resolves the thunk key through the
 bundle's inline dictionaries, preferring `[locale, base(locale), …configured
-localeTags]`, so the phone shows “订阅” rather than the registration id
-`subscriptions` and follows the client language. Registration rows also carry
+localeTags]`, so the phone shows the bundle's own label rather than the
+registration id and follows the client language. Registration rows also carry
 `labelKey` (additive; clients ignore unknown fields).
 
 ## Provider: `client-slots` additions

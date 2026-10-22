@@ -1,5 +1,10 @@
 # 订阅插件：原生 UI 缺口（自动扫描 + 人工核对）
 
+> **历史记录，不再作为 SDK 案例。** 本文记录一个真实订阅插件早期的一次缺口扫描，
+> 用于追溯当时的判断；SDK 的接入案例现以 `samples/demo-js`（JS 插件）+ 
+> `samples/demo-native`（原生伴生）为准，见 [SDK 开发者文档](plugin-sdk-guide.md)
+> 与 [文档站案例](index.html#case)。阅读时不要把文中命令/数字当成当前示例。
+
 > **更新（2026-10-21）：`ProviderCardExtras` 与 `FastModeButton` 已补齐。**
 > - 新增 `SETTINGS_PROVIDER_CARD` 宿主与 `ProviderCardExtrasContribution`；
 > - 新增 `PluginModelHost` + `SlotBridgeHost.selectModel`，`COMPOSER_RIGHT` 上的

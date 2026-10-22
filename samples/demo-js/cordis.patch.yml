@@ -1,0 +1,10 @@
+# Demo 插件：随 bundle 自激活 Node 半边（RPC 路由 + 原生事件动作）。
+#
+# 客户端半边（设置页 `settings.section`、输入栏 dock 的 React 组件）由
+# package.json 里的 `dsh.client` 声明，按需加载。
+#
+# row id (`demo-plugin`) 同时是设置命名空间；如果以后要给 Demo 添加 Config
+# 表单，设置页会以它为 ns 投影字段。
+- insert:
+    - id: demo-plugin
+      name: dsh-plugin-demo

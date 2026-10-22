@@ -562,7 +562,7 @@ Idle → Preparing(rootfs) → Starting(Node) → WaitingForUrl → Ready
 
 **插件与内容**
 
-- [ ] 订阅、归档、genui 三个插件在纯 Web 下完整可用；
+- [ ] 已接入原生 UI 的插件在纯 Web 下完整可用；
 - [ ] GenUI 图表/Mermaid/3D/交互正常；
 - [ ] 插件安装/卸载/启停后 Web 即时生效；
 - [ ] 长会话滚动、图片、代码块、工具卡正常；

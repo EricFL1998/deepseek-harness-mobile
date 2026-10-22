@@ -9,9 +9,10 @@
             android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
             <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
             <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+            <meta-data android:name="dsh.plugin.version" android:value="1" />
             <meta-data android:name="dsh.plugin.id" android:value="demo.native-ui" />
             <meta-data android:name="dsh.plugin.name" android:value="Demo 插件" />
-            <!-- 虚构的 JS 插件包名：仅用于演示，不对应任何真实插件。 -->
+            <!-- 与 samples/demo-js 的 package.json name 一致；App 据此配对并连带安装 JS 插件。 -->
             <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-demo" />
 
             <intent-filter>

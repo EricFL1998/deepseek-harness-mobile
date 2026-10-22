@@ -1,0 +1,71 @@
+{
+  "package_name": "dsh-plugin-demo",
+  "version": "0.1.0",
+  "sources": [
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\actions.js",
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\catalog.js",
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\client.js",
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\constants.js",
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\index.js",
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\rpc.js",
+    "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\state.js"
+  ],
+  "slots": [
+    {
+      "slot": "conversation.composer.dock",
+      "entry": "demo-dock",
+      "order": 10,
+      "mode": "ENHANCE",
+      "component": "DemoDockChip",
+      "source": "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\client.js",
+      "native": "COMPOSER_DOCK",
+      "hosted": true,
+      "implemented": true,
+      "data": [
+        "rpc:bump",
+        "rpc:status"
+      ],
+      "texts": [],
+      "buttons": [],
+      "placement": [],
+      "tree": [
+        {
+          "type": "any",
+          "text": "",
+          "children": []
+        }
+      ]
+    },
+    {
+      "slot": "settings.section",
+      "entry": "demo",
+      "order": 10,
+      "mode": "ENHANCE",
+      "component": "DemoSettingsSection",
+      "source": "E:\\work\\deepseek mobile\\samples\\demo-js\\lib\\client.js",
+      "native": "SETTINGS_SHEET",
+      "hosted": true,
+      "implemented": true,
+      "data": [
+        "rpc:bump",
+        "rpc:status"
+      ],
+      "texts": [],
+      "buttons": [],
+      "placement": [],
+      "tree": [
+        {
+          "type": "any",
+          "text": "",
+          "children": []
+        }
+      ]
+    }
+  ],
+  "rpc": [
+    "bump",
+    "status"
+  ],
+  "locales": {},
+  "warnings": []
+}

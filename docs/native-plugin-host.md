@@ -268,7 +268,7 @@ interface StoreClient {
 
 ## 9. 模块⑧：管理界面
 
-设置页新增「原生插件」分组（复用 `feature/settings` 骨架）：
+插件页新增「插件商店」分组（复用 `feature/settings` 骨架）：
 
 - **列表**：图标、名称、版本、状态（正常/待更新/身份不符/已停用）、能力声明、签名指纹缩写；
 - **详情页**：能力开关（逐项）、审计记录、卸载入口（跳系统卸载页）；
@@ -320,7 +320,9 @@ interface StoreClient {
 ### Phase 1：能力桥与主题
 
 - 交付：⑤⑥，`openUrl` + `storage` 两个能力先行，其余按 SDK 表补齐；
-- 验收：Kimi 示例插件（SDK 文档 §13）端到端跑通 OAuth（dispatchEvent → Host → Custom Tab → 回跳 → 状态刷新）。
+- 验收：Demo 示例插件（SDK 文档「完整示例」）端到端跑通 RPC + 事件
+  （`demo.status` → `dispatchEvent` → `client/refresh`）；OAuth 回跳另用
+  Kimi 示例（Custom Tab + 深链回跳）验证。
 
 ### Phase 2：信任与管理
 

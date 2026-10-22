@@ -266,9 +266,9 @@
     <nav class="topnav">
       <a href="#scan">扫描</a>
       <a href="#report">报告</a>
-      <a href="#implement">实现</a>
+      <a href="#mapping">实现</a>
       <a href="#case">案例</a>
-      <a href="#ci">校验</a>
+      <a href="#validation">校验</a>
       <a href="https://github.com/EricFL1998/deepseek-harness-mobile" target="_blank" rel="noopener">GitHub ↗</a>
     </nav>
     <button class="icon-btn" id="themeBtn" title="切换主题" aria-label="切换主题">◐</button>
@@ -280,18 +280,18 @@
   <aside class="toc" id="toc">
     <div class="toc-title">目录</div>
     <a href="#overview">概览</a>
-    <a href="#principles">为什么不再截图驱动</a>
+    <a href="#principles">接入原则</a>
     <a href="#architecture">整体架构</a>
     <a href="#inputs">输入与准备</a>
     <a href="#scan">扫描插件源码</a>
     <a href="#report">读懂扫描报告</a>
     <a href="#mapping">选择实现方式</a>
     <a href="#capabilities">宿主能力与数据契约</a>
-    <a href="#slots">官方控件也走 slot</a>
-    <a href="#case">案例：订阅插件 4 个落点</a>
+    <a href="#slots">内置控件也走 slot</a>
+    <a href="#case">案例：Demo 插件接入</a>
     <a href="#validation">校验与 CI</a>
-    <a href="#pitfalls">踩坑清单</a>
-    <a href="#troubleshooting">常见问题</a>
+    <a href="#pitfalls">上线检查</a>
+    <a href="#troubleshooting">操作要点</a>
     <a href="#files">SDK 文件结构</a>
     <a href="#glossary">术语与版本</a>
   </aside>
@@ -301,12 +301,12 @@
       <div class="eyebrow">DSH Mobile · Native UI SDK</div>
       <h1>从插件源码出发，<br>把原生 UI 一次接全</h1>
       <p class="lede">
-        不再等截图、不再逐页猜。扫描插件自己的源码，自动得到 slot / entry / component /
-        RPC / UI 树与缺口，再按固定路径落成原生页面、落点或 dsh-ui spec。
+        从插件自己的源码出发，自动得到 slot / entry / component / RPC / UI 树与缺口，
+        再按固定路径落成原生页面、落点或 dsh-ui spec。
       </p>
       <div class="badges">
         <span class="badge accent">扫描器 v1</span>
-        <span class="badge green">31 官方 slot · 全落点已映射</span>
+        <span class="badge green">31 内置 slot · 全落点已映射</span>
         <span class="badge">PageContent / SlotContribution / OfficialSlot / SpecRenderer</span>
         <span class="badge">GitHub Pages 静态站点</span>
       </div>
@@ -314,36 +314,38 @@
 
     <section id="principles">
       <div class="section-head">
-        <h2><span class="num">01</span>为什么不再截图驱动<a class="anchor" href="#principles">#</a></h2>
-        <p>截图只能证明“这里少了一块”，证明不了“还有多少块没接”。源码清单可以。</p>
+        <h2><span class="num">01</span>接入原则<a class="anchor" href="#principles">#</a></h2>
+        <p>先得到完整清单，再逐项实现；每一步都有可复跑的校验。</p>
       </div>
       <div class="grid cols-3">
         <div class="card">
-          <div class="kicker">旧方式</div>
-          <h3>用户截图 → 改一处</h3>
-          <p>每次只修被看见的 UI，slot、entry、RPC、空态、权限态仍可能漏；回归也没有清单可对。</p>
+          <div class="kicker">1 · 先清单</div>
+          <h3>扫描源码，得到挂载点</h3>
+          <p>扫描插件注册的 slot / entry / component 与数据依赖，产出一份可执行的报告。</p>
         </div>
         <div class="card">
-          <div class="kicker">新方式</div>
-          <h3>源码 → 清单 → 实现</h3>
-          <p>扫描插件注册的 slot/entry/component 与数据依赖，生成可执行报告；缺口由 <code>--check</code> 拦截。</p>
+          <div class="kicker">2 · 再实现</div>
+          <h3>按形态选容器</h3>
+          <p>整页用 <code>PageContent</code>，嵌入位用 <code>SlotContribution</code>；
+          数据走 <code>PluginRpcHost</code>，交互走 <code>dispatchEvent</code>。</p>
         </div>
         <div class="card">
-          <div class="kicker">结果</div>
-          <h3>4/4 落点可验证</h3>
-          <p>订阅插件从“2 个完全没写、1 个部分实现”到扫描器全部通过，且能持续复跑。</p>
+          <div class="kicker">3 · 可复跑</div>
+          <h3>2/2 落点可验证</h3>
+          <p>每补完一个落点就重跑 <code>--check</code>；Demo 插件的两个落点全部映射、
+          宿主就绪、伴生实现，可反复回归。</p>
         </div>
       </div>
       <div class="callout good">
-        <strong>核心原则</strong>
-        <p>先清单、后界面；先覆盖、后像素。截图只用于视觉验收，不作为发现 UI 的来源。</p>
+        <strong>最佳实践</strong>
+        <p>先覆盖、后像素：清单驱动实现，截图只用于视觉验收。</p>
       </div>
     </section>
 
     <section id="architecture">
       <div class="section-head">
         <h2><span class="num">02</span>整体架构<a class="anchor" href="#architecture">#</a></h2>
-        <p>插件源码在左，原生 UI 在右；扫描器负责把“插件有什么”变成“原生要接什么”。</p>
+        <p>按五步执行：插件源码 → 扫描 → UI 清单 → 原生实现 → 校验。</p>
       </div>
       <div class="flow">
         <div class="step"><div class="idx">1</div><b>插件源码</b><span>source map / TSX / client.js</span></div>
@@ -356,7 +358,7 @@
         <div class="card">
           <div class="kicker">Host 侧</div>
           <h3>插件逻辑不动</h3>
-          <p>OAuth、token、模型调用、数据查询仍留在 JS 插件；原生只通过 RPC 取展示数据。</p>
+          <p>RPC、状态、模型调用与数据查询留在 JS 插件；原生只通过 RPC 取展示数据。</p>
         </div>
         <div class="card">
           <div class="kicker">App 侧</div>
@@ -370,7 +372,7 @@
     <section id="inputs">
       <div class="section-head">
         <h2><span class="num">03</span>输入与准备<a class="anchor" href="#inputs">#</a></h2>
-        <p>第三方开发者不需要 DSH upstream，只需要自己已经发布的插件包或源码仓库。</p>
+        <p>准备自己已经发布的插件包或源码仓库即可；扫描器直接读取这份输入。</p>
       </div>
       <div class="table-wrap">
         <table>
@@ -397,17 +399,15 @@
   <span class="flag">--check</span></pre>
       </div>
       <div class="callout">
-        <strong>不需要官方源码</strong>
-        <p>扫描器只读插件包。官方 slot 清单由 App 的 <code>NativeSlotMapping</code> 提供；
-        第三方环境无需 <code>dsh-upstream</code>。</p>
+        <strong>只读插件自己的包</strong>
+        <p>扫描器读插件注册信息；内置 slot 清单由 App 的 <code>NativeSlotMapping</code> 提供。</p>
       </div>
       <div class="callout warn">
         <strong>包名规范（强制）</strong>
         <p>伴侣 APK 统一 <code>com.dsh.mobile.&lt;完整插件名&gt;</code>：保留
         <code>dsh-plugin-</code> 前缀，转小写，非字母数字换成 <code>_</code>。
-        例：<code>dsh-plugin-subscription-oauth</code> →
-        <code>com.dsh.mobile.dsh_plugin_subscription_oauth</code>。不要缩写成
-        <code>com.dsh.mobile.subscription</code>。</p>
+        包名由完整插件名直接得到：<code>dsh-plugin-demo</code> →
+        <code>com.dsh.mobile.dsh_plugin_demo</code>。</p>
       </div>
     </section>
 
@@ -423,8 +423,8 @@
 │  └─ client.js.map      <span class="mini">sourcesContent 含原始 TSX（首选）</span>
 ├─ src/                  <span class="mini">开发仓库源码（次选）</span>
 │  ├─ client/index.ts
-│  ├─ client/UsageChip.tsx
-│  └─ client/SettingsSection.tsx
+│  ├─ client/DemoDockChip.tsx
+│  └─ client/DemoSettingsSection.tsx
 └─ locale/*.json         <span class="mini">文案表</span></div>
       <h3>扫描器识别什么</h3>
       <div class="grid cols-2">
@@ -433,72 +433,74 @@
         <div class="card"><h3>数据依赖</h3><p><code>useProjection('...')</code>、<code>useChat/useSession</code>、
         <code>inject</code> face、插件 RPC 方法名。</p></div>
         <div class="card"><h3>UI 结构</h3><p>组件 JSX 树、可见文案、按钮动作、locale key；
-        用于确认空态、表单、错误提示等是否都接。</p></div>
+        用于确认空态、表单、提示文案都已覆盖。</p></div>
         <div class="card"><h3>定位 / 交互</h3><p><code>useAnchoredPosition</code>、<code>createPortal</code>、
         <code>anchorRef</code>、<code>role="dialog"</code>、<code>side/align</code> 等锚定线索；
         伴侣若用居中 Dialog 会提示与 anchored popover 不一致。</p></div>
         <div class="card"><h3>缺口</h3><p>未映射 slot、无宿主 NativeSlot、传入 <code>--companion</code>
         但伴侣未注册对应贡献，三类都会报。</p></div>
       </div>
-      <h3>命令示例：订阅插件</h3>
+      <h3>命令示例：Demo 插件</h3>
       <div class="code-wrap">
         <button class="copy">复制</button>
         <pre><span class="cmd">python</span> tools/plugin_ui_scanner.py \
-  <span class="flag">--plugin</span> .captures/sub-pkg/dsh-plugin-subscription-oauth \
-  <span class="flag">--companion</span> samples/subscription-native/src/main/kotlin \
-  <span class="flag">--json</span> .captures/plugin-ui.json \
+  <span class="flag">--plugin</span> samples/demo-js \
+  <span class="flag">--companion</span> samples/demo-native/src/main/kotlin \
+  <span class="flag">--json</span> docs/plugin-ui-inventory-example.json \
   <span class="flag">--check</span></pre>
       </div>
-      <p class="mini">扫描结果为 4 个落点、20 个 RPC；其中 <code>settings.models.provider-card</code>
-      最初被标为“未映射 / 未实现”。</p>
+      <p class="mini">扫描结果为 2 个落点（<code>settings.section</code>、<code>conversation.composer.dock</code>）；
+      两个落点都已映射、宿主就绪、伴生实现，<code>--check</code> 通过。报告里的「RPC 端点」
+      是 Web 组件实际调用的数据依赖（<code>demo.status</code> / <code>demo.bump</code>），
+      Host 侧完整契约还有另外 4 个端点。</p>
     </section>
 
     <section id="report">
       <div class="section-head">
         <h2><span class="num">05</span>读懂扫描报告<a class="anchor" href="#report">#</a></h2>
-        <p>报告不是给人“参考”的，而是逐行对应实现任务。</p>
+        <p>报告按列对应实现任务：每一行就是一条待办。</p>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>列</th><th>含义</th><th>怎么用</th></tr></thead>
           <tbody>
-            <tr><td><code>slot</code></td><td>官方 slot 名</td><td>在 <code>NativeSlotMapping</code> 找目标落点</td></tr>
+            <tr><td><code>slot</code></td><td>内置 slot 名</td><td>在 <code>NativeSlotMapping</code> 找目标落点</td></tr>
             <tr><td><code>entry</code></td><td>同一 slot 下的子条目</td><td>如 composer.dock 的 activity/usage，可拆独立落点</td></tr>
             <tr><td><code>component</code></td><td>注册的 React 组件</td><td>用来读源码与确定 UI 结构</td></tr>
             <tr><td><code>原生落点</code></td><td>映射到的 NativeSlot</td><td>为空 = App 还没认领这个位置</td></tr>
             <tr><td><code>宿主</code></td><td>App 是否有 NativeSlot 容器</td><td>否 = 即使有映射也不会显示</td></tr>
             <tr><td><code>原生实现</code></td><td>伴侣是否注册贡献/页面</td><td>否 = 插件有 UI、伴侣没写</td></tr>
             <tr><td><code>数据依赖</code></td><td>projection / RPC / inject</td><td>决定原生用 <code>PluginRpcHost</code> 还是 spec 下发</td></tr>
-            <tr><td><code>定位/交互</code></td><td>anchored popover / portal / dialog 等线索</td><td>决定用锚定 Popup 还是 Dialog，避免“结构对、位置不对”</td></tr>
+            <tr><td><code>定位/交互</code></td><td>anchored popover / portal / dialog 等线索</td><td>据此选择锚定 Popup 或 Dialog</td></tr>
           </tbody>
         </table>
       </div>
-      <h3>订阅插件的原始缺口</h3>
+      <h3>Demo 插件的接入清单</h3>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>落点</th><th>组件</th><th>初次扫描状态</th><th>处理</th></tr></thead>
+          <thead><tr><th>落点</th><th>组件（Web → 原生）</th><th>原生落点</th><th>扫描状态</th><th>实现方式</th></tr></thead>
           <tbody>
-            <tr><td><code>conversation.composer.dock</code></td><td>UsageChip</td><td><span class="pill part">部分实现</span></td><td>补面板明细、bonus、重置时间、60s 刷新</td></tr>
-            <tr><td><code>conversation.input.right</code></td><td>FastModeButton</td><td><span class="pill no">完全没写</span></td><td>新增 PluginModelHost + FastModeContribution</td></tr>
-            <tr><td><code>settings.models.provider-card</code></td><td>ProviderCardExtras</td><td><span class="pill no">完全没写</span></td><td>新增 SETTINGS_PROVIDER_CARD 宿主 + 卡片</td></tr>
-            <tr><td><code>settings.section</code></td><td>SubscriptionsSection</td><td><span class="pill part">大部分实现</span></td><td>补 auto 链、设备码复制/有效期、目录标签</td></tr>
+            <tr><td><code>settings.section</code></td><td>DemoSettingsSection → DemoSettingsPage</td><td><code>SETTINGS_SHEET</code></td><td><span class="pill ok">已映射 / 宿主就绪 / 伴生实现</span></td><td>PageContent 接管 + <code>demo.status</code> RPC + <code>dispatchEvent</code></td></tr>
+            <tr><td><code>conversation.composer.dock</code></td><td>DemoDockChip → DemoDockContribution</td><td><code>COMPOSER_DOCK</code></td><td><span class="pill ok">已映射 / 宿主就绪 / 伴生实现</span></td><td>SlotContribution + PluginPopover + RPC / 事件闭环</td></tr>
           </tbody>
         </table>
       </div>
+      <p class="mini">Demo 注入其余 21 个落点；<code>WEB_ISLAND_FULL</code>
+      作为整岛 Web 回退容器在清单里单独标注。</p>
     </section>
 
     <section id="mapping">
       <div class="section-head">
         <h2><span class="num">06</span>选择实现方式<a class="anchor" href="#mapping">#</a></h2>
-        <p>先按形态选容器，再按数据选能力；不要所有东西都写成一个 Compose。</p>
+        <p>按形态选容器、按数据选能力；每个位置选最轻、最贴合的实现。</p>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>扫描结果</th><th>原生实现</th><th>典型例子</th></tr></thead>
           <tbody>
-            <tr><td>设置页 / 独立页面</td><td><code>PageContent</code> + <code>PageRegistry</code></td><td>Subscriptions 整页、账号管理</td></tr>
-            <tr><td>输入栏、消息、dock、卡片扩展</td><td><code>SlotContribution</code></td><td>额度胶囊、fast-mode、provider 卡片</td></tr>
-            <tr><td>官方控件本身</td><td><code>OfficialSlot</code> 包装默认 UI</td><td>tok/s、缓存命中、上下文、发送按钮</td></tr>
+            <tr><td>设置页 / 独立页面</td><td><code>PageContent</code> + <code>PageRegistry</code></td><td>Demo 设置页（整页接管）</td></tr>
+            <tr><td>输入栏、消息、dock、卡片扩展</td><td><code>SlotContribution</code></td><td>Demo dock 胶囊、消息动作、卡片扩展</td></tr>
+            <tr><td>内置控件本身</td><td><code>OfficialSlot</code> 包装默认 UI</td><td>tok/s、缓存命中、上下文、发送按钮</td></tr>
             <tr><td>信息型卡片 / 列表 / 指标</td><td><code>SpecSlotContribution</code> + dsh-ui spec</td><td>状态卡、用量面板、配置摘要</td></tr>
             <tr><td>需要切模型/推理档位</td><td><code>PluginModelHost.selectModel</code></td><td>fast 模式按钮</td></tr>
             <tr><td>暂时没有宿主</td><td>显式 Web 回退</td><td>未认领的新 slot</td></tr>
@@ -506,23 +508,23 @@
         </table>
       </div>
       <div class="callout warn">
-        <strong>能力缺失要显式记录</strong>
-        <p>如果伴侣需要“切模型”或“写文件”等 App 能力，先加可选 SDK 接口（参考
-        <code>PluginRpcHost</code> / <code>PluginModelHost</code>），不要偷偷绕过。</p>
+        <strong>新增宿主能力</strong>
+        <p>伴侣需要“切模型”或“写文件”等 App 能力时，新增可选 SDK 接口（参考
+        <code>PluginRpcHost</code> / <code>PluginModelHost</code>），由宿主统一注入。</p>
       </div>
     </section>
 
     <section id="capabilities">
       <div class="section-head">
         <h2><span class="num">07</span>宿主能力与数据契约<a class="anchor" href="#capabilities">#</a></h2>
-        <p>原生端不建网络连接、不持有 token；能力由 App 注入，数据由 Host 插件提供。</p>
+        <p>原生端只经 RPC 从 Host 取展示数据；网络与凭证留在 Host，能力由 App 注入。</p>
       </div>
       <div class="grid cols-2">
         <div class="card">
           <div class="kicker">PluginRpcHost</div>
           <h3>调用插件既有 RPC</h3>
           <pre style="margin-top:10px;font-size:12px;padding:12px"><code>rpc.callRpc(
-  "subscription-oauth.status",
+  "demo.status",
   JsonObject(emptyMap())
 ) { result -&gt; ... }</code></pre>
         </div>
@@ -544,36 +546,36 @@
         <div class="card">
           <div class="kicker">更新</div>
           <h3>refresh / 轮询</h3>
-          <p>长耗时逻辑留在 Host；原生按 60s 轮询或等 <code>client/refresh</code>，
-          不要自己维护业务状态。</p>
+          <p>长耗时逻辑留在 Host；原生按 60s 轮询或等 <code>client/refresh</code>；
+          业务状态保留在 Host，原生按需读取。</p>
         </div>
       </div>
       <div class="callout bad">
-        <strong>禁止</strong>
-        <p>原生 APK 内出现 token / API key / 任意文件路径；所有敏感数据留在 Host。</p>
+        <strong>凭证边界</strong>
+        <p>token / API key / 任意文件路径只出现在 Host；原生只拿展示数据。</p>
       </div>
     </section>
 
     <section id="slots">
       <div class="section-head">
-        <h2><span class="num">08</span>官方控件也走 slot<a class="anchor" href="#slots">#</a></h2>
-        <p>官方 compositor dock 不是一行写死的文字；tok/s、缓存命中、上下文各自都是可插拔条目。</p>
+        <h2><span class="num">08</span>内置控件也走 slot<a class="anchor" href="#slots">#</a></h2>
+        <p>内置 compositor dock 由可插拔条目组成：tok/s、缓存命中、上下文各自独立注册。</p>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>官方 slot</th><th>原生落点</th><th>宿主</th><th>官方默认</th></tr></thead>
+          <thead><tr><th>内置 slot</th><th>原生落点</th><th>宿主</th><th>内置默认</th></tr></thead>
           <tbody>
             <tr><td><code>conversation.composer.dock#activity</code></td><td><code>COMPOSER_DOCK_ACTIVITY</code></td><td>ComposerDockBar</td><td>tok/s</td></tr>
             <tr><td><code>conversation.composer.dock#usage</code></td><td><code>COMPOSER_DOCK_USAGE</code></td><td>ComposerDockBar</td><td>缓存命中</td></tr>
             <tr><td>dock 上下文计量</td><td><code>COMPOSER_DOCK_CONTEXT</code></td><td>ComposerDockBar</td><td>环形上下文</td></tr>
-            <tr><td>dock 插件扩展</td><td><code>COMPOSER_DOCK</code></td><td>ComposerDockBar</td><td>额度 chip 等</td></tr>
+            <tr><td>dock 插件扩展</td><td><code>COMPOSER_DOCK</code></td><td>ComposerDockBar</td><td>Demo 胶囊等</td></tr>
             <tr><td><code>settings.models.provider-card</code></td><td><code>SETTINGS_PROVIDER_CARD</code></td><td>SettingsModelsPane</td><td>provider 卡片扩展</td></tr>
           </tbody>
         </table>
       </div>
       <div class="code-wrap">
         <button class="copy">复制</button>
-        <pre><span class="cmt">// 官方控件通过 OfficialSlot 挂载，插件可单项 ENHANCE / OVERRIDE</span>
+        <pre><span class="cmt">// 内置控件通过 OfficialSlot 挂载，插件可单项 ENHANCE / OVERRIDE</span>
 OfficialSlot(
   slot = NativeSlot.COMPOSER_DOCK_USAGE,
   spec = buildJsonObject { put(<span class="str">"cacheHitPercent"</span>, stats.cacheHitPercent) },
@@ -581,11 +583,10 @@ OfficialSlot(
   StatReading(label = <span class="str">"Cache hit ${stats.cacheHitPercent}%"</span>) { ... }
 }</pre>
       </div>
-      <h3>Popup 定位与材质（扫描器新增）</h3>
-      <p>Web 版 <code>useAnchoredPosition</code> / <code>createPortal</code> 的浮层不是居中
-      Dialog。原生统一用 SDK 的 <code>PluginPopover</code>：贴着触发元素上方、右对齐，
-      材质取 App 的 <code>DshMenuCard</code> 映射（表面色、发丝边、16dp 圆角、菜单阴影），
-      不使用 Material Card 或硬编码颜色。</p>
+      <h3>Popup 定位与材质</h3>
+      <p>Web 版用 <code>useAnchoredPosition</code> / <code>createPortal</code> 做锚定浮层；
+      原生端对应使用 SDK 的 <code>PluginPopover</code>：贴着触发元素上方、右对齐，
+      材质取 App 的 <code>DshMenuCard</code> 映射（表面色、发丝边、16dp 圆角、菜单阴影）。</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Web 线索</th><th>原生实现</th></tr></thead>
@@ -598,70 +599,73 @@ OfficialSlot(
         </table>
       </div>
       <div class="callout warn">
-        <strong>为什么第一次没扫出来</strong>
-        <p>旧版扫描器只提取结构/文案/RPC，没有几何与定位。现在会提取
-        <code>useAnchoredPosition</code>、<code>createPortal</code>、<code>side/align</code> 等
-        placement 线索；伴侣若用 Dialog 而插件是 anchored popover，会直接告警。</p>
+        <strong>定位线索要一起扫</strong>
+        <p>扫描器提取 <code>useAnchoredPosition</code>、<code>createPortal</code>、
+        <code>side/align</code> 等 placement 线索，并在伴侣用 Dialog、插件用 anchored
+        popover 时给出告警；实现浮层时以这些线索为准。</p>
       </div>
     </section>
 
     <section id="case">
       <div class="section-head">
-        <h2><span class="num">09</span>案例：订阅插件 4 个落点<a class="anchor" href="#case">#</a></h2>
-        <p>从扫描结果到原生实现，完整走一遍。</p>
+        <h2><span class="num">09</span>案例：Demo 插件接入<a class="anchor" href="#case">#</a></h2>
+        <p>从 JS 注册、原生接管到 RPC / 事件闭环，完整走一遍。</p>
       </div>
       <div class="grid cols-2">
         <div class="card">
           <div class="kicker">1 · 扫描</div>
-          <h3>4 slots / 20 RPC</h3>
-          <p>composer.dock、input.right、settings.section、settings.models.provider-card。
-          两处未实现、一处部分实现。</p>
+          <h3>2 slots / 6 RPC</h3>
+          <p><code>settings.section</code>、<code>conversation.composer.dock</code>；
+          两个落点都已映射、宿主就绪、伴生实现，--check 一次通过。</p>
         </div>
         <div class="card">
-          <div class="kicker">2 · 补宿主</div>
-          <h3>provider-card</h3>
-          <p>新增 <code>SETTINGS_PROVIDER_CARD</code> 映射、在 SettingsModelsPane 每个 provider
-          卡片下挂 <code>NativeSlot</code>。</p>
+          <div class="kicker">2 · 接管</div>
+          <h3>PageContent + SlotContribution</h3>
+          <p><code>PageEntry(id="demo")</code> 接管设置页；dock 用
+          <code>SlotContribution</code> 画 RPC 胶囊，浮层走 <code>PluginPopover</code>。</p>
         </div>
         <div class="card">
-          <div class="kicker">3 · 补能力</div>
-          <h3>fast mode</h3>
-          <p><code>PluginModelHost</code> + <code>SlotBridgeHost</code> 实现；
-          <code>model-variants</code> 返回 rung，点击切 reasoningEffort。</p>
+          <div class="kicker">3 · 接通</div>
+          <h3>RPC + 事件</h3>
+          <p>读走 <code>PluginRpcHost.callRpc("demo.status")</code>；写走
+          <code>dispatchEvent("dsh-plugin-demo#demo","submit",{actionId:"bump"})</code>，
+          bridge 排 <code>client/refresh</code> 后页面重拉。</p>
         </div>
         <div class="card">
           <div class="kicker">4 · 校验</div>
-          <h3>4/4 通过</h3>
-          <p><code>--check</code> 通过；<code>SlotCoverageTest</code> 通过；
-          截图只做视觉确认。</p>
+          <h3>2/2 通过</h3>
+          <p><code>--check</code> 通过；<code>node --test</code> 7/7 通过。</p>
         </div>
       </div>
       <h3>实现后的验证输出</h3>
       <div class="code-wrap">
         <button class="copy">复制</button>
-        <pre><span class="cmt">$ python tools/plugin_ui_scanner.py --plugin ... --companion ... --check</span>
+        <pre><span class="cmt">$ python tools/plugin_ui_scanner.py --plugin samples/demo-js \
+    --companion samples/demo-native/src/main/kotlin --check</span>
 plugin UI coverage check OK
 
 <span class="cmt"># 逐项</span>
-conversation.composer.dock      UsageChip        impl=True
-conversation.input.right       FastModeButton   impl=True
-settings.models.provider-card  ProviderCardExtras impl=True
-settings.section               SubscriptionsSection impl=True</pre>
+conversation.composer.dock      DemoDockChip         impl=True
+settings.section                DemoSettingsSection  impl=True
+
+<span class="cmt"># RPC / 动作：信封、路由、状态隔离</span>
+<span class="cmt">$ node --test samples/demo-js/test/rpc.test.mjs</span>
+# tests 7 / pass 7 / fail 0</pre>
       </div>
     </section>
 
     <section id="validation">
       <div class="section-head">
         <h2><span class="num">10</span>校验与 CI<a class="anchor" href="#validation">#</a></h2>
-        <p>三道闸：插件覆盖、官方 slot 覆盖、App 单测。</p>
+        <p>三道闸：插件覆盖、内置 slot 覆盖、App 单测。</p>
       </div>
       <div class="grid cols-3">
         <div class="card"><div class="kicker">Gate 1</div><h3>plugin scanner --check</h3>
-        <p>插件每个 slot 必须映射、有宿主、伴侣实现；否则 exit 1。</p></div>
+        <p>插件每个 slot 都有映射、有宿主、有伴侣实现，即通过。</p></div>
         <div class="card"><div class="kicker">Gate 2</div><h3>slot_inventory.py</h3>
-        <p>官方 slot 映射与宿主一致；新增官方 slot 未处理会失败。</p></div>
+        <p>内置 slot 映射与宿主保持一致；新增内置 slot 时同步补映射、宿主与测试。</p></div>
         <div class="card"><div class="kicker">Gate 3</div><h3>SlotCoverageTest</h3>
-        <p>Kotlin 反射断言官方常量全集；CI 与本地一致。</p></div>
+        <p>Kotlin 反射断言内置常量全集；CI 与本地一致。</p></div>
       </div>
       <div class="code-wrap" style="margin-top:16px">
         <button class="copy">复制</button>
@@ -671,77 +675,72 @@ settings.section               SubscriptionsSection impl=True</pre>
 <span class="cmd">./gradlew</span> :app:testDebugUnitTest --tests com.deepseek.dsh.SlotCoverageTest</pre>
       </div>
       <div class="callout good">
-        <strong>覆盖优先</strong>
-        <p>UI 可以迭代，slot 覆盖不允许回退。新增官方 slot 时，测试/清单必须先失败再补齐。</p>
+        <strong>覆盖规则</strong>
+        <p>新增内置 slot 时，先补映射、宿主与测试，再更新清单；每次改动保持
+        <code>--check</code> 通过。</p>
       </div>
     </section>
 
     <section id="pitfalls">
       <div class="section-head">
-        <h2><span class="num">11</span>踩坑清单<a class="anchor" href="#pitfalls">#</a></h2>
-        <p>这次接入真实踩过的坑，按“现象 → 根因 → 修复”记录在 SDK 文档里。</p>
+        <h2><span class="num">11</span>上线检查<a class="anchor" href="#pitfalls">#</a></h2>
+        <p>按模块逐项确认：每一项都给出正确做法与验收标准。</p>
       </div>
       <div class="grid cols-2">
-        <div class="card"><div class="kicker">Slot</div><h3>有映射，界面空白</h3>
-        <p>slot 贡献拿到基础 Host，没有 <code>PluginRpcHost</code>，第一行 <code>as?</code> 就 return；
-        用 <code>SlotBridgeHost</code> 补齐 RPC/模型能力。</p></div>
-        <div class="card"><div class="kicker">异步加载</div><h3>旧会话不重组</h3>
-        <p>插件 APK 在聊天页组合之后才装载；<code>SlotRegistry</code> 要有可观察 revision，
-        否则旧页面永远空白。</p></div>
-        <div class="card"><div class="kicker">装载</div><h3>classes.dex 找不到</h3>
-        <p>多 dex 下自建 <code>DexClassLoader</code> 不可靠；优先
-        <code>packageContext.classLoader</code>，失败要打日志。</p></div>
-        <div class="card"><div class="kicker">数据</div><h3>首屏 401 / 不刷新</h3>
-        <p>Host 启动时序导致首调失败；贡献内退避重试，并按 Web 行为 60s 刷新。</p></div>
-        <div class="card"><div class="kicker">定位</div><h3>popup 居中 / 过宽</h3>
-        <p>Web 是 anchored popover；用 <code>PluginPopover</code>，宽度
-        <code>IntrinsicSize.Max</code> + max 320dp。</p></div>
-        <div class="card"><div class="kicker">样式</div><h3>插件自造 Card</h3>
-        <p>浮层材质必须从 <code>PluginTheme</code> 的 popup 字段来，
-        映射自 App <code>DshMenuCard</code>，保证和模型/权限菜单一致。</p></div>
+        <div class="card"><div class="kicker">Slot</div><h3>先补齐能力桥</h3>
+        <p>slot 贡献默认只有基础 <code>PluginHostApi</code>；需要 RPC/模型能力时，
+        用 <code>SlotBridgeHost</code> 包装后再读取。</p></div>
+        <div class="card"><div class="kicker">异步加载</div><h3>让落点可观察</h3>
+        <p><code>SlotRegistry</code> 维护可观察 revision；APK 装载/卸载后容器自动重组。</p></div>
+        <div class="card"><div class="kicker">装载</div><h3>用 packageContext.classLoader</h3>
+        <p>多 dex 下优先使用 <code>packageContext.classLoader</code>；加载异常时记录日志并降级到 Web。</p></div>
+        <div class="card"><div class="kicker">数据</div><h3>退避重试 + 周期刷新</h3>
+        <p>首屏未就绪时退避重试（800ms / 2s）；之后按 30–60s 或 <code>client/refresh</code> 重读。</p></div>
+        <div class="card"><div class="kicker">定位</div><h3>Popup 贴锚点、限宽</h3>
+        <p>用 <code>PluginPopover</code>，宽度 <code>IntrinsicSize.Max</code>，最大 320dp。</p></div>
+        <div class="card"><div class="kicker">样式</div><h3>材质全部取主题</h3>
+        <p>浮层背景、描边、圆角、文字取 <code>PluginTheme</code> 的 popup 字段，和 App 菜单一致。</p></div>
       </div>
       <div class="callout warn">
-        <strong>完整踩坑文档</strong>
-        <p>现象、根因、修复、预防和验收清单见
+        <strong>完整检查清单</strong>
+        <p>各模块的最佳做法、检查项与验收标准见
         <a href="https://github.com/EricFL1998/dsh-mobile-plugin-sdk/blob/main/docs/pitfalls.md" target="_blank" rel="noopener">docs/pitfalls.md</a>。</p>
       </div>
     </section>
 
     <section id="troubleshooting">
       <div class="section-head">
-        <h2><span class="num">12</span>常见问题<a class="anchor" href="#troubleshooting">#</a></h2>
-        <p>扫描器给出缺口后，按这些检查点排查。</p>
+        <h2><span class="num">12</span>操作要点<a class="anchor" href="#troubleshooting">#</a></h2>
+        <p>按以下顺序完成扫描、认领与验证。</p>
       </div>
       <details open>
-        <summary>扫描不到任何 slot？</summary>
-        <p>确认插件包里有 <code>lib/client.js.map</code> 或 <code>src/*.tsx</code>；
-        仍不行时用 <code>lib/client.js</code> 兜底。检查 <code>--plugin</code> 路径是否指向包根目录。</p>
+        <summary>确认扫描输入</summary>
+        <p>插件包里准备 <code>lib/client.js.map</code> 或 <code>src/*.tsx</code>；只有编译产物时用
+        <code>lib/client.js</code> 兜底。<code>--plugin</code> 指向包根目录。</p>
       </details>
       <details>
-        <summary>报告说“未映射”怎么办？</summary>
-        <p>这是 App 还没认领官方 slot。补 <code>DshSlotRegistry</code> 常量、<code>NativeSlot</code>、
-        <code>NativeSlotMapping</code> 和宿主；然后跑 <code>slot_inventory.py</code>。</p>
+        <summary>认领未映射 slot</summary>
+        <p>在 App 侧补 <code>DshSlotRegistry</code> 常量、<code>NativeSlot</code>、
+        <code>NativeSlotMapping</code> 与宿主，然后运行 <code>slot_inventory.py</code>。</p>
       </details>
       <details>
-        <summary>映射了，但“宿主=否”？</summary>
-        <p>UI 代码里没有真实出现 <code>NativeSlot.X</code> 容器。在对应页面/控件位置补
-        <code>NativeSlot</code> / <code>OfficialSlot</code> 调用。</p>
+        <summary>补宿主容器</summary>
+        <p>在对应页面/控件位置加入 <code>NativeSlot</code> / <code>OfficialSlot</code> 调用。</p>
       </details>
       <details>
-        <summary>扫描器说“伴侣未实现”怎么办？</summary>
-        <p>插件有 slot 注册，但伴侣源码没有注册对应 <code>SlotContribution</code> /
-        <code>PageContent</code>；或注册了错误的 NativeSlot。补贡献并重新扫描。</p>
+        <summary>补伴侣实现</summary>
+        <p>在伴侣注册对应的 <code>SlotContribution</code> / <code>PageContent</code>，
+        NativeSlot 与 JS 注册保持一致，然后重新扫描。</p>
       </details>
       <details>
-        <summary>原生 UI 有数据但交互没反应？</summary>
-        <p>slot 贡献拿到的是基础 <code>PluginHostApi</code>；需要 RPC 时确认
-        <code>PluginRpcHost</code> 已由 <code>SlotBridgeHost</code> 注入，App 已设置
-        <code>NativeHost.rpcHandler</code>。</p>
+        <summary>接通交互能力</summary>
+        <p>需要 RPC 时确认 <code>PluginRpcHost</code> 由 <code>SlotBridgeHost</code> 注入，
+        App 已设置 <code>NativeHost.rpcHandler</code>。</p>
       </details>
       <details>
-        <summary>截图看起来对了，还需要扫描器吗？</summary>
-        <p>需要。截图只覆盖当前页面/状态；扫描器覆盖注册面、数据依赖和缺口，
-        防止“看起来对了但某个 slot 没接”。</p>
+        <summary>确认覆盖完整</summary>
+        <p>以 <code>--check</code>、<code>slot_inventory.py</code>、<code>SlotCoverageTest</code>
+        为准；截图只做视觉验收。</p>
       </details>
     </section>
 
@@ -753,19 +752,19 @@ settings.section               SubscriptionsSection impl=True</pre>
       <div class="tree"><b>dsh-mobile-plugin-native-ui-sdk/</b>
 ├─ README.md
 ├─ tools/
-│  ├─ plugin_ui_scanner.py        <span class="mini">插件源码扫描器（无 upstream 依赖）</span>
-│  └─ official_ui_inventory.py    <span class="mini">官方 slot/entry 覆盖清单</span>
+│  ├─ plugin_ui_scanner.py        <span class="mini">插件源码扫描器（只读插件自己的包）</span>
+│  └─ official_ui_inventory.py    <span class="mini">内置 slot/entry 覆盖清单</span>
 ├─ docs/
 │  ├─ source-driven-native-ui.md  <span class="mini">本流程的文字版</span>
-│  ├─ plugin-ui-inventory-example.md
-│  ├─ plugin-subscription-native-gaps.md
+│  ├─ plugin-ui-inventory-example.md <span class="mini">Demo 插件的扫描输出</span>
+│  ├─ plugin-sdk-guide.md         <span class="mini">SDK 开发者文档</span>
 │  └─ slot-inventory.md
 ├─ sdk/                            <span class="mini">Kotlin SDK 源码</span>
 ├─ artifacts/
 │  └─ dsh-native-ui-sdk-release.aar
 └─ samples/
-   ├─ kimi-native/
-   └─ subscription-native/         <span class="mini">ProviderCard / FastMode / Dock 示例</span></div>
+   ├─ demo-js/                    <span class="mini">JS 插件：demo.* RPC + Web 回退</span>
+   └─ demo-native/                <span class="mini">原生伴生：PageContent / SlotContribution / Popover</span></div>
       <div class="callout">
         <strong>GitHub Pages</strong>
         <p>本页是 <code>docs/index.html</code> 单文件静态站点，无构建依赖。仓库 Settings →
@@ -783,10 +782,10 @@ settings.section               SubscriptionsSection impl=True</pre>
         <table>
           <thead><tr><th>术语</th><th>解释</th></tr></thead>
           <tbody>
-            <tr><td>slot</td><td>官方 UI 的挂载点；插件通过 <code>ctx.slots.register</code> 认领。</td></tr>
+            <tr><td>slot</td><td>内置 UI 的挂载点；插件通过 <code>ctx.slots.register</code> 认领。</td></tr>
             <tr><td>entry</td><td>同一 slot 下的子条目，例如 dock 的 activity/usage；可拆成独立原生落点。</td></tr>
             <tr><td>NativeSlot</td><td>手机端原生容器位置；由 <code>NativeSlotMapping</code> 显式映射。</td></tr>
-            <tr><td>OfficialSlot</td><td>官方控件的 slot 包装；默认内容 + 插件 ENHANCE/OVERRIDE。</td></tr>
+            <tr><td>OfficialSlot</td><td>内置控件的 slot 包装；默认内容 + 插件 ENHANCE/OVERRIDE。</td></tr>
             <tr><td>PageContent</td><td>整页原生 UI，注册到 <code>PageRegistry</code>。</td></tr>
             <tr><td>SlotContribution</td><td>嵌入型原生 UI，注册到 <code>SlotRegistry</code>。</td></tr>
             <tr><td>SpecSlotContribution</td><td>把 slot spec 里的 dsh-ui 结构交给 <code>SpecRenderer</code> 通用渲染。</td></tr>
@@ -799,7 +798,7 @@ settings.section               SubscriptionsSection impl=True</pre>
         <div class="card"><div class="kicker">版本</div><h3>SDK API v1</h3>
         <p><code>dsh.plugin.apiVersion = 1</code>、minAppVersion 12、Kotlin 2.1.10、Compose BOM 2025.02.00。</p></div>
         <div class="card"><div class="kicker">仓库</div><h3>deepseek-harness-mobile</h3>
-        <p>扫描器、App slot 宿主、订阅示例与本文档位于同一仓库；SDK 交付包可独立分发。</p></div>
+        <p>扫描器、App slot 宿主、Demo 示例与本文档位于同一仓库；SDK 交付包可独立分发。</p></div>
       </div>
     </section>
   </main>

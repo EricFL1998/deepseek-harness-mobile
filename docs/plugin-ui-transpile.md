@@ -24,7 +24,7 @@
 >    bundle 自身的 `const zh/en = {…}` 解析 label，并按请求里的 `locale`
 >    （`client-slots/list`、`describe`、`transpile/component-tree` 的可选参数）
 >    选词典；App 每次拉取时带 `Locale.getDefault().toLanguageTag()`。设置页
->    因此显示「订阅」而不是注册 id `subscriptions`，且切语言后随语言变化。
+>    因此显示 bundle 里声明的文案，而不是注册 id，且切语言后随语言变化。
 >    同一次修复还按 `slot|id|package` 去重（同一个 bundle 会经安装目录、
 >    profile、`@deepseek-ai` 符号链接被扫到多次），列表不再重复。
 > 2. **去掉双重返回按钮**：插件界面/插件设置页打开时，设置根页面不再画顶层
@@ -132,7 +132,7 @@ App 端的插件页现在能列出并管理插件，但**插件自己声明的 U
   - App 侧只有 `BridgeRenderTree` 数据模型，没有把它画出来的 Compose
     组件。
 
-实测（对 `dsh-plugin-subscription-oauth@0.17.17`）：
+实测（当时的一个真实插件包）：
 
 - 编译后的 `lib/client.js` 里没有 `createElement`/`jsx(`/`jsxs(` 字面量，
   它是 rolldown 输出的 IIFE，React 组件是函数调用返回的 stub element；
@@ -268,7 +268,7 @@ props 处理：
 
 ### 5.2 状态与刷新
 
-静态树本身没有 React state；插件的动态内容（订阅用量、登录状态、模型列表）
+静态树本身没有 React state；插件的动态内容（用量、登录状态、模型列表）
 需要 Host 给出。设计两种刷新方式：
 
 1. **轮询**：App 定时调 `transpile/component-tree`（同一 componentId +
@@ -341,7 +341,7 @@ Compose 状态对象。
   「结构对、可读」，视觉差异要接受；
 - **事件语义**：React 的受控组件模式（onChange + value）在静态树上没有
   对应物，第一版只做非受控输入 + 提交时回传；
-- **Host 侧状态**：插件的登录状态、订阅用量存在 Host 的存储里，App 端
+- **Host 侧状态**：插件的登录状态、用量数据存在 Host 的存储里，App 端
   需要轮询或事件才能拿到，第一版可能显示旧值；
 - **性能**：每次刷新都要重新转译/传输整棵树；需要缓存 + 差量刷新（第二
   阶段）；
@@ -350,8 +350,8 @@ Compose 状态对象。
 
 ## 9. 验收标准
 
-- 安装 `dsh-plugin-subscription-oauth` 后，设置页出现「订阅」条目，点进去
-  显示插件声明的订阅卡片布局（账号、用量、登录按钮占位）；
+- 安装插件后，设置页出现它的设置条目，点进去
+  显示插件声明的卡片布局（账号、用量、登录按钮占位）；
 - 点击登录按钮 → App 把事件回传给 Host → 插件在 Host 侧开始 OAuth 流程，
   状态变化通过事件/轮询回到手机；
 - 任意官方 bundle 的 `plugins.item` 组件能通过 `transpile` 拿到和

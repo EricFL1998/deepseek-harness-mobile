@@ -1,9 +1,9 @@
 # 原生插件 SDK 规范（插件侧契约）
 
-> 状态：**提案（待评审）**。本文定义「原生 UI 插件商店」体系里第三方开发者要遵守的全部契约。
+> 状态：**提案（待评审）**。本文定义「原生 UI 插件商店」体系里第三方开发者要遵守的全部契约；文中示例统一使用仓库里的 Demo 插件。
 > 适用对象：想为 DSH 手机 App 提供原生（Kotlin/Compose）UI 的插件开发者。
-> 关联文档：[JS UI 转原生 UI 实战指南](plugin-conversion-guide.md)、[SDK 开发指南](plugin-sdk-guide.md)、[App 侧宿主接口](native-plugin-host.md)、[移动端 UI 架构选型](mobile-ui-architecture.md)、[移动 bridge 协议](mobile-bridge.md)。
-> 更新：2026-10-21。本文定义目标契约；当前可编译 API 与模拟器验证步骤以开发指南为准。
+> 关联文档：[JS UI 转原生 UI 实战指南](plugin-conversion-guide.md)、[SDK 开发指南](plugin-sdk-guide.md)、[App 侧宿主接口](native-plugin-host.md)、[移动端 UI 架构选型](mobile-ui-architecture.md)、[移动 bridge 协议](mobile-bridge.md)、[Demo 插件（JS 半边）](../samples/demo-js/README.md)、[插件 UI 清单示例](plugin-ui-inventory-example.md)、[文档站案例](index.html#case)。
+> 更新：2026-10-22（示例切换为 Demo 插件：`samples/demo-js` + `samples/demo-native`；契约本身未变）。
 
 ## 目录
 
@@ -20,7 +20,7 @@
 - [10. 分发与商店提交](#10-分发与商店提交)
 - [11. 审核清单](#11-审核清单)
 - [12. 版本与兼容](#12-版本与兼容)
-- [13. 完整示例：Kimi OAuth 原生插件](#13-完整示例kimi-oauth-原生插件)
+- [13. 完整示例：Demo 插件（JS + 原生）](#13-完整示例demo-插件js--原生)
 - [14. 禁止事项速查](#14-禁止事项速查)
 
 ---
@@ -31,9 +31,11 @@ DSH 手机 App 开放一套「原生 UI 插件」体系：第三方开发者可�
 
 核心承诺：
 
-- **逻辑层零重写**：插件的 Host 侧逻辑（`lib/index.js`：OAuth、存储、模型 API、事件）原封不动继续跑；原生 APK 只写「前端逻辑」——画 spec、回传意图；
+- **逻辑层零重写**：插件的 Host 侧逻辑（`lib/index.js`：RPC、状态、事件）原封不动继续跑；原生 APK 只写「前端逻辑」——画 spec、回传意图；
 - **通信零新协议**：原生端与 Host 之间走现有 bridge 的 `dispatch` op 与 `client/refresh` 事件，一行新协议不发明；
 - **降级永远可用**：用户不装原生 APK，插件走 WebView 完整可用；装了则增强。原生层是增强，不是必需。
+
+本文的示例身份固定为 Demo 插件：JS 包 `dsh-plugin-demo`（`samples/demo-js`），伴生 `pluginId` `demo.native-ui`，APK 包名 `com.dsh.mobile.dsh_plugin_demo`（`samples/demo-native`）。它没有账号、网络与凭证，用来把契约缩小到可读的几百行。
 
 ---
 
@@ -51,13 +53,13 @@ DSH 插件天然分层：
 
 ```
 ┌─ Host（proot/Node）──────────────────────────┐
-│  kimi-oauth/lib/index.js                     │
-│  OAuth 状态机 · token · 用量查询 · 事件监听    │
+│  dsh-plugin-demo/lib/index.js                │
+│  demo.* RPC · 内存状态 · 原生动作监听          │
 │        ↕ client/refresh / dispatch           │
 │  bridge 插件（现成）                           │
 └───────↕────────────────↕──────────────────────┘
    前端 A：浏览器          前端 B：原生 APK
-   lib/client.js (React)   KimiRenderer.kt (Compose)
+   lib/client.js (React)   DemoNativePlugin.kt (Compose)
    桌面 / Web 用户          手机用户
 ```
 
@@ -69,10 +71,12 @@ DSH 插件天然分层：
 
 这是规范的第一条，也是商店审核的底线：
 
-1. **原生 APK 不做业务逻辑**：不发起 OAuth 流程、不刷新 token、不直接调用模型 API。想做事，只能 `dispatchEvent` 让 Host 侧 JS 去做；
-2. **凭证不出 Host**：token、OAuth secret、API key 只存在于 Host 进程（proot）内。`PluginHostApi` 不提供任何读取凭证的口子；spec 里只允许出现「已登录/剩余额度」这类纯展示数据；
+1. **原生 APK 不做业务逻辑**：不发起授权流程、不刷新 token、不直接调用模型 API。想做事，只能 `dispatchEvent` 让 Host 侧 JS 去做；
+2. **凭证不出 Host**：token、secret、API key 只存在于 Host 进程（proot）内。`PluginHostApi` 不提供任何读取凭证的口子；spec 里只允许出现纯展示数据；
 3. **渲染器无状态**：原生渲染器只消费 spec（JSON 快照），不持有网络连接、不缓存凭证、不跨调用保存业务状态；
 4. **审核兜底**：商店静态扫描拒绝 APK 内直连模型 API、读取 Host 目录、反射访问 App 内部类的行为。
+
+Demo 插件本身没有任何凭证（状态只是 Host 内存里的一个计数），但这套边界按「有凭证的真实插件」设计——Demo 只是把边界跑通的最小样本。
 
 这条边界同时是安全架构：原生插件 APK 是 App 进程内的第三方代码，物理上碰不到凭证，攻击面因此大幅收窄。
 
@@ -80,7 +84,7 @@ DSH 插件天然分层：
 
 ## 3. 包形态：npm 包 + 伴侣 APK
 
-### 3.1 为什么原生层是 APK 而不是 dex
+### 3.1 包形态选择：伴侣 APK 而非裸 dex
 
 | 维度 | 裸 dex 下载 | 伴侣 APK（本规范选择） |
 | --- | --- | --- |
@@ -94,11 +98,13 @@ DSH 插件天然分层：
 
 ### 3.2 两个包的关联
 
-- npm 包（如 `@changfenhuang/dsh-kimi-oauth`）：不变，走现有插件安装通道进 Host；
-- 伴侣 APK（如 `com.dsh.mobile.dsh_plugin_kimi_oauth`）：走商店分发，由系统安装器装入；
-- 伴生身份是 **`pluginId`**（如 `changfenhuang.kimi-oauth`），用于签名、商店与注册归属；
-- JS 配对键是 **`jsPackage`**（如 `dsh-plugin-kimi-oauth`），在 Service 的 `dsh.plugin.jsPackage` 声明。两者可以不同；
-- 页面接管键是 **`<jsPackage>#<PageEntry.id>`**，与 bridge 的实际组件身份一致。App 据此把「JS 插件注册的槽位」和「原生页面」配对，不能仅凭 pluginId 猜包名。
+- npm 包 `dsh-plugin-demo`（[samples/demo-js](../samples/demo-js)）：不变，走现有插件安装通道进 Host；
+- 伴侣 APK `com.dsh.mobile.dsh_plugin_demo`（[samples/demo-native](../samples/demo-native)）：走商店分发，由系统安装器装入；
+- 伴生身份是 **`pluginId`** `demo.native-ui`，用于签名、商店与注册归属；
+- JS 配对键是 **`jsPackage`** `dsh-plugin-demo`，在 Service 的 `dsh.plugin.jsPackage` 声明。两者可以不同；
+- 页面接管键是 **`<jsPackage>#<PageEntry.id>`**：`dsh-plugin-demo#demo`（设置页）与 `dsh-plugin-demo#demo-dock`（dock），与 bridge 的实际组件身份一致。App 据此把「JS 插件注册的槽位」和「原生页面」配对，不能仅凭 pluginId 猜包名。
+
+真实世界里的授权类插件同样只走这套配对机制；它们不在本文作为案例展开，边界实现见 [samples/kimi-native](../samples/kimi-native)。
 
 ### 3.3 插件可以只有一边
 
@@ -109,32 +115,31 @@ DSH 插件天然分层：
 
 ## 4. APK 清单契约（AndroidManifest）
 
-插件 APK 必须声明以下 meta-data 与服务，缺一不可：
+插件 APK 必须声明以下 meta-data 与服务，缺一不可。Demo 的清单（`samples/demo-native/src/main/AndroidManifest.xml`）：
 
 ```xml
-<manifest package="com.dsh.mobile.dsh_plugin_kimi_oauth">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.dsh.mobile.dsh_plugin_demo">
 
-    <!-- 入口服务：App 通过 action 发现插件，并读取 service 级 meta-data -->
-    <service
-        android:name=".KimiPluginService"
-        android:exported="true"
-        android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
-        <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
-        <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
-        <meta-data android:name="dsh.plugin.id" android:value="changfenhuang.kimi-oauth" />
-        <meta-data android:name="dsh.plugin.name" android:value="Kimi 登录" />
-        <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-kimi-oauth" />
-        <intent-filter>
-            <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
-        </intent-filter>
-    </service>
-
-    <!-- 可选：OAuth 等深链回跳。scheme 固定 dsh-plugin，host 必须是 pluginId -->
-    <activity android:name=".OAuthReturnActivity" android:exported="true">
-        <intent-filter>
-            <data android:scheme="dsh-plugin" android:host="changfenhuang.kimi-oauth" />
-        </intent-filter>
-    </activity>
+    <application>
+        <!-- 入口服务：App 通过 action 发现插件，并读取 service 级 meta-data -->
+        <service
+            android:name=".DemoPluginService"
+            android:exported="true"
+            android:permission="com.deepseek.dsh.permission.BIND_PLUGIN">
+            <meta-data android:name="dsh.plugin.apiVersion" android:value="1" />
+            <meta-data android:name="dsh.plugin.minAppVersion" android:value="12" />
+            <meta-data android:name="dsh.plugin.version" android:value="1" />
+            <meta-data android:name="dsh.plugin.id" android:value="demo.native-ui" />
+            <meta-data android:name="dsh.plugin.name" android:value="Demo 插件" />
+            <!-- 与 samples/demo-js 的 package.json name 一致；App 据此配对并连带安装 JS 插件。 -->
+            <meta-data android:name="dsh.plugin.jsPackage" android:value="dsh-plugin-demo" />
+            <intent-filter>
+                <action android:name="com.deepseek.dsh.action.PLUGIN_UI" />
+            </intent-filter>
+        </service>
+    </application>
 </manifest>
 ```
 
@@ -142,8 +147,10 @@ DSH 插件天然分层：
 
 - `apiVersion` 是整数，SDK 破坏性变更时 +1；App 低于 `minAppVersion` 时**拒绝加载**（显示「待更新」，不崩溃）；
 - `dsh.plugin.id` 一经发布**不可更改**——它是签名钉死和商店身份的锚；
+- `dsh.plugin.jsPackage` 是 JS 配对键；Demo 的 `pluginId`（`demo.native-ui`）与 JS 包名（`dsh-plugin-demo`）不同，这是允许的；
 - `android:permission="com.deepseek.dsh.permission.BIND_PLUGIN"` 必须原样写上，防止其他 App 绑定你的服务；
-- 插件 APK **不申请任何系统权限**（无 `<uses-permission>`）；需要能力走第 7 节的能力桥声明。
+- 插件 APK **不申请任何系统权限**（无 `<uses-permission>`）；需要能力走第 7 节的能力桥声明；
+- 只有确实需要系统回跳的插件才额外声明 Activity（scheme 固定 `dsh-plugin`、host 为 `pluginId`）；Demo 不需要，这类边界参考 [samples/kimi-native](../samples/kimi-native)。
 
 ---
 
@@ -172,14 +179,14 @@ data class PluginDescriptor(
 SDK/Compose 类型，禁止插件再用隔离 ClassLoader 或嵌套 dex 加载绕开 ABI：
 
 ```kotlin
-class KimiPluginService : Service() {
+class DemoPluginService : Service() {
     override fun onBind(intent: Intent): IBinder =
-        DshPluginBinder(KimiOAuthPlugin())
+        DshPluginBinder(DemoNativePlugin())
 
     companion object {
         /** App 在自身进程加载插件时使用的必需工厂。 */
         @JvmStatic
-        fun plugin(): DshUiPlugin = KimiOAuthPlugin()
+        fun plugin(): DshUiPlugin = DemoNativePlugin()
     }
 }
 ```
@@ -199,6 +206,9 @@ interface ComponentRenderer {
     fun Render(spec: JsonObject, host: PluginHostApi)
 }
 ```
+
+Demo 的实现只声明一个 `demo.card` 类型，用于证明最小接入；需要画完整 dsh-ui spec 时用
+`SpecRenderer`（见 [SDK 开发指南](plugin-sdk-guide.md) §6，可运行样例 `samples/genui-native`）。
 
 ### 5.3 宿主 API（插件唯一摸得到的 App 表面）
 
@@ -253,6 +263,9 @@ interface PluginStorage {
 | 剪贴板 | `clipboard` | 经 SDK 扩展函数 | 只写不读 |
 | 工作区文件 | `workspace` | 经 SDK 扩展函数 | 仅 SAF 授权目录内，路径前缀校验 |
 
+另有页面入口与工具渲染两类声明值（`pageEntry`、`toolRender`），Demo 声明了
+`openUrl`、`storage`、`pageEntry`（见 `DemoNativePlugin.descriptor`）。
+
 纪律：
 
 - **只增不改**：已有能力语义不变；破坏性变更升 `apiVersion`；
@@ -263,24 +276,30 @@ interface PluginStorage {
 
 ## 8. 与 Host 侧 JS 的通信
 
-完全复用 bridge 现成链路（[mobile-bridge.md](mobile-bridge.md)）：
+完全复用 bridge 现成链路（[mobile-bridge.md](mobile-bridge.md)）。Demo 的「服务端 +1」链路：
 
 ```
-原生端 host.dispatchEvent(pluginId, "start-oauth", payload)
+原生端 host.dispatchEvent("dsh-plugin-demo#demo", "submit", { actionId: "bump" })
   → App bridge client 调 client-slots/dispatch
-  → Host 事件总线 ui/<componentId>/<event>
-  → JS 插件监听器处理（已有代码）
-  → JS 调 ctx.emit('client/refresh', { componentId, patch })
-  → App 收到刷新，重拉 spec
+  → Host 事件总线 ui/dsh-plugin-demo#demo/submit
+  → JS 插件 mobileUi 动作（demo-js/lib/actions.js）
+  → JS 状态更新；bridge 排 client/refresh
+  → App 收到刷新，重拉 spec / 页面重读 RPC
   → 原生渲染器 Render() 重组
 ```
 
 对插件作者的要求：
 
-1. **componentId 约定**：使用 Host 实际的 `<jsPackage>#<slot 内 id>`，与 JS 侧 `ctx.slots.register` 的包名和 id 对应；伴生 `pluginId` 可以不同；
+1. **componentId 约定**：使用 Host 实际的 `<jsPackage>#<slot 内 id>`，与 JS 侧 `ctx.slots.register` 的包名和 id 对应；伴生 `pluginId` 可以不同。Demo 的两个身份是 `dsh-plugin-demo#demo` 与 `dsh-plugin-demo#demo-dock`；
 2. **JS 侧推状态**：把原生端要画的数据放进 `client/refresh` 的 `patch`（或直接重新 register），保证 spec 是 JSON 安全的纯展示数据（无凭证、无函数、无循环引用）；
 3. **已有 RPC**：完整页面可通过 `PluginRpcHost.callRpc(method, payload, callback)` 调用 Host 已有路由，payload 原样发送；先解 `{ result: { ok, value | error } }` 信封。不要虚构通用 `component.state` / `component.dispatch` 路由；
 4. **页面生命周期**：带 `refreshEvents` 的 `PageContent.Content` 可响应 Host 刷新；异步回调先检查 `PageLifecycle.LocalIsActive`，避免迟到结果更新已离开的页面。
+
+Demo 的 RPC 是 6 个端点：`demo.status`、`demo.catalog`、`demo.ping`、`demo.bump`、
+`demo.reset`、`demo.echo`。请求信封为
+`{ type: "client-request", rpcId, method, payload }`；成功响应为
+`{ type: "server-response", rpcId, result: { ok: true, value } }`；业务失败仍返回 HTTP 200，
+错误放 `result.error: { code, message, details }`；传输层错误用 400/415。完整契约见第 13.4 节。
 
 ---
 
@@ -297,7 +316,11 @@ interface PluginStorage {
 | 用户卸载 APK | `PACKAGE_REMOVED` 触发即时摘除渲染位，回退 WebView |
 | 用户打开「禁用全部插件 UI」总开关 | 全部原生插件 UI 停用，统一降级 |
 
-JS 侧因此**不得假设**原生端在场：所有功能必须在纯 Web 下可用。
+JS 侧因此**不得假设**原生端在场：所有功能必须在纯 Web 下可用。Demo 的 Web 回退在
+`samples/demo-js/lib/client.js`：注册 `settings.section(id = "demo")` 与
+`conversation.composer.dock(id = "demo-dock")`，用
+`connection.rpc.call("/api", "demo.status")` 读同一份 Host 状态；不装 APK 时三个按钮
+（刷新 / 服务端 +1 / 重置）仍可用。
 
 ---
 
@@ -317,7 +340,7 @@ JS 侧因此**不得假设**原生端在场：所有功能必须在纯 Web 下�
 静态扫描（自动）：
 
 - [ ] Service 级 `apiVersion`/`minAppVersion`/`id`/`name` 齐全，需要 JS 配对时声明 `jsPackage`；
-- [ ] `pluginId` 与 descriptor 一致；`jsPackage#PageEntry.id` 与 Host 实际组件身份一致；
+- [ ] `pluginId` 与 descriptor 一致；`jsPackage#PageEntry.id` 与 Host 实际组件身份一致（Demo：`demo.native-ui` / `dsh-plugin-demo#demo`）；
 - [ ] Service 暴露 `@JvmStatic fun plugin(): DshUiPlugin`；
 - [ ] 无 `<uses-permission>`；
 - [ ] 禁止 API 零命中：反射访问 `com.deepseek.dsh.*` 内部类、`DexClassLoader`/`PathClassLoader` 再嵌套动态加载、读 `/data/data/com.deepseek.dsh.mobile` 私有目录、直连模型 API 域名；
@@ -351,103 +374,214 @@ JS 侧因此**不得假设**原生端在场：所有功能必须在纯 Web 下�
 
 ---
 
-## 13. 完整示例：Kimi OAuth 原生插件
+## 13. 完整示例：Demo 插件（JS + 原生）
 
-假设你是 `@changfenhuang/dsh-kimi-oauth` 的作者。该插件已有：
-
-- `lib/index.js`：OAuth 流程、token 存储、用量查询、事件监听；
-- `lib/client.js`：React 设置页（订阅卡片、登录按钮）。
-
-现在要新增「原生手机端插件」。
+Demo 插件是 SDK 的接入案例：一个真实的 npm 插件包 + 一个伴侣 APK，两者都在仓库里。
 
 ### 13.1 工程结构
 
 ```
-kimi-oauth/                        ← 现有 JS 插件（不动）
-├── lib/client.js
-└── lib/index.js
+samples/demo-js/                   ← JS 插件（dsh-plugin-demo 0.1.0）
+├── package.json                   ← dsh.client / dsh.native 声明
+├── cordis.patch.yml
+├── lib/
+│   ├── index.js                   ← 入口：name / apply
+│   ├── constants.js               ← RPC 前缀、componentId、settings ns
+│   ├── state.js                   ← 内存状态（计数初始 42）
+│   ├── rpc.js                     ← /api/demo.* 路由 + 信封
+│   ├── actions.js                 ← mobileUi 动作：bump / reset
+│   ├── catalog.js                 ← demo.catalog 的注册清单
+│   └── client.js                  ← Web 回退（settings.section + composer.dock）
+└── test/rpc.test.mjs
 
-kimi-oauth-native/                 ← 新增 Android 工程
-├── build.gradle                   ← implementation("com.deepseek.dsh:plugin-sdk:1.0.0")
+samples/demo-native/               ← 伴侣 APK（demo.native-ui）
+├── build.gradle.kts               ← implementation("com.deepseek.dsh:dsh-native-sdk:1.0.0")
 └── src/main/
     ├── AndroidManifest.xml        ← 见第 4 节
-    └── kotlin/com/example/kimi/oauth/native/
-        ├── KimiPluginService.kt
-        └── KimiOAuthPlugin.kt
+    └── kotlin/com/dsh/mobile/dsh_plugin_demo/
+        ├── DemoPluginService.kt
+        ├── DemoNativePlugin.kt
+        ├── DemoSettingsPage.kt
+        ├── DemoDockContribution.kt
+        ├── DemoSlotContribution.kt
+        └── DemoRpc.kt
 ```
 
-### 13.2 原生端全部代码
+### 13.2 身份配对
+
+| 位置 | 值 |
+| --- | --- |
+| JS 包名 | `dsh-plugin-demo`（0.1.0，入口 `lib/index.js`） |
+| 伴生 `pluginId`（manifest `dsh.plugin.id`） | `demo.native-ui` |
+| 伴生 APK 包名 | `com.dsh.mobile.dsh_plugin_demo` |
+| manifest `dsh.plugin.jsPackage` | `dsh-plugin-demo` |
+| 设置页 Web 注册 id / 原生 `PageEntry.id` | `demo` |
+| 设置页 `componentId` | `dsh-plugin-demo#demo` |
+| dock Web 注册 id / `componentId` | `demo-dock` / `dsh-plugin-demo#demo-dock` |
+
+只有「JS 注册 `settings.section(id = "demo")`」与「伴生注册
+`PageEntry(id = "demo", placement = SETTINGS)`」同时成立，App 才跳过 WebView。
+
+### 13.3 原生端全部代码
+
+入口：`descriptor` 与清单一致；注册设置页、就绪落点与 dock。Demo 覆盖全部 22 个
+`NativeSlot` 条目，其中 21 个注入真实界面；`WEB_ISLAND_FULL` 宿主已就绪，但它是
+整岛 Web 回退容器，Demo 不注入（避免整屏覆盖 App），只在设置页列出：
 
 ```kotlin
-class KimiPluginService : Service() {
-    override fun onBind(intent: Intent): IBinder = DshPluginBinder(KimiOAuthPlugin())
+class DemoNativePlugin : DshUiPlugin {
+    override val descriptor = PluginDescriptor(
+        id = "demo.native-ui",
+        name = "Demo 插件",
+        version = 1,
+        capabilities = setOf(
+            PluginCapabilities.OPEN_URL,
+            PluginCapabilities.STORAGE,
+            PluginCapabilities.PAGE_ENTRY,
+        ),
+    )
 
-    companion object {
-        @JvmStatic
-        fun plugin(): DshUiPlugin = KimiOAuthPlugin()
+    override fun createRenderer(): ComponentRenderer = DemoRenderer()
+
+    init {
+        PageRegistry.register(DemoSettingsPage())
+        DemoSlots.entries
+            .filter { it.hostReady && it.slot != NativeSlot.COMPOSER_DOCK }
+            .forEach { SlotRegistry.register(DemoSlotContribution(it)) }
+        SlotRegistry.register(DemoDockContribution())
     }
 }
+```
 
-class KimiOAuthPlugin : DshUiPlugin {
-    override val descriptor = PluginDescriptor(
-        id = "changfenhuang.kimi-oauth",
-        name = "Kimi 登录",
-        version = 1,
-        capabilities = setOf("openUrl", "storage"),
+设置页：`PageContent` 拿到空 spec，用 RPC 读权威状态；「服务端 +1」用 `dispatchEvent`
+回传，Host 动作改状态后 bridge 排 `client/refresh`；「重置」直接调 `demo.reset`：
+
+```kotlin
+class DemoSettingsPage : PageContent {
+    override val entry = PageEntry(
+        id = "demo",
+        title = "Demo 插件",
+        subtitle = "JS 插件 + 原生伴生：RPC 与落点接入示例（虚构）",
+        placement = PageEntry.Placement.SETTINGS,
     )
-    override fun createRenderer(): ComponentRenderer = KimiRenderer()
-}
-
-class KimiRenderer : ComponentRenderer {
-    override val supportedTypes = setOf("kimi.account-card", "kimi.usage-meter")
 
     @Composable
-    override fun Render(spec: JsonObject, host: PluginHostApi) {
-        val theme = host.currentTheme()
-        val state = spec.obj("state")
+    override fun Content(spec: JsonObject, theme: PluginTheme, host: PluginHostApi) {
+        DemoSettingsContent(theme = theme, host = host, refreshEvents = null)
+    }
+}
 
-        when (state.str("status")) {
-            "logged_out" -> LoginCard(theme) {
-                host.dispatchEvent("changfenhuang.kimi-oauth#section", "start-oauth", emptyJson)
-            }
-            "authorizing" -> AuthorizingCard(theme) {
-                host.openUrl(state.str("authorizeUrl"))   // Custom Tab，域白名单校验
-            }
-            "active" -> UsageCard(
-                theme,
-                quota = state.num("quotaRemaining"),
-                onRefresh = { host.dispatchEvent("changfenhuang.kimi-oauth#section", "refresh", emptyJson) },
-                onLogout = { host.dispatchEvent("changfenhuang.kimi-oauth#section", "logout", emptyJson) },
-            )
-        }
+// 页面内：读 → 事件 → 重拉
+LaunchedEffect(rpc, refreshKey) {
+    val body = rpcHost.demoCall(DemoRpc.STATUS)          // demo.status
+    if (!isActive()) return@LaunchedEffect
+    DemoRpc.value(body)?.let { status = DemoRpc.statusOf(it) }
+}
+
+host.dispatchEvent(
+    DemoRpc.PAGE_COMPONENT_ID,                           // dsh-plugin-demo#demo
+    DemoRpc.EVENT_SUBMIT,                                // "submit"
+    buildJsonObject { put("actionId", "bump"); put("by", 1) },
+)
+
+rpcHost.demoCall(DemoRpc.RESET)                          // demo.reset
+```
+
+dock：`SlotContribution` + `PluginPopover`，同样只经 RPC 读、经事件写：
+
+```kotlin
+class DemoDockContribution : SlotContribution() {
+    override val slot: NativeSlot = NativeSlot.COMPOSER_DOCK
+    override val supportedTypes: Set<String> = setOf("demo.dock")
+    override val order: Int = 100
+
+    @Composable
+    override fun Render(spec: JsonObject, theme: PluginTheme, host: PluginHostApi) {
+        // 胶囊显示 "Demo <count>"；popover 内按钮回传
+        // host.dispatchEvent(DemoRpc.DOCK_COMPONENT_ID, DemoRpc.EVENT_SUBMIT, payload)
     }
 }
 ```
 
-注意这份代码里**没有**：网络请求、token、OAuth 状态机、存储凭证——全部在 Host 侧。
+`DemoRpc.kt` 集中方法名、组件身份、信封解析与 `demoCall` 扩展；`DemoSlotContribution.kt`
+在其余就绪落点放可识别标记；`DemoRenderer`（定义在 `DemoNativePlugin.kt`）提供最小
+`ComponentRenderer`。完整代码见 [samples/demo-native](../samples/demo-native)。
 
-### 13.3 JS 侧需要的配合（通常已在写）
+### 13.4 JS 侧配合
+
+入口不声明顶层 `inject`，两个能力都用 `ctx.inject`：
 
 ```js
-// lib/index.js —— 监听原生端事件（与 Web 端共用同一监听器）
-ctx.on('ui/changfenhuang.kimi-oauth#section/start-oauth', async () => {
-  const url = await beginOAuth();   // 已有逻辑
-  ctx.emit('client/refresh', {
-    componentId: 'changfenhuang.kimi-oauth#section',
-    patch: { state: { status: 'authorizing', authorizeUrl: url } },
-  });
-});
+export const name = 'dsh-plugin-demo';
 
-// 登录成功 / 用量变化时同样 emit client/refresh，spec 里只放展示数据：
-// { state: { status: 'active', quotaRemaining: 1234 } } —— 永远不放 token。
+export function apply(ctx) {
+  const state = createDemoState();
+  registerDemoRpc(ctx, state);        // ctx.inject(['connection']) → /api/demo.*
+  registerDemoActions(ctx, state);    // ctx.inject(['mobileUi']) → bump / reset
+}
 ```
 
-### 13.4 用户视角的流程
+请求信封（payload 原样传递、不包 `args`）：
+
+```json
+{ "type": "client-request", "rpcId": "…", "method": "demo.status", "payload": {} }
+```
+
+响应信封：
+
+```json
+{ "type": "server-response", "rpcId": "…", "result": { "ok": true, "value": { } } }
+```
+
+业务失败也是 HTTP 200，错误放在 `result.error`：
+
+```json
+{ "type": "server-response", "rpcId": "…",
+  "result": { "ok": false, "error": { "code": "demo/unknown-endpoint", "message": "…", "details": {} } } }
+```
+
+6 个端点：
+
+| 端点 | payload | value |
+| --- | --- | --- |
+| `demo.status` | `{}` | `{ greeting, count, lastAction, updatedAt, startedAt, uptimeMs }` |
+| `demo.catalog` | `{}` | `{ plugin, companion, registrations[], endpoints[] }` |
+| `demo.ping` | `{}` | `{ pong: true, serverTime }` |
+| `demo.bump` | `{ by?: number }` | 更新后的 status 快照 |
+| `demo.reset` | `{}` | 重置后的 status 快照 |
+| `demo.echo` | 任意 JSON | `{ received: <原样回显> }` |
+
+错误码：`demo/bad-request`（400）、`demo/unsupported-media-type`（415）、
+`demo/unknown-endpoint`（HTTP 200 + `result.error`）。
+
+Web 回退（`lib/client.js`）注册两个 Web 落点，并用同一通道读状态：
+
+```js
+ctx.slots.register({ name: "settings.section", id: "demo", order: 10 /* … */ }, DemoSettingsSection);
+ctx.slots.register({ name: "conversation.composer.dock", id: "demo-dock", order: 10 /* … */ }, DemoDockChip);
+// 读：connection.rpc.call("/api", "demo.status", payload)
+```
+
+自验输出：
+
+```bash
+$ node --test samples/demo-js/test/rpc.test.mjs
+# 7/7 pass：路由、信封、bump/reset、payload 透传、动作隔离、状态隔离
+
+$ python tools/plugin_ui_scanner.py --plugin samples/demo-js \
+    --companion samples/demo-native/src/main/kotlin --check
+plugin UI coverage check OK
+```
+
+扫描器的落点清单（2 个注册落点，均已映射 NativeSlot、有宿主、伴生已实现）存档在
+[插件 UI 清单示例](plugin-ui-inventory-example.md)。
+
+### 13.5 用户视角的流程
 
 1. 用户在 App 插件页安装 JS 插件（现有流程，不变）；
-2. 商店页看到「Kimi 登录 · 原生增强」：截图、能力声明（打开链接、独立存储）、签名指纹、「兼容当前 App ✓」；
+2. 商店页看到「Demo 插件 · 原生增强」：截图、能力声明（打开链接、独立存储）、签名指纹、「兼容当前 App ✓」；
 3. 一键安装 → 系统安装器 → App 自动发现、验签、ABI 校验通过；
-4. 设置页「Kimi」条目、聊天工具卡升级为原生渲染；OAuth 走 Custom Tab + `dsh-plugin://changfenhuang.kimi-oauth` 回跳；
+4. 设置页「Demo 插件」条目、聊天页输入栏 dock 升级为原生渲染；
 5. 用户卸载原生 APK → 插件自动回退 WebView，功能完整。
 
 ---
@@ -456,7 +590,7 @@ ctx.on('ui/changfenhuang.kimi-oauth#section/start-oauth', async () => {
 
 | 禁止 | 原因 |
 | --- | --- |
-| APK 内写业务逻辑（OAuth、调模型 API） | 铁律：逻辑在 Host |
+| APK 内写业务逻辑（授权流程、调模型 API） | 铁律：逻辑在 Host |
 | 存储/传输 token、secret、API key | 凭证不出 Host |
 | 申请系统权限（`<uses-permission>`） | 能力走白名单桥 |
 | 硬编码颜色/字号 | 主题契约 |

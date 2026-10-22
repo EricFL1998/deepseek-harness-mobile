@@ -55,8 +55,8 @@
 ## 原生插件与 JS UI 迁移
 
 - [原生插件 SDK 开发者文档](docs/plugin-sdk-guide.md)：清单、页面注册、能力桥、Host RPC 与生命周期。
-- [JS UI 转原生 UI 实战指南](docs/plugin-conversion-guide.md)：以订阅插件为例，包含组件身份配对、ClassLoader 共享、复杂 Provider 展开区、返回导航、WebView 接管与卸载回退的完整步骤和踩坑清单。
-- 参照实现：`samples/subscription-native`（真实 `subscription-oauth.*` RPC 与 Compose 设置页）。
+- [JS UI 转原生 UI 实战指南](docs/plugin-conversion-guide.md)：以 Demo 插件（`samples/demo-js` → `samples/demo-native`）为例，按步骤完成组件身份配对、页面接管、RPC / 事件闭环、WebView 接管与卸载回退，附检查清单。
+- 接入案例：`samples/demo-js`（`demo.*` RPC + Web 回退）与 `samples/demo-native`（Compose 设置页 / dock / 全部落点）；扫描报告见 `docs/plugin-ui-inventory-example.md`。
 
 ## 构建与测试验证
 
