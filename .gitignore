@@ -29,3 +29,5 @@ COMMIT_MSG.txt
 _tmp/
 
 .captures/
+
+test-plugin/
