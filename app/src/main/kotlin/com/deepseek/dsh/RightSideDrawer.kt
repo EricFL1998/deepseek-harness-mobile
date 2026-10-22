@@ -5,7 +5,13 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import android.graphics.Color as AndroidColor
+import android.graphics.drawable.ColorDrawable
+import android.view.ViewGroup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Dialog
@@ -27,6 +33,16 @@ fun RightSideDrawer(
 ) {
     if (!open) return
     val palette = dshPanelColors()
+    // 让 Dialog 窗口全屏铺开、不压暗背景：右侧栏自己画底色，状态栏区域也要
+    // 由面板覆盖（否则会露出被 dim 压灰的聊天页）。
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+        window?.setDimAmount(0f)
+        window?.setBackgroundDrawable(ColorDrawable(AndroidColor.TRANSPARENT))
+        window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        onDispose {}
+    }
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(
