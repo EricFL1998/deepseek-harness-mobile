@@ -985,6 +985,8 @@ fun MainAppHost(
     var terminalConnection by remember {
         mutableStateOf<com.deepseek.dsh.core.protocol.TerminalConnection?>(null)
     }
+    // ANSI 屏幕模型：光标定位/清屏由它处理，渲染文本给 UI。
+    val terminalBufferModel = remember { TerminalBuffer(cols = 80, rows = 24) }
     DisposableEffect(activePage, selectedSessionId) {
         val sid = selectedSessionId
         var job: kotlinx.coroutines.Job? = null
@@ -1007,7 +1009,8 @@ fun MainAppHost(
                             ?.contentOrNull
                     when (text("type")) {
                         "snapshot" -> {
-                            terminalBuffer = stripAnsi(text("screen").orEmpty())
+                            terminalBufferModel.setScreen(text("screen").orEmpty())
+                            terminalBuffer = terminalBufferModel.render()
                             terminalWritable = frame["writable"]?.toString() == "true"
                             val info = frame["info"]
                                 as? kotlinx.serialization.json.JsonObject
@@ -1016,9 +1019,8 @@ fun MainAppHost(
                                 ?.contentOrNull.orEmpty()
                         }
                         "output" -> {
-                            terminalBuffer = (terminalBuffer +
-                                stripAnsi(text("data").orEmpty()))
-                                .takeLast(200_000)
+                            terminalBufferModel.feed(text("data").orEmpty())
+                            terminalBuffer = terminalBufferModel.render()
                         }
                         "state" -> {
                             terminalWritable = frame["writable"]?.toString() == "true"
@@ -4328,14 +4330,4 @@ private const val PLUGIN_SELECTION_KEY = "enabled_bundles"
 /** 磁盘上的默认工作区目录名；界面显示走 R.string.workspace_default。 */
 private const val DEFAULT_WORKSPACE_DIR_NAME = "默认工作区"
 
-/** 去掉终端 ANSI 控制序列，保留可读文本。 */
-private fun stripAnsi(raw: String): String {
-    if (raw.isEmpty()) return raw
-    val noEsc = raw.replace(
-        Regex("\\u001B\\[[0-9;?]*[ -/]*[@-~]"),
-        "",
-    ).replace(Regex("\\u001B\\][^\\u0007]*\\u0007"), "")
-        .replace(Regex("\\u001B[()][A-Z0-9]"), "")
-        .replace("\\u001B[", "")
-    return noEsc.replace("\r\n", "\n").replace('\r', '\n').replace("\b", "")
-}
+
