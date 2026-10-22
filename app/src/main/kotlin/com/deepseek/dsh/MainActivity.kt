@@ -991,29 +991,6 @@ fun MainAppHost(
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
-    // 官方 account/watch：登录中/已存凭据/退出都由 Host 推送，不再靠轮询。
-    LaunchedEffect(activeHostId) {
-        kotlinx.coroutines.coroutineScope {
-            launch {
-                dshRepository.hostAccountFlow.collect { view ->
-                    when (view?.status) {
-                        "credential-stored" -> if (!oauthManager.accountFlow.value.isSignedIn) {
-                            val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
-                            val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
-                            oauthManager.applyHostAccount(profile, balance)
-                        }
-                        "signed-out" -> if (oauthManager.accountFlow.value.isSignedIn) {
-                            oauthManager.signOut()
-                        }
-                    }
-                }
-            }
-            launch {
-                // Host 明确报告 DeepSeek 会话过期：直接清掉本地登录态（API Key 保留）。
-                dshRepository.accountExpiredFlow.collect { oauthManager.signOut() }
-            }
-        }
-    }
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)
@@ -1054,6 +1031,55 @@ fun MainAppHost(
         context.startActivity(intent)
     }
 
+    // 官方 account/watch：登录中/已存凭据/退出都由 Host 推送，整个登录流程不再轮询。
+    var signInPending by remember { mutableStateOf(false) }
+    var signInOpenedUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(activeHostId) {
+        kotlinx.coroutines.coroutineScope {
+            launch {
+                dshRepository.hostAccountFlow.collect { view ->
+                    val pending = signInPending
+                    when (view?.status) {
+                        "credential-stored" -> {
+                            signInPending = false
+                            signInOpenedUrl = null
+                            if (!oauthManager.accountFlow.value.isSignedIn) {
+                                val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
+                                val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
+                                oauthManager.applyHostAccount(profile, balance)
+                            }
+                        }
+                        "signed-out" -> {
+                            signInPending = false
+                            if (oauthManager.accountFlow.value.isSignedIn) oauthManager.signOut()
+                        }
+                        else -> if (pending && view != null) {
+                            // Host 异步拿到平台授权链接后由 watch 推送，不需要 getState 轮询。
+                            val url = view.authorizeUrl
+                            if (!url.isNullOrBlank() && url != signInOpenedUrl) {
+                                signInOpenedUrl = url
+                                openUrl(url)
+                            }
+                            if (view.attemptPhase in setOf("failed", "expired", "cancelled")) {
+                                signInPending = false
+                                signInOpenedUrl = null
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.login_incomplete),
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    }
+                }
+            }
+            launch {
+                // Host 明确报告 DeepSeek 会话过期：直接清掉本地登录态（API Key 保留）。
+                dshRepository.accountExpiredFlow.collect { oauthManager.signOut() }
+            }
+        }
+    }
+
     val hostSignOut: () -> Unit = {
         scope.launch {
             dshRepository.signOutAccount(activeHostId)
@@ -1061,10 +1087,12 @@ fun MainAppHost(
         }
     }
 
-    // 官方流程：Host 的 account/startSignIn 生成带本次 attempt 的授权链接；
-    // 浏览器完成授权后 Host 写入 credential，客户端轮询 account/getState 同步登录态。
+    // 官方流程：Host 的 account/startSignIn 生成带本次 attempt 的授权链接，
+    // 链接与登录结果都由 account/watch 推送；这里只负责发起 + 兜底提示。
     val beginHostSignIn: () -> Unit = {
         scope.launch {
+            signInPending = true
+            signInOpenedUrl = null
             val callbackOrigin = dshApplication.defaultClient.currentBaseUrl()
             var view = dshRepository.startAccountSignIn(activeHostId, callbackOrigin).getOrNull()
             if (view == null) {
@@ -1080,6 +1108,7 @@ fun MainAppHost(
                 }
             }
             if (view == null) {
+                signInPending = false
                 android.widget.Toast.makeText(
                     context,
                     context.getString(R.string.login_failed_host),
@@ -1087,48 +1116,35 @@ fun MainAppHost(
                 ).show()
                 return@launch
             }
-            var authorizeUrl = view.authorizeUrl
-            // Host 先返回 initializing，随后异步拿到平台授权链接。
-            var polls = 0
-            while (authorizeUrl.isNullOrBlank() && polls < 20) {
-                kotlinx.coroutines.delay(500)
-                authorizeUrl = dshRepository.getAccountState(activeHostId).getOrNull()?.authorizeUrl
-                polls++
-            }
-            if (authorizeUrl.isNullOrBlank()) {
-                android.widget.Toast.makeText(
-                    context,
-                    context.getString(R.string.login_failed_link),
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                return@launch
-            }
-            openUrl(authorizeUrl)
-            repeat(400) {
-                kotlinx.coroutines.delay(1500)
-                val state = dshRepository.getAccountState(activeHostId).getOrNull() ?: return@repeat
-                if (state.status == "credential-stored") {
-                    val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
-                    val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
-                    oauthManager.applyHostAccount(profile, balance)
-                    modelSettingsRaw = dshRepository.rpcRaw(activeHostId, "settings/describe", "{}").getOrNull()
-            modelProvidersRaw = dshRepository.rpcRaw(activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
-            val providerRefs = com.deepseek.dsh.feature.settings.parseModelProviders(
-                modelProvidersRaw, modelSettingsRaw, null
-            ).map { it.keyRef }.distinct()
-            val refsJson = providerRefs.joinToString(prefix = "{\"refs\":[", postfix = "]}") { "\"$it\"" }
-            modelCredentialsRaw = dshRepository.rpcRaw(activeHostId, "credentials/describe", refsJson).getOrNull()
-            dshRepository.refreshModelCatalog(activeHostId)
-                    dshRepository.refreshPluginInventory(activeHostId)
-                    return@launch
+            when {
+                view.status == "credential-stored" -> signInPending = false
+                !view.authorizeUrl.isNullOrBlank() -> {
+                    signInOpenedUrl = view.authorizeUrl
+                    openUrl(view.authorizeUrl!!)
                 }
-                if (state.attemptPhase in setOf("failed", "expired", "cancelled")) {
+                else -> {
+                    // 链接由 watch 异步推送；30 秒还拿不到就提示失败。
+                    kotlinx.coroutines.delay(30_000)
+                    if (signInPending && signInOpenedUrl == null) {
+                        signInPending = false
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(R.string.login_failed_link),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+            if (signInPending) {
+                // 授权页停留超时：watch 没有报成功/失败时提示一次。
+                kotlinx.coroutines.delay(10 * 60_000)
+                if (signInPending) {
+                    signInPending = false
                     android.widget.Toast.makeText(
                         context,
                         context.getString(R.string.login_incomplete),
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
-                    return@launch
                 }
             }
         }
@@ -1159,13 +1175,7 @@ fun MainAppHost(
             // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
             dshRepository.refreshBridgePluginCatalog()
             dshRepository.refreshPluginSettingsPages()
-            // 从 Host 恢复账号态（官方 account/watch 的初值）。
-            val accountView = dshRepository.getAccountState(activeHostId).getOrNull()
-            if (accountView?.status == "credential-stored") {
-                val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
-                val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
-                oauthManager.applyHostAccount(profile, balance)
-            }
+            // 账号态由 account/watch 的首个快照推送，这里不再主动 getState。
         }
     }
 
