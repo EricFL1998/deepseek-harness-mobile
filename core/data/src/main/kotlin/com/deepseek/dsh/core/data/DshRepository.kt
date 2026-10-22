@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import com.deepseek.dsh.core.model.PluginSettingsDocument
@@ -101,6 +102,15 @@ class DshRepository(
     /** 当前查看会话正在流式输出的助手文本（重连基线 + live chunk）。 */
     private val _streamingTextFlow = MutableStateFlow("")
     val streamingTextFlow: StateFlow<String> = _streamingTextFlow.asStateFlow()
+
+    /** 官方 `plugin-manager/install-state` 的实时安装进度。 */
+    private val _installProgressFlow = MutableStateFlow<PluginInstallProgressInfo?>(null)
+    val installProgressFlow: StateFlow<PluginInstallProgressInfo?> =
+        _installProgressFlow.asStateFlow()
+    @Volatile
+    private var activeInstallRequestId: String? = null
+    private var installLogTail: String = ""
+    private val watchedEventPayloadHosts = mutableSetOf<String>()
 
     private val _builtInPluginsFlow = MutableStateFlow<List<BuiltInPluginInfo>>(emptyList())
     val builtInPluginsFlow: StateFlow<List<BuiltInPluginInfo>> = _builtInPluginsFlow.asStateFlow()
@@ -928,12 +938,22 @@ class DshRepository(
     }
 
     suspend fun installPlugin(hostId: String, packageName: String): Result<Boolean> {
-        return when (val res = client.installPlugin(hostId, packageName)) {
-            is RemoteResult.Success -> {
-                refreshPluginInventory(hostId)
-                Result.success(res.data)
+        val requestId = java.util.UUID.randomUUID().toString()
+        activeInstallRequestId = requestId
+        installLogTail = ""
+        _installProgressFlow.value = PluginInstallProgressInfo(
+            phase = "installing", registry = null, index = 1, total = 1, logTail = "",
+        )
+        return try {
+            when (val res = client.installPlugin(hostId, packageName, requestId)) {
+                is RemoteResult.Success -> {
+                    refreshPluginInventory(hostId)
+                    Result.success(res.data)
+                }
+                is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
             }
-            is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
+        } finally {
+            activeInstallRequestId = null
         }
     }
 
@@ -1292,6 +1312,51 @@ class DshRepository(
                         kotlinx.coroutines.delay(250)
                         refreshSessions(hostId)
                     }
+        // 官方插件安装进度：install-state 相位 + install-log 输出尾部。
+        if (synchronized(watchedEventPayloadHosts) { watchedEventPayloadHosts.add(hostId) }) {
+            scope.launch(Dispatchers.IO) {
+                client.forwardedEventPayloads(hostId).collect { forwarded ->
+                    val requestId = activeInstallRequestId ?: return@collect
+                    val payload = forwarded.args.firstOrNull() as? JsonObject
+                        ?: return@collect
+                    val payloadRequestId = (payload["requestId"] as? JsonPrimitive)
+                        ?.contentOrNull
+                    if (payloadRequestId != null && payloadRequestId != requestId) {
+                        return@collect
+                    }
+                    when (forwarded.event) {
+                        "plugin-manager/install-state" -> {
+                            val phase = (payload["phase"] as? JsonPrimitive)
+                                ?.contentOrNull ?: "installing"
+                            val attempt = payload["attempt"] as? JsonObject
+                            val registry = (attempt?.get("registry") as? JsonPrimitive)
+                                ?.contentOrNull
+                            val index = (attempt?.get("index") as? JsonPrimitive)
+                                ?.intOrNull ?: 1
+                            val total = (attempt?.get("total") as? JsonPrimitive)
+                                ?.intOrNull ?: 1
+                            _installProgressFlow.value = PluginInstallProgressInfo(
+                                phase = phase,
+                                registry = registry,
+                                index = index,
+                                total = total,
+                                logTail = installLogTail,
+                            )
+                        }
+                        "plugin-manager/install-log" -> {
+                            val text = (payload["text"] as? JsonPrimitive)
+                                ?.contentOrNull.orEmpty()
+                            if (text.isNotBlank()) {
+                                installLogTail = (installLogTail + text)
+                                    .takeLast(400)
+                                _installProgressFlow.value =
+                                    _installProgressFlow.value?.copy(logTail = installLogTail)
+                            }
+                        }
+                    }
+                }
+            }
+        }
                 }
             }
         }
@@ -1321,3 +1386,11 @@ private val credentialJson = kotlinx.serialization.json.Json { ignoreUnknownKeys
 
 private fun JsonElement?.jsonObjectOrNull(): JsonObject? = this as? JsonObject
 
+/** Host 插件安装进度（官方 `plugin-manager/install-state` + install-log 尾部）。 */
+data class PluginInstallProgressInfo(
+    val phase: String,
+    val registry: String?,
+    val index: Int,
+    val total: Int,
+    val logTail: String,
+)

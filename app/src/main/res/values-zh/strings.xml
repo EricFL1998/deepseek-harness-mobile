@@ -582,4 +582,7 @@
     <string name="question_request_title">需要回答</string>
     <string name="question_submit">提交</string>
     <string name="question_custom_placeholder">输入回答</string>
+<string name="plugins_install_state_installing">正在安装 %1$s（%2$d/%3$d）</string>
+<string name="plugins_install_state_applying">正在写入改动</string>
+<string name="plugins_install_state_cancelling">正在取消</string>
 </resources>

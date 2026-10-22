@@ -2317,7 +2317,43 @@ fun MainAppHost(
                                     // 安装耗时以秒计：先报一个「已受理」，再让安装器
                                     // 把下载/解压/依赖/写盘的每一步透传给对话框。
                                     onProgress(0.02f, context.getString(R.string.plugins_install_preparing))
-                                    val hostRes = dshRepository.installPlugin(activeHostId, pkgName)
+                                    val hostRes = kotlinx.coroutines.coroutineScope {
+                                        val progressJob = launch {
+                                            dshRepository.installProgressFlow.collect { progress ->
+                                                if (progress == null) return@collect
+                                                val label = when (progress.phase) {
+                                                    "installing" -> if (progress.total > 1) {
+                                                        context.getString(
+                                                            R.string.plugins_install_state_installing,
+                                                            progress.registry.orEmpty(),
+                                                            progress.index,
+                                                            progress.total,
+                                                        )
+                                                    } else {
+                                                        context.getString(R.string.plugins_install_progress_title)
+                                                    }
+                                                    "applying" -> context.getString(
+                                                        R.string.plugins_install_state_applying
+                                                    )
+                                                    "cancelling" -> context.getString(
+                                                        R.string.plugins_install_state_cancelling
+                                                    )
+                                                    else -> context.getString(
+                                                        R.string.plugins_install_progress_title
+                                                    )
+                                                }
+                                                val fraction = 0.1f +
+                                                    0.45f * progress.index.toFloat() /
+                                                    progress.total.coerceAtLeast(1)
+                                                onProgress(fraction.coerceIn(0.05f, 0.6f), label)
+                                            }
+                                        }
+                                        try {
+                                            dshRepository.installPlugin(activeHostId, pkgName)
+                                        } finally {
+                                            progressJob.cancel()
+                                        }
+                                    }
                                     // Host 内 pnpm 依赖 proot 的 rename/unlink/mkdtemp，
                                     // 这台设备上全部返回 ENOSYS。失败后改用 App 自己的
                                     // 文件与网络能力完成同一件事，再重启 Host 加载。

@@ -1078,7 +1078,8 @@ class RemoteClient(
         }
     override suspend fun installPlugin(
         hostId: String,
-        packageName: String
+        packageName: String,
+        requestId: String?,
     ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val payload = buildJsonObject {
             put("type", "client-request")
@@ -1087,6 +1088,9 @@ class RemoteClient(
             put("payload", buildJsonObject {
                 put("args", buildJsonObject {
                     put("spec", packageName)
+                    if (requestId != null) {
+                        put("options", buildJsonObject { put("requestId", requestId) })
+                    }
                 })
             })
         }.toString()
@@ -1601,6 +1605,9 @@ class RemoteClient(
     private val waterfallBus =
         kotlinx.coroutines.flow.MutableSharedFlow<ForwardedWaterfall>(extraBufferCapacity = 32)
     private val answeredWaterfalls = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    /** 转发事件的带参副本（插件安装进度等）。 */
+    private val eventPayloadBus =
+        kotlinx.coroutines.flow.MutableSharedFlow<ForwardedEvent>(extraBufferCapacity = 64)
 
     @Volatile
     private var forwardedClientId: String? = null
@@ -2161,8 +2168,15 @@ class RemoteClient(
                                 clientId = value["clientId"]?.toString()?.trim('"')
                                 forwardedClientId = clientId
                             }
-                            "emit" -> value["event"]?.toString()?.trim('"')
-                                ?.let { forwardedBus.tryEmit(it) }
+                            "emit" -> {
+                                val name = value["event"]?.toString()?.trim('"')
+                                    ?: return@runCatching
+                                forwardedBus.tryEmit(name)
+                                val args = value["args"]
+                                    as? kotlinx.serialization.json.JsonArray
+                                    ?: kotlinx.serialization.json.JsonArray(emptyList())
+                                eventPayloadBus.tryEmit(ForwardedEvent(name, args))
+                            }
                             "waterfall" -> {
                                 val eventId = value["eventId"]?.toString()?.trim('"')
                                     ?: return@runCatching
@@ -2257,6 +2271,8 @@ class RemoteClient(
 
     /** App 侧的 waterfall 结果回包入口。 */
     override fun forwardedWaterfalls(hostId: String): Flow<ForwardedWaterfall> = waterfallBus
+
+    override fun forwardedEventPayloads(hostId: String): Flow<ForwardedEvent> = eventPayloadBus
 
     override fun answerWaterfall(hostId: String, eventId: String, valueJson: String?) =
         answerForwardedEvent(eventId, valueJson)

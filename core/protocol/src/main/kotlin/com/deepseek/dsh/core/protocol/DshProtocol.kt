@@ -79,6 +79,12 @@ data class ForwardedWaterfall(
     val request: kotlinx.serialization.json.JsonObject,
 )
 
+/** Host 转发事件（事件名 + 参数）。 */
+data class ForwardedEvent(
+    val event: String,
+    val args: kotlinx.serialization.json.JsonArray,
+)
+
 /** 官方 `session/search` 的一条命中。 */
 data class SessionSearchHit(val sessionId: String, val snippet: String)
 
@@ -112,7 +118,11 @@ interface DshClientProtocol {
     suspend fun getPluginInventorySnapshot(hostId: String): RemoteResult<PluginInventorySnapshotInfo>
     suspend fun getPluginManagerSnapshot(hostId: String): RemoteResult<PluginManagerSnapshot>
     suspend fun getPluginRows(hostId: String): RemoteResult<List<PluginRowInfo>>
-    suspend fun installPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
+    suspend fun installPlugin(
+        hostId: String,
+        packageName: String,
+        requestId: String? = null,
+    ): RemoteResult<Boolean>
     suspend fun uninstallPlugin(hostId: String, packageName: String): RemoteResult<Boolean>
     suspend fun setBundleEnabled(hostId: String, packageName: String, enabled: Boolean): RemoteResult<Boolean>
 
@@ -156,6 +166,8 @@ interface DshClientProtocol {
      * @returns 事件名流；连接建立后持续投递，断开后在内部重连。
      */
     fun forwardedHostEvents(hostId: String): Flow<String>
+    /** 同一条转发流的带参版本（插件安装进度等需要读参数）。 */
+    fun forwardedEventPayloads(hostId: String): Flow<ForwardedEvent>
     /**
      * 订阅 Host 的 waterfall 请求（`approval/request` 等）。
      *

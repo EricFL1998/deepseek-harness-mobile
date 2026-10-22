@@ -582,4 +582,7 @@
     <string name="question_request_title">Answer required</string>
     <string name="question_submit">Submit</string>
     <string name="question_custom_placeholder">Type an answer</string>
+<string name="plugins_install_state_installing">Installing %1$s (%2$d/%3$d)</string>
+<string name="plugins_install_state_applying">Applying changes</string>
+<string name="plugins_install_state_cancelling">Cancelling</string>
 </resources>
