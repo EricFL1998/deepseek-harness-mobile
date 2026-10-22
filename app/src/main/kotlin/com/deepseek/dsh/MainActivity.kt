@@ -1090,6 +1090,7 @@ fun MainAppHost(
             // 打开会话即订阅 follow：snapshot 会补历史消息与产物声明。
             dshRepository.watchSession(activeHostId, sid)
             // 轨迹面板的帧来源（同样走桥，不增加 MainAppHost 参数）。
+            ScheduleBridge.wire(dshRepository, activeHostId, scope)
             // 会话日志导出（官方 /api/session.export）。
             com.deepseek.dsh.feature.chat.MessageActionBridge.exportSession = {
                 selectedSessionId?.let { session ->
@@ -3190,11 +3191,11 @@ fun MainAppHost(
                         }
 
                         ActivePage.AUTOMATION -> {
-                            AutomationTasksScreen(
-                                tasks = automationTasks,
-                                onCreateTask = {
-                                    activePage = ActivePage.CHAT
-                                }
+                            androidx.compose.runtime.LaunchedEffect(Unit) {
+                                ScheduleBridge.items = dshRepository.scheduleCatalogFlow.value
+                            }
+                            SchedulesScreen(
+                                onCreateTask = { activePage = ActivePage.CHAT },
                             )
                         }
 

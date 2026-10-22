@@ -598,4 +598,8 @@
     <string name="session_export_failed">导出会话日志失败</string>
 <string name="account_bonus_title">收到奖励</string>
     <string name="account_bonus_ok">知道了</string>
+<string name="schedule_hint">任意会话里创建的提醒，由 Host 驱动。</string>
+    <string name="schedule_empty">还没有计划任务，可以在聊天里让 Agent 创建。</string>
+    <string name="schedule_active">进行中</string>
+    <string name="schedule_cancel">取消</string>
 </resources>

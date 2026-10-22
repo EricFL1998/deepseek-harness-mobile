@@ -598,4 +598,8 @@
     <string name="session_export_failed">Could not export the session log</string>
 <string name="account_bonus_title">Reward received</string>
     <string name="account_bonus_ok">Got it</string>
+<string name="schedule_hint">Reminders created in any session, driven by the Host.</string>
+    <string name="schedule_empty">No scheduled reminders yet. Create one by asking in chat.</string>
+    <string name="schedule_active">active</string>
+    <string name="schedule_cancel">Cancel</string>
 </resources>

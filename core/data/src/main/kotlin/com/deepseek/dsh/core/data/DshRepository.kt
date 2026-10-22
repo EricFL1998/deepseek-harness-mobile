@@ -1711,6 +1711,46 @@ class DshRepository(
         rpcRaw(hostId, "settings/update", args.toString())
     }
 
+    /** 官方 `schedule/catalog`：Host 上所有计划任务（含会话绑定与状态）。 */
+    private val _scheduleCatalogFlow =
+        MutableStateFlow<List<com.deepseek.dsh.core.model.ScheduleInfo>>(emptyList())
+    val scheduleCatalogFlow: StateFlow<List<com.deepseek.dsh.core.model.ScheduleInfo>> =
+        _scheduleCatalogFlow.asStateFlow()
+
+    /** 刷新计划任务目录（`schedule/catalog`，不激活会话）。 */
+    suspend fun refreshScheduleCatalog(hostId: String) {
+        val raw = rpcRaw(hostId, "schedule/catalog", "{}").getOrNull() ?: return
+        val root = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull() ?: return
+        val items = (root["result"] as? JsonObject)?.get("value") as? JsonArray ?: return
+        _scheduleCatalogFlow.value = items.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val id = (obj["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+            com.deepseek.dsh.core.model.ScheduleInfo(
+                id = id,
+                title = (obj["title"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                prompt = (obj["prompt"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                scheduledAt = (obj["scheduledAt"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                sessionId = (obj["sessionId"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                status = (obj["status"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                kind = (obj["kind"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+            )
+        }
+    }
+
+    /** 官方 `schedule/delete`：取消一条计划任务。 */
+    suspend fun deleteSchedule(hostId: String, sessionId: String, id: String): Boolean {
+        val args = buildJsonObject {
+            put("request", buildJsonObject {
+                put("sessionId", sessionId)
+                put("id", id)
+            })
+        }
+        val ok = rpcRaw(hostId, "schedule/delete", args.toString())
+            .getOrNull()?.contains("\"deleted\":true") == true
+        if (ok) refreshScheduleCatalog(hostId)
+        return ok
+    }
+
     /** 官方 `account/getUnnotifiedBonuses`：未展示过的奖励列表。 */
     suspend fun fetchUnnotifiedBonuses(
         hostId: String,

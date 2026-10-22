@@ -294,6 +294,18 @@ data class HostCommandInfo(
     val acceptsAttachments: Boolean = false,
 )
 
+/** 官方 `schedule/catalog` 里的一个计划任务（提醒）。 */
+@Serializable
+data class ScheduleInfo(
+    val id: String,
+    val title: String = "",
+    val prompt: String = "",
+    val scheduledAt: String = "",
+    val sessionId: String = "",
+    val status: String = "",
+    val kind: String = "",
+)
+
 /** 官方 `account/getUnnotifiedBonuses` 里的一条奖励通知。 */
 @Serializable
 data class AccountBonusInfo(
