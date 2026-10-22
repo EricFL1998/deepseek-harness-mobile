@@ -1998,20 +1998,26 @@ private fun InstalledHostBundleRow(
                     )
                     // 与官方页面一致：包不在设备上时标「未安装」，而不是假装可用。
                     if (bundle.availability == "missing") {
-                        Spacer(Modifier.width(6.dp))
+                        // 药丸尺寸由 padding 决定，避免固定高度把 9sp 文本挤到上沿：
+                        // 关掉字体额外行距后，上下 padding 对称即可真正居中。
                         Box(
                             modifier = Modifier
-                                .height(16.dp)
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(colors.bgModulePlatform)
-                                .padding(horizontal = 5.dp),
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 text = stringResource(R.string.plugin_not_installed),
                                 color = colors.labelSecondary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                        includeFontPadding = false,
+                                    ),
+                                ),
                             )
                         }
                     }
