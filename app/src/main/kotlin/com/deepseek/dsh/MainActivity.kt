@@ -991,6 +991,29 @@ fun MainAppHost(
     val status by runner.statusFlow.collectAsState()
     val catalog by surfaceStore.catalogFlow.collectAsState()
     val accountState by oauthManager.accountFlow.collectAsState()
+    // 官方 account/watch：登录中/已存凭据/退出都由 Host 推送，不再靠轮询。
+    LaunchedEffect(activeHostId) {
+        kotlinx.coroutines.coroutineScope {
+            launch {
+                dshRepository.hostAccountFlow.collect { view ->
+                    when (view?.status) {
+                        "credential-stored" -> if (!oauthManager.accountFlow.value.isSignedIn) {
+                            val profile = dshRepository.getAccountProfile(activeHostId).getOrNull()
+                            val balance = dshRepository.getAccountBalance(activeHostId).getOrNull()
+                            oauthManager.applyHostAccount(profile, balance)
+                        }
+                        "signed-out" -> if (oauthManager.accountFlow.value.isSignedIn) {
+                            oauthManager.signOut()
+                        }
+                    }
+                }
+            }
+            launch {
+                // Host 明确报告 DeepSeek 会话过期：直接清掉本地登录态（API Key 保留）。
+                dshRepository.accountExpiredFlow.collect { oauthManager.signOut() }
+            }
+        }
+    }
     LaunchedEffect(accountState.isSignedIn, accountState.hasApiKey) {
         if (accountState.isSignedIn || accountState.hasApiKey) {
             kotlinx.coroutines.delay(600)

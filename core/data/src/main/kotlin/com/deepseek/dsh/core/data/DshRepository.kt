@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -63,6 +64,17 @@ class DshRepository(
 
     /** 已经建立 Host `$events` 转订阅的 Host，避免重复连接。 */
     private val forwardedEventHosts = mutableSetOf<String>()
+
+    /** 官方 `account/watch` 的实时账号态；null 表示尚未收到。 */
+    private val _hostAccountFlow = MutableStateFlow<AccountViewInfo?>(null)
+    val hostAccountFlow: StateFlow<AccountViewInfo?> = _hostAccountFlow.asStateFlow()
+
+    /** Host 通知 DeepSeek 会话过期（`deepseek-account/session-expired`）。 */
+    private val _accountExpiredFlow = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 8)
+    val accountExpiredFlow: kotlinx.coroutines.flow.SharedFlow<Unit> = _accountExpiredFlow.asSharedFlow()
+
+    /** 已经订阅过 `account/watch` 的 Host，避免重复建流。 */
+    private val watchedAccountHosts = mutableSetOf<String>()
 
     private val _sessionStatsFlow = MutableStateFlow<Map<String, ComposerStats>>(emptyMap())
     val sessionStatsFlow: StateFlow<Map<String, ComposerStats>> = _sessionStatsFlow.asStateFlow()
@@ -1146,8 +1158,18 @@ class DshRepository(
                         }
                         // 审批请求：先刷新待审批列表；waterfall 本身回 next 交给 Host 默认处理。
                         "approval/request" -> refreshApprovals(hostId)
+                        // DeepSeek 账号会话过期：交给 UI 清登录态。
+                        "deepseek-account/session-expired" -> _accountExpiredFlow.tryEmit(Unit)
                         else -> Unit
                     }
+                }
+            }
+        }
+        // 官方账号态流：登录过程/凭据变化直接推送，替代轮询。
+        if (synchronized(watchedAccountHosts) { watchedAccountHosts.add(hostId) }) {
+            scope.launch(Dispatchers.IO) {
+                client.watchAccount(hostId).collect { view ->
+                    _hostAccountFlow.value = view
                 }
             }
         }

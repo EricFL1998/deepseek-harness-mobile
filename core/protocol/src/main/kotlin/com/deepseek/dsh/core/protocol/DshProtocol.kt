@@ -73,6 +73,15 @@ interface DshClientProtocol {
     suspend fun getModelCatalog(hostId: String): RemoteResult<ModelCatalogInfo>
     suspend fun getSessionStats(hostId: String, sessionId: String): RemoteResult<ComposerStats>
     suspend fun getAccountState(hostId: String): RemoteResult<AccountViewInfo>
+    /**
+     * 订阅官方 `account/watch` 流：Host 侧账号态（登录中/已存凭据/退出）的实时投影。
+     *
+     * 官方客户端用它在登录过程中即时更新 UI；这里用来替代 App 的轮询。
+     *
+     * @param hostId Host 标识。
+     * @returns 每次账号态变化推送一次 `AccountViewInfo`。
+     */
+    fun watchAccount(hostId: String): Flow<AccountViewInfo>
     suspend fun startAccountSignIn(hostId: String, callbackOrigin: String): RemoteResult<AccountViewInfo>
     suspend fun signOutAccount(hostId: String): RemoteResult<Boolean>
     suspend fun getAccountProfile(hostId: String): RemoteResult<AccountProfileInfo?>

@@ -653,6 +653,59 @@ class RemoteClient(
         }
     }
 
+    /**
+     * 订阅官方 `account/watch` 流（Gateway mux 上的流式 Remote）。
+     *
+     * 每个 `item` 帧是一份 `AccountView` 快照；`end`/`error` 结束订阅。
+     */
+    override fun watchAccount(hostId: String): Flow<AccountViewInfo> = callbackFlow {
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val streamId = java.util.UUID.randomUUID().toString()
+        val socket = client.newWebSocket(
+            okhttp3.Request.Builder().url(wsUrl).build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    val open = buildJsonObject {
+                        put("type", "open")
+                        put("streamId", streamId)
+                        put("endpoint", "account/watch")
+                        put("payload", buildJsonObject { put("args", buildJsonObject { }) })
+                    }
+                    webSocket.send(open.toString())
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    runCatching {
+                        val frame = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject
+                            ?: return@runCatching
+                        fun field(key: String): String? =
+                            (frame[key] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                        if (field("streamId") != streamId) return@runCatching
+                        when (field("type")) {
+                            "item" -> {
+                                val value = frame["value"] as? kotlinx.serialization.json.JsonObject
+                                if (value != null) trySend(value.parseAccountView())
+                            }
+                            "error", "end" -> close()
+                        }
+                    }
+                }
+
+                override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
+                    close(t)
+                }
+
+                override fun onClosed(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                    close()
+                }
+            },
+        )
+        awaitClose {
+            runCatching { socket.send("{\"type\":\"cancel\",\"streamId\":\"$streamId\"}") }
+            runCatching { socket.close(1000, "client closed") }
+        }
+    }
+
     override suspend fun startAccountSignIn(
         hostId: String,
         callbackOrigin: String,
