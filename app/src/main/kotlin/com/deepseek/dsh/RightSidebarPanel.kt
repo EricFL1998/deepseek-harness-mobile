@@ -185,7 +185,16 @@ fun RightSidebarPanel(
                 )
                 "terminal" -> Box(modifier = Modifier.fillMaxSize()) { terminalContent() }
                 "schedule" -> Box(modifier = Modifier.fillMaxSize()) { scheduleContent() }
-                "plugins" -> Box(modifier = Modifier.fillMaxSize()) { pluginContent() }
+                "plugins" -> Column(modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = stringResource(R.string.right_sidebar_plugins_hint),
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = palette.labelTertiary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                    Box(modifier = Modifier.fillMaxSize()) { pluginContent() }
+                }
                 else -> RightInfoTab(
                     text = stringResource(R.string.right_sidebar_browser_unavailable),
                 )

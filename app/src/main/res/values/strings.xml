@@ -621,6 +621,7 @@
     <string name="right_sidebar_tab_terminal">Terminal</string>
     <string name="right_sidebar_tab_schedule">Schedule</string>
     <string name="right_sidebar_tab_plugins">Plugins</string>
+    <string name="right_sidebar_plugins_hint">Native plugin contributions registered for the right pane appear here.</string>
     <string name="right_sidebar_tab_browser">Browser</string>
     <string name="right_sidebar_up">Up</string>
     <string name="right_sidebar_import">Import</string>
