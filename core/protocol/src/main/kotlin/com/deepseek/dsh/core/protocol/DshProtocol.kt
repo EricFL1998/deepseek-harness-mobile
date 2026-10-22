@@ -85,6 +85,25 @@ data class ForwardedWaterfall(
     val request: kotlinx.serialization.json.JsonObject,
 )
 
+/** 一条已打开的终端连接（官方 `terminal/attach` 双向流）。 */
+interface TerminalConnection {
+    /** 终端帧（snapshot / output / state / ack 的原始 JSON）。 */
+    val frames: Flow<String>
+    /** 写入输入（自动带递增 sequence）。 */
+    fun write(data: String)
+    /** 调整尺寸。 */
+    fun resize(cols: Int, rows: Int)
+    /** 关闭这次附件（进程保留，可重连）。 */
+    fun close()
+}
+
+/** 终端环境信息（官方 `terminal/environment`）。 */
+data class TerminalEnvironmentInfo(
+    val cwd: String,
+    val maxCols: Int,
+    val maxRows: Int,
+)
+
 /** 官方 `deliverables/presented` 里的一份产物。 */
 data class PresentedFileInfo(
     val path: String,
@@ -216,6 +235,20 @@ interface DshClientProtocol {
     fun workspaceFollow(hostId: String): Flow<String>
     /** 订阅官方 `session/control`：全部会话投影的基线 + 增量（模型选择等）。 */
     fun sessionControl(hostId: String): Flow<String>
+    /** 官方 `terminal/environment`：当前目录与尺寸上限。 */
+    suspend fun terminalEnvironment(
+        hostId: String,
+        sessionId: String,
+    ): RemoteResult<TerminalEnvironmentInfo>
+    /** 打开（或复用）一个终端并 attach；返回可写连接。 */
+    suspend fun openTerminal(
+        hostId: String,
+        sessionId: String,
+        cols: Int,
+        rows: Int,
+    ): RemoteResult<TerminalConnection>
+    /** 官方 `terminal/close`：关闭并杀掉终端进程。 */
+    suspend fun closeTerminal(hostId: String, sessionId: String, id: String): RemoteResult<Boolean>
     /** 订阅官方 `job/list`：当前会话可见的后台任务集合（整集帧）。 */
     fun jobList(hostId: String, sessionId: String): Flow<List<HostJobInfo>>
     /** 订阅官方 `job/follow`：一条任务的保留输出（opened/output/status 原始 JSON）。 */

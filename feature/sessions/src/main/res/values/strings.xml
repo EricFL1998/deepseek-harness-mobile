@@ -204,6 +204,7 @@
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
     <string name="search_host_results">Host search results</string>
+<string name="drawer_nav_terminal">Terminal</string>
 </resources>
 
 

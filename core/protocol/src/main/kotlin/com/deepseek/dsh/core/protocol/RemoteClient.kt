@@ -2351,6 +2351,231 @@ class RemoteClient(
         }
     }
 
+    /** 官方 `terminal/environment`。 */
+    override suspend fun terminalEnvironment(
+        hostId: String,
+        sessionId: String,
+    ): RemoteResult<TerminalEnvironmentInfo> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "terminal/environment")
+            put("payload", buildJsonObject { put("args", buildJsonObject { put("agent", sessionId) }) })
+        }
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/api/terminal/environment")
+                .post(payload.toString().toRequestBody(mediaTypeJson))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure("dsh/terminal-env", "HTTP ${response.code}")
+                }
+                val root = json.parseToJsonElement(response.body?.string().orEmpty())
+                    as? kotlinx.serialization.json.JsonObject
+                val value = (root?.get("result") as? kotlinx.serialization.json.JsonObject)
+                    ?.get("value") as? kotlinx.serialization.json.JsonObject
+                    ?: return@use RemoteResult.Failure("dsh/terminal-env", "missing value")
+                RemoteResult.Success(
+                    TerminalEnvironmentInfo(
+                        cwd = (value["cwd"] as? kotlinx.serialization.json.JsonPrimitive)
+                            ?.contentOrNull.orEmpty(),
+                        maxCols = value["maxCols"]?.toString()?.trim('"')?.toIntOrNull() ?: 160,
+                        maxRows = value["maxRows"]?.toString()?.trim('"')?.toIntOrNull() ?: 48,
+                    ),
+                )
+            }
+        } catch (e: Exception) {
+            RemoteResult.Failure("dsh/terminal-env-network", e.message ?: "terminal env failed")
+        }
+    }
+
+    /** 打开（或复用）终端并 attach。 */
+    override suspend fun openTerminal(
+        hostId: String,
+        sessionId: String,
+        cols: Int,
+        rows: Int,
+    ): RemoteResult<TerminalConnection> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val terminalId = "main"
+        // create 对已打开的 id 幂等，直接调即可。
+        val createPayload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "terminal/create")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject {
+                    put("agent", sessionId)
+                    put("request", buildJsonObject {
+                        put("id", terminalId)
+                        put("cols", cols)
+                        put("rows", rows)
+                    })
+                })
+            })
+        }
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/api/terminal/create")
+                .post(createPayload.toString().toRequestBody(mediaTypeJson))
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure("dsh/terminal-create", "HTTP ${response.code}")
+                }
+            }
+        } catch (e: Exception) {
+            return@withContext RemoteResult.Failure(
+                "dsh/terminal-create-network",
+                e.message ?: "terminal create failed",
+            )
+        }
+        val wsUrl = baseUrl.replaceFirst("^http".toRegex(), "ws") + "/api/remote.mux"
+        val streamId = java.util.UUID.randomUUID().toString()
+        val frames = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 256)
+        val sequence = java.util.concurrent.atomic.AtomicInteger(1)
+        lateinit var socket: okhttp3.WebSocket
+        var closed = false
+        val handle = object : TerminalConnection {
+            override val frames: Flow<String> = frames
+            override fun write(data: String) {
+                if (closed) return
+                val seq = sequence.getAndIncrement()
+                val item = buildJsonObject {
+                    put("type", "item")
+                    put("streamId", streamId)
+                    put("value", buildJsonObject {
+                        put("type", "write")
+                        put("sequence", seq)
+                        put("data", data)
+                    })
+                }
+                runCatching { socket.send(item.toString()) }
+            }
+
+            override fun resize(cols: Int, rows: Int) {
+                if (closed) return
+                val seq = sequence.getAndIncrement()
+                val item = buildJsonObject {
+                    put("type", "item")
+                    put("streamId", streamId)
+                    put("value", buildJsonObject {
+                        put("type", "resize")
+                        put("sequence", seq)
+                        put("cols", cols)
+                        put("rows", rows)
+                    })
+                }
+                runCatching { socket.send(item.toString()) }
+            }
+
+            override fun close() {
+                closed = true
+                runCatching { socket.send("{\"type\":\"cancel\",\"streamId\":\"$streamId\"}") }
+                runCatching { socket.close(1000, "client closed") }
+            }
+        }
+        val opened = kotlinx.coroutines.CompletableDeferred<Unit>()
+        socket = client.newWebSocket(
+            okhttp3.Request.Builder().url(wsUrl).build(),
+            object : okhttp3.WebSocketListener() {
+                override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                    val open = buildJsonObject {
+                        put("type", "open")
+                        put("streamId", streamId)
+                        put("endpoint", "terminal/attach")
+                        put("payload", buildJsonObject {
+                            put("args", buildJsonObject {
+                                put("agent", sessionId)
+                                put("id", terminalId)
+                            })
+                        })
+                    }
+                    webSocket.send(open.toString())
+                    opened.complete(Unit)
+                }
+
+                override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                    runCatching {
+                        val frame = json.parseToJsonElement(text)
+                            as? kotlinx.serialization.json.JsonObject
+                            ?: return@runCatching
+                        val id = (frame["streamId"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (id != streamId) return@runCatching
+                        when ((frame["type"]
+                            as? kotlinx.serialization.json.JsonPrimitive)?.content) {
+                            "item" -> frame["value"]?.let { frames.tryEmit(it.toString()) }
+                            "error" -> {
+                                frames.tryEmit(
+                                    "{\"type\":\"error\",\"message\":"
+                                        + (frame["error"]?.toString() ?: "\"unknown\"") + "}",
+                                )
+                                frames.tryEmit("{\"type\":\"closed\"}")
+                            }
+                            "end" -> frames.tryEmit("{\"type\":\"closed\"}")
+                        }
+                    }
+                }
+
+                override fun onFailure(
+                    webSocket: okhttp3.WebSocket,
+                    t: Throwable,
+                    response: Response?,
+                ) {
+                    frames.tryEmit(
+                        "{\"type\":\"error\",\"message\":"
+                            + kotlinx.serialization.json.JsonPrimitive(
+                                t.message ?: "terminal socket failed",
+                            ).toString()
+                            + "}",
+                    )
+                    frames.tryEmit("{\"type\":\"closed\"}")
+                }
+
+                override fun onClosed(
+                    webSocket: okhttp3.WebSocket,
+                    code: Int,
+                    reason: String,
+                ) {
+                    frames.tryEmit("{\"type\":\"closed\"}")
+                }
+            },
+        )
+        kotlinx.coroutines.withTimeoutOrNull(5_000) { opened.await() }
+        RemoteResult.Success(handle)
+    }
+
+    /** 官方 `terminal/close`。 */
+    override suspend fun closeTerminal(
+        hostId: String,
+        sessionId: String,
+        id: String,
+    ): RemoteResult<Boolean> = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", java.util.UUID.randomUUID().toString())
+            put("method", "terminal/close")
+            put("payload", buildJsonObject {
+                put("args", buildJsonObject {
+                    put("agent", sessionId)
+                    put("id", id)
+                })
+            })
+        }
+        try {
+            val request = Request.Builder()
+                .url("$baseUrl/api/terminal/close")
+                .post(payload.toString().toRequestBody(mediaTypeJson))
+                .build()
+            client.newCall(request).execute().use { response ->
+                RemoteResult.Success(response.isSuccessful)
+            }
+        } catch (_: Exception) {
+            RemoteResult.Success(false)
+        }
+    }
+
     /** 解析一条官方 JobView 投影。 */
     private fun parseJobView(element: kotlinx.serialization.json.JsonElement): HostJobInfo? {
         val obj = element as? kotlinx.serialization.json.JsonObject ?: return null

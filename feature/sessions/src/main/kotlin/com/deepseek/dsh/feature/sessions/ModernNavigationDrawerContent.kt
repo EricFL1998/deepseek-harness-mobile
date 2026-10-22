@@ -145,6 +145,8 @@ fun ModernNavigationDrawerContent(
     onNewChatClick: () -> Unit,
     onNavigatePlugins: () -> Unit,
     onNavigateSchedule: () -> Unit = {},
+    /** 打开终端页（官方 terminal-controller）。 */
+    onNavigateTerminal: () -> Unit = {},
     onNavigateRuntime: () -> Unit = {},
     onNavigateFiles: () -> Unit,
     onNavigateHosts: () -> Unit = {},
@@ -315,6 +317,13 @@ fun ModernNavigationDrawerContent(
                 iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule,
                 title = stringResource(R.string.drawer_nav_schedule),
                 onClick = onNavigateSchedule,
+                textColor = textPrimary,
+                iconTint = textSecondary
+            )
+            DrawerItem(
+                iconResId = com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_compact,
+                title = stringResource(R.string.drawer_nav_terminal),
+                onClick = onNavigateTerminal,
                 textColor = textPrimary,
                 iconTint = textSecondary
             )

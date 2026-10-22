@@ -578,4 +578,13 @@
 <string name="jobs_section">后台任务</string>
 <string name="jobs_killed">已停止</string>
 <string name="cmd_unknown">命令执行失败</string>
+<string name="terminal_title">终端</string>
+<string name="terminal_close">关闭</string>
+<string name="terminal_empty">正在连接…</string>
+<string name="terminal_enter">回车</string>
+<string name="terminal_input_hint">输入命令</string>
+<string name="terminal_send">执行</string>
+<string name="terminal_unavailable">终端不可用</string>
+<string name="terminal_connecting">正在连接…</string>
+<string name="terminal_closed">已关闭</string>
 </resources>

@@ -578,4 +578,13 @@
 <string name="jobs_section">Background jobs</string>
 <string name="jobs_killed">Stopped</string>
 <string name="cmd_unknown">Command failed</string>
+<string name="terminal_title">Terminal</string>
+<string name="terminal_close">Close</string>
+<string name="terminal_empty">Connecting…</string>
+<string name="terminal_enter">Enter</string>
+<string name="terminal_input_hint">Command</string>
+<string name="terminal_send">Run</string>
+<string name="terminal_unavailable">Terminal unavailable</string>
+<string name="terminal_connecting">Connecting…</string>
+<string name="terminal_closed">Closed</string>
 </resources>

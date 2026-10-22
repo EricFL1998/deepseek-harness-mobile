@@ -750,7 +750,24 @@ class DshRepository(
             is RemoteResult.Failure -> false
         }
 
-    /** 官方 `commands/list` 的斜杠命令。 */
+    /** 打开终端（官方 terminal/create + terminal/attach）。 */
+    suspend fun openTerminal(
+        hostId: String,
+        sessionId: String,
+        cols: Int,
+        rows: Int,
+    ): com.deepseek.dsh.core.protocol.TerminalConnection? =
+        when (val res = client.openTerminal(hostId, sessionId, cols, rows)) {
+            is RemoteResult.Success -> res.data
+            is RemoteResult.Failure -> null
+        }
+
+    /** 关闭终端进程（官方 terminal/close）。 */
+    suspend fun closeTerminal(hostId: String, sessionId: String) {
+        client.closeTerminal(hostId, sessionId, "main")
+    }
+
+    /** 官方 `commands/list` 的斜杠命令。 */    /** 官方 `commands/list` 的斜杠命令。 */
     private val _hostCommandsFlow = MutableStateFlow<List<com.deepseek.dsh.core.model.HostCommandInfo>>(emptyList())
     val hostCommandsFlow: StateFlow<List<com.deepseek.dsh.core.model.HostCommandInfo>> =
         _hostCommandsFlow.asStateFlow()
