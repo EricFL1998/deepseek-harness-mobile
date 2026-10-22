@@ -171,6 +171,10 @@ class MainActivity : ComponentActivity() {
                 else -> androidx.compose.foundation.isSystemInDarkTheme()
             }
             DshTheme(darkTheme = effectiveDark) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.deepseek.dsh.core.designsystem.LocalConversationFontSize provides
+                        (com.deepseek.dsh.feature.settings.ThemeBridge.fontSize ?: 14),
+                ) {
                 // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
                 val systemDark = effectiveDark
                 androidx.compose.runtime.SideEffect {
@@ -195,7 +199,8 @@ class MainActivity : ComponentActivity() {
                 // bridge 插件落后时在启动后弹窗提醒；rootfs 可选更新只在设置页出现。
                 BridgeUpdatePrompt()
             }
-            }
+                            }
+}
         }
     }
 

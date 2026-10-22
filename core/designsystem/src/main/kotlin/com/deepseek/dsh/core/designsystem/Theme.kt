@@ -50,6 +50,14 @@ private val LightColorScheme = lightColorScheme(
     outline = DshOutlineLight
 )
 
+/**
+ * 会话正文的字号（sp），来自 Host 的 `ui-theme.fontSize`。
+ *
+ * 设置页的「字号」只影响对话内容，不缩放整个界面，所以用一个 CompositionLocal
+ * 传给聊天区的文本渲染，而不是改全局 density。
+ */
+val LocalConversationFontSize = androidx.compose.runtime.compositionLocalOf { 14 }
+
 @Composable
 fun DshTheme(
     darkTheme: Boolean = isSystemInDarkTheme(), // 严格跟随手机系统深浅色模式

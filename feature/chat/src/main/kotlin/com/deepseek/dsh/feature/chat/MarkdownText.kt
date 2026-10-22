@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import com.deepseek.dsh.core.designsystem.LocalConversationFontSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -44,6 +45,13 @@ import androidx.compose.ui.unit.sp
  * 斜体、行内代码与链接文本。不引入第三方依赖，也不做 HTML 与嵌套列表——官方
  * 客户端里对话正文最常见的这几类块已经能正确显示，而不是把 `##`、`|` 当普通字符。
  */
+/** 会话正文样式：字号来自 Host 的 ui-theme.fontSize。 */
+@Composable
+private fun bodyTextStyle(): TextStyle {
+    val size = LocalConversationFontSize.current
+    return TextStyle(fontSize = size.sp, lineHeight = (size * 1.45f).sp)
+}
+
 @Composable
 fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.onBackground) {
     val blocks = remember(text) { parseMarkdownBlocks(text) }
@@ -67,7 +75,7 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
 
                 is MarkdownBlock.Paragraph -> Text(
                     text = inlineMarkdown(block.text, color),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = bodyTextStyle(),
                     color = color,
                 )
 
@@ -94,14 +102,14 @@ fun MarkdownMessageText(text: String, color: Color = MaterialTheme.colorScheme.o
                         } else {
                             Text(
                                 text = block.marker,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = bodyTextStyle(),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                     Text(
                         text = inlineMarkdown(block.text, color),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = bodyTextStyle(),
                         color = if (block.checked == true) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
