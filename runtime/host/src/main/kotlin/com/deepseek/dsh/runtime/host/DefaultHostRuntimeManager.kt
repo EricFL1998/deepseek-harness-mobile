@@ -222,7 +222,9 @@ class DefaultHostRuntimeManager(
         // node-addon-require-builtin（Host 启动报 Cannot find module 的直接原因）。
         // 35: bash / fs-search 的 bridge socket 超时从 15s 提到 30min，长命令不再被
         // android bridge timeout 打断。
-        val patchRevision = "35"
+        // 36: fs.link 兜底只复制、不删除源文件，修官方 attachment store 的
+        // ATTACHMENT_WRITE_FAILED（它自己在 link 成功后还会 unlink staging）。
+        val patchRevision = "36"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to

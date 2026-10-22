@@ -68,8 +68,10 @@ data class RuntimeLayout(
             |const fsp = require('node:fs/promises')
             |const FALLBACK_CODES = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EXDEV', 'EACCES'])
             |function fallbackSync(existingPath, newPath) {
+            |  // 只复制、不删除源文件：调用方在 link 成功后通常还会自己 unlink 源
+            |  // （官方 attachment store / fs-local 的原子发布都如此），提前删掉会让
+            |  // 那一步报 ENOENT 并被包装成写入失败。
             |  fs.copyFileSync(existingPath, newPath, fs.constants.COPYFILE_EXCL || 1)
-            |  try { fs.unlinkSync(existingPath) } catch (e) {}
             |}
             |const originalLinkSync = fs.linkSync
             |fs.linkSync = function (existingPath, newPath) {

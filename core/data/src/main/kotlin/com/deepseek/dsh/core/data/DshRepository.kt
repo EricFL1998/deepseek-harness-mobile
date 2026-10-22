@@ -1707,7 +1707,12 @@ class DshRepository(
         }
     }
 
-    suspend fun sendMessage(hostId: String, sessionId: String, content: String): ChatMessage {
+    suspend fun sendMessage(
+        hostId: String,
+        sessionId: String,
+        content: String,
+        images: List<com.deepseek.dsh.core.protocol.PromptImagePart> = emptyList(),
+    ): ChatMessage {
         val userMsg = ChatMessage(
             hostId = hostId,
             sessionId = sessionId,
@@ -1741,7 +1746,7 @@ class DshRepository(
         scope.launch(Dispatchers.IO) {
             // 队列消息不做乐观插入；follow 会带回 claim 后的记录。运行中发送失败也
             // 只写错误行，避免残留一条从未进入对话的“用户消息”。
-            val result = client.sendMessage(hostId, sessionId, content)
+            val result = client.sendMessage(hostId, sessionId, content, images)
             if (result is RemoteResult.Failure) {
                 // Host 拒绝了 prompt（模型/权限/网络）：落一条可见错误，避免界面毫无反馈。
                 dao.insertMessages(

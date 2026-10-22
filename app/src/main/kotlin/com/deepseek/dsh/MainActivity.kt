@@ -2545,6 +2545,33 @@ fun MainAppHost(
                                     } else {
                                         text
                                     }
+                                    // 图片附件走官方 prompt 的内联 image part（base64），
+                                    // 这样视觉模型能直接看到内容；普通文件仍用 @ 引用。
+                                    val outgoingAttachments = chatAttachments.toList()
+                                    val outgoingImages = outgoingAttachments.mapNotNull { attachment ->
+                                        val name = attachment.displayName
+                                        val extension = name.substringAfterLast('.', "").lowercase()
+                                        val mediaType = when (extension) {
+                                            "png" -> "image/png"
+                                            "jpg", "jpeg" -> "image/jpeg"
+                                            "webp" -> "image/webp"
+                                            "gif" -> "image/gif"
+                                            else -> return@mapNotNull null
+                                        }
+                                        val file = java.io.File(attachment.workspaceRelativePath).let {
+                                            if (it.isAbsolute) it else java.io.File(activeWorkspace, attachment.workspaceRelativePath)
+                                        }
+                                        if (!file.isFile || file.length() > 20L * 1024 * 1024) return@mapNotNull null
+                                        val encoded = android.util.Base64.encodeToString(
+                                            file.readBytes(),
+                                            android.util.Base64.NO_WRAP,
+                                        )
+                                        com.deepseek.dsh.core.protocol.PromptImagePart(
+                                            mediaType = mediaType,
+                                            base64 = encoded,
+                                            name = name,
+                                        )
+                                    }
                                     chatAttachments.clear()
                                     pendingMessages.add(
                                         ChatMessage(
@@ -2592,7 +2619,7 @@ fun MainAppHost(
                                                 effectiveModelIdByName[currentModel] ?: currentModel,
                                                 if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
                                             )
-                                            dshRepository.sendMessage(activeHostId, sid, outgoingText)
+                                            dshRepository.sendMessage(activeHostId, sid, outgoingText, outgoingImages)
                                         } else {
                                             android.widget.Toast.makeText(
                                                 context, context.getString(R.string.session_create_failed), android.widget.Toast.LENGTH_LONG

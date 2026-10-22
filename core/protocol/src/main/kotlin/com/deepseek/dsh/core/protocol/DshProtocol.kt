@@ -128,6 +128,13 @@ data class ChangesDiffInfo(
     val coarse: Boolean = false,
 )
 
+/** prompt 里内联的图片（官方 PromptContentPart 的 image 分支，base64）。 */
+data class PromptImagePart(
+    val mediaType: String,
+    val base64: String,
+    val name: String? = null,
+)
+
 /** 一条已打开的终端连接（官方 `terminal/attach` 双向流）。 */
 interface TerminalConnection {
     /** 终端帧（snapshot / output / state / ack 的原始 JSON）。 */
@@ -240,7 +247,12 @@ interface DshClientProtocol {
         hostId: String,
         sessionId: String,
     ): RemoteResult<com.deepseek.dsh.core.model.AgentTeamSummary?>
-    suspend fun sendMessage(hostId: String, sessionId: String, text: String): RemoteResult<ChatMessage>
+    suspend fun sendMessage(
+        hostId: String,
+        sessionId: String,
+        text: String,
+        images: List<PromptImagePart> = emptyList(),
+    ): RemoteResult<ChatMessage>
     fun subscribeEvents(hostId: String): Flow<RemoteEvent>
     /**
      * 订阅 Host 全局转发事件（Gateway `$events` 流）的事件名。

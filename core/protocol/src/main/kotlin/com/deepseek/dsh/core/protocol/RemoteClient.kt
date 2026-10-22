@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
@@ -1499,7 +1500,8 @@ class RemoteClient(
     override suspend fun sendMessage(
         hostId: String,
         sessionId: String,
-        text: String
+        text: String,
+        images: List<PromptImagePart>,
     ): RemoteResult<ChatMessage> = withContext(kotlinx.coroutines.Dispatchers.IO) {
         val requestId = java.util.UUID.randomUUID().toString()
         val payload = buildJsonObject {
@@ -1512,9 +1514,19 @@ class RemoteClient(
                         put("requestId", requestId)
                         put("sessionId", sessionId)
                         put("mode", "queue")
-                        put("content", kotlinx.serialization.json.JsonArray(listOf(
-                            buildJsonObject { put("type", "text"); put("text", text) }
-                        )))
+                        put("content", buildJsonArray {
+                            if (text.isNotBlank()) {
+                                add(buildJsonObject { put("type", "text"); put("text", text) })
+                            }
+                            images.forEach { image ->
+                                add(buildJsonObject {
+                                    put("type", "image")
+                                    put("mediaType", image.mediaType)
+                                    put("data", image.base64)
+                                    image.name?.let { put("name", it) }
+                                })
+                            }
+                        })
                     })
                 })
             })
