@@ -77,6 +77,11 @@ fun parseModelProviders(
             profile = profile?.get(segment) as? JsonObject ?: null
         }
         if (provider == "deepseek-account") return@mapNotNull null
+        // 数据源分离：`llm/listConfigurableProviders` 会把所有命名空间的 provider 一起
+        // 返回，其中 `llm-subscription-oauth` 是我们插件自己注册的（Kimi/Grok/GLM/Ark/
+        // MiMo/WorkBuddy/Antigravity）。它们不属于官方内置目录，由插件的订阅页管理，
+        // 这里必须排除，否则官方列表会被插件项混进来。
+        if (settingsNs.startsWith("llm-subscription")) return@mapNotNull null
         // 目录项即使尚未配置也保留（configured=false）：设置面板据此决定
         // 是否显示为卡片，并把未配置项放进“添加模型提供商”列表。
         val apiKeyEnv = (profile?.get("apiKeyEnv") as? JsonPrimitive)?.content
