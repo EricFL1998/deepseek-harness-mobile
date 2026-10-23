@@ -384,35 +384,6 @@ function apply(ctx, config = {}) {
 	* foreground-only and the executor's deadline kills the command.
 	*/
 
-async function bridgeExec(command, cwd, timeoutMs) {
-	const net = await import("node:net");
-	const fs = await import("node:fs");
-	const port = Number(process.env.DSH_ANDROID_BRIDGE_PORT);
-	if (!port) throw new Error("bridge port unavailable");
-	// 桥只接受带本地 token 的请求；token 由 App 每次启动 Host 时轮换并写入 guest 的 DSH_HOME。
-	const auth = String(fs.readFileSync("/root/.dsh/.bridge_token", "utf8")).trim();
-	if (!auth) throw new Error("bridge token unavailable");
-	const payload = JSON.stringify({ jsonrpc: "2.0", id: String(Date.now()), auth, method: "android_exec_shell", params: { command, cwd, timeoutMs } }) + "\n";
-	return await new Promise((resolve, reject) => {
-		const socket = net.connect({ host: "127.0.0.1", port }, () => socket.write(payload));
-		let buffer = "";
-		socket.setEncoding("utf8");
-		socket.on("data", (chunk) => {
-			buffer += chunk;
-			const index = buffer.indexOf("\n");
-			if (index < 0) return;
-			const line = buffer.slice(0, index);
-			socket.destroy();
-			try {
-				const message = JSON.parse(line);
-				if (message.error) reject(new Error(message.error.message));
-				else resolve(message.result);
-			} catch (error) { reject(error); }
-		});
-		socket.on("error", reject);
-		socket.setTimeout(1_800_000, () => { socket.destroy(); reject(new Error("android bridge timeout")); });
-	});
-}
 	const bashTool = (jobs) => {
 		const background = jobs !== void 0;
 		const promote = background && promoteOnTimeout;
@@ -690,19 +661,6 @@ async function bridgeExec(command, cwd, timeoutMs) {
 				};
 				const cwd = exec.agent === void 0 ? void 0 : await ctx.workingDirectory.ensure(exec.agent, exec.signal);
 				const workdir = resolveWorkdir(args.workdir, cwd);
-				if (process.env.DSH_ANDROID_BRIDGE_PORT) {
-					const bridged = await bridgeExec(args.command, workdir ?? cwd ?? process.cwd(), args.timeoutMs ?? 120000);
-					return {
-						kind: "foreground",
-						exitCode: bridged.exitCode,
-						signal: null,
-						timedOut: bridged.timedOut === true,
-						aborted: false,
-						timeoutMs: args.timeoutMs ?? 120000,
-						stdout: { text: String(bridged.stdout ?? ""), truncated: false },
-						stderr: { text: String(bridged.stderr ?? ""), truncated: false }
-					};
-				}
 				const dshEnv = ctx.shellEnv.collect(exec);
 				const request = {
 					command: args.command,

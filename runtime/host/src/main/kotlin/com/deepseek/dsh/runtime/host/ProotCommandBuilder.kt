@@ -94,32 +94,44 @@ object ProotCommandBuilder {
 
         val cmd = mutableListOf<String>()
         cmd.add(proot)
+        // 与 DSHA 的 Termux proot 参数对齐：
+        // -L 修正 symlink 的 lstat 大小；--kill-on-exit 让 launcher 退出时回收 guest；
+        // -0 给 guest 假 root（真实权限仍是应用 UID）。这三项配合下面的 bind，
+        // 是 Host 内 subprocess 能按 Linux 语义 spawn bash 的前提。
+        cmd.add("-L")
+        cmd.add("--kill-on-exit")
+        cmd.add("-0")
         cmd.add("-r")
         cmd.add(rootfs)
 
-        // Linux 伪文件系统挂载
-        cmd.add("-b")
-        cmd.add("/proc")
-        cmd.add("-b")
-        cmd.add("/dev")
-        cmd.add("-b")
-        cmd.add("/sys")
+        fun bind(host: String, guest: String? = null) {
+            if (!java.io.File(host).exists()) return
+            cmd.add("-b")
+            cmd.add(if (guest == null || guest == host) host else "$host:$guest")
+        }
+
+        // Linux 伪文件系统挂载。DSHA 另外暴露 /system、/apex、/dev/fd；
+        // 这些是 Android 上 Node 原生模块与 bash 的常见依赖。
+        bind("/proc")
+        bind("/dev")
+        bind("/sys")
+        bind("/system")
+        bind("/apex")
+        bind("/proc/self/fd", "/dev/fd")
+        // Android 的 /dev/random 可能缺省；bash/openssl 会读它。
+        bind("/dev/urandom", "/dev/random")
 
         // 用户选中的工作区绑定为 /workspace (C4 硬约束)
-        cmd.add("-b")
-        cmd.add("${config.userWorkspacePath}:/workspace")
+        bind(config.userWorkspacePath, "/workspace")
 
         // App 私有缓存与 SAF 镜像
-        cmd.add("-b")
-        cmd.add("$cache:/cache")
+        bind(cache, "/cache")
 
         // passwd/group 覆盖（见 RuntimeLayout.ensureIdentityOverlays）：
         // proot 里的 uid 是 Android uid，镜像的 passwd 里没有它，node-pty 的
         // getpwuid 会失败，官方 terminal/create 直接报系统错误。
-        cmd.add("-b")
-        cmd.add("${config.layout.passwdOverlay.absolutePath}:/etc/passwd")
-        cmd.add("-b")
-        cmd.add("${config.layout.groupOverlay.absolutePath}:/etc/group")
+        bind(config.layout.passwdOverlay.absolutePath, "/etc/passwd")
+        bind(config.layout.groupOverlay.absolutePath, "/etc/group")
 
         // 注意：Host 进程不能加 --link2symlink。该 flag 会让 proot 把 link() 模拟成
         // `.l2s.*` 中间文件并移走源文件，在 FUSE 工作区上导致官方 write 工具的

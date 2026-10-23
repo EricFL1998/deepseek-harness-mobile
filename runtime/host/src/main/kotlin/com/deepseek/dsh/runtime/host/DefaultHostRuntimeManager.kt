@@ -229,7 +229,10 @@ class DefaultHostRuntimeManager(
         // 导致 workflow PTC worker 拿到 null control，卡在 reading 'on' of null）。
         // 38: bash / fs-search 的设备桥请求携带本地 token；桥按 fail-closed 鉴权，
         // 阻止同机其他应用连回环端口执行设备命令。
-        val patchRevision = "38"
+        // 39: bash 工具移回 Host 容器执行（不再走 android_exec_shell）；Host 的
+        // proot 参数同时对齐 DSHA（-0 / --kill-on-exit / -L / system、apex、fd 绑定）。
+        // fs-search 仍走设备桥，因为它在 Android 侧的 proot 里做 find/grep。
+        val patchRevision = "39"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
