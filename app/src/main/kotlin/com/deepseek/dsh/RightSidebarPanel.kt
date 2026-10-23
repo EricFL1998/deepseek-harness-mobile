@@ -77,11 +77,15 @@ fun RightSidebarPanel(
     scheduleContent: @Composable () -> Unit,
     /** 插件注册的右侧栏标签（App 新增的 RIGHT_PANEL 落点 API）。 */
     pluginTabs: List<com.deepseek.dsh.plugin.nativehost.NativeRightPaneTab> = emptyList(),
+    /** 官方终端插件（@deepseek-ai/dsh-api-terminal-controller）启用时才显示终端标签。 */
+    showTerminal: Boolean = false,
     onClose: () -> Unit,
 ) {
     val palette = dshPanelColors()
+    // 官方未启用终端插件时，右侧栏不出现终端标签（和电脑版一致）。
+    val builtinTabs = if (showTerminal) RIGHT_TABS else RIGHT_TABS.filter { it != "terminal" }
     // 选中的插件标签被卸载后回退到 Files，避免空白页。
-    val knownTabs = RIGHT_TABS + pluginTabs.map { "plugin:${it.key}" }
+    val knownTabs = builtinTabs + pluginTabs.map { "plugin:${it.key}" }
     val effectiveTab = if (tab in knownTabs) tab else "files"
     Column(
         modifier = Modifier
@@ -110,7 +114,7 @@ fun RightSidebarPanel(
                     .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RIGHT_TABS.forEach { id ->
+                builtinTabs.forEach { id ->
                     val selected = effectiveTab == id
                     val label = stringResource(
                         when (id) {

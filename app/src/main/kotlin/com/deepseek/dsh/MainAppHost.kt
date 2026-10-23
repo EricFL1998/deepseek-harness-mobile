@@ -1950,8 +1950,10 @@ fun MainAppHost(
     // 启用时才出现。这与官方插件页里那一行的开关是同一个事实源，客户端不加设置项。
     val terminalSupported = remember(bridgePluginCatalog) {
         val bundles = bridgePluginCatalog.bundles
+        // 官方默认关闭：Host 没报任何 bundle 时也视为不支持，避免启动瞬间
+        // 或 bridge 未连时把终端页/标签露出来。
         if (bundles.isEmpty()) {
-            true
+            false
         } else {
             bundles.any { bundle ->
                 bundle.enabled && bundle.rows.any { row ->
@@ -1961,7 +1963,7 @@ fun MainAppHost(
             }
         }
     }
-    LaunchedEffect(terminalSupported) {
+    LaunchedEffect(terminalSupported, ui.activePage) {
         if (!terminalSupported && ui.activePage == ActivePage.TERMINAL) ui.activePage = ActivePage.CHAT
     }
 
@@ -3211,6 +3213,7 @@ fun MainAppHost(
                     SchedulesScreen(onCreateTask = { ui.activePage = ActivePage.CHAT })
                 },
                 pluginTabs = rightPanePluginTabs,
+                showTerminal = terminalSupported,
                 onClose = { ui.rightDrawerOpen = false },
                 onOpenDeliverable = { file ->
                     // Host 的 /workspace/<x> 对应本机工作区 <activeWorkspace>/<x>。
