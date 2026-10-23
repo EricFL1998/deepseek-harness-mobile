@@ -1,8 +1,10 @@
-[🌐 产品介绍页](https://ericfl1998.github.io/deepseek-harness-mobile/) · [English](README.en.md)
+<h3 align="center">
+  <a href="https://ericfl1998.github.io/deepseek-harness-mobile/">🌐 产品介绍页</a>
+  &nbsp;·&nbsp;
+  <a href="https://ericfl1998.github.io/deepseek-harness-mobile/en.html">English page</a>
+</h3>
 
 # DSH 手机端（完整版 DeepSeek Harness）
-
-[English](README.en.md) · 简体中文
 
 DSH 手机端不是“连到电脑的远程客户端”，也不是只保留聊天界面的精简壳。它把**完整版 DeepSeek Harness** 装进 Android 手机：真实的 DSH Host、Agent 循环、工具运行时与插件系统都在手机上本地运行，桌面端能做的事在这里同样能做。
 

@@ -1,8 +1,10 @@
-[🌐 Product page](https://ericfl1998.github.io/deepseek-harness-mobile/en.html) · [简体中文](README.md)
+<h3 align="center">
+  <a href="https://ericfl1998.github.io/deepseek-harness-mobile/en.html">🌐 Product page</a>
+  &nbsp;·&nbsp;
+  <a href="https://ericfl1998.github.io/deepseek-harness-mobile/">中文页面</a>
+</h3>
 
 # DSH Mobile — Full DeepSeek Harness on Android
-
-English · [简体中文](README.md)
 
 DSH Mobile is not a thin remote client and not a chat-only shell. It puts the **full DeepSeek Harness** on an Android phone: the real DSH Host, agent loop, tool runtime and plugin system all run locally on the device. What the desktop app can do, this app can do too.
 
