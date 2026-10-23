@@ -136,10 +136,9 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberOnboardingPalette()
-    // 官方 WelcomePage：每次首次引导都先展示授权页，即使用户本机已有登录态，
-    // 也必须显式选择「登录」或「添加 API Key」才进入后续 onboarding。
-    var step by remember { mutableStateOf(OnboardingStep.AUTH) }
-    var authAttempted by remember { mutableStateOf(false) }
+    // 官方 WelcomePage：已有登录态/API Key 的用户直接跳过授权页；没有凭据时
+    // 先展示「登录 / 添加 API Key」页。
+    var step by remember { mutableStateOf(if (authenticated) OnboardingStep.WELCOME else OnboardingStep.AUTH) }
     var purpose by remember { mutableStateOf<OnboardingPurpose?>(null) }
     var process by remember { mutableStateOf<OnboardingProcess?>(null) }
     var confirmation by remember { mutableStateOf<OnboardingConfirmation?>(null) }
@@ -157,12 +156,9 @@ fun OnboardingScreen(
         onComplete(OnboardingResult.of(purpose, process, skipped))
     }
 
-    // 只有在用户点过「登录 / 添加 API Key」且授权状态就绪后才进入欢迎页；
-    // 已有登录态不会自动跳过授权页。
-    LaunchedEffect(authenticated, authAttempted) {
-        if (authAttempted && authenticated && step == OnboardingStep.AUTH) {
-            step = OnboardingStep.WELCOME
-        }
+    // 登录/添加 API Key 是异步完成的：凭据就绪后自动进入欢迎页。
+    LaunchedEffect(authenticated) {
+        if (authenticated && step == OnboardingStep.AUTH) step = OnboardingStep.WELCOME
     }
 
     fun goBack() {
@@ -210,14 +206,8 @@ fun OnboardingScreen(
                 ) { current ->
                     when (current) {
                         OnboardingStep.AUTH -> AuthPage(
-                            onSignIn = {
-                                authAttempted = true
-                                onSignIn()
-                            },
-                            onAddApiKey = {
-                                authAttempted = true
-                                onAddApiKey()
-                            },
+                            onSignIn = onSignIn,
+                            onAddApiKey = onAddApiKey,
                         )
 
                         OnboardingStep.WELCOME -> WelcomePage(
