@@ -9,6 +9,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
@@ -703,8 +704,48 @@ class DefaultHostRuntimeManager(
         const val BRIDGE_BUNDLE_ID = "id: dsh-mobile-bridge-plugin"
 
         /** 插件包中声明的 HTTPS 域名；用于通用 hosts 预解析。 */
-        val URL_HOST = Regex("""https://([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)""")
     }
+
+    /** 后台补 hosts 等非关键启动任务；start 返回后继续跑。 */
+    private val backgroundScope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
+
+    /** 解析并写入 /etc/hosts；失败的域名跳过。 */
+    private fun writeHostsFile(hosts: List<String>) {
+        runCatching {
+            val entries = hosts.distinct().take(160).mapNotNull { host ->
+                runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
+                    ?.let { "$it $host" }
+            }
+            if (entries.isNotEmpty()) {
+                File(layout.rootfsDir, "etc/hosts").writeText(entries.joinToString("\n", postfix = "\n"))
+            }
+        }
+    }
+
+    /** 扫描已安装插件 JS 里声明的域名（官方 hosts 预解析的补齐部分）。 */
+    private fun scanDeclaredHosts(): List<String> = runCatching {
+        val urlHost = Regex("""https://([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)""")
+        val modules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules")
+        if (!modules.isDirectory) return@runCatching emptyList()
+        modules.walkTopDown()
+            .maxDepth(3)
+            .filter { file ->
+                file.isFile && file.length() in 1..2_000_000 &&
+                    file.extension.lowercase() in setOf("js", "mjs", "cjs")
+            }
+            .take(240)
+            .flatMap { file ->
+                runCatching {
+                    urlHost.findAll(file.readText().take(400_000))
+                        .map { it.groupValues[1] }
+                        .toList()
+                }.getOrDefault(emptyList())
+            }
+            .filter { host -> host.contains('.') }
+            .toList()
+    }.getOrDefault(emptyList())
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {
         if (runner.isRunning()) return@withLock Result.success(runner.statusFlow.value)
@@ -788,53 +829,26 @@ class DefaultHostRuntimeManager(
         //
         // 除了插件安装/平台自身需要的固定域名，还会扫描已安装插件包中声明的
         // https 域名。这样任何插件（OAuth、API、CDN）都不需要单独适配 hosts。
-        runCatching {
-            val hosts = File(layout.rootfsDir, "etc/hosts")
-            val infraHosts = listOf(
-                // 平台账号与模型
-                "platform.deepseek.com",
-                "api.deepseek.com",
-                // 官方插件安装：git 仓库与源码归档
-                "github.com",
-                "codeload.github.com",
-                "api.github.com",
-                "raw.githubusercontent.com",
-                // 依赖包：官方 npm 与国内镜像
-                "registry.npmjs.org",
-                "registry.npmmirror.com",
-            )
-            val declaredHosts = runCatching {
-                val modules = File(layout.rootfsDir, "root/.dsh/profiles/web/node_modules")
-                if (!modules.isDirectory) {
-                    emptyList()
-                } else {
-                    modules.walkTopDown()
-                        .maxDepth(3)
-                        .filter { file ->
-                            file.isFile && file.length() in 1..2_000_000 &&
-                                file.extension.lowercase() in setOf("js", "mjs", "cjs")
-                        }
-                        .take(240)
-                        .flatMap { file ->
-                            runCatching {
-                                URL_HOST.findAll(file.readText().take(400_000))
-                                    .map { it.groupValues[1] }
-                                    .toList()
-                            }.getOrDefault(emptyList())
-                        }
-                        .filter { host -> host.contains('.') }
-                        .toList()
+        // 启动关键路径只解析平台自身必需的几个域名；扫描 node_modules 里
+        // 插件声明的域名 + 逐个 DNS 解析可能要几百毫秒到数秒，改为进程起来后
+        // 在后台补齐（glibc 每次 lookup 都会重新读 /etc/hosts，后写入同样生效）。
+        val infraHosts = listOf(
+            "platform.deepseek.com",
+            "api.deepseek.com",
+            "github.com",
+            "codeload.github.com",
+            "api.github.com",
+            "raw.githubusercontent.com",
+            "registry.npmjs.org",
+            "registry.npmmirror.com",
+        )
+        writeHostsFile(infraHosts)
+        backgroundScope.launch {
+            runCatching {
+                val declared = scanDeclaredHosts()
+                if (declared.isNotEmpty()) {
+                    writeHostsFile((infraHosts + declared).distinct().take(160))
                 }
-            }.getOrDefault(emptyList())
-            val entries = (infraHosts + declaredHosts)
-                .distinct()
-                .take(160)
-                .mapNotNull { host ->
-                    runCatching { java.net.InetAddress.getByName(host).hostAddress }.getOrNull()
-                        ?.let { "$it $host" }
-                }
-            if (entries.isNotEmpty()) {
-                hosts.writeText(entries.joinToString("\n", postfix = "\n"))
             }
         }
         // 上次异常退出可能残留 credentials 写锁，启动前清理。
@@ -862,11 +876,9 @@ class DefaultHostRuntimeManager(
         layout.ensureIdentityOverlays()
         layout.ensureNodePatches()
         layout.ensureHostRuntimePatches()
-        // 官方 workspace/changes 需要工作区是一个 git 仓库才能取 baseline；没有仓库时
-        // 只有官方文件工具的捕获，而 bash（Android shell）改的文件不会被记录，于是
-        // turn 尾部永远没有改动卡。这里在启动前用 rootfs 里的 git 给每个工作区子目录
-        // 做一次 init（已存在 .git 就跳过），之后 Host 的录制器就能按 turn 出 summary。
-        ensureWorkspaceGitBaseline(workspacePath)
+        // 官方 workspace/changes 的 git baseline 放到 Host 启动后后台补：每个
+        // 工作区目录都要 spawn 一次 proot+git，放在关键路径上会明显拖慢启动。
+        // 首个 turn 之后完成的初始化同样能被录制器用上。
         val launchConfig = ProotCommandBuilder.LaunchConfig(
             layout = layout,
             userWorkspacePath = workspacePath,
@@ -910,6 +922,9 @@ class DefaultHostRuntimeManager(
         if (launchResult.isFailure) {
             bridge.stop()
             return@withContext Result.failure(launchResult.exceptionOrNull()!!)
+        }
+        backgroundScope.launch {
+            runCatching { ensureWorkspaceGitBaseline(workspacePath) }
         }
 
         // 等端口的同时盯住进程状态：DSH 启动失败（插件 import 不到）通常几秒内
