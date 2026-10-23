@@ -2,6 +2,13 @@
 
 本文件记录 DSH 手机端（Android App）的版本变化。bridge 插件与 rootfs 镜像有各自的版本线，不在此文件里展开；发版顺序见 [RELEASING.md](RELEASING.md)。
 
+## 1.0.6 — 2026-10-23
+
+### 修复
+
+- **rootfs 清单改为先查 GitHub API 的最新 release**：`releases/latest/download` 的 302 会被 CDN 缓存，刚把新镜像设为 latest 后客户端可能仍拿到旧清单；现在优先从 API 找到 `rootfs-manifest.json` 的直链，API 不可用时才退回固定重定向。
+- 模拟器验证：缓存清单已切到 `1.0.12-dsh0.2.1-rc.3-bridge2.0.7`（`androidPatched: true`），不再卡在 1.0.11。
+
 ## 1.0.5 — 2026-10-23
 
 ### 运行时

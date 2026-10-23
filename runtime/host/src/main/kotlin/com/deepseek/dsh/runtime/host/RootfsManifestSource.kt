@@ -4,6 +4,10 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -134,7 +138,7 @@ class RootfsManifestSource(
     /** 从 rootfs 仓库的最新 release 拉清单。 */
     private fun fetchRemote(): RootfsManifest? {
         val request = Request.Builder()
-            .url(LATEST_MANIFEST_URL)
+            .url(resolveManifestUrl())
             .header("User-Agent", "dsh-android")
             .build()
         return runCatching {
@@ -155,15 +159,47 @@ class RootfsManifestSource(
             .takeIf { it.runtimeVersion.isNotBlank() }
     }.getOrNull()
 
+    /**
+     * 通过 GitHub API 找到「最新 release」里清单资产的直链。
+     *
+     * `releases/latest/download/...` 的 302 会被 CDN 缓存一段时间：刚把新版本
+     * 设为 latest 时，客户端可能还拿到上一个版本的清单。API 的 latest 则按
+     * release 状态实时返回。API 不可用时退回固定重定向地址。
+     */
+    private fun resolveManifestUrl(): String {
+        val apiUrl = runCatching {
+            val request = Request.Builder()
+                .url(RELEASE_API_URL)
+                .header("User-Agent", "dsh-android")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val root = json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
+                root["assets"]?.jsonArray
+                    ?.firstOrNull {
+                        it.jsonObject["name"]?.jsonPrimitive?.contentOrNull == "rootfs-manifest.json"
+                    }
+                    ?.jsonObject
+                    ?.get("browser_download_url")
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+            }
+        }.getOrNull()
+        return apiUrl ?: LATEST_MANIFEST_URL
+    }
+
     private companion object {
         /** Logcat tag。 */
         const val TAG = "DshRootfsManifest"
 
+        /** GitHub API：最新非 prerelease release。 */
+        const val RELEASE_API_URL =
+            "https://api.github.com/repos/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest"
+
         /**
-         * 最新 release 的清单地址。
-         *
-         * `releases/latest/download/...` 由 GitHub 维护重定向，因此这个常量永远
-         * 指向最新发布，不需要随发版更新 —— 这正是它可以留在 APK 里的原因。
+         * 固定重定向兜底地址；API 不可用时使用。CDN 可能短暂返回旧版本，
+         * 因此它只是兜底，不是首选。
          */
         const val LATEST_MANIFEST_URL =
             "https://github.com/EricFL1998/deepseek-harness-mobile-rootfs/releases/latest/download/rootfs-manifest.json"

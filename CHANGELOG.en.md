@@ -2,6 +2,13 @@
 
 This file records changes to the DSH Mobile Android app. The bridge plugin and rootfs image have their own release lines; see [RELEASING.md](RELEASING.md) for the release order.
 
+## 1.0.6 — 2026-10-23
+
+### Fixed
+
+- **Resolve the rootfs manifest through the GitHub release API first**: the `releases/latest/download` 302 is CDN-cached, so a client could still see the previous manifest right after a new image was promoted. The App now resolves the `rootfs-manifest.json` asset URL via the API and only falls back to the fixed redirect when the API is unavailable.
+- Emulator verification: the cached manifest now points at `1.0.12-dsh0.2.1-rc.3-bridge2.0.7` (`androidPatched: true`) instead of staying on 1.0.11.
+
 ## 1.0.5 — 2026-10-23
 
 ### Runtime
