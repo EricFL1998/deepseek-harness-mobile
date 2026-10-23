@@ -216,9 +216,13 @@ fun DshMenuCard(
         ) {
             if (scrollable) {
                 Column(
+                    // 顺序必须是「先限高、再滚动」：heightIn 在外层把视口约束到
+                    // maxHeight，verticalScroll 在内层才会得到 Infinity 的测量约束，
+                    // 从而真正产生滚动范围。反过来写会把内容直接压到 maxHeight，
+                    // 溢出部分被裁掉、列表滚不动（模型列表底部被裁的根因）。
                     modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .heightIn(max = maxHeight),
+                        .heightIn(max = maxHeight)
+                        .verticalScroll(rememberScrollState()),
                 ) {
                     content()
                 }

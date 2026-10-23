@@ -2655,8 +2655,14 @@ fun MainAppHost(
                                     // provider/模型 id 直接来自 Host 模型目录的分组，
                                     // 不再按名字猜 provider（否则 Claude/Kimi 会被写成 deepseek-*）。
                                     val sid = ui.selectedSessionId
+                                    val displayName = name.ifBlank { modelId }
+                                    // 新会话还没有 sessionId：先把选择记成默认模型，下一条
+                                    // 消息创建会话时会带着它走。
+                                    if (displayName in availableModelNames) {
+                                        lastUsedModel = displayName
+                                        modelPrefs.edit().putString("last_model_name", displayName).apply()
+                                    }
                                     if (sid != null) {
-                                        val displayName = name.ifBlank { modelId }
                                         scope.launch {
                                             val result = dshRepository.selectModel(
                                                 ui.activeHostId,
