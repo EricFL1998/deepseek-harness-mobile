@@ -1429,20 +1429,15 @@ private fun ModelEffortMenu(
                 }
             }
             else -> {
-                if (reasoningOptions.isNotEmpty()) {
+                // 推理等级只列 Host modelCatalog 里该模型真实提供的档位；没有就
+                // 明确说不可调，不再用客户端枚举的预设文案冒充。
+                if (reasoningOptions.isEmpty()) {
+                    DshMenuSectionLabel(stringResource(R.string.model_effort_unavailable))
+                } else {
                     reasoningOptions.forEach { option ->
                         val selected = option.id == selectedReasoningId
                         DshMenuRow(onClick = { onReasoningSelected(option) }) {
                             DshMenuLabel(option.label, Modifier.weight(1f))
-                            if (selected) DshMenuCheck()
-                        }
-                    }
-                } else {
-                    ReasoningLevel.entries.forEach { level ->
-                        val label = stringResource(level.labelResId)
-                        val selected = label == effortLabel
-                        DshMenuRow(onClick = { onEffortSelected(level) }) {
-                            DshMenuLabel(label, Modifier.weight(1f))
                             if (selected) DshMenuCheck()
                         }
                     }

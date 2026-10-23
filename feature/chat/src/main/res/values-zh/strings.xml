@@ -315,4 +315,5 @@
     <string name="workflow_status_cancelled">已取消</string>
     <string name="workflow_status_interrupted">已中断</string>
     <string name="markdown_copied">已复制</string>
+    <string name="model_effort_unavailable">当前模型没有可调的推理等级</string>
 </resources>

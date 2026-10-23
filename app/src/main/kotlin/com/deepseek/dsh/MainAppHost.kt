@@ -2452,7 +2452,10 @@ fun MainAppHost(
                                         .apply()
                                 }
                             }
-                            val currentProviderGroup = catalogInfo.groups.firstOrNull { group ->
+                            // Host 目录还没回来时用上次缓存的目录：推理等级、默认档位
+                            // 全部来自 Host 的 modelCatalog，而不是客户端预置文案。
+                            val modelGroupsForUi = catalogInfo.groups.ifEmpty { cachedModels.groups }
+                            val currentProviderGroup = modelGroupsForUi.firstOrNull { group ->
                                 group.models.any { it.name == currentModel }
                             }
                             val currentModelMeta = currentProviderGroup?.models?.firstOrNull { it.name == currentModel }
@@ -2474,7 +2477,7 @@ fun MainAppHost(
 
                             val effortLabelText = backendEfforts
                                 .firstOrNull { it.id == selectedReasoningId }?.label
-                                ?: stringResource(reasoningLevel.labelResId)
+                                .orEmpty()
                             val currentPermission = remember(activeSession?.permissionPreset) {
                                 when (activeSession?.permissionPreset) {
                                     "read_only" -> com.deepseek.dsh.feature.chat.PermissionPreset.READ_ONLY
@@ -2786,7 +2789,7 @@ fun MainAppHost(
                                             current.copy(transcriptView = preset)
                                         }
                                     }
-                                },                                modelGroups = catalogInfo.groups.ifEmpty { cachedModels.groups },
+                                },                                modelGroups = modelGroupsForUi,
                                 onModelSelected = { provider, modelId, name ->
                                     // provider/模型 id 直接来自 Host 模型目录的分组，
                                     // 不再按名字猜 provider（否则 Claude/Kimi 会被写成 deepseek-*）。
