@@ -92,56 +92,24 @@ fun RightSidebarPanel(
             .fillMaxSize()
             .statusBarsPadding(),
     ) {
-        // 官方 dock tab strip：36dp、发丝分隔、选中 chip 带关闭。
+        // 官方右侧栏顶部没有 tab 条：只有当前页标题与右侧的面板控制。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(38.dp),
+                .height(38.dp)
+                .padding(start = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                builtinTabs.forEachIndexed { index, id ->
-                    if (index > 0) {
-                        Box(
-                            modifier = Modifier
-                                .width(0.5.dp)
-                                .height(14.dp)
-                                .background(palette.borderL2),
-                        )
-                    }
-                    val selected = effectiveTab == id
-                    TabChip(
-                        label = stringResource(rightTabLabel(id)),
-                        selected = selected,
-                        onSelect = { onTabChange(id) },
-                        onClose = if (selected && id != "guide") {
-                            { onTabChange("guide") }
-                        } else null,
-                    )
-                }
-                pluginTabs.forEach { pluginTab ->
-                    val id = "plugin:${pluginTab.key}"
-                    Box(
-                        modifier = Modifier
-                            .width(0.5.dp)
-                            .height(14.dp)
-                            .background(palette.borderL2),
-                    )
-                    TabChip(
-                        label = pluginTab.title,
-                        selected = effectiveTab == id,
-                        onSelect = { onTabChange(id) },
-                        onClose = if (effectiveTab == id) { { onTabChange("guide") } } else null,
-                    )
-                }
-            }
-            // 「+」：官方 guide 的 add 控件。
+            Text(
+                text = stringResource(rightTabLabel(effectiveTab)),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.labelPrimary,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            // 「+」回到 guide（官方 guide 的 add 控件）。
             Box(
                 modifier = Modifier
                     .size(34.dp)
@@ -229,52 +197,6 @@ private fun rightTabLabel(id: String): Int = when (id) {
     "terminal" -> R.string.right_sidebar_tab_terminal
     "schedule" -> R.string.right_sidebar_tab_schedule
     else -> R.string.right_sidebar_tab_browser
-}
-
-/** 一个 dock chip：图标 + 标题；选中时右侧出现关闭。 */
-@Composable
-private fun TabChip(
-    label: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    onClose: (() -> Unit)?,
-) {
-    val palette = dshPanelColors()
-    Row(
-        modifier = Modifier
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) palette.bgLayer2 else androidx.compose.ui.graphics.Color.Transparent)
-            .clickable { onSelect() }
-            .padding(start = 10.dp, end = if (onClose != null) 4.dp else 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            color = if (selected) palette.labelPrimary else palette.labelSecondary,
-            maxLines = 1,
-        )
-        if (onClose != null) {
-            Spacer(modifier = Modifier.width(2.dp))
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable { onClose() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(com.deepseek.dsh.core.designsystem.R.drawable.ic_close),
-                    contentDescription = null,
-                    tint = palette.labelTertiary,
-                    modifier = Modifier.size(12.dp),
-                )
-            }
-        }
-    }
 }
 
 /** 官方 guide tab：淡指南针 + 三个入口胶囊。 */
