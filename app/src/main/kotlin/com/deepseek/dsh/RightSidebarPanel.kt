@@ -248,8 +248,7 @@ private fun RightGuideTab(
                     icon = R.drawable.ic_rs_terminal,
                     title = stringResource(R.string.right_guide_terminal_title),
                     description = stringResource(R.string.right_guide_terminal_desc),
-                    shortcut = "Ctrl + `",
-                    iconTint = dshPanelColors().labelPrimary,
+                        iconTint = dshPanelColors().labelPrimary,
                     onClick = onOpenTerminal,
                 )
             }
@@ -258,7 +257,6 @@ private fun RightGuideTab(
                 icon = R.drawable.ic_rs_globe,
                 title = stringResource(R.string.right_guide_browser_title),
                 description = stringResource(R.string.right_guide_browser_desc),
-                shortcut = "Ctrl + T",
                 iconTint = androidx.compose.ui.graphics.Color(0xFF2B6FF6),
                 onClick = onOpenBrowser,
             )
@@ -319,14 +317,6 @@ private fun GuideEntry(
                 color = palette.labelTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (shortcut != null) {
-            Text(
-                text = shortcut,
-                fontSize = 11.sp,
-                color = palette.labelTertiary,
-                maxLines = 1,
             )
         }
     }
