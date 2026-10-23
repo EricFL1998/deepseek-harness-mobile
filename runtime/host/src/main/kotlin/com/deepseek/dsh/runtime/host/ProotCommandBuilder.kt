@@ -165,7 +165,19 @@ object ProotCommandBuilder {
         cmd.add("/root/.dsh/patches/fs-link-fallback.cjs")
         cmd.add("--require")
         cmd.add("/root/.dsh/patches/startup-trace.cjs")
-        cmd.add("/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js")
+        // 镜像里若带了启动入口 bundle，优先用它：把 ~1,200 次模块文件打开
+        // 降到一次（proot 下这是冷启动的主要成本）；没有则退回原 bin.js。
+        val bundledEntry = java.io.File(
+            config.layout.rootfsDir,
+            "usr/local/lib/node_modules/@deepseek-ai/dsh/lib/host.bundle.mjs",
+        )
+        cmd.add(
+            if (bundledEntry.isFile) {
+                "/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/host.bundle.mjs"
+            } else {
+                "/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"
+            },
+        )
         cmd.add("--profile")
         cmd.add("web")
         cmd.add("--no-open")
