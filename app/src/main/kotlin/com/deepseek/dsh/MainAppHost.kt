@@ -92,6 +92,7 @@ import com.deepseek.dsh.runtime.host.HostRuntimeHolder
 import com.deepseek.dsh.runtime.host.HostRuntimeManager
 import com.deepseek.dsh.runtime.host.RuntimeLayout
 import com.deepseek.dsh.runtime.host.RuntimePhase
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -393,6 +394,26 @@ fun MainAppHost(
             kotlinx.coroutines.delay(1_000)
         }
     }
+    /**
+     * 启停实验性插件后真正让新代码生效：官方要求重启 Host 时自动重启并等到
+     * RUNNING，再把 bridge 目录 / 插件清单 / 设置页重新拉一遍，使对应的功能与
+     * UI（智能体团队、语音输入、终端、诊断、翻译、插件市场…）立刻出现，而不是
+     * 停在「请重启」对话框里。
+     */
+    suspend fun restartHostForPluginChange(): Boolean {
+        val restart = HostRuntimeHolder.restartHost?.invoke() ?: return false
+        if (restart.isFailure) return false
+        val finished = kotlinx.coroutines.withTimeoutOrNull(90_000) {
+            runner.statusFlow.first { it.phase != RuntimePhase.RUNNING }
+            runner.statusFlow.first { it.phase == RuntimePhase.RUNNING }
+            true
+        } ?: false
+        runCatching { dshRepository.refreshBridgePluginCatalog() }
+        runCatching { dshRepository.refreshPluginInventory(ui.activeHostId) }
+        runCatching { dshRepository.refreshPluginSettingsPages() }
+        return finished
+    }
+
     /** Host `restartReason` → 官方「请重启 DSH 使更改生效」的具体说明。 */
     fun restartReasonText(reason: String?): String = when (reason) {
         "package-moved" ->
@@ -2842,10 +2863,19 @@ fun MainAppHost(
                                             onSuccess = { outcome ->
                                                 rememberBundleSelection(packageName, enabled)
                                                 if (outcome.restartRequired) {
-                                                    ui.pluginChangeNotice = listOf(
-                                                        context.getString(R.string.restart_dsh_hint),
-                                                        restartReasonText(outcome.restartReason),
-                                                    )
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.plugin_toggle_restarting),
+                                                        android.widget.Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                    if (restartHostForPluginChange()) {
+                                                        ui.pluginChangeNotice = null
+                                                    } else {
+                                                        ui.pluginChangeNotice = listOf(
+                                                            context.getString(R.string.restart_dsh_hint),
+                                                            restartReasonText(outcome.restartReason),
+                                                        )
+                                                    }
                                                 } else if (outcome.warnings.isNotEmpty()) {
                                                     // 不阻塞界面：官方把一般提示放在插件页内；原生用短 toast 暴露。
                                                     android.widget.Toast.makeText(
@@ -2868,6 +2898,7 @@ fun MainAppHost(
                                         // 让界面停在用户按下的那个位置。
                                         dshRepository.refreshBridgePluginCatalog()
                                         dshRepository.refreshPluginInventory(ui.activeHostId)
+                                        dshRepository.refreshPluginSettingsPages()
                                     }
                                 },
                                 onToggleBundleAwait = { packageName, enabled ->
@@ -2876,10 +2907,19 @@ fun MainAppHost(
                                         onSuccess = { outcome ->
                                             rememberBundleSelection(packageName, enabled)
                                             if (outcome.restartRequired) {
-                                                ui.pluginChangeNotice = listOf(
-                                                    context.getString(R.string.restart_dsh_hint),
-                                                    restartReasonText(outcome.restartReason),
-                                                )
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.plugin_toggle_restarting),
+                                                    android.widget.Toast.LENGTH_SHORT,
+                                                ).show()
+                                                if (restartHostForPluginChange()) {
+                                                    ui.pluginChangeNotice = null
+                                                } else {
+                                                    ui.pluginChangeNotice = listOf(
+                                                        context.getString(R.string.restart_dsh_hint),
+                                                        restartReasonText(outcome.restartReason),
+                                                    )
+                                                }
                                             } else if (outcome.warnings.isNotEmpty()) {
                                                 android.widget.Toast.makeText(
                                                     context,
@@ -2898,6 +2938,7 @@ fun MainAppHost(
                                     )
                                     dshRepository.refreshBridgePluginCatalog()
                                     dshRepository.refreshPluginInventory(ui.activeHostId)
+                                    dshRepository.refreshPluginSettingsPages()
                                     result.isSuccess
                                 },
                                 onTogglePluginRow = { entryId, enabled ->
