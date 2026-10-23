@@ -71,7 +71,6 @@ enum class SettingsSectionTab(
     MODELS("models", R.string.settings_section_models, R.string.settings_section_models_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_cmd_model),
     PLUGINS("plugins", R.string.settings_section_plugins, R.string.settings_section_plugins_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_personalization),
     AGENT_PRESETS("agent-presets", R.string.settings_section_agent_presets, R.string.settings_section_agent_presets_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_agent_preset),
-    ARCHIVED("archived-sessions", R.string.settings_section_archived, R.string.settings_section_archived_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive),
     MOBILE_RUNTIME("mobile-runtime", R.string.settings_section_mobile_runtime, R.string.settings_section_mobile_runtime_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_menu_settings),
     NOTIFICATIONS("notifications", R.string.settings_section_notifications, R.string.settings_section_notifications_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_schedule),
     REMOTE("remote", R.string.settings_section_remote, R.string.settings_section_remote_desc, com.deepseek.dsh.core.designsystem.R.drawable.ic_nav_plugin),
@@ -104,7 +103,6 @@ private fun orderedSections(
         SettingsSectionTab.NOTIFICATIONS.id,
         SettingsSectionTab.REMOTE.id,
         SettingsSectionTab.UPDATE.id,
-        SettingsSectionTab.ARCHIVED.id,
     )
     return SettingsSectionTab.values().sortedWith(
         compareBy(
@@ -485,8 +483,6 @@ fun SettingsRootScreen(
                                 onUpdateSettings(updated)
                             },
                         )
-
-                        SettingsSectionTab.ARCHIVED -> SettingsArchivedPane()
 
                         SettingsSectionTab.MOBILE_RUNTIME -> SettingsMobileRuntimePane(
                             settings = currentSettings,

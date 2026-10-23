@@ -100,8 +100,6 @@
     <string name="row_fork">分叉会话</string>
     <string name="row_pin">置顶会话</string>
     <string name="row_unpin">取消置顶</string>
-    <string name="row_archive">归档会话</string>
-    <string name="row_unarchive">取消归档</string>
     <string name="row_session_id">复制 Session ID</string>
 
     <!-- 底部 Pills -->

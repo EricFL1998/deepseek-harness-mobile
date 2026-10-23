@@ -112,8 +112,6 @@
     <string name="row_fork">Fork session</string>
     <string name="row_pin">Pin session</string>
     <string name="row_unpin">Unpin session</string>
-    <string name="row_archive">Archive session</string>
-    <string name="row_unarchive">Unarchive session</string>
     <string name="row_session_id">Copy Session ID</string>
 
     <!-- Composer Dock -->

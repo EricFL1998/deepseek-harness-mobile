@@ -100,7 +100,6 @@
     <string name="row_fork">Fork session</string>
     <string name="row_pin">Pin session</string>
     <string name="row_unpin">Unpin session</string>
-    <string name="row_archive">Archive session</string>
     <string name="row_session_id">Copy Session ID</string>
 
     <!-- Composer Dock -->
@@ -210,8 +209,6 @@
     <string name="settings_section_plugins_desc">Installed plugins and configuration</string>
     <string name="settings_section_agent_presets">Agent Presets</string>
     <string name="settings_section_agent_presets_desc">Working modes: compact / standard / detailed</string>
-    <string name="settings_section_archived">Archived Sessions</string>
-    <string name="settings_section_archived_desc">Archived sessions and snapshots</string>
     <string name="settings_section_mobile_runtime">Mobile Runtime</string>
     <string name="settings_section_mobile_runtime_desc">Container sleep, long-task guard and risk interception</string>
     <string name="settings_section_notifications">Notifications</string>
@@ -220,8 +217,7 @@
     <string name="settings_section_remote_desc">Connect to a DSH Host on another machine</string>
     <string name="settings_section_update">Updates</string>
     <string name="settings_section_update_desc">Check GitHub releases for new versions</string>
-    <string name="settings_update_title">Software Update</string>    <string name="settings_archived_desc">Archived sessions stay on this device and can be restored or deleted later.</string>
-    <string name="settings_archived_empty">No archived sessions</string>
+    <string name="settings_update_title">Software Update</string>
     <string name="settings_plugins_open_config">Open config file</string>
     <string name="settings_plugins_desc">View the list of built-in deployed plugins</string>
     <string name="settings_agent_presets_desc">Choose the agent tools and working style. Use Standard for daily tasks and Create to extend DSH.</string>

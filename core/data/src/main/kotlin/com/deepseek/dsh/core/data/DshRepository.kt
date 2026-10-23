@@ -1211,15 +1211,6 @@ class DshRepository(
     }
 
     /** 官方 `workspace/archiveSession` / `unarchiveSession`：归档/取消归档。 */
-    suspend fun setSessionArchived(hostId: String, sessionId: String, archived: Boolean): Boolean {
-        val method = if (archived) "workspace/archiveSession" else "workspace/unarchiveSession"
-        val args = buildJsonObject {
-            put("request", buildJsonObject { put("sessionId", sessionId) })
-        }
-        val ok = rpcRaw(hostId, method, args.toString()).isSuccess
-        if (ok) refreshSessions(hostId)
-        return ok
-    }
 
     /** Call a plugin-owned Host route with its payload unchanged. */
     suspend fun pluginRpc(hostId: String, method: String, payloadJson: String): Result<String> =

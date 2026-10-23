@@ -231,7 +231,7 @@ fun MainAppHost(
         // 每次打开 App：自动进入最近更新的会话，而不是停留在空白新会话页。
         if (!runtimeUi.didInitialResume && sessions.isNotEmpty()) {
             runtimeUi.didInitialResume = true
-            val candidates = sessions.filter { !it.archived }.ifEmpty { sessions }
+            val candidates = sessions
             ui.selectedSessionId = (
                 candidates.filter { it.sessionId in liveSessionIds }.ifEmpty { candidates }
                     .maxByOrNull { it.updatedAt }
@@ -1962,7 +1962,6 @@ fun MainAppHost(
                         isRunning = s.sessionId in runningSessionIds,
                         hasUnread = s.sessionId in unreadSessionIds,
                         updatedAt = s.updatedAt,
-                        archived = s.archived,
                         pinned = s.pinned,
                         timeAgo = run {
                             val elapsed = (System.currentTimeMillis() - s.updatedAt).coerceAtLeast(0L)
@@ -2040,11 +2039,6 @@ fun MainAppHost(
                     onTogglePinSession = { item ->
                         scope.launch {
                             dshRepository.setSessionPinned(ui.activeHostId, item.sessionId, !item.pinned)
-                        }
-                    },
-                    onToggleArchiveSession = { item ->
-                        scope.launch {
-                            dshRepository.setSessionArchived(ui.activeHostId, item.sessionId, !item.archived)
                         }
                     },
                     remoteSearchResults = runtimeUi.remoteSearchResults,
