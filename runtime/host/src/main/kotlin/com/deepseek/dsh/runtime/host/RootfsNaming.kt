@@ -38,5 +38,30 @@ object RootfsNaming {
 
     fun stagingDir(cacheDir: File, runtimeVersion: String): File =
         File(cacheDir, "dsh-rootfs-staging-${runtimeVersion.replace('/', '-')}")
+
+    /**
+     * 从 runtimeVersion 里取 DSH 版本段。
+     *
+     * 复用 [RootfsVersion] 的单一解析实现；格式不符时返回 null。
+     * @param runtimeVersion rootfs 的完整版本串。
+     * @returns DSH 版本，例如 `0.2.1-rc.2`。
+     */
+    fun dshVersion(runtimeVersion: String): String? = RootfsVersion.parse(runtimeVersion)?.dsh
+
+    /**
+     * rootfs 的 DSH 版本是否与当前 APK 的补丁目标兼容。
+     *
+     * APK 里的 rootfs 补丁是**整文件替换**，按某个 DSH 版本生成；把 rc.3 的
+     * rootfs 套上 rc.2 的补丁会让运行树版本混杂。因此远端/缓存清单只有在
+     * DSH 段与 APK 内置清单一致时才可用。内置清单缺失时无法判断，保留旧行为。
+     * @param runtimeVersion 待判定的 rootfs 版本。
+     * @param expectedDsh APK 内置清单的 DSH 段；null 表示无法判断。
+     * @returns 可以接受时为 true。
+     */
+    fun isDshCompatible(runtimeVersion: String?, expectedDsh: String?): Boolean {
+        if (expectedDsh.isNullOrBlank()) return true
+        val actual = runtimeVersion?.let(::dshVersion) ?: return false
+        return actual == expectedDsh
+    }
 }
 

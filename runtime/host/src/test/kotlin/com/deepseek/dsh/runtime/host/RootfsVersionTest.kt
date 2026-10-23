@@ -97,6 +97,19 @@ class RootfsVersionTest {
     }
 
     @Test
+    fun `an engine mismatch wins over a newer rootfs segment`() {
+        // 用户先收到了 rc.3 的 1.0.12 镜像，而当前 APK 的补丁目标是 rc.2：
+        // 即使 1.0.12 > 1.0.11，也必须引导换回 rc.2 的镜像，不能停在版本混杂的树。
+        assertEquals(
+            RootfsUpdateKind.MANDATORY,
+            decideRootfsUpdateKind(
+                "1.0.12-dsh0.2.1-rc.3-bridge2.0.7",
+                "1.0.11-dsh0.2.1-rc.2-bridge2.0.7",
+            ),
+        )
+    }
+
+    @Test
     fun `an older bundled manifest never offers a downgrade`() {
         // 内置兜底清单（assets/rootfs-manifest.json）不会随发版更新；离线时它
         // 可能比已装镜像旧。旧版本不能算「可更新」，否则会引导降级。
@@ -317,5 +330,20 @@ class RootfsVersionTest {
         assertEquals(UpdateNeed.PLUGIN_REQUIRED, assessment.need)
         assertTrue(assessment.pluginOutdated)
         assertTrue(assessment.canUpdatePlugin)
+    }
+
+    @Test
+    fun `dsh compatibility rejects a rootfs built for another engine`() {
+        val expected = "0.2.1-rc.2"
+        assertTrue(RootfsNaming.isDshCompatible("1.0.11-dsh0.2.1-rc.2-bridge2.0.7", expected))
+        assertFalse(RootfsNaming.isDshCompatible("1.0.12-dsh0.2.1-rc.3-bridge2.0.7", expected))
+        assertFalse(RootfsNaming.isDshCompatible("1.0.0-dsh0.2.1-rc.2", "0.2.1-rc.3"))
+        // 无法解析/无法判断时不冒充兼容。
+        assertFalse(RootfsNaming.isDshCompatible("weird", expected))
+        assertFalse(RootfsNaming.isDshCompatible(null, expected))
+        // 内置清单缺失时保留旧行为（无法判断则放行）。
+        assertTrue(RootfsNaming.isDshCompatible("1.0.12-dsh0.2.1-rc.3-bridge2.0.7", null))
+        assertEquals("0.2.1-rc.2", RootfsNaming.dshVersion("1.0.11-dsh0.2.1-rc.2-bridge2.0.7"))
+        assertNull(RootfsNaming.dshVersion("weird"))
     }
 }

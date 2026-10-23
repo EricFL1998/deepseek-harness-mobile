@@ -767,6 +767,22 @@ class DefaultHostRuntimeManager(
                 IllegalStateException("rootfs 未安装：请先在运行控制页安装 Rootfs")
             )
         }
+        // APK 的 rootfs 补丁按内置清单的 DSH 版本整文件替换；已安装镜像若来自
+        // 另一个 DSH 版本（例如 rootfs 仓库先发了 rc.3），再套 rc.2 的补丁会让
+        // 运行树版本混杂。没有安装标记的旧现场保持原行为，只拦截能确定版本的镜像。
+        val expectedDsh = manifestSource().bundledDshVersion()
+        val installedRootfsVersion = runCatching { RootfsInstaller(layout).installedVersion() }.getOrNull()
+        if (installedRootfsVersion != null &&
+            !RootfsNaming.isDshCompatible(installedRootfsVersion, expectedDsh)
+        ) {
+            return@withContext Result.failure(
+                IllegalStateException(
+                    "rootfs 与当前 APK 不兼容：已安装 $installedRootfsVersion，" +
+                        "当前 APK 的补丁目标是 dsh$expectedDsh。" +
+                        "请在设置 → 运行控制中重新安装匹配的 Rootfs。"
+                )
+            )
+        }
         applyBundledRuntimePatches()
         // 图片镜像可能没有打进 node-addon-require-builtin 的平台二进制；缺了就换
         // 纯 JS 兜底（配合 --expose-internals），否则 Host 在加载 Loader 时直接退出。

@@ -99,12 +99,15 @@ fun decideRootfsUpdateKind(installed: String?, available: String?): RootfsUpdate
     if (installed == null || available == null) return RootfsUpdateKind.NONE
     val local = RootfsVersion.parse(installed) ?: return RootfsUpdateKind.MANDATORY
     val remote = RootfsVersion.parse(available) ?: return RootfsUpdateKind.MANDATORY
+    // 引擎段不一致优先于“镜像段更旧”：APK 的补丁按引擎版本整文件替换，
+    // 即使用户装了一个更新的镜像（例如先收到了 rc.3），只要引擎不匹配就必须
+    // 换回与当前 APK 对应的镜像，不能因为 rootfs 段更大而保持不动。
+    if (local.dsh != remote.dsh) return RootfsUpdateKind.MANDATORY
     // 离线兜底清单可能比已装镜像旧（内置 assets 里的那份不会随发版更新）：
     // 旧版本不能被当成「可更新」，否则会引导用户降级重下 300MB。
     val rootfsOrder = comparePluginVersions(remote.rootfs, local.rootfs)
     if (rootfsOrder != null && rootfsOrder < 0) return RootfsUpdateKind.NONE
     return when {
-        local.dsh != remote.dsh -> RootfsUpdateKind.MANDATORY
         local.rootfs != remote.rootfs -> RootfsUpdateKind.REPACKAGED
         else -> RootfsUpdateKind.NONE
     }

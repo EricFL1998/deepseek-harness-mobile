@@ -76,7 +76,27 @@ APK 运行时仍会从 `releases/latest/download/rootfs-manifest.json` 拉取最
 - **只改 APK（native UI、bridge 鉴权等）**：bridge 版本可以不变；APK tag 会校验现有 bridge release 存在，然后发布。
 - **改了 bridge 插件**：先发 bridge（提升版本 + `release: true`），等 rootfs 镜像重建并发布；再同步 rootfs 清单、提升 APK 版本、打 tag。
 - **只改 rootfs 配方**：rootfs 仓库会因 `bundle/**` 变化强制重建；发布后同步内置清单，再决定是否发 APK。
+- **DSH 引擎升级**：先 rebase 补丁并更新内置清单，再发 APK；中间窗口里把新 DSH 的 rootfs release 标为 prerelease。
 
 ## 为什么 APK tag 要等 bridge release
 
 设备端更新插件读的是 bridge 仓库的 release tag；rootfs 首装读的是 rootfs release 的清单。两者任何一个不存在，都会变成“APK 发出去了，但用户更新/首装失败”。所以在 APK tag 上做守卫，而不是在发布之后补救。
+
+## DSH 引擎版本也必须对齐
+
+APK 里的 rootfs 补丁（`app/src/main/assets/rootfs-patches/*`）是**按某个 DSH 版本整文件替换**的。如果 rootfs 仓库先发布了新 DSH（例如 `0.2.1-rc.3`），而 APK 补丁仍针对 `0.2.1-rc.2`，就会出现：
+
+- 新装用户拿到 rc.3 镜像，APK 把 rc.2 的整文件补丁覆盖上去，运行树版本混杂；
+- 已装用户看到 rc.3 的“运行时更新”并升级，之后 Host 可能起不来。
+
+因此：
+
+1. **rootfs 镜像一旦包含当前 APK 尚未支持的 DSH 版本，必须把该 GitHub release 标记为 prerelease**，让 `releases/latest` 继续指向兼容镜像：
+   ```sh
+   gh release edit rootfs-v1.0.12 --repo EricFL1998/deepseek-harness-mobile-rootfs --prerelease
+   ```
+2. App 运行时有两道守卫：
+   - `RootfsManifestSource` 忽略 DSH 段与 APK 内置清单不一致的远端/缓存清单；
+   - `DefaultHostRuntimeManager.start()` 拒绝启动已安装但不兼容的 rootfs，给出“重新安装匹配的 Rootfs”的提示。
+3. 要让新 DSH 版本真正可用，需要先把补丁 rebase 到该版本、更新 `rootfs-manifest.json` 的内置清单与 DSH 段，再发 APK。不要只改内置清单、不 rebase 补丁。
+4. `decideRootfsUpdateKind` 把 DSH 段不一致视为强制更新，即使已装镜像的 rootfs 段更大——否则用户会卡在版本混杂的树里。

@@ -56,22 +56,44 @@ class RootfsManifestSource(
      *
      * 联网失败不抛异常：清单决定的是「能不能装」，而离线时缓存或兜底通常仍能
      * 让已装用户继续用。调用方通过 [Resolved.origin] 判断可信度。
+     *
+     * DSH 段与 APK 内置清单不一致的远端/缓存清单会被忽略：APK 的 rootfs 补丁
+     * 是按内置清单的 DSH 版本整文件替换的，跨版本套用会让运行树版本混杂。
      * @param forceRefresh 跳过缓存，强制重新拉取。
      * @return 解析结果；连兜底都没有时为 null（APK 打包损坏）。
      */
     suspend fun resolve(forceRefresh: Boolean = false): Resolved? = withContext(Dispatchers.IO) {
+        val expectedDsh = bundledDshVersion()
         if (!forceRefresh) {
-            cachedManifest()?.let { return@withContext Resolved(it, Origin.CACHE) }
+            cachedManifest()
+                ?.takeIf { compatible(it, expectedDsh) }
+                ?.let { return@withContext Resolved(it, Origin.CACHE) }
         }
         fetchRemote()?.let { remote ->
             writeCache(remote)
-            return@withContext Resolved(remote, Origin.NETWORK)
+            if (compatible(remote, expectedDsh)) {
+                return@withContext Resolved(remote, Origin.NETWORK)
+            }
+            android.util.Log.w(
+                TAG,
+                "忽略 DSH 版本不兼容的 rootfs 清单: ${remote.runtimeVersion}（期望 dsh${expectedDsh ?: "?"}）",
+            )
         }
-        // 网络失败：退回上一次成功的缓存。
-        cachedManifest()?.let { return@withContext Resolved(it, Origin.CACHE) }
+        // 网络失败或远端不兼容：退回上一次成功的兼容缓存。
+        cachedManifest()
+            ?.takeIf { compatible(it, expectedDsh) }
+            ?.let { return@withContext Resolved(it, Origin.CACHE) }
         bundledManifest()?.let { return@withContext Resolved(it, Origin.BUNDLED) }
         null
     }
+
+    /** APK 内置清单的 DSH 版本；缺失或格式不符时为 null。 */
+    fun bundledDshVersion(): String? =
+        bundledManifest()?.runtimeVersion?.let(RootfsNaming::dshVersion)
+
+    /** 这份清单的 DSH 版本是否与当前 APK 的补丁目标一致。 */
+    private fun compatible(manifest: RootfsManifest, expectedDsh: String?): Boolean =
+        RootfsNaming.isDshCompatible(manifest.runtimeVersion, expectedDsh)
 
     /**
      * 取得清单，失败时抛异常。
@@ -132,6 +154,9 @@ class RootfsManifestSource(
     }.getOrNull()
 
     private companion object {
+        /** Logcat tag。 */
+        const val TAG = "DshRootfsManifest"
+
         /**
          * 最新 release 的清单地址。
          *
