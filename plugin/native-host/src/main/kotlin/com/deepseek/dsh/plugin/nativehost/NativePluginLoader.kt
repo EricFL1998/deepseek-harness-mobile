@@ -23,7 +23,19 @@ class NativePluginLoader(private val context: Context) {
      *
      * @return 装载成功的插件实例；失败返回 null（该插件降级 Web 界面）。
      */
+    /**
+     * 同一个插件在进程内只加载一次。
+     *
+     * 每次回前台/重扫都会重新 `loader.load()`；DexClassLoader 会生成新的类加载器，
+     * 而旧实例在 SlotRegistry 里的贡献不会消失。新旧两个类加载器各自有一套
+     * `DockData` 等同名类，插件自己的 Render 里 `as DockData` 就会抛
+     * ClassCastException（订阅插件的 dock 崩溃）。缓存实例后重扫直接复用，
+     * 不重复注册贡献；插件升级后由 App 进程重启生效。
+     */
+    private val loadedPlugins = java.util.concurrent.ConcurrentHashMap<String, DshUiPlugin>()
+
     fun load(plugin: InstalledNativePlugin): DshUiPlugin? {
+        loadedPlugins[plugin.pluginId]?.let { return it }
         if (plugin.status != InstalledNativePlugin.Status.READY) return null
         return try {
             // The companion packages the SDK for compilation, but at runtime the host
@@ -42,7 +54,10 @@ class NativePluginLoader(private val context: Context) {
             val viaPackage = runCatching {
                 loadViaService(pluginContext.classLoader, plugin)
             }.getOrNull()
-            if (viaPackage != null) return viaPackage
+            if (viaPackage != null) {
+                loadedPlugins[plugin.pluginId] = viaPackage
+                return viaPackage
+            }
             val appInfo = pluginContext.applicationInfo
             val dexPath = (listOf(appInfo.sourceDir) + appInfo.splitSourceDirs.orEmpty())
                 .joinToString(java.io.File.pathSeparator)
