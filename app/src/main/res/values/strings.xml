@@ -404,7 +404,6 @@
     <string name="mode_fast">Fast</string>
     <string name="mode_deep_thinking">Deep thinking</string>
     <string name="session_diagnostics">Session data diagnostics</string>
-    <string name="quota_label">Quota</string>
     <string name="restart_dsh_hint">Restart DSH to apply this change.</string>
     <string name="finished_section">Finished %1$d</string>
     <string name="restart_reason_package_moved">The installed plugin package resolved to another directory, or replaced a package bundled with DSH. Uninstall it before installing from another location.</string>

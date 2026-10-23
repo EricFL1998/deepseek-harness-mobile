@@ -404,7 +404,6 @@
     <string name="mode_fast">快速</string>
     <string name="mode_deep_thinking">深度思考</string>
     <string name="session_diagnostics">会话数据诊断</string>
-    <string name="quota_label">额度</string>
     <string name="restart_dsh_hint">请重启 DSH 使更改生效。</string>
     <string name="finished_section">已结束 %1$d</string>
     <string name="restart_reason_package_moved">已安装的插件包解析到了另一个目录，或者更改替换了 DSH 安装自带的包。从其他位置安装前请先卸载。</string>

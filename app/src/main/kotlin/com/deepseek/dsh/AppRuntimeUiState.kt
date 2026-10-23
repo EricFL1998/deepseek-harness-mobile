@@ -10,7 +10,6 @@ import com.deepseek.dsh.core.model.TerminalInfo
 import com.deepseek.dsh.core.protocol.HostJobInfo
 import com.deepseek.dsh.core.protocol.SessionRawFrame
 import com.deepseek.dsh.core.protocol.TerminalConnection
-import com.deepseek.dsh.feature.chat.ComposerQuota
 import com.deepseek.dsh.feature.sessions.SessionDisplayItem
 import com.deepseek.dsh.feature.sessions.WorkspaceFolder
 import com.deepseek.dsh.plugin.nativehost.NativePluginItem
@@ -39,10 +38,9 @@ class AppRuntimeUiState(
     var managedPluginPackages by mutableStateOf(emptySet<String>())
     var nativePluginItems by mutableStateOf<List<NativePluginItem>>(emptyList())
 
-    // Claude Code mods 状态条与 composer 配额
+    // Claude Code mods 状态条
     var bandSnapshot by mutableStateOf<ClaudeCodeBandSnapshot?>(null)
     var bandPressing by mutableStateOf(false)
-    var quotaUsage by mutableStateOf<List<ComposerQuota>>(emptyList())
 
     // 语音输入
     var voiceRecording by mutableStateOf(false)

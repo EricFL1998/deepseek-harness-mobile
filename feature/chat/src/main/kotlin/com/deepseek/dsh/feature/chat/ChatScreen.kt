@@ -207,8 +207,6 @@ private fun commandHintRes(token: String): Int? = when (token) {
  * 权限预设、弹性留白、模型与推理等级、发送/停止，与 `InputBar` 的
  * tools / trailing 两簇排布一致。
  */
-/** 订阅插件的一条额度窗口（如 Kimi 的 5 小时额度），显示在 composer dock 上方。 */
-data class ComposerQuota(val label: String, val percent: Double)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -285,8 +283,6 @@ fun ModernChatScreen(
     onReasoningLevelChange: (ReasoningLevel) -> Unit = {},
     onReasoningSelected: (ReasoningOption) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
-    /** 订阅插件返回的额度窗口，显示在 composer dock 上方。 */
-    quotaUsage: List<ComposerQuota> = emptyList(),
     // 录音输入（官方录音输入插件的 composer activity）：麦克风按钮与录音条。
     // Claude Code 模组横幅（官方 conversation.input.dock）。
 
@@ -567,7 +563,6 @@ fun ModernChatScreen(
             attachments = attachments,
             onRemoveAttachment = onRemoveAttachment,
             stats = stats,
-            quotaUsage = quotaUsage,
 
             voiceEnabled = voiceEnabled,
 
@@ -2763,7 +2758,6 @@ fun BottomInputBar(
     dockPluginSurfaces: List<SurfaceItem> = emptyList(),
     onDockPluginClick: (SurfaceItem) -> Unit = {},
     stats: ComposerStats = ComposerStats(),
-    quotaUsage: List<ComposerQuota> = emptyList(),
     showDockStats: Boolean = true,
     // Claude Code 模组横幅（官方 conversation.input.dock）。
     bandSnapshot: com.deepseek.dsh.core.data.ClaudeCodeBandSnapshot? = null,
@@ -3122,26 +3116,6 @@ fun BottomInputBar(
         }
 
         Spacer(modifier = Modifier.height(6.dp))
-
-        // 新会话页（欢迎屏）没有 session，Session 作用域的 dock 槽位不应出现：
-        // quotaUsage 与 ComposerDockBar 共用同一开关，只有会话里才显示。
-        if (quotaUsage.isNotEmpty() && showDockStats) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                quotaUsage.take(3).forEach { quota ->
-                    Text(
-                        text = "${quota.label} ${quota.percent.roundToInt()}%",
-                        fontSize = 11.sp,
-                        color = panelColors.labelCaption,
-                    )
-                }
-            }
-        }
 
         ComposerDockBar(
             stats = stats,

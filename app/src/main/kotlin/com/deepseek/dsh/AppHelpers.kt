@@ -120,42 +120,6 @@ internal fun workspaceSessionDirName(workspaceName: String): String {
     return "--workspace-$escaped--"
 }
 
-/**
- * 解析 `subscription-oauth.status` 返回的额度窗口，供 composer dock 上方展示。
- * 只做展示，不参与鉴权或计费判断；没有登录/没有额度时返回空列表。
- */
-internal fun parseQuotaWindows(body: String?, quotaLabel: String = "Quota"): List<com.deepseek.dsh.feature.chat.ComposerQuota> {
-    if (body.isNullOrBlank()) return emptyList()
-    val root = runCatching {
-        kotlinx.serialization.json.Json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject
-    }.getOrNull() ?: return emptyList()
-    val result = root["result"] as? kotlinx.serialization.json.JsonObject
-    val value = (result?.get("value") ?: root["value"] ?: root) as? kotlinx.serialization.json.JsonObject
-        ?: return emptyList()
-    val providers = value["providers"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
-    val windows = mutableListOf<com.deepseek.dsh.feature.chat.ComposerQuota>()
-    providers.forEach { element ->
-        val provider = element as? kotlinx.serialization.json.JsonObject ?: return@forEach
-        val providerName = ((provider["displayName"] ?: provider["provider"]) as? kotlinx.serialization.json.JsonPrimitive)?.content
-            ?: return@forEach
-        (provider["usage"] as? kotlinx.serialization.json.JsonArray)?.forEach { usageElement ->
-            val usage = usageElement as? kotlinx.serialization.json.JsonObject ?: return@forEach
-            (usage["windows"] as? kotlinx.serialization.json.JsonArray)?.forEach { windowElement ->
-                val window = windowElement as? kotlinx.serialization.json.JsonObject ?: return@forEach
-                val label = (window["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: quotaLabel
-                val percent = ((window["usedPercent"] as? kotlinx.serialization.json.JsonPrimitive)?.content)?.toDoubleOrNull()
-                if (percent != null) {
-                    windows += com.deepseek.dsh.feature.chat.ComposerQuota(
-                        label = if (label.contains(providerName)) label else "$providerName $label",
-                        percent = percent,
-                    )
-                }
-            }
-        }
-    }
-    return windows.distinctBy { it.label }.take(3)
-}
-
 /** 从 workspace/create|rename 的 response 中取 workspaceId。 */
 internal fun parseWorkspaceId(raw: String?): String? {
     if (raw.isNullOrBlank()) return null

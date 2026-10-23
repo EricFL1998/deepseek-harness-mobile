@@ -589,17 +589,6 @@ fun MainAppHost(
         }
     }
 
-    // 订阅插件额度：composer dock 上方的用量窗口（如 Kimi 5 小时额度）。
-    LaunchedEffect(ui.activeHostId, sessionRunningNow) {
-        while (true) {
-            runtimeUi.quotaUsage = parseQuotaWindows(
-                dshRepository.pluginRpc(ui.activeHostId, "subscription-oauth.status", "{}").getOrNull(),
-                quotaLabel = context.getString(R.string.quota_label),
-            )
-            kotlinx.coroutines.delay(if (sessionRunningNow) 15_000L else 60_000L)
-        }
-    }
-
     // bridge 插件更新的「运行中版本」来源与「重启 Host」动作由 App 层注入：
     // runtime 模块不认识数据层，而重启需要当前工作区路径，只有这里知道。
     // 真正的安装（下载 tag 归档、解压进 rootfs）由 HostRuntimeManager 完成。
@@ -2889,7 +2878,6 @@ fun MainAppHost(
                                     }
                                 },
                                 stats = currentSessionStats,
-                                quotaUsage = runtimeUi.quotaUsage,
                                 voiceEnabled = voiceEnabled,
                                 voiceRecording = runtimeUi.voiceRecording,
                                 voiceSeconds = runtimeUi.voiceSeconds,
