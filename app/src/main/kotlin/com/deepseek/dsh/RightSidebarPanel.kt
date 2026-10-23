@@ -80,12 +80,14 @@ fun RightSidebarPanel(
     terminalContent: @Composable () -> Unit,
     scheduleContent: @Composable () -> Unit,
     pluginTabs: List<com.deepseek.dsh.plugin.nativehost.NativeRightPaneTab> = emptyList(),
+    guideEntries: List<com.deepseek.dsh.plugin.nativehost.NativeGuideEntry> = emptyList(),
     showTerminal: Boolean = false,
     onClose: () -> Unit,
 ) {
     val palette = dshPanelColors()
-    val builtinTabs = if (showTerminal) RIGHT_TABS else RIGHT_TABS.filter { it != "terminal" }
-    val knownTabs = builtinTabs + pluginTabs.map { "plugin:${it.key}" }
+    val builtinTabs = RIGHT_TABS
+    val knownTabs = builtinTabs + pluginTabs.map { "plugin:${it.key}" } +
+        guideEntries.map { "guideentry:${it.key}" }
     val effectiveTab = if (tab in knownTabs) tab else "guide"
     Column(
         modifier = Modifier
@@ -118,22 +120,21 @@ fun RightSidebarPanel(
                 maxLines = 1,
                 modifier = Modifier.weight(1f),
             )
-            // 「+」回到 guide（官方 guide 的 add 控件）。
+            // 官方面板控制：抽屉按钮（收起）。
             Box(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable { onTabChange("guide") },
+                    .clickable { onClose() },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_rs_plus),
-                    contentDescription = null,
+                    painter = painterResource(R.drawable.ic_rs_panel),
+                    contentDescription = "Close",
                     tint = palette.labelSecondary,
                     modifier = Modifier.size(16.dp),
                 )
             }
-            DshDialogCloseButton(onClick = onClose, label = "Close")
             Spacer(modifier = Modifier.width(2.dp))
         }
         Box(
@@ -147,10 +148,12 @@ fun RightSidebarPanel(
                 "guide" -> RightGuideTab(
                     showTerminal = showTerminal,
                     pluginTabs = pluginTabs,
+                    guideEntries = guideEntries,
                     onOpenFiles = { onTabChange("files") },
                     onOpenTerminal = { onTabChange("terminal") },
                     onOpenBrowser = { onTabChange("browser") },
                     onOpenPlugin = { key -> onTabChange("plugin:$key") },
+                    onOpenGuideEntry = { key -> onTabChange("guideentry:$key") },
                 )
                 "files" -> RightFilesTab(
                     files = files,
@@ -184,6 +187,13 @@ fun RightSidebarPanel(
                     text = stringResource(R.string.right_sidebar_browser_unavailable),
                 )
                 else -> {
+                    if (effectiveTab.startsWith("guideentry:")) {
+                        val entry = guideEntries.firstOrNull { "guideentry:${it.key}" == effectiveTab }
+                        if (entry != null) {
+                            Box(modifier = Modifier.fillMaxSize()) { entry.render() }
+                            return@Box
+                        }
+                    }
                     val pluginTab = pluginTabs.firstOrNull { "plugin:${it.key}" == effectiveTab }
                     if (pluginTab != null) {
                         Box(modifier = Modifier.fillMaxSize()) { pluginTab.render() }
@@ -213,10 +223,12 @@ private fun rightTabLabel(id: String): Int = when (id) {
 private fun RightGuideTab(
     showTerminal: Boolean,
     pluginTabs: List<com.deepseek.dsh.plugin.nativehost.NativeRightPaneTab>,
+    guideEntries: List<com.deepseek.dsh.plugin.nativehost.NativeGuideEntry>,
     onOpenFiles: () -> Unit,
     onOpenTerminal: () -> Unit,
     onOpenBrowser: () -> Unit,
     onOpenPlugin: (String) -> Unit,
+    onOpenGuideEntry: (String) -> Unit,
 ) {
     val palette = dshPanelColors()
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -268,6 +280,15 @@ private fun RightGuideTab(
                     title = pluginTab.title,
                     description = stringResource(R.string.right_guide_plugin_desc),
                     onClick = { onOpenPlugin(pluginTab.key) },
+                )
+            }
+            guideEntries.forEach { entry ->
+                Spacer(modifier = Modifier.height(10.dp))
+                GuideEntry(
+                    icon = R.drawable.ic_rs_globe,
+                    title = entry.title,
+                    description = entry.description ?: stringResource(R.string.right_guide_plugin_desc),
+                    onClick = { onOpenGuideEntry(entry.key) },
                 )
             }
         }

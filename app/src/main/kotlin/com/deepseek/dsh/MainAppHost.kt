@@ -1986,6 +1986,7 @@ fun MainAppHost(
 
     // 插件注册到右侧栏的标签：App 只放容器，标签与内容都由插件贡献。
     val rightPanePluginTabs = com.deepseek.dsh.plugin.nativehost.nativeRightPaneTabs()
+    val rightPaneGuideEntries = com.deepseek.dsh.plugin.nativehost.nativeGuideEntries()
 
     val workspaceFolders = remember(
         sessions, ui.selectedSessionId, activeWorkspace, runtimeUi.workspaceRevision, hostWorkspaces,
@@ -3370,6 +3371,7 @@ fun MainAppHost(
                     SchedulesScreen(onCreateTask = { ui.activePage = ActivePage.CHAT })
                 },
                 pluginTabs = rightPanePluginTabs,
+                guideEntries = rightPaneGuideEntries,
                 showTerminal = terminalSupported,
                 onClose = { ui.rightDrawerOpen = false },
                 onOpenDeliverable = { file ->

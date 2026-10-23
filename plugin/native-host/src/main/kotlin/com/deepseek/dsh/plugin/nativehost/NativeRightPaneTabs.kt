@@ -73,3 +73,58 @@ fun nativeRightPaneTabs(): List<NativeRightPaneTab> {
         )
     }
 }
+
+
+/** 右侧栏开始页的一枚插件入口胶囊（官方 `sidebar.right.tab.guide.entry`）。 */
+data class NativeGuideEntry(
+    val key: String,
+    val title: String,
+    val description: String?,
+    val render: @Composable () -> Unit,
+)
+
+/** 从注册表快照里挑出带 guideTitle 的入口（按 order 排序）。 */
+fun guideEntryDescriptors(
+    contributions: List<SlotContribution>,
+): List<Triple<String, String, String?>> = contributions
+    .filter { it.slot == NativeSlot.RIGHT_PANEL_GUIDE_ENTRY && it.guideTitle != null }
+    .sortedBy { it.order }
+    .map { contribution ->
+        Triple(
+            "${contribution.javaClass.name}#${contribution.order}",
+            contribution.guideTitle.orEmpty(),
+            contribution.guideDescription,
+        )
+    }
+
+/** 当前注册的 guide 入口胶囊。 */
+@Composable
+fun nativeGuideEntries(): List<NativeGuideEntry> {
+    val host = NativeHost.LocalHost.current ?: return emptyList()
+    val theme = NativeHost.LocalTheme.current ?: return emptyList()
+    val contributions = SlotRegistry.resolve(NativeSlot.RIGHT_PANEL_GUIDE_ENTRY)
+    val slotHost = remember(host) { SlotBridgeHost(host) }
+    val descriptors = remember(contributions) { guideEntryDescriptors(contributions) }
+    if (descriptors.isEmpty()) return emptyList()
+    val titled = remember(contributions) {
+        contributions
+            .filter { it.slot == NativeSlot.RIGHT_PANEL_GUIDE_ENTRY && it.guideTitle != null }
+            .sortedBy { it.order }
+    }
+    return titled.mapIndexed { index, contribution ->
+        val (key, title, description) = descriptors[index]
+        NativeGuideEntry(
+            key = key,
+            title = title,
+            description = description,
+            render = {
+                NativeSlotGuard(
+                    pluginLabel = contribution.javaClass.simpleName,
+                    theme = theme,
+                ) {
+                    contribution.Render(JsonObject(emptyMap()), theme, slotHost)
+                }
+            },
+        )
+    }
+}
