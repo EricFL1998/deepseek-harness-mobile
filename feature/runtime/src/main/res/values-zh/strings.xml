@@ -163,4 +163,9 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">启动 DSH 容器</string>
     <string name="action_stop_container">停止 DSH 容器</string>
+    <string name="onb_auth_title">开始使用</string>
+    <string name="onb_auth_desc">登录 DeepSeek 账号，或添加 API Key，即可开始使用。你的项目和文件保存在本地。</string>
+    <string name="onb_auth_login">登录</string>
+    <string name="onb_auth_add_key">添加 API Key</string>
+    <string name="onb_auth_later">稍后</string>
 </resources>

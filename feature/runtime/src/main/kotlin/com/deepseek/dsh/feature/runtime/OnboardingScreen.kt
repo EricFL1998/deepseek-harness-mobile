@@ -129,10 +129,14 @@ fun OnboardingScreen(
     onComplete: (OnboardingResult) -> Unit,
     onRecharge: (() -> Unit)? = null,
     funded: Boolean = true,
+    /** 未登录且没有 API Key 时，先展示官方「开始使用」授权页。 */
+    authenticated: Boolean = true,
+    onSignIn: () -> Unit = {},
+    onAddApiKey: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberOnboardingPalette()
-    var step by remember { mutableStateOf(OnboardingStep.WELCOME) }
+    var step by remember { mutableStateOf(if (authenticated) OnboardingStep.WELCOME else OnboardingStep.AUTH) }
     var purpose by remember { mutableStateOf<OnboardingPurpose?>(null) }
     var process by remember { mutableStateOf<OnboardingProcess?>(null) }
     var confirmation by remember { mutableStateOf<OnboardingConfirmation?>(null) }
@@ -150,9 +154,14 @@ fun OnboardingScreen(
         onComplete(OnboardingResult.of(purpose, process, skipped))
     }
 
+    // 授权完成后自动进入欢迎页（登录/添加 API Key 都是异步完成的）。
+    LaunchedEffect(authenticated) {
+        if (authenticated && step == OnboardingStep.AUTH) step = OnboardingStep.WELCOME
+    }
+
     fun goBack() {
         step = when (step) {
-            OnboardingStep.WELCOME -> OnboardingStep.WELCOME
+            OnboardingStep.AUTH, OnboardingStep.WELCOME -> OnboardingStep.WELCOME
             OnboardingStep.CREDIT -> OnboardingStep.WELCOME
             OnboardingStep.PURPOSE -> OnboardingStep.CREDIT
             OnboardingStep.PROCESS -> OnboardingStep.PURPOSE
@@ -161,7 +170,7 @@ fun OnboardingScreen(
 
     // The surface captures Escape/back and moves one page back; while a
     // confirmation is open it closes that dialog instead.
-    BackHandler(enabled = confirmation == null && step != OnboardingStep.WELCOME) { goBack() }
+    BackHandler(enabled = confirmation == null && step != OnboardingStep.WELCOME && step != OnboardingStep.AUTH) { goBack() }
     BackHandler(enabled = confirmation != null) { confirmation = null }
 
     CompositionLocalProvider(LocalOnboardingPalette provides palette) {
@@ -194,6 +203,12 @@ fun OnboardingScreen(
                     label = "onboarding-page",
                 ) { current ->
                     when (current) {
+                        OnboardingStep.AUTH -> AuthPage(
+                            onSignIn = onSignIn,
+                            onAddApiKey = onAddApiKey,
+                            onLater = { step = OnboardingStep.WELCOME },
+                        )
+
                         OnboardingStep.WELCOME -> WelcomePage(
                             onStart = { step = OnboardingStep.CREDIT },
                         )
@@ -244,7 +259,7 @@ fun OnboardingScreen(
 
                 // 页脚只在离开欢迎页后出现：淡入并从下方轻推上来。
                 AnimatedVisibility(
-                    visible = step != OnboardingStep.WELCOME,
+                    visible = step != OnboardingStep.WELCOME && step != OnboardingStep.AUTH,
                     enter = fadeIn(tween(220, delayMillis = 60)) +
                         slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it / 3 },
                     exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 },
@@ -290,7 +305,7 @@ fun OnboardingScreen(
     }
 }
 
-private enum class OnboardingStep { WELCOME, CREDIT, PURPOSE, PROCESS }
+private enum class OnboardingStep { AUTH, WELCOME, CREDIT, PURPOSE, PROCESS }
 
 private enum class OnboardingConfirmation { CREDIT, CREDIT_SKIP, SKIP }
 
@@ -402,6 +417,44 @@ private val FileIconBurstDelays = listOf(0L, 30L, 50L, 62L, 70L)
 // ---------------------------------------------------------------------------
 // Pages
 // ---------------------------------------------------------------------------
+
+/** 官方授权页：登录 DeepSeek 账号或添加 API Key（SignInDialog 的页内版本）。 */
+@Composable
+private fun AuthPage(
+    onSignIn: () -> Unit,
+    onAddApiKey: () -> Unit,
+    onLater: () -> Unit,
+) {
+    OnboardingPage {
+        OnboardingArtwork(welcome = true, maxHeight = 220.dp)
+        Spacer(Modifier.height(28.dp))
+        OnboardingHeadline(prefix = stringResource(R.string.onb_auth_title), showBrand = false)
+        Spacer(Modifier.height(12.dp))
+        OnboardingBody(text = stringResource(R.string.onb_auth_desc))
+        Spacer(Modifier.height(32.dp))
+        OnboardingButton(
+            text = stringResource(R.string.onb_auth_login),
+            primary = true,
+            enabled = true,
+            onClick = onSignIn,
+        )
+        Spacer(Modifier.height(10.dp))
+        OnboardingButton(
+            text = stringResource(R.string.onb_auth_add_key),
+            primary = false,
+            enabled = true,
+            onClick = onAddApiKey,
+        )
+        Spacer(Modifier.height(14.dp))
+        OnboardingButton(
+            text = stringResource(R.string.onb_auth_later),
+            primary = false,
+            enabled = true,
+            onClick = onLater,
+            fillWidth = false,
+        )
+    }
+}
 
 @Composable
 private fun WelcomePage(onStart: () -> Unit) {
@@ -658,6 +711,7 @@ private fun OnboardingHeadline(
     prefix: String,
     suffix: String? = null,
     centered: Boolean = false,
+    showBrand: Boolean = true,
 ) {
     val palette = LocalOnboardingPalette.current
     // `.brand { white-space: nowrap }`: keep the product name on one line.
@@ -666,10 +720,12 @@ private fun OnboardingHeadline(
     val chinese = locales.size() > 0 && locales.get(0).language == "zh"
     val text = buildAnnotatedString {
         append(prefix)
-        append('\u0020')
-        pushStyle(SpanStyle(fontWeight = FontWeight.Medium))
-        append(brand)
-        pop()
+        if (showBrand) {
+            append('\u0020')
+            pushStyle(SpanStyle(fontWeight = FontWeight.Medium))
+            append(brand)
+            pop()
+        }
         if (suffix != null) {
             // A Chinese sentence has no spaces at the wrap point; an explicit break
             // keeps the brand on the first line instead of splitting "帮你".

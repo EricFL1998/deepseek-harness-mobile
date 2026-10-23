@@ -163,4 +163,9 @@
     <string name="runtime_token">Token: %1$s</string>
     <string name="action_start_container">Start DSH Container</string>
     <string name="action_stop_container">Stop DSH Container</string>
+    <string name="onb_auth_title">Get started</string>
+    <string name="onb_auth_desc">Sign in with a DeepSeek account or add an API key to begin. Your projects and files stay on this device.</string>
+    <string name="onb_auth_login">Sign in</string>
+    <string name="onb_auth_add_key">Add API key</string>
+    <string name="onb_auth_later">Later</string>
 </resources>

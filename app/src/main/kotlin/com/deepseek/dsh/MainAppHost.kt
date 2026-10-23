@@ -1402,8 +1402,12 @@ fun MainAppHost(
     if (runtimeUi.showOnboarding) {
         val funded = accountState.wallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 } ||
             accountState.bonusWallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 }
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         com.deepseek.dsh.feature.runtime.OnboardingScreen(
             funded = funded,
+            authenticated = accountState.isSignedIn || accountState.hasApiKey,
+            onSignIn = { ui.showSignInDialog = true },
+            onAddApiKey = { ui.showApiKeyDialog = true },
             onRecharge = {
                 val rechargeIntent = android.content.Intent(
                     android.content.Intent.ACTION_VIEW,
@@ -1424,6 +1428,30 @@ fun MainAppHost(
                 runtimeUi.showOnboarding = false
             }
         )
+        // 授权页的两个弹窗必须挂在 onboarding 分支里：MainAppHost 在 onboarding
+        // 结束后才组合根界面的 SignInDialogs，否则这里点了登录没有弹窗。
+        SignInDialogs(
+            showSignIn = ui.showSignInDialog,
+            onDismissSignIn = { ui.showSignInDialog = false },
+            onAddKey = {
+                ui.showSignInDialog = false
+                ui.showApiKeyDialog = true
+            },
+            onSignIn = {
+                ui.showSignInDialog = false
+                beginHostSignIn()
+            },
+            showApiKey = ui.showApiKeyDialog,
+            apiKeyInput = ui.apiKeyInput,
+            onApiKeyChange = { ui.apiKeyInput = it },
+            onDismissApiKey = { ui.showApiKeyDialog = false },
+            onSubmitApiKey = {
+                oauthManager.signInWithApiKey(ui.apiKeyInput)
+                ui.apiKeyInput = ""
+                ui.showApiKeyDialog = false
+            },
+        )
+        }
         return
     }
 
