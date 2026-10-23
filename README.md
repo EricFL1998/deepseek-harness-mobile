@@ -110,6 +110,10 @@ tooling/             协议代码生成、契约回放、前端补丁
 ./gradlew test
 ```
 
+## 更新日志
+
+版本变化见 [CHANGELOG.md](CHANGELOG.md)；发版顺序与版本约束见 [RELEASING.md](RELEASING.md)。
+
 ## 相关仓库
 
 - 本仓库（Android App）：https://github.com/EricFL1998/deepseek-harness-mobile

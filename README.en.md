@@ -123,6 +123,10 @@ Requires JDK 21 and Android SDK 35. The Native UI SDK is consumed through a Grad
 ./gradlew test
 ```
 
+## Changelog
+
+See [CHANGELOG.en.md](CHANGELOG.en.md) for version changes, and [RELEASING.md](RELEASING.md) for the release order and version constraints.
+
 ## Related repositories
 
 - This app: https://github.com/EricFL1998/deepseek-harness-mobile
