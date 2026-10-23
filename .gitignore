@@ -31,3 +31,6 @@ _tmp/
 .captures/
 
 test-plugin/
+
+keystore.properties
+keystore/
