@@ -46,12 +46,17 @@
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 14px var(--accent-2); }
 
   header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(16px); background: rgba(7, 11, 22, .72); border-bottom: 1px solid var(--line); }
-  .nav { display: flex; align-items: center; justify-content: space-between; height: 66px; }
+  .nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 66px; }
+  .brand { justify-self: start; }
+  .nav-links { justify-self: center; }
+  .nav-actions { justify-self: end; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; }
   .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #6d8cff, #36d6c3); display: grid; place-items: center; color: #071018; font-size: 15px; font-weight: 900; }
   .nav-links { display: flex; align-items: center; gap: 24px; color: var(--ink-2); font-size: 14px; }
   .nav-links a:hover { color: var(--ink); }
   .nav-actions { display: flex; align-items: center; gap: 12px; }
+  .nav-actions .btn { min-width: 140px; }
+  .lang { min-width: 46px; justify-content: center; }
   .lang { display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; }
   .lang:hover { color: var(--ink); border-color: rgba(255,255,255,.22); }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; height: 44px; padding: 0 20px; border-radius: 12px; font-size: 14px; font-weight: 600; border: 1px solid transparent; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
