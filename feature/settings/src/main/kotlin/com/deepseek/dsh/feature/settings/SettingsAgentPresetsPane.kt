@@ -207,6 +207,12 @@ private fun CreatePresetButton(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
+            text = "+",
+            fontSize = 15.sp,
+            color = palette.labelPrimary,
+        )
+        androidx.compose.foundation.layout.Spacer(Modifier.width(4.dp))
+        Text(
             text = stringResource(R.string.agent_presets_create),
             fontSize = 13.sp,
             color = palette.labelPrimary,
