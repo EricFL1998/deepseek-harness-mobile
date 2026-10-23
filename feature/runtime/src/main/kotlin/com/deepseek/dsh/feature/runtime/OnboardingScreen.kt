@@ -206,7 +206,6 @@ fun OnboardingScreen(
                         OnboardingStep.AUTH -> AuthPage(
                             onSignIn = onSignIn,
                             onAddApiKey = onAddApiKey,
-                            onLater = { step = OnboardingStep.WELCOME },
                         )
 
                         OnboardingStep.WELCOME -> WelcomePage(
@@ -418,41 +417,55 @@ private val FileIconBurstDelays = listOf(0L, 30L, 50L, 62L, 70L)
 // Pages
 // ---------------------------------------------------------------------------
 
-/** 官方授权页：登录 DeepSeek 账号或添加 API Key（SignInDialog 的页内版本）。 */
+/**
+ * 官方桌面 WelcomePage 的 entry 版：品牌字标 + 「欢迎使用 DeepSeek Harness」+
+ * 「组装无限可能，共探智能上限」+ 登录 / 添加 API Key 两个动作。
+ * 没有「稍后」——官方这一页必须选择一种授权方式；API Key 页自身才提供稍后。
+ */
 @Composable
 private fun AuthPage(
     onSignIn: () -> Unit,
     onAddApiKey: () -> Unit,
-    onLater: () -> Unit,
 ) {
-    OnboardingPage {
-        OnboardingArtwork(welcome = true, maxHeight = 220.dp)
-        Spacer(Modifier.height(28.dp))
-        OnboardingHeadline(prefix = stringResource(R.string.onb_auth_title), showBrand = false)
-        Spacer(Modifier.height(12.dp))
-        OnboardingBody(text = stringResource(R.string.onb_auth_desc))
-        Spacer(Modifier.height(32.dp))
-        OnboardingButton(
-            text = stringResource(R.string.onb_auth_login),
-            primary = true,
-            enabled = true,
-            onClick = onSignIn,
-        )
-        Spacer(Modifier.height(10.dp))
-        OnboardingButton(
-            text = stringResource(R.string.onb_auth_add_key),
-            primary = false,
-            enabled = true,
-            onClick = onAddApiKey,
-        )
-        Spacer(Modifier.height(14.dp))
-        OnboardingButton(
-            text = stringResource(R.string.onb_auth_later),
-            primary = false,
-            enabled = true,
-            onClick = onLater,
-            fillWidth = false,
-        )
+    val palette = LocalOnboardingPalette.current
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(
+                    com.deepseek.dsh.core.designsystem.R.drawable.ic_brand_wordmark,
+                ),
+                contentDescription = stringResource(R.string.onb_brand),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(palette.labelPrimary),
+                modifier = Modifier.height(26.dp),
+            )
+            Spacer(Modifier.height(56.dp))
+            OnboardingHeadline(prefix = stringResource(R.string.onb_welcome), centered = true)
+            Spacer(Modifier.height(10.dp))
+            OnboardingBody(text = stringResource(R.string.onb_welcome_desc), centered = true)
+            Spacer(Modifier.height(48.dp))
+            OnboardingButton(
+                text = stringResource(R.string.onb_auth_login),
+                primary = true,
+                enabled = true,
+                onClick = onSignIn,
+                fillWidth = false,
+                modifier = Modifier.width(232.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            OnboardingButton(
+                text = stringResource(R.string.onb_auth_add_key),
+                primary = false,
+                enabled = true,
+                onClick = onAddApiKey,
+                fillWidth = false,
+                modifier = Modifier.width(232.dp),
+            )
+        }
     }
 }
 

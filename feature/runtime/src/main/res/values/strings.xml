@@ -168,4 +168,5 @@
     <string name="onb_auth_login">Sign in</string>
     <string name="onb_auth_add_key">Add API key</string>
     <string name="onb_auth_later">Later</string>
+    <string name="onb_welcome_desc">Build potential. Explore intelligence.</string>
 </resources>

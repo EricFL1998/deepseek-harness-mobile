@@ -168,4 +168,5 @@
     <string name="onb_auth_login">登录</string>
     <string name="onb_auth_add_key">添加 API Key</string>
     <string name="onb_auth_later">稍后</string>
+    <string name="onb_welcome_desc">组装无限可能，共探智能上限</string>
 </resources>
