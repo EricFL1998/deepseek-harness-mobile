@@ -1,4 +1,4 @@
-[🌐 产品介绍页](site/index.html) · [English](README.en.md)
+[🌐 产品介绍页](https://ericfl1998.github.io/deepseek-harness-mobile/) · [English](README.en.md)
 
 # DSH 手机端（完整版 DeepSeek Harness）
 
