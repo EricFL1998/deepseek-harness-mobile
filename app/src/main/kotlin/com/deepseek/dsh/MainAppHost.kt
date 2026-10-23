@@ -1406,7 +1406,9 @@ fun MainAppHost(
         com.deepseek.dsh.feature.runtime.OnboardingScreen(
             funded = funded,
             authenticated = accountState.isSignedIn || accountState.hasApiKey,
-            onSignIn = { ui.showSignInDialog = true },
+            // 授权页的「登录」直接走 Host 官方 OAuth（打开授权链接），
+            // 不再先弹一个二次选择对话框。
+            onSignIn = { beginHostSignIn() },
             onAddApiKey = { ui.showApiKeyDialog = true },
             onRecharge = {
                 val rechargeIntent = android.content.Intent(
@@ -1446,9 +1448,50 @@ fun MainAppHost(
             onApiKeyChange = { ui.apiKeyInput = it },
             onDismissApiKey = { ui.showApiKeyDialog = false },
             onSubmitApiKey = {
-                oauthManager.signInWithApiKey(ui.apiKeyInput)
-                ui.apiKeyInput = ""
-                ui.showApiKeyDialog = false
+                val key = ui.apiKeyInput.trim()
+                if (key.isNotBlank()) {
+                    scope.launch {
+                        // 真正写入 Host：把 Key 写到官方 DeepSeek provider 的
+                        // credentials + settings（与设置→模型里保存 Key 同一路径），
+                        // 然后刷新模型目录，首轮对话就能用这个 Key。
+                        val settingsRaw = dshRepository.rpcRaw(ui.activeHostId, "settings/describe", "{}").getOrNull()
+                        val providersRaw = dshRepository.rpcRaw(ui.activeHostId, "llm/listConfigurableProviders", "{}").getOrNull()
+                        val providers = com.deepseek.dsh.feature.settings.parseModelProviders(
+                            providersRaw, settingsRaw, null, officialModelNamespaces,
+                        )
+                        val official = providers.firstOrNull {
+                            it.id == "deepseek-official" || it.id.contains("deepseek") ||
+                                it.keyRef.contains("deepseek")
+                        }
+                        if (official == null) {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(R.string.onboarding_key_failed),
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                            return@launch
+                        }
+                        saveModelProvider(
+                            scope = scope,
+                            repository = dshRepository,
+                            hostId = ui.activeHostId,
+                            provider = official,
+                            key = key,
+                            baseUrl = "",
+                            models = emptyList(),
+                            onSettingsRaw = { runtimeUi.modelSettingsRaw = it },
+                            onCredentialsRaw = { runtimeUi.modelCredentialsRaw = it },
+                        )
+                        // 等 Host 写完再刷新目录；官方 provider 已拿到 key。
+                        kotlinx.coroutines.delay(600)
+                        runtimeUi.modelProvidersRaw = providersRaw
+                        runtimeUi.modelSettingsRaw = dshRepository.rpcRaw(ui.activeHostId, "settings/describe", "{}").getOrNull()
+                        dshRepository.refreshModelCatalog(ui.activeHostId)
+                        oauthManager.signInWithApiKey(key)
+                        ui.apiKeyInput = ""
+                        ui.showApiKeyDialog = false
+                    }
+                }
             },
         )
         }

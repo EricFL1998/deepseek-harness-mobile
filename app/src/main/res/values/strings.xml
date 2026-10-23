@@ -639,4 +639,5 @@
     <string name="right_sidebar_deliverables_empty">No deliverables from this session yet.</string>
     <string name="right_sidebar_browser_unavailable">The desktop browser pane is not part of the mobile app; use Terminal or open links externally.</string>
     <string name="plugin_toggle_restarting">Restarting Host to apply the plugin…</string>
+    <string name="onboarding_key_failed">Could not save the API key. Check it and try again.</string>
 </resources>

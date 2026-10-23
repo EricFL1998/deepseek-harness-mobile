@@ -639,4 +639,5 @@
     <string name="right_sidebar_browser_unavailable">桌面端的浏览器面板不在手机 App 内；请用终端或外部浏览器打开链接。</string>
     <string name="model_switch_failed">切换模型失败：%1$s</string>
     <string name="plugin_toggle_restarting">正在重启 Host 以启用插件…</string>
+    <string name="onboarding_key_failed">未能保存 API Key，请检查后重试。</string>
 </resources>
