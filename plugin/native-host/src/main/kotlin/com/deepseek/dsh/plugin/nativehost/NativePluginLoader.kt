@@ -32,7 +32,10 @@ class NativePluginLoader(private val context: Context) {
      * ClassCastException（订阅插件的 dock 崩溃）。缓存实例后重扫直接复用，
      * 不重复注册贡献；插件升级后由 App 进程重启生效。
      */
-    private val loadedPlugins = java.util.concurrent.ConcurrentHashMap<String, DshUiPlugin>()
+    private companion object {
+        /** 进程级缓存：MainAppHost 每次重扫都会 new NativePluginLoader，缓存不能放在实例上。 */
+        val loadedPlugins = java.util.concurrent.ConcurrentHashMap<String, DshUiPlugin>()
+    }
 
     fun load(plugin: InstalledNativePlugin): DshUiPlugin? {
         loadedPlugins[plugin.pluginId]?.let { return it }
