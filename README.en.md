@@ -1,0 +1,73 @@
+# DSH Mobile — Full DeepSeek Harness on Android
+
+English · [简体中文](README.md)
+
+DSH Mobile is not a thin remote client and not a chat-only shell. It puts the **full DeepSeek Harness** on an Android phone: the real DSH Host, agent loop, tool runtime and plugin system all run locally on the device. What the desktop app can do, this app can do too.
+
+## Highlights
+
+- **Full DSH Host runs on the phone**: a bundled Debian (glibc) userland with proot and a Node runtime starts the upstream DSH directly. Sessions, agents, tool calls, approvals, schedules, Agent Team and plugin loading are handled by the real Host — not a re-implemented “mobile protocol”.
+- **Plugin ecosystem compatibility**: Host plugins, bundles, `client-slots` registrations and the `bridge/v1` protocol are preserved. DOM-heavy UI runs in a Web island; core UI is rendered natively with Compose, so plugins do not need a mobile fork.
+- **Companion native UI**: APK-delivered companion plugins can build **real native screens** with the **DSH Native UI SDK** (Kotlin + Compose) and register into chat, settings, sidebar and composer slots.
+- **Real workspace**: the default workspace is the phone’s shared `Documents/DSH-Workspace`, mounted as `/workspace` inside the container. Files are visible in the system file manager; no export step.
+- **Multi-host**: local Host and remote private gateway Hosts coexist and can be switched at any time.
+
+## Features
+
+| Area | What you get |
+| --- | --- |
+| Chat & agents | Full DSH agent sessions, streaming messages, collapsible reasoning, tool calls and approvals; errors shown verbatim |
+| Work detail | Results only / key details / full trace, matching the desktop `transcriptView` semantics |
+| Models & effort | Model catalog, provider credentials and reasoning levels all come from the Host `modelCatalog` (with a local cache) |
+| Files & deliverables | Native file browser, document preview, deliverables, reading and writing the phone workspace directly |
+| Right drawer | Official dock styling: files, terminal, browser, plan, deliverables; the guide capsules and plugin pages are extensible |
+| Automation & teams | Scheduled tasks, Agent Team task board, terminal and browser entry points |
+| Plugins | Install / enable / disable / uninstall, plugin details, Web island, and discovery/loading of native plugin APKs |
+| Account & onboarding | Official welcome page (sign in or add an API key), first-run onboarding, model sign-in state and credential management |
+| Multi-host | Local Host plus remote Host pairing, switching and per-host credentials |
+
+## Plugins and companion native UI
+
+Two layers of plugin support:
+
+1. **Host plugins (the same ones the desktop runs)**  
+   Plugins keep running inside the real DSH Host and register UI through official slots. DSH Mobile maps core slots to native Compose components; Web-heavy UI runs in a Web island, so plugin code needs no fork.
+
+2. **Companion native UI plugins (Native UI SDK)**  
+   Native screens shipped as APKs alongside a plugin, written with the **DSH Native UI SDK**:
+   - Kotlin + Jetpack Compose with DSH design tokens and controls;
+   - registers into `RIGHT_PANEL`, `RIGHT_PANEL_GUIDE_ENTRY`, `SETTINGS_SHEET`, `COMPOSER_DOCK` and other `NativeSlot` seats;
+   - talks to the Host for RPC, theme and model data through the SDK host API.
+
+   SDK source, integration guide and samples:  
+   **https://github.com/EricFL1998/dsh-mobile-plugin-sdk**
+
+## Project layout
+
+```
+app/                 entry point, navigation, settings, right drawer and other native UI
+core/                models, protocol, bridge, Room cache, design system
+feature/             chat, sessions, files, approvals, settings, runtime
+plugin/              Web island, Surface adapter, native plugin host (NativeSlot / Native UI SDK)
+runtime/             local proot Host lifecycle and bridge device capabilities
+tooling/             protocol codegen, contract replay, frontend patcher
+```
+
+## Build
+
+```bash
+./gradlew :app:assembleDebug
+# output: app/build/outputs/apk/debug/app-debug.apk
+```
+
+Requires JDK 21 and Android SDK 35. The Native UI SDK is consumed through a Gradle composite build (`includeBuild`) from the sibling SDK repo; override with `-PdshSdkRepo=<path>`.
+
+```bash
+./gradlew test
+```
+
+## Related repositories
+
+- This app: https://github.com/EricFL1998/deepseek-harness-mobile
+- Companion Native UI SDK: https://github.com/EricFL1998/dsh-mobile-plugin-sdk
+- Upstream DeepSeek Harness: https://github.com/deepseek-ai/dsh
