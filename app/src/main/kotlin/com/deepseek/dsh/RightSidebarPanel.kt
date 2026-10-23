@@ -100,6 +100,15 @@ fun RightSidebarPanel(
                 .padding(start = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (effectiveTab == "guide") {
+                Icon(
+                    painter = painterResource(R.drawable.ic_rs_compass),
+                    contentDescription = null,
+                    tint = palette.labelSecondary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
             Text(
                 text = stringResource(rightTabLabel(effectiveTab)),
                 fontSize = 13.sp,
@@ -239,6 +248,8 @@ private fun RightGuideTab(
                     icon = R.drawable.ic_rs_terminal,
                     title = stringResource(R.string.right_guide_terminal_title),
                     description = stringResource(R.string.right_guide_terminal_desc),
+                    shortcut = "Ctrl + `",
+                    iconTint = dshPanelColors().labelPrimary,
                     onClick = onOpenTerminal,
                 )
             }
@@ -247,13 +258,15 @@ private fun RightGuideTab(
                 icon = R.drawable.ic_rs_globe,
                 title = stringResource(R.string.right_guide_browser_title),
                 description = stringResource(R.string.right_guide_browser_desc),
+                shortcut = "Ctrl + T",
+                iconTint = androidx.compose.ui.graphics.Color(0xFF2B6FF6),
                 onClick = onOpenBrowser,
             )
             // capsule 列表是 slot：插件注册的右侧栏页面在这里各占一枚入口。
             pluginTabs.forEach { pluginTab ->
                 Spacer(modifier = Modifier.height(10.dp))
                 GuideEntry(
-                    icon = R.drawable.ic_rs_plus,
+                    icon = R.drawable.ic_rs_globe,
                     title = pluginTab.title,
                     description = stringResource(R.string.right_guide_plugin_desc),
                     onClick = { onOpenPlugin(pluginTab.key) },
@@ -268,6 +281,8 @@ private fun GuideEntry(
     icon: Int,
     title: String,
     description: String,
+    shortcut: String? = null,
+    iconTint: androidx.compose.ui.graphics.Color? = null,
     onClick: () -> Unit,
 ) {
     val palette = dshPanelColors()
@@ -285,11 +300,11 @@ private fun GuideEntry(
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
-            tint = palette.menuIcon,
-            modifier = Modifier.size(20.dp),
+            tint = iconTint ?: palette.menuIcon,
+            modifier = Modifier.size(22.dp),
         )
         Spacer(modifier = Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 fontSize = 14.sp,
@@ -304,6 +319,14 @@ private fun GuideEntry(
                 color = palette.labelTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (shortcut != null) {
+            Text(
+                text = shortcut,
+                fontSize = 11.sp,
+                color = palette.labelTertiary,
+                maxLines = 1,
             )
         }
     }
