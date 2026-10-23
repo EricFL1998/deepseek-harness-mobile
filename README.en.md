@@ -42,6 +42,53 @@ Two layers of plugin support:
    SDK source, integration guide and samples:  
    **https://github.com/EricFL1998/dsh-mobile-plugin-sdk**
 
+
+## Plugin store (user view)
+
+Open the drawer → **Plugins** to reach the store. It manages the whole plugin ecosystem much
+like the desktop app:
+
+- **Browse & install**: official and third-party plugins are listed with details; one tap
+  installs through the local Host — no computer or terminal needed.
+- **Enable / disable**: every plugin and component has a switch; changes apply immediately,
+  and the few that need a Host restart say so explicitly.
+- **Update & uninstall**: version, source and contained components are shown on the detail
+  page; plugins can be removed independently.
+- **Install only what you need**: core agent works without extra plugins; installed plugins
+  appear automatically in settings, the sidebar and the composer where they belong.
+- **Native plugins are plugins too**: companion APKs with native UI are discovered and loaded
+  by the app like any other plugin.
+
+The store handles discovery and installation; plugin code itself runs inside the on-device
+Host. That is what separates DSH Mobile from a plain chat client.
+
+## Bridge and rootfs (briefly)
+
+- **Bridge**: a compatibility/device-capability plugin inside the Host. It maps official
+  client slot registrations to native mobile UI and exposes device capabilities (files,
+  notifications, clipboard, scheduling) to the Host. It ships with the image; no setup.
+- **Rootfs**: a Debian + Node + DSH runtime image on the phone, prepared on first launch.
+  Its version has three segments (`rootfs-dsh…-bridge…`): a DSH change requires reinstalling
+  the image, while a rootfs-only change is an optional update in Settings.
+
+## How the app works
+
+```
+Launch app
+  └─ Check/install rootfs (Debian + Node + DSH)
+       └─ Start the real DSH Host inside the proot userland (prefer the bundled Host entry)
+            ├─ Host serves the loopback Web GUI and Remote RPC
+            ├─ Bridge registers UI slots / exposes device capabilities
+            └─ App reads sessions, models, plugins and files via Remote + bridge
+                 ├─ native Compose renders chat, settings and the sidebar
+                 ├─ plugin web UI runs in the Web island
+                 └─ companion plugin APKs render native UI through the Native UI SDK
+```
+
+The data flow is therefore: **the real on-device Host runs agents and tools; the app only
+presents and interacts**. Sessions, files, models and plugins stay on the device. Remote Host
+mode simply routes the same chain to a gateway you own.
+
 ## Project layout
 
 ```
