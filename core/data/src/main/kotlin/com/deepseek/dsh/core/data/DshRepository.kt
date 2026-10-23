@@ -2051,9 +2051,23 @@ class DshRepository(
 
     fun getMessages(hostId: String, sessionId: String): Flow<List<ChatMessage>> {
         return dao.getMessages(hostId, sessionId).map { entities ->
-            entities.filterNot { entity ->
+            val cleaned = entities.filterNot { entity ->
                 // 兼容旧版本已落库的注入消息（Host 的 runtime-context / time-context）。
                 entity.role == "USER" && isInjectedContextMessage(entity.contentJson.orEmpty())
+            }
+            // 兼容旧版本「乐观插库 + Host 回显」造成的同一句话两条记录：只保留
+            // 相邻、同内容、1.5s 内的第一条。
+            var previous: MessageEntity? = null
+            cleaned.filter { entity ->
+                val duplicate = previous != null &&
+                    entity.role == "USER" &&
+                    previous!!.role == "USER" &&
+                    previous!!.contentJson == entity.contentJson &&
+                    kotlin.math.abs(
+                        (entity.createdAt ?: 0L) - (previous!!.createdAt ?: 0L),
+                    ) < 1_500
+                previous = entity
+                !duplicate
             }.map { entity ->
                 ChatMessage(
                     hostId = entity.hostId,
@@ -2091,26 +2105,10 @@ class DshRepository(
             createdAt = System.currentTimeMillis()
         )
         dao.touchSession(hostId, sessionId, System.currentTimeMillis())
-        // 官方 inbox 语义：turn 运行中发送的消息进入 next-turn 队列，在 Agent claim
-        // 之前不属于对话记录。所以这里不乐观插气泡（否则会出现「气泡 + 队列条」两份），
-        // 等 follow 流回放 claim 后的 user/message 时再落库。
-        val queuedWhileRunning = runningSessionIdsFlow.value.contains(sessionId)
-        if (!queuedWhileRunning) {
-            dao.insertMessages(
-                listOf(
-                    MessageEntity(
-                        hostId = userMsg.hostId,
-                        sessionId = userMsg.sessionId,
-                        messageId = userMsg.messageId,
-                        role = userMsg.role.name,
-                        seq = userMsg.seq,
-                        contentJson = userMsg.content,
-                        createdAt = userMsg.createdAt,
-                        status = "sent"
-                    )
-                )
-            )
-        }
+        // 官方 inbox 语义：对话记录只认 Host 回放的 user/message（claim 后的记录）。
+        // 这里绝不能乐观插库：Host 回显用的是自己的 messageId，两边插入会形成两条
+        // 内容相同的用户消息（发送文字重复的根因）。UI 的即时气泡由调用方的
+        // pendingMessages 承担，Host 回显到达后按内容去重。
 
         scope.launch(Dispatchers.IO) {
             // 队列消息不做乐观插入；follow 会带回 claim 后的记录。运行中发送失败也

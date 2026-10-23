@@ -318,7 +318,12 @@ fun ModernChatScreen(
     LaunchedEffect(voiceTranscript) {
         val transcript = voiceTranscript?.trim()
         if (!transcript.isNullOrEmpty()) {
-            inputText = if (inputText.isBlank()) transcript else inputText.trimEnd() + " " + transcript
+            val base = inputText.trimEnd()
+            inputText = when {
+                base.isBlank() -> transcript
+                base.endsWith(transcript) -> base
+                else -> "$base $transcript"
+            }
         }
         if (voiceTranscript != null) onVoiceTranscriptConsumed()
     }

@@ -242,7 +242,19 @@ fun MainAppHost(
 
     val repoMessages by dshRepository.getMessages(ui.activeHostId, ui.selectedSessionId ?: "")
         .collectAsState(initial = emptyList())
-    val messages = remember(repoMessages) { repoMessages }
+    val messages = remember(repoMessages, pendingMessages.toList()) {
+        // Host 回显 user/message 与本地乐观气泡可能同时存在：按内容去重，
+        // 避免同一条发送出现两个气泡。
+        val echoed = repoMessages.filter { it.role == MessageRole.USER }.takeLast(16)
+        repoMessages + pendingMessages.filter { pending ->
+            // 同内容且时间接近（60s）才算同一条回显；避免把用户重复发送的
+            // 同一条文字误判成回显而吞掉。
+            echoed.none { real ->
+                real.content.trim() == pending.content.trim() &&
+                    kotlin.math.abs(real.createdAt - pending.createdAt) < 60_000
+            }
+        }
+    }
 
 
     val catalogInfo by dshRepository.modelCatalogFlow.collectAsState()
@@ -306,6 +318,7 @@ fun MainAppHost(
         }
     }
     fun stopVoice() {
+        if (!runtimeUi.voiceRecording || runtimeUi.voiceBusy) return
         val wav = voiceRecorder.stop()
         runtimeUi.voiceRecording = false
         runtimeUi.voiceLevel = 0f
@@ -2330,12 +2343,27 @@ fun MainAppHost(
                             }
                             val catalogDefaultName = hostModels
                                 .firstOrNull { it.id == catalogInfo.defaultModel }?.name
+                            // 官方逻辑：会话的模型来自 Host `modelSelection` 投影（hostSessionModels），
+                            // 数据库里的 configuredModel 是 Host 暂时没连上时的兜底；全局 lastUsedModel
+                            // 只用于还没有会话的新会话。以前 lastUsedModel 优先，重启后打开旧会话会
+                            // 被全局选择覆盖，看起来“没有选中上次用的模型”。
+                            fun modelNameOf(value: String?): String? = when {
+                                value.isNullOrBlank() -> null
+                                value in availableModelNames -> value
+                                else -> effectiveModelIdByName.entries
+                                    .firstOrNull { it.value == value }?.key
+                            }
+                            val sessionModelName = modelNameOf(configuredModel)
+                            val hostModelName = ui.selectedSessionId?.let { sid ->
+                                modelNameOf(hostSessionModels[sid])
+                            }
                             val currentModel = when {
                                 // Host 目录尚未返回时，先用上次使用的模型占位，避免闪“请选择模型”。
                                 availableModelNames.isEmpty() && lastUsedModel.isNotBlank() -> lastUsedModel
                                 availableModelNames.isEmpty() -> ""
+                                hostModelName != null -> hostModelName
+                                sessionModelName != null -> sessionModelName
                                 lastUsedModel in availableModelNames -> lastUsedModel
-                                configuredModel in availableModelNames -> configuredModel
                                 // 首次进入：选 Host 目录的默认/最新模型（当前为 DeepSeek-V41-Flash）。
                                 else -> catalogDefaultName ?: availableModelNames.first()
                             }
@@ -2343,14 +2371,6 @@ fun MainAppHost(
                                 if (currentModel in availableModelNames && currentModel != lastUsedModel) {
                                     lastUsedModel = currentModel
                                     modelPrefs.edit().putString("last_model_name", currentModel).apply()
-                                }
-                            }
-                            // 官方 session/control：其它客户端切了模型时同步标签。
-                            val hostModelName = ui.selectedSessionId?.let { sid ->
-                                hostSessionModels[sid]?.let { modelId ->
-                                    effectiveModelIdByName.entries
-                                        .firstOrNull { it.value == modelId }?.key
-                                        ?: modelId.takeIf { it in availableModelNames }
                                 }
                             }
                             LaunchedEffect(hostModelName) {
@@ -2397,7 +2417,7 @@ fun MainAppHost(
                             }
 
                             ModernChatScreen(
-                                messages = messages + pendingMessages,
+                                messages = messages,
                                 streamingText = streamingText,
                                 streamingReasoning = streamingReasoning,
                                 hostCommands = hostCommands,
@@ -2584,7 +2604,10 @@ fun MainAppHost(
                                     scope.launch {
                                         try {
                                         var sid = ui.selectedSessionId
-                                        if (sid == null || sid !in liveSessionIds) {
+                                        // 官方语义：当前会话存在就一直复用它。liveSessionIds 只表示
+                                        // “正在运行”，上一轮结束后就为空；以前用它判断会每发第二条
+                                        // 消息就新建会话（于是看起来自动开新会话、没有回复）。
+                                        if (sid == null) {
                                             suspend fun createOnce(): String? = dshRepository.createSession(
                                                 ui.activeHostId,
                                                 text.take(24),
