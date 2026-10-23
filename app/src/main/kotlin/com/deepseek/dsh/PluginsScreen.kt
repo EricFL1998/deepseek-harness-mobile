@@ -1111,33 +1111,30 @@ private fun PluginsPageHead(
 ) {
     val colors = LocalDshPanelColors.current
     Column(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = if (isNativeTab) stringResource(R.string.plugins_store_title)
-                else stringResource(R.string.nav_plugins),
-                color = colors.labelPrimary,
-                fontSize = 20.sp,
-                lineHeight = 28.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                text = if (isNativeTab) stringResource(R.string.plugins_store_subtitle)
-                else stringResource(R.string.plugins_subtitle),
-                color = colors.labelSecondary,
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-        // 标题/说明占满整行，操作按钮放到下一行右侧：英文长文案
-        // （Plugin Store / Browse and install...）不会再被按钮挤成一词一行。
+        // 按钮保持标题右侧原位；说明单独占满整行，避免英文长文案被按钮挤窄。
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
         ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 12.dp)
+            ) {
+                Text(
+                    text = if (isNativeTab) stringResource(R.string.plugins_store_title)
+                    else stringResource(R.string.nav_plugins),
+                    color = colors.labelPrimary,
+                    fontSize = 20.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
             // 官方刷新：28dp ghost 图标按钮
             val refreshInteraction = remember { MutableInteractionSource() }
             val refreshPressed by refreshInteraction.collectIsPressedAsState()
@@ -1185,7 +1182,16 @@ private fun PluginsPageHead(
                     },
                 )
             }
-        }
+            } // actions row
+        } // title row
+        Text(
+            text = if (isNativeTab) stringResource(R.string.plugins_store_subtitle)
+            else stringResource(R.string.plugins_subtitle),
+            color = colors.labelSecondary,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 
