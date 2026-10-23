@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://ericfl1998.github.io/deepseek-harness-mobile/en.html">
+    <img src="https://ericfl1998.github.io/deepseek-harness-mobile/assets/banner.svg" alt="DSH Mobile — Full DeepSeek Harness" width="900">
+  </a>
+</p>
+
 <h3 align="center">
   <a href="https://ericfl1998.github.io/deepseek-harness-mobile/en.html">🌐 Product page</a>
   &nbsp;·&nbsp;
