@@ -51,6 +51,9 @@ data class RuntimeLayout(
     /** 预载补丁：把 FUSE 上必然 EPERM 的硬链接改成 copy+rename 语义。 */
     val linkFallbackPatch: File get() = File(patchDir, "fs-link-fallback.cjs")
 
+    /** 启动耗时探针：记录 preload、慢模块与 dsh web 就绪时刻。 */
+    val startupTracePatch: File get() = File(patchDir, "startup-trace.cjs")
+
     /**
      * 安装 Node 预载补丁。
      *
@@ -100,6 +103,44 @@ data class RuntimeLayout(
             linkFallbackPatch.writeText(source)
         }
         runCatching { linkFallbackPatch.setReadable(true, false) }
+
+        val traceSource = """
+            |'use strict'
+            |const t0 = Date.now()
+            |const log = (label) => console.log(`[BOOT] +${'$'}{Date.now() - t0}ms ${'$'}{label}`)
+            |log(`preload node=${'$'}{process.version}`)
+            |let modules = 0
+            |let moduleMs = 0
+            |let slow = 0
+            |const Module = require('node:module')
+            |// 进程被 force-stop 时不会走 exit 钩子，编译缓存必须定期主动 flush，
+            |// 否则 NODE_COMPILE_CACHE 目录永远是空的。
+            |const flush = () => { try { Module.flushCompileCache?.() } catch {} }
+            |const flushTimer = setInterval(flush, 5000)
+            |flushTimer.unref()
+            |const originalLoad = Module._load
+            |Module._load = function (request, parent, isMain) {
+            |  const started = Date.now()
+            |  const result = originalLoad.call(this, request, parent, isMain)
+            |  const spent = Date.now() - started
+            |  modules++
+            |  moduleMs += spent
+            |  if (spent >= 200) { slow++; log(`module ${'$'}{request} ${'$'}{spent}ms`) }
+            |  return result
+            |}
+            |const originalLog = console.log
+            |console.log = function (...args) {
+            |  if (typeof args[0] === 'string' && args[0].startsWith('dsh web: http')) {
+            |    log(`web-ready modules=${'$'}{modules} moduleMs=${'$'}{moduleMs} slow=${'$'}{slow}`)
+            |    flush()
+            |  }
+            |  return originalLog.apply(console, args)
+            |}
+            |""".trimMargin()
+        if (!startupTracePatch.isFile || startupTracePatch.readText() != traceSource) {
+            startupTracePatch.writeText(traceSource)
+        }
+        runCatching { startupTracePatch.setReadable(true, false) }
     }
 
     /**

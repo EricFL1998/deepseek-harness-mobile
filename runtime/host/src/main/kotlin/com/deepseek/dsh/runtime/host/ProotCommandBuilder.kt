@@ -158,6 +158,8 @@ object ProotCommandBuilder {
         // FUSE 工作区的硬链接兜底（write 工具的原子新建路径）。
         cmd.add("--require")
         cmd.add("/root/.dsh/patches/fs-link-fallback.cjs")
+        cmd.add("--require")
+        cmd.add("/root/.dsh/patches/startup-trace.cjs")
         cmd.add("/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js")
         cmd.add("--profile")
         cmd.add("web")
