@@ -129,7 +129,7 @@ internal fun HostStartupSplash(
                 ),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(56.dp)
+                modifier = Modifier.size(96.dp)
             )
             Spacer(modifier = Modifier.height(20.dp))
             Text(
