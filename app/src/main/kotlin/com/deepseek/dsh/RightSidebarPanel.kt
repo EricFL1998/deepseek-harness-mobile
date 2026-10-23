@@ -302,6 +302,7 @@ private fun GuideEntry(
     description: String,
     shortcut: String? = null,
     iconTint: androidx.compose.ui.graphics.Color? = null,
+    showChevron: Boolean = false,
     onClick: () -> Unit,
 ) {
     val palette = dshPanelColors()

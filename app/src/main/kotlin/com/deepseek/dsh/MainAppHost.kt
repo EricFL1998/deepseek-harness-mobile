@@ -2325,7 +2325,12 @@ fun MainAppHost(
                                         ?: stringResource(R.string.app_name)
                                 },
                                 showModeCapsule = false,
-                                onToggleRightPane = { ui.rightDrawerOpen = !ui.rightDrawerOpen },
+                                onToggleRightPane = {
+                                    // 每次打开都从 guide 开始；终端是 guide 里的一枚胶囊，
+                                    // 不是抽屉的默认页面。
+                                    if (!ui.rightDrawerOpen) ui.rightDrawerTab = "guide"
+                                    ui.rightDrawerOpen = !ui.rightDrawerOpen
+                                },
                                 rightPaneOpen = ui.rightDrawerOpen,
                                 teamTasks = teamTasks,
                                 hostJobs = hostJobs,
