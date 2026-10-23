@@ -48,6 +48,13 @@ data class RootfsManifest(
     val sha256: String = "",
     val archiveSizeBytes: Long = 0L,
     val prootLibrary: String = "libproot.so",
+    /**
+     * 镜像是否在 rootfs 构建阶段就已经应用了 Android 运行时补丁。
+     *
+     * 为 true 时不再要求镜像的 DSH 段与本 APK 的整文件补丁目标一致：镜像里的
+     * 上游文件已经是「最新 DSH + 补丁」的组合，App 只需跳过运行时覆盖。
+     */
+    val androidPatched: Boolean = false,
 )
 
 /**
@@ -294,6 +301,7 @@ class RootfsInstaller(
                         abi = android.os.Build.SUPPORTED_ABIS?.firstOrNull().orEmpty(),
                         rootfsName = RootfsNaming.ARCHIVE_PREFIX,
                         releaseTag = RootfsNaming.releaseTag(manifest.runtimeVersion),
+                        androidPatched = manifest.androidPatched,
                     )
                 )
             )
@@ -455,6 +463,8 @@ class RootfsInstaller(
         val abi: String = "",
         val rootfsName: String = RootfsNaming.ARCHIVE_PREFIX,
         val releaseTag: String = "",
+        /** 镜像是否已烧入 Android 补丁；旧标记没有该字段时为 false。 */
+        val androidPatched: Boolean = false,
     )
 }
 

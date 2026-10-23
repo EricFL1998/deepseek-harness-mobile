@@ -93,7 +93,9 @@ class RootfsManifestSource(
 
     /** 这份清单的 DSH 版本是否与当前 APK 的补丁目标一致。 */
     private fun compatible(manifest: RootfsManifest, expectedDsh: String?): Boolean =
-        RootfsNaming.isDshCompatible(manifest.runtimeVersion, expectedDsh)
+        // 构建期已烧入 Android 补丁的镜像与 DSH 段无关：镜像里的上游文件本身
+        // 就是「最新 DSH + 补丁」，App 不会再整文件覆盖，因此可以直接接受。
+        manifest.androidPatched || RootfsNaming.isDshCompatible(manifest.runtimeVersion, expectedDsh)
 
     /**
      * 取得清单，失败时抛异常。

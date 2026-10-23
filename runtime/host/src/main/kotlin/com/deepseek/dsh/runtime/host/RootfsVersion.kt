@@ -95,10 +95,24 @@ enum class RootfsUpdateKind {
  * @param available 可用的版本串；null 表示拿不到清单。
  * @return 镜像更新的性质。
  */
-fun decideRootfsUpdateKind(installed: String?, available: String?): RootfsUpdateKind {
+fun decideRootfsUpdateKind(
+    installed: String?,
+    available: String?,
+    installedPatched: Boolean = false,
+    availablePatched: Boolean = false,
+): RootfsUpdateKind {
     if (installed == null || available == null) return RootfsUpdateKind.NONE
     val local = RootfsVersion.parse(installed) ?: return RootfsUpdateKind.MANDATORY
     val remote = RootfsVersion.parse(available) ?: return RootfsUpdateKind.MANDATORY
+    // 构建期已烧入 Android 补丁的镜像不再受 DSH 段约束：它内部是「最新
+    // DSH + 补丁」，换引擎不需要换 APK 的整文件补丁。是否更新只看 rootfs 段。
+    if (availablePatched) {
+        val order = comparePluginVersions(remote.rootfs, local.rootfs)
+        if (order != null && order <= 0) return RootfsUpdateKind.NONE
+        return if (local.rootfs != remote.rootfs) RootfsUpdateKind.REPACKAGED else RootfsUpdateKind.NONE
+    }
+    // 已装的是烧过补丁的新镜像，而远端只有旧的未烧补丁镜像：不要退回旧模型。
+    if (installedPatched) return RootfsUpdateKind.NONE
     // 引擎段不一致优先于“镜像段更旧”：APK 的补丁按引擎版本整文件替换，
     // 即使用户装了一个更新的镜像（例如先收到了 rc.3），只要引擎不匹配就必须
     // 换回与当前 APK 对应的镜像，不能因为 rootfs 段更大而保持不动。
@@ -249,6 +263,8 @@ fun assessUpdate(
     available: String?,
     latestPlugin: String?,
     installedPlugin: String?,
+    installedPatched: Boolean = false,
+    availablePatched: Boolean = false,
 ): UpdateAssessment {
     // 未安装没有「更新」可言：首启安装流程会装好镜像与其打包的插件。
     // 在这里报插件落后，只会让全新用户在装之前就看到一个无法执行的提示。
@@ -280,7 +296,7 @@ fun assessUpdate(
     // 2. 镜像：dsh 引擎换了必须重下整包；引擎没变而镜像重新打包过，也提供
     //    可选更新——重新打包可能是把新插件打进镜像，也可能带着只存在于镜像里的
     //    修复（原生依赖/打包缺陷），但用户不该在启动时被打断。
-    if (decideRootfsUpdateKind(installed, available) != RootfsUpdateKind.NONE) {
+    if (decideRootfsUpdateKind(installed, available, installedPatched, availablePatched) != RootfsUpdateKind.NONE) {
         return UpdateAssessment(
             need = UpdateNeed.ROOTFS_OPTIONAL,
             installed = installed,

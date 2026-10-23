@@ -97,6 +97,49 @@ class RootfsVersionTest {
     }
 
     @Test
+    fun `a patched image ignores the dsh segment`() {
+        // 构建期烧补丁的镜像内部是「最新 DSH + 补丁」，rc.3 与 rc.2 都可用；
+        // 只有 rootfs 段自增才提示可选更新。
+        assertEquals(
+            RootfsUpdateKind.NONE,
+            decideRootfsUpdateKind(
+                "1.0.12-dsh0.2.1-rc.3-bridge2.0.7",
+                "1.0.12-dsh0.2.1-rc.3-bridge2.0.7",
+                installedPatched = true,
+                availablePatched = true,
+            ),
+        )
+        assertEquals(
+            RootfsUpdateKind.REPACKAGED,
+            decideRootfsUpdateKind(
+                "1.0.12-dsh0.2.1-rc.3-bridge2.0.7",
+                "1.0.13-dsh0.2.1-rc.4-bridge2.0.7",
+                installedPatched = true,
+                availablePatched = true,
+            ),
+        )
+        // 已装补丁镜像，远端只有旧的未补丁镜像：不引导回退。
+        assertEquals(
+            RootfsUpdateKind.NONE,
+            decideRootfsUpdateKind(
+                "1.0.13-dsh0.2.1-rc.4-bridge2.0.7",
+                "1.0.12-dsh0.2.1-rc.3-bridge2.0.7",
+                installedPatched = true,
+                availablePatched = false,
+            ),
+        )
+        val assessment = assessUpdate(
+            installed = "1.0.12-dsh0.2.1-rc.3-bridge2.0.7",
+            available = "1.0.13-dsh0.2.1-rc.4-bridge2.0.7",
+            latestPlugin = null,
+            installedPlugin = null,
+            installedPatched = true,
+            availablePatched = true,
+        )
+        assertEquals(UpdateNeed.ROOTFS_OPTIONAL, assessment.need)
+    }
+
+    @Test
     fun `an engine mismatch wins over a newer rootfs segment`() {
         // 用户先收到了 rc.3 的 1.0.12 镜像，而当前 APK 的补丁目标是 rc.2：
         // 即使 1.0.12 > 1.0.11，也必须引导换回 rc.2 的镜像，不能停在版本混杂的树。

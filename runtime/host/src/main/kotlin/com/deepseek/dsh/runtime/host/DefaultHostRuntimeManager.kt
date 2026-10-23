@@ -69,8 +69,20 @@ class DefaultHostRuntimeManager(
     }
 
     override suspend fun rootfsUpdateKind(): RootfsUpdateKind = withContext(Dispatchers.IO) {
-        decideRootfsUpdateKind(installedRootfsVersion(), availableRootfsVersion())
+        val available = runCatching {
+            manifestSource().resolve(forceRefresh = true)?.manifest
+        }.getOrNull()
+        decideRootfsUpdateKind(
+            installed = installedRootfsVersion(),
+            available = available?.runtimeVersion,
+            installedPatched = installedAndroidPatched(),
+            availablePatched = available?.androidPatched == true,
+        )
     }
+
+    /** 已安装镜像是否在构建期烧入了 Android 补丁。 */
+    private fun installedAndroidPatched(): Boolean =
+        runCatching { RootfsInstaller(layout).readMarker()?.androidPatched == true }.getOrDefault(false)
 
     override suspend fun installedBridgeVersion(): String? = withContext(Dispatchers.IO) {
         runningBridgeVersion() ?: BridgePluginInstaller(context, layout).installedVersion()
@@ -97,15 +109,19 @@ class DefaultHostRuntimeManager(
                 runCatching { BridgeReleaseChecker().latestVersion(repository) }.getOrNull()
             }
         val installedRootfs = runCatching { installedRootfsVersion() }.getOrNull()
-        val availableRootfs = runCatching { availableRootfsVersion() }.getOrNull()
+        val availableManifest = runCatching {
+            manifestSource().resolve(forceRefresh = true)?.manifest
+        }.getOrNull()
         val installedPlugin = runCatching {
             runningBridgeVersion() ?: BridgePluginInstaller(context, layout).installedVersion()
         }.getOrNull()
         assessUpdate(
             installed = installedRootfs,
-            available = availableRootfs,
+            available = availableManifest?.runtimeVersion,
             latestPlugin = latest,
             installedPlugin = installedPlugin,
+            installedPatched = installedAndroidPatched(),
+            availablePatched = availableManifest?.androidPatched == true,
         )
     }
 
@@ -217,6 +233,9 @@ class DefaultHostRuntimeManager(
      * 文件锁释放与 spill 临时目录逻辑，无需重新下载整份 rootfs。
      */
     private fun applyBundledRuntimePatches() {
+        // 构建期已烧入补丁的镜像：DSH 文件本身就是「上游 + 补丁」，再用 APK 里的
+        // 整文件覆盖反而会把版本钉回旧引擎。只保留 /root/.dsh 下的 Node preload。
+        if (installedAndroidPatched()) return
         // 补丁只在版本变化时复制，避免每次启动都重写 ~1MB JS 拖慢 Host。
         val patchMarker = File(layout.rootfsDir, "root/.dsh/.runtime-patch-revision")
         // 34: app-boot 的 internal 模块改走 --expose-internals，绕开缺平台二进制的
@@ -769,10 +788,13 @@ class DefaultHostRuntimeManager(
         }
         // APK 的 rootfs 补丁按内置清单的 DSH 版本整文件替换；已安装镜像若来自
         // 另一个 DSH 版本（例如 rootfs 仓库先发了 rc.3），再套 rc.2 的补丁会让
-        // 运行树版本混杂。没有安装标记的旧现场保持原行为，只拦截能确定版本的镜像。
+        // 运行树版本混杂。构建期烧入补丁的镜像不受此限：它内部已经是
+        // 「最新 DSH + 补丁」，启动时只需跳过整文件覆盖。
         val expectedDsh = manifestSource().bundledDshVersion()
-        val installedRootfsVersion = runCatching { RootfsInstaller(layout).installedVersion() }.getOrNull()
-        if (installedRootfsVersion != null &&
+        val installedMarker = runCatching { RootfsInstaller(layout).readMarker() }.getOrNull()
+        val installedRootfsVersion = installedMarker?.runtimeVersion
+        if (installedMarker?.androidPatched != true &&
+            installedRootfsVersion != null &&
             !RootfsNaming.isDshCompatible(installedRootfsVersion, expectedDsh)
         ) {
             return@withContext Result.failure(

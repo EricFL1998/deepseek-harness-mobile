@@ -22,6 +22,13 @@ android {
     kotlinOptions {
         jvmTarget = "21"
     }
+
+    testOptions {
+        // RootfsInstaller reads android.os.Process.myUid() for the passwd overlay;
+        // plain JVM tests have no Android runtime, so return defaults instead of
+        // throwing "Method myUid not mocked".
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

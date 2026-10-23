@@ -82,21 +82,23 @@ APK 运行时仍会从 `releases/latest/download/rootfs-manifest.json` 拉取最
 
 设备端更新插件读的是 bridge 仓库的 release tag；rootfs 首装读的是 rootfs release 的清单。两者任何一个不存在，都会变成“APK 发出去了，但用户更新/首装失败”。所以在 APK tag 上做守卫，而不是在发布之后补救。
 
-## DSH 引擎版本也必须对齐
+## DSH 引擎跟随上游与 Android 补丁
 
-APK 里的 rootfs 补丁（`app/src/main/assets/rootfs-patches/*`）是**按某个 DSH 版本整文件替换**的。如果 rootfs 仓库先发布了新 DSH（例如 `0.2.1-rc.3`），而 APK 补丁仍针对 `0.2.1-rc.2`，就会出现：
+Android 补丁（`app/src/main/assets/rootfs-patches/*`）是 DSH 包文件的补丁。为了让 rootfs 永远跟随上游，补丁现在以**统一 diff** 的形式放在 rootfs 仓库的 `bundle/patches/android/*.patch`，由 rootfs 构建阶段应用到构建时解析到的最新 DSH：
 
-- 新装用户拿到 rc.3 镜像，APK 把 rc.2 的整文件补丁覆盖上去，运行树版本混杂；
-- 已装用户看到 rc.3 的“运行时更新”并升级，之后 Host 可能起不来。
+- 每个 patch 只改必要的行，不再整文件覆盖；上游移动到补丁区域时，`patch` 失败，镜像构建失败，不会发布混合版本。
+- 构建出的镜像在清单里带 `"androidPatched": true`。App 对这类镜像：
+  - 不再要求 DSH 段与内置补丁目标一致；
+  - 启动时跳过整文件补丁覆盖，只保留 `/root/.dsh` 下的 Node preload；
+  - rootfs 更新只比较 rootfs 段，引擎升级不强制换 APK。
+- 没有 `androidPatched` 的旧镜像仍走原来的运行时整文件补丁与 DSH 版本守卫。
 
-因此：
+发版规则：
 
-1. **rootfs 镜像一旦包含当前 APK 尚未支持的 DSH 版本，必须把该 GitHub release 标记为 prerelease**，让 `releases/latest` 继续指向兼容镜像：
+1. **不要发布未烧补丁的新 DSH 镜像**；如果补丁暂时打不上，让 rootfs 构建失败，而不是把 release 发出去。
+2. 如果确实发布了未烧补丁的新 DSH 镜像（例如补丁还没 rebase），必须把该 rootfs release 标记为 prerelease，直到补丁适配完成：
    ```sh
    gh release edit rootfs-v1.0.12 --repo EricFL1998/deepseek-harness-mobile-rootfs --prerelease
    ```
-2. App 运行时有两道守卫：
-   - `RootfsManifestSource` 忽略 DSH 段与 APK 内置清单不一致的远端/缓存清单；
-   - `DefaultHostRuntimeManager.start()` 拒绝启动已安装但不兼容的 rootfs，给出“重新安装匹配的 Rootfs”的提示。
-3. 要让新 DSH 版本真正可用，需要先把补丁 rebase 到该版本、更新 `rootfs-manifest.json` 的内置清单与 DSH 段，再发 APK。不要只改内置清单、不 rebase 补丁。
-4. `decideRootfsUpdateKind` 把 DSH 段不一致视为强制更新，即使已装镜像的 rootfs 段更大——否则用户会卡在版本混杂的树里。
+3. 补丁失败时，用 `bundle/patches/android` 里的 patch 文件对最新 DSH 包手工 `patch -p1`，根据冲突更新 diff，再触发 rootfs 构建。
+4. 旧镜像的 DSH 段不一致仍被视为强制更新，即使已装镜像的 rootfs 段更大——否则用户会卡在版本混杂的树里。

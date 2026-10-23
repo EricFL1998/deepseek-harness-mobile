@@ -2,6 +2,20 @@
 
 本文件记录 DSH 手机端（Android App）的版本变化。bridge 插件与 rootfs 镜像有各自的版本线，不在此文件里展开；发版顺序见 [RELEASING.md](RELEASING.md)。
 
+## 1.0.5 — 2026-10-23
+
+### 运行时
+
+- **rootfs 回到“永远跟随上游”**：Android 补丁不再以整文件覆盖的方式在 App 启动时套到 DSH 上，而是改成**统一 diff（unified patch）**，在 rootfs 镜像构建阶段应用到构建时解析到的最新 DSH 版本。补丁打不上时镜像构建直接失败，不会发布“rc.3 镜像 + rc.2 文件”的混合树。
+- rootfs 清单新增 `androidPatched` 标记。已烧入补丁的镜像，App 不再要求 DSH 段与内置补丁目标一致，也不会再用 APK 里的整文件补丁覆盖镜像；启动只保留 `/root/.dsh` 下的 Node preload。
+- 旧镜像（没有 `androidPatched`）仍走原来的运行时整文件补丁与 DSH 版本守卫，保证升级过渡期不中断。
+- rootfs 更新判断对补丁镜像只看 rootfs 段：引擎升级不再强制换 APK；未补丁镜像仍按引擎段强制更新。
+
+### 验证
+
+- 12 个 Android 补丁已转成 unified diff，并在 DSH 0.2.1-rc.3 的包上逐个验证可应用；`apply-patches.sh` 在 WSL 里对 rc.3 完整跑通。
+- `runtime:host` 单测全部通过（含补丁镜像的更新判断）。
+
 ## 1.0.4 — 2026-10-23
 
 ### 修复

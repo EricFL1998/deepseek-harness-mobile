@@ -2,6 +2,20 @@
 
 This file records changes to the DSH Mobile Android app. The bridge plugin and rootfs image have their own release lines; see [RELEASING.md](RELEASING.md) for the release order.
 
+## 1.0.5 — 2026-10-23
+
+### Runtime
+
+- **The rootfs can follow upstream again**: Android patches are no longer whole-file copies applied by the App at boot. They are now unified diffs applied during the rootfs image build against the DSH version that build resolved. If a patch no longer applies, the image build fails instead of publishing a mixed "rc.3 image + rc.2 files" tree.
+- The rootfs manifest gained an `androidPatched` flag. For an image with baked-in patches, the App no longer requires the DSH segment to match its bundled patch target and does not overwrite image files with the App's version-pinned copies; only the `/root/.dsh` Node preloads are kept.
+- Legacy images (without `androidPatched`) keep the old runtime whole-file patching and DSH version guard, so the transition does not break existing installs.
+- Rootfs update decisions for patched images only compare the rootfs segment: an engine bump no longer forces an App update. Unpatched images keep the mandatory engine-mismatch update.
+
+### Verified
+
+- All 12 Android patches were converted to unified diffs and verified against DSH 0.2.1-rc.3 packages; `apply-patches.sh` ran end-to-end against rc.3 in WSL.
+- All `runtime:host` unit tests pass, including the patched-image update decisions.
+
 ## 1.0.4 — 2026-10-23
 
 ### Fixed
