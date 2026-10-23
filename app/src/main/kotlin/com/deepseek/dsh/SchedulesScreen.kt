@@ -93,23 +93,28 @@ fun SchedulesScreen(onCreateTask: () -> Unit) {
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.schedule_hint),
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.outline,
-        )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
         if (schedules.isEmpty()) {
             Text(
                 text = stringResource(R.string.schedule_empty),
                 fontSize = 13.sp,
+                lineHeight = 20.sp,
                 color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onCreateTask)
-                    .padding(vertical = 24.dp),
             )
+            Spacer(Modifier.height(14.dp))
+            androidx.compose.material3.Surface(
+                onClick = onCreateTask,
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Text(
+                    text = stringResource(R.string.schedule_empty_action),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
             return@Column
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {

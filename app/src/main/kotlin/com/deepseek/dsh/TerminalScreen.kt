@@ -52,6 +52,8 @@ fun TerminalScreen(
     buffer: String,
     status: String,
     writable: Boolean,
+    /** 缓冲为空且未连接时显示的提示；缺省用 terminal_empty。 */
+    emptyHint: String = "",
     onInput: (String) -> Unit,
     onQuickKey: (String) -> Unit,
     onClose: () -> Unit,
@@ -176,7 +178,7 @@ fun TerminalScreen(
             modifier = Modifier.fillMaxWidth().weight(1f),
         ) {
             Text(
-                text = buffer.ifBlank { stringResource(R.string.terminal_empty) },
+                text = buffer.ifBlank { emptyHint.ifBlank { stringResource(R.string.terminal_empty) } },
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
                 fontFamily = FontFamily.Monospace,

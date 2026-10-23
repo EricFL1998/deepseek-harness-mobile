@@ -816,6 +816,15 @@ fun MainAppHost(
         var job: kotlinx.coroutines.Job? = null
         val terminalVisible = ui.activePage == ActivePage.TERMINAL ||
             (ui.rightDrawerOpen && ui.rightDrawerTab == "terminal")
+        if (terminalVisible && sid == null) {
+            // 没有会话时 Host 的 terminal/create 没有归属，页面会永远停在“正在连接…”。
+            runtimeUi.terminalStatus = context.getString(R.string.terminal_no_session)
+            runtimeUi.terminalBuffer = ""
+            return@DisposableEffect onDispose {
+                runtimeUi.terminalConnection?.close()
+                runtimeUi.terminalConnection = null
+            }
+        }
         if (terminalVisible && sid != null) {
             job = scope.launch {
                 runtimeUi.terminalList = dshRepository.listTerminals(ui.activeHostId, sid)
@@ -1827,6 +1836,7 @@ fun MainAppHost(
                                 TerminalScreen(
                                     buffer = runtimeUi.terminalBuffer,
                                     status = runtimeUi.terminalStatus,
+                                    emptyHint = runtimeUi.terminalStatus,
                                     writable = runtimeUi.terminalWritable,
                                     terminals = runtimeUi.terminalList,
                                     activeTerminalId = runtimeUi.activeTerminalId,
