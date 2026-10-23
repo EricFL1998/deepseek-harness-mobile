@@ -138,6 +138,8 @@ object ProotCommandBuilder {
         cmd.add("DSH_PERMISSION_MODE=danger-full-access")
         cmd.add("PATH=/opt/dsh/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
         cmd.add("NODE_ENV=production")
+        // V8 编译缓存：首次启动写盘，之后模块编译直接命中，冷启动明显更快。
+        cmd.add("NODE_COMPILE_CACHE=/root/.dsh/node-compile-cache")
         cmd.add("LANG=C.UTF-8")
         cmd.add("TMPDIR=/root/.dsh/tmp")
 
