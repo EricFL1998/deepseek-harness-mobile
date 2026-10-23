@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
@@ -1281,14 +1282,35 @@ private fun ModelEffortMenu(
         }.coerceIn(144.dp, 420.dp)
     }
 
+    // 稳定展开方向与高度：展开期间不随内部页切换而翻转，也不超出可用空间。
+    val screenHeightPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    val anchorTopPx = anchorBounds?.top ?: screenHeightPx
+    val anchorBottomPx = anchorBounds?.bottom ?: screenHeightPx
+    // 有足够下方空间就固定向下（新会话里就是这种布局）；否则固定向上。
+    // 方向在展开期间只算一次，切页不会翻转；高度也限制在该方向的可用空间内。
+    val marginPx = with(density) { 12.dp.toPx() }
+    val minNeededBelowPx = with(density) { 180.dp.toPx() }
+    val preferAbove = remember(expanded) {
+        screenHeightPx - anchorBottomPx < minNeededBelowPx
+    }
+    val menuMaxHeight = remember(expanded, anchorBounds) {
+        val available = if (preferAbove) {
+            anchorTopPx - marginPx * 2
+        } else {
+            screenHeightPx - anchorBottomPx - marginPx * 2
+        }
+        with(density) { available.coerceIn(160.dp.toPx(), 360.dp.toPx()).toDp() }
+    }
+
     AnchoredMenuPopup(
         expanded = expanded,
         onDismiss = onDismiss,
         menuWidth = if (page == 0) rowWidth.coerceAtLeast(300.dp) else maxOf(320.dp, rowWidth),
         align = DshMenuAlign.Start,
-        maxHeight = 360.dp,
+        maxHeight = menuMaxHeight,
         // 卡片底部与 trigger 顶部齐平，不能压住 Composer。
         anchorGap = 0.dp,
+        preferredAbove = preferAbove,
     ) {
         when (page) {
             0 -> {
@@ -1370,7 +1392,10 @@ private fun ModelEffortMenu(
                         .filter { query.isEmpty() || it.lowercase().contains(query) }
                         .forEach { name ->
                             val selected = name == selectedModel
-                            DshMenuRow(onClick = { onModelSelected("", name, name) }) {
+                            DshMenuRow(onClick = {
+                                onModelSelected("", name, name)
+                                onDismiss()
+                            }) {
                                 DshMenuLabel(name, Modifier.weight(1f))
                                 if (selected) DshMenuCheck()
                             }

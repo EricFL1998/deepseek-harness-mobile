@@ -2139,6 +2139,9 @@ fun MainAppHost(
             BackHandler(enabled = drawerState.isOpen) {
                 scope.launch { drawerState.close() }
             }
+            BackHandler(enabled = ui.rightDrawerOpen) {
+                ui.rightDrawerOpen = false
+            }
             val chatPage = ui.activePage == ActivePage.CHAT
             val pageHasOwnHeader = ui.activePage == ActivePage.SETTINGS
             Scaffold(
@@ -2651,13 +2654,15 @@ fun MainAppHost(
                                 onModelSelected = { provider, modelId, name ->
                                     // provider/模型 id 直接来自 Host 模型目录的分组，
                                     // 不再按名字猜 provider（否则 Claude/Kimi 会被写成 deepseek-*）。
-                                    ui.selectedSessionId?.let { sid ->
+                                    val sid = ui.selectedSessionId
+                                    if (sid != null) {
+                                        val displayName = name.ifBlank { modelId }
                                         scope.launch {
-                                            dshRepository.selectModel(
+                                            val result = dshRepository.selectModel(
                                                 ui.activeHostId,
                                                 sid,
                                                 modelId.ifBlank {
-                                                    effectiveModelIdByName[name] ?: name
+                                                    effectiveModelIdByName[displayName] ?: displayName
                                                 },
                                                 provider.ifBlank {
                                                     if (accountState.hasApiKey) {
@@ -2665,8 +2670,27 @@ fun MainAppHost(
                                                     } else {
                                                         "deepseek-account"
                                                     }
-                                                }
+                                                },
+                                                displayName = displayName,
                                             )
+                                            result.onSuccess {
+                                                // 立刻更新本地选择，别等 Host 投影回来才换标签。
+                                                if (displayName in availableModelNames) {
+                                                    lastUsedModel = displayName
+                                                    modelPrefs.edit()
+                                                        .putString("last_model_name", displayName)
+                                                        .apply()
+                                                }
+                                            }.onFailure { error ->
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    context.getString(
+                                                        R.string.model_switch_failed,
+                                                        error.message.orEmpty(),
+                                                    ),
+                                                    android.widget.Toast.LENGTH_LONG,
+                                                ).show()
+                                            }
                                         }
                                     }
                                 },

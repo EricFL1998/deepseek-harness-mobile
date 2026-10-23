@@ -150,19 +150,7 @@ class MainActivity : ComponentActivity() {
 
         // 初始状态不预置任何插件；插件列表完全由 Host/用户安装产生。
         setContent {
-
-            // 原生插件宿主：能力桥 + 主题快照 provide 给所有落点容器。
-            // host 为 null 时（bridge 未连）各落点不渲染，页面照常。
-            val nativeTheme = com.deepseek.dsh.plugin.nativehost.rememberPluginTheme()
-            val nativeHost = com.deepseek.dsh.plugin.nativehost.rememberNativeHostApi(
-                dispatcher = { componentId, event, payload ->
-                    app.dshRepository.bridge()?.dispatchUiEvent(componentId, event, payload)
-                },
-            )
-            androidx.compose.runtime.CompositionLocalProvider(
-                com.deepseek.dsh.plugin.nativehost.NativeHost.LocalHost provides nativeHost,
-                com.deepseek.dsh.plugin.nativehost.NativeHost.LocalTheme provides nativeTheme,
-            ) {
+            val app = application as DshApplication
             // 深浅色跟随 Host 的 ui-theme 设置（同一账号与浏览器一致），
             // 未连接 Host 时回落到系统。
             val effectiveDark = when (com.deepseek.dsh.feature.settings.ThemeBridge.preference) {
@@ -170,37 +158,45 @@ class MainActivity : ComponentActivity() {
                 "light" -> false
                 else -> androidx.compose.foundation.isSystemInDarkTheme()
             }
+            // 原生插件宿主与主题快照必须在 DshTheme 内部创建：插件页/落点读的
+            // PluginTheme 由 MaterialTheme + dshPanelColors 映射而来，放在主题外层
+            // 会永远拿到浅色 token（深色插件页文字看不清的根因）。
             DshTheme(darkTheme = effectiveDark) {
+                val nativeTheme = com.deepseek.dsh.plugin.nativehost.rememberPluginTheme()
+                val nativeHost = com.deepseek.dsh.plugin.nativehost.rememberNativeHostApi(
+                    dispatcher = { componentId, event, payload ->
+                        app.dshRepository.bridge()?.dispatchUiEvent(componentId, event, payload)
+                    },
+                )
                 androidx.compose.runtime.CompositionLocalProvider(
+                    com.deepseek.dsh.plugin.nativehost.NativeHost.LocalHost provides nativeHost,
+                    com.deepseek.dsh.plugin.nativehost.NativeHost.LocalTheme provides nativeTheme,
                     com.deepseek.dsh.core.designsystem.LocalConversationFontSize provides
                         (com.deepseek.dsh.feature.settings.ThemeBridge.fontSize ?: 14),
                 ) {
-                // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
-                val systemDark = effectiveDark
-                androidx.compose.runtime.SideEffect {
-                    androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
-                        isAppearanceLightStatusBars = !systemDark
-                        isAppearanceLightNavigationBars = !systemDark
+                    // 系统栏图标跟随应用深浅色：深色引导页需要浅色状态栏图标。
+                    androidx.compose.runtime.SideEffect {
+                        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                            isAppearanceLightStatusBars = !effectiveDark
+                            isAppearanceLightNavigationBars = !effectiveDark
+                        }
                     }
+                    MainAppHost(
+                        context = applicationContext,
+                        runtimeManager = runtimeManager,
+                        runner = runner,
+                        surfaceStore = surfaceCatalogStore,
+                        oauthManager = deepseekOAuthManager,
+                        workspaceManager = workspaceManager,
+                        layout = app.runtimeLayout,
+                        dshRepository = app.dshRepository,
+                        settingsRepository = app.settingsRepository,
+                        nativePluginRescanFlow = nativePluginRescanFlow,
+                    )
+                    // bridge 插件落后时在启动后弹窗提醒；rootfs 可选更新只在设置页出现。
+                    BridgeUpdatePrompt()
                 }
-                val app = application as DshApplication
-                MainAppHost(
-                    context = applicationContext,
-                    runtimeManager = runtimeManager,
-                    runner = runner,
-                    surfaceStore = surfaceCatalogStore,
-                    oauthManager = deepseekOAuthManager,
-                    workspaceManager = workspaceManager,
-                    layout = app.runtimeLayout,
-                    dshRepository = app.dshRepository,
-                    settingsRepository = app.settingsRepository,
-                    nativePluginRescanFlow = nativePluginRescanFlow,
-                )
-                // bridge 插件落后时在启动后弹窗提醒；rootfs 可选更新只在设置页出现。
-                BridgeUpdatePrompt()
             }
-                            }
-}
         }
     }
 

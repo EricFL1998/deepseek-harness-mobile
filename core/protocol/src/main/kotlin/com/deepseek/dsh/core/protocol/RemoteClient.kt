@@ -320,11 +320,42 @@ class RemoteClient(
 
         try {
             client.newCall(request).execute().use { response ->
-                RemoteResult.Success(response.isSuccessful)
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    return@use RemoteResult.Failure(
+                        "dsh/session/select-model",
+                        extractRpcError(body) ?: "HTTP ${response.code}",
+                    )
+                }
+                val root = runCatching { json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject }
+                    .getOrNull()
+                val result = root?.get("result") as? kotlinx.serialization.json.JsonObject
+                if (result?.get("ok")?.toString() == "false") {
+                    val error = result["error"] as? kotlinx.serialization.json.JsonObject
+                    RemoteResult.Failure(
+                        "dsh/session/select-model",
+                        (error?.get("message")?.toString() ?: error?.toString()).orEmpty(),
+                    )
+                } else {
+                    RemoteResult.Success(true)
+                }
             }
         } catch (e: Exception) {
-            RemoteResult.Success(true)
+            RemoteResult.Failure("dsh/session/select-model", e.message ?: "network error")
         }
+    }
+
+    /** 从 RPC 错误响应里取一条可读信息；没有就返回 null。 */
+    private fun extractRpcError(body: String): String? {
+        val root = runCatching { json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject }
+            .getOrNull() ?: return null
+        val error = (root["result"] as? kotlinx.serialization.json.JsonObject)?.get("error")
+            as? kotlinx.serialization.json.JsonObject
+        val message = error?.get("message")?.toString()?.trim('"')
+        if (!message.isNullOrBlank()) return message
+        val diagnostic = error?.get("diagnostic")?.toString()?.trim('"')
+        if (!diagnostic.isNullOrBlank()) return diagnostic
+        return (root["message"]?.toString())?.trim('"')?.takeIf { it.isNotBlank() }
     }
 
     override suspend fun selectPermissionPreset(

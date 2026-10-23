@@ -618,8 +618,9 @@
     <string name="right_sidebar_tab_document">Document</string>
     <string name="right_sidebar_tab_plan">Plan</string>
     <string name="right_sidebar_tab_deliverables">Deliverables</string>
+    <string name="model_switch_failed">Model switch failed: %1$s</string>
     <string name="right_sidebar_tab_terminal">Terminal</string>
-    <string name="right_sidebar_tab_schedule">Schedule</string>
+    <string name="right_sidebar_tab_schedule">Tasks</string>
     <string name="right_sidebar_tab_plugins">Plugins</string>
     <string name="header_agents_count">%1$d agents</string>
     <string name="header_jobs_running">%1$d background jobs running</string>

@@ -1990,9 +1990,17 @@ class DshRepository(
         model: String,
         provider: String? = null,
         reasoningEffort: String? = null,
-    ) {
-        dao.updateSessionModel(hostId, sessionId, model)
-        client.selectModel(hostId, sessionId, model, provider, reasoningEffort)
+        displayName: String? = null,
+    ): Result<Unit> {
+        val result = when (val res = client.selectModel(hostId, sessionId, model, provider, reasoningEffort)) {
+            is RemoteResult.Success -> Result.success(Unit)
+            is RemoteResult.Failure -> Result.failure(IllegalStateException(res.message))
+        }
+        // 只有 Host 接受后才写本地缓存：失败时界面保持原来的模型，并给出错误。
+        if (result.isSuccess) {
+            dao.updateSessionModel(hostId, sessionId, displayName ?: model)
+        }
+        return result
     }
 
     suspend fun cancelSession(hostId: String, sessionId: String): Boolean {

@@ -458,6 +458,8 @@ fun AnchoredMenuPopup(
     maxHeight: Dp = DshPanelDefaults.MenuMaxHeight,
     contentWidth: Boolean = false,
     anchorGap: Dp = DshPanelDefaults.AnchorGap,
+    /** 稳定展开方向：true 固定向上，false 固定向下，null 按空间自动选择。 */
+    preferredAbove: Boolean? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!expanded) return
@@ -465,8 +467,8 @@ fun AnchoredMenuPopup(
     val gapPx = with(density) { anchorGap.roundToPx() }
     val shadowPx = with(density) { DshPanelDefaults.PopupShadowPadding.roundToPx() }
     val marginPx = with(density) { 12.dp.roundToPx() }
-    val positionProvider = remember(gapPx, shadowPx, marginPx, align) {
-        DshMenuPositionProvider(gapPx, shadowPx, marginPx, align == DshMenuAlign.End)
+    val positionProvider = remember(gapPx, shadowPx, marginPx, align, preferredAbove) {
+        DshMenuPositionProvider(gapPx, shadowPx, marginPx, align == DshMenuAlign.End, preferredAbove)
     }
     Popup(
         popupPositionProvider = positionProvider,
@@ -602,6 +604,7 @@ private class DshMenuPositionProvider(
     private val shadowPx: Int,
     private val marginPx: Int,
     private val alignEnd: Boolean,
+    private val preferredAbove: Boolean?,
 ) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
@@ -619,11 +622,15 @@ private class DshMenuPositionProvider(
         // Do not clamp an above-anchor card to the window's bottom: edge-to-edge
         // activity anchors sit in decor coordinates while the popup window excludes
         // system bars, so a bottom clamp would push the card away from its trigger.
-        val cardY = when {
-            below + cardHeight <= windowSize.height - marginPx -> below
-            above >= marginPx -> above
-            else -> below
-        }.coerceAtLeast(marginPx)
+        val cardY = when (preferredAbove) {
+            true -> above.coerceAtLeast(marginPx)
+            false -> below.coerceAtLeast(marginPx)
+            null -> when {
+                below + cardHeight <= windowSize.height - marginPx -> below
+                above >= marginPx -> above
+                else -> below
+            }.coerceAtLeast(marginPx)
+        }
         return IntOffset(cardX - shadowPx, cardY - shadowPx)
     }
 }

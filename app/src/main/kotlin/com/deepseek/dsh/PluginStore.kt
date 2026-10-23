@@ -111,8 +111,12 @@ private val STORE_LOCALIZED: Map<String, Pair<String, String>> = mapOf(
 )
 
 /** 商店列表/详情的标题：优先本地化名称，其次把仓库名还原成可读标题。 */
-private fun storeDisplayTitle(repo: GitHubPluginRepo): String =
-    STORE_LOCALIZED[repo.fullName.lowercase()]?.first ?: friendlyRepoTitle(repo.fullName)
+private fun storeDisplayTitle(
+    repo: GitHubPluginRepo,
+    installedName: String? = null,
+): String = installedName?.takeIf { it.isNotBlank() }
+    ?: STORE_LOCALIZED[repo.fullName.lowercase()]?.first
+    ?: friendlyRepoTitle(repo.fullName)
 
 /** 商店列表/详情的简介：优先本地化文案，其次仓库自带的 description。 */
 private fun storeDisplayDescription(repo: GitHubPluginRepo): String =
@@ -286,7 +290,7 @@ private fun StoreRepoRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                storeDisplayTitle(repo),
+                storeDisplayTitle(repo, installed?.name),
                 color = colors.labelPrimary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -356,7 +360,7 @@ private fun PluginStoreDetail(
                 .padding(vertical = 6.dp),
         )
         Text(
-            storeDisplayTitle(repo),
+            storeDisplayTitle(repo, installed?.name),
             color = colors.labelPrimary,
             fontSize = 20.sp,
             lineHeight = 28.sp,
