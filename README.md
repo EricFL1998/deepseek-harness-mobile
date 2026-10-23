@@ -1,3 +1,5 @@
+[🌐 产品介绍页](site/index.html) · [English](README.en.md)
+
 # DSH 手机端（完整版 DeepSeek Harness）
 
 [English](README.en.md) · 简体中文

@@ -1,3 +1,5 @@
+[🌐 Product page](site/index.html) · [简体中文](README.md)
+
 # DSH Mobile — Full DeepSeek Harness on Android
 
 English · [简体中文](README.md)
