@@ -122,6 +122,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 统一走 edge-to-edge：键盘只通过 WindowInsets.ime 报告，系统不再 resize
+        // 窗口。否则部分 ROM（如 MIUI）既 resize 又报告 IME inset，聊天页的
+        // composer 会被抬高两次、离键盘很远。老系统上 enableEdgeToEdge 会做兼容。
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
 
         workspaceManager = WorkspaceManager(
             preferredPublicDir = visibleWorkspaceDir,
