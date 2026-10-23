@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -2185,6 +2186,10 @@ fun MainAppHost(
             val chatPage = ui.activePage == ActivePage.CHAT
             val pageHasOwnHeader = ui.activePage == ActivePage.SETTINGS
             Scaffold(
+                // 内容区不再让 Scaffold 自动消费系统栏/IME：聊天页自己按
+                // WindowInsets.ime 动态留白，其它页在下面补 navigationBars，
+                // 避免「窗口已 resize + Scaffold 又加一次 IME 内边距」的双重上移。
+                contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                 topBar = {
                     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxWidth()) {
                         Column {
@@ -2310,7 +2315,10 @@ fun MainAppHost(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .then(if (chatPage || pageHasOwnHeader) Modifier else Modifier)
+                        .then(
+                            if (chatPage) Modifier
+                            else Modifier.navigationBarsPadding()
+                        )
                 ) {
                     // 更新提示属于页面内容，不属于顶栏：放进内容区顶部，随内容滚动，
                     // 不再压住页面自己的标题栏。
