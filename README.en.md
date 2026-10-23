@@ -1,4 +1,4 @@
-[🌐 Product page](https://ericfl1998.github.io/deepseek-harness-mobile/) · [简体中文](README.md)
+[🌐 Product page](https://ericfl1998.github.io/deepseek-harness-mobile/en.html) · [简体中文](README.md)
 
 # DSH Mobile — Full DeepSeek Harness on Android
 
