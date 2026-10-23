@@ -1110,15 +1110,8 @@ private fun PluginsPageHead(
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalDshPanelColors.current
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 16.dp)
-        ) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = if (isNativeTab) stringResource(R.string.plugins_store_title)
                 else stringResource(R.string.nav_plugins),
@@ -1136,9 +1129,14 @@ private fun PluginsPageHead(
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
+        // 标题/说明占满整行，操作按钮放到下一行右侧：英文长文案
+        // （Plugin Store / Browse and install...）不会再被按钮挤成一词一行。
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
         ) {
             // 官方刷新：28dp ghost 图标按钮
             val refreshInteraction = remember { MutableInteractionSource() }
