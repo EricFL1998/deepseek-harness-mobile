@@ -1939,6 +1939,11 @@ class RemoteClient(
                 applyWorkflowEvent(sessionId, eventType, data)
             }
             "user/message" -> {
+                // Host 会把「Current runtime context」「Time sampled …」这类注入内容写成
+                // user/message；它们只进模型上下文，不是用户输入，聊天记录里不能显示。
+                val sourceKind = ((data["source"] as? kotlinx.serialization.json.JsonObject)
+                    ?.get("kind") as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                if (sourceKind != null && sourceKind != "user") return
                 val message = data["message"] as? kotlinx.serialization.json.JsonObject
                 val blocks = (message?.get("content") ?: data["content"])
                     as? kotlinx.serialization.json.JsonArray

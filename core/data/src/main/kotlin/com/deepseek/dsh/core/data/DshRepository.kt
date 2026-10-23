@@ -2051,7 +2051,10 @@ class DshRepository(
 
     fun getMessages(hostId: String, sessionId: String): Flow<List<ChatMessage>> {
         return dao.getMessages(hostId, sessionId).map { entities ->
-            entities.map { entity ->
+            entities.filterNot { entity ->
+                // 兼容旧版本已落库的注入消息（Host 的 runtime-context / time-context）。
+                entity.role == "USER" && isInjectedContextMessage(entity.contentJson.orEmpty())
+            }.map { entity ->
                 ChatMessage(
                     hostId = entity.hostId,
                     sessionId = entity.sessionId,
@@ -2063,6 +2066,14 @@ class DshRepository(
                 )
             }
         }
+    }
+
+    /** Host 注入的上下文消息（不是用户输入）：只给模型，不上聊天记录。 */
+    private fun isInjectedContextMessage(text: String): Boolean {
+        val trimmed = text.trimStart()
+        return trimmed.startsWith("Current runtime context") ||
+            trimmed.startsWith("Time sampled while preparing turn") ||
+            trimmed.startsWith("Browser time zone for this request:")
     }
 
     suspend fun sendMessage(
