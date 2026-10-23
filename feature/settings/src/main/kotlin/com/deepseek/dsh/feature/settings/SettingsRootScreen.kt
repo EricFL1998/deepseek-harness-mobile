@@ -161,6 +161,8 @@ fun SettingsRootScreen(
     /** Host 当前已注册（可路由）的 provider id；它们不该再出现在“添加”列表里。 */
     routableProviders: List<String> = emptyList(),
     onSaveModelProvider: (ModelProviderUi, String, String, List<String>) -> Unit = { _, _, _, _ -> },
+    /** 无自定义预设时，让 Agent 在会话里创建一个（官方 CTA）。 */
+    onCreateAgentPreset: () -> Unit = {},
     /** 打开模型设置/添加弹窗时从 Host 重新拉提供商目录（不用旧快照）。 */
     onRefreshModelProviders: () -> Unit = {},
     builtInPlugins: List<BuiltInPluginInfo> = emptyList(),
@@ -476,6 +478,7 @@ fun SettingsRootScreen(
                         SettingsSectionTab.AGENT_PRESETS -> SettingsAgentPresetsPane(
                             selectedPresetId = selectedAgentPreset,
                             presetGroups = pluginSnapshot?.agentPresets.orEmpty(),
+                            onCreatePreset = onCreateAgentPreset,
                             onSelectPreset = { preset ->
                                 selectedAgentPreset = preset
                                 val updated = currentSettings.copy(transcriptView = preset)

@@ -1,16 +1,19 @@
 package com.deepseek.dsh.feature.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,17 +24,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.deepseek.dsh.core.designsystem.DshDialogCloseButton
@@ -57,6 +64,7 @@ internal fun SettingsAgentPresetsPane(
     selectedPresetId: String,
     onSelectPreset: (String) -> Unit,
     presetGroups: List<AgentPresetGroupInfo> = emptyList(),
+    onCreatePreset: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var guide by remember { mutableStateOf<GuideDialog?>(null) }
@@ -144,6 +152,12 @@ internal fun SettingsAgentPresetsPane(
                 )
             }
         }
+        item(key = "agent_presets_custom_group") {
+            SettingsGroupHeading(stringResource(R.string.agent_presets_custom_group))
+        }
+        item(key = "agent_presets_create") {
+            CreatePresetButton(onClick = onCreatePreset)
+        }
     }
     val openGuide = guide
     if (openGuide != null) {
@@ -156,6 +170,50 @@ internal fun SettingsAgentPresetsPane(
 }
 
 /** 预设卡：选中态用 module 底 + bluish-400 描边，卡脚提供说明 / 用法 / 配置三个动作。 */
+/** 官方「让 Agent 帮我创建预设模式」：虚线描边的整宽按钮。 */
+@Composable
+private fun CreatePresetButton(onClick: () -> Unit) {
+    val palette = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    val shape = RoundedCornerShape(10.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(shape)
+            .drawBehind {
+                val stroke = 1.dp.toPx()
+                val dash = 4.dp.toPx()
+                drawPath(
+                    path = androidx.compose.ui.graphics.Path().apply {
+                        addRoundRect(
+                            androidx.compose.ui.geometry.RoundRect(
+                                0f, 0f, size.width, size.height,
+                                androidx.compose.ui.geometry.CornerRadius(10.dp.toPx()),
+                            ),
+                        )
+                    },
+                    color = palette.borderL3,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = stroke,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            floatArrayOf(dash, dash),
+                        ),
+                    ),
+                )
+            }
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.agent_presets_create),
+            fontSize = 13.sp,
+            color = palette.labelPrimary,
+        )
+    }
+}
+
 @Composable
 private fun AgentPresetCard(
     preset: AgentPreset,

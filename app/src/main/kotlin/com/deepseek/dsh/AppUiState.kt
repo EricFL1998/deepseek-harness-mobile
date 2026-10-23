@@ -51,7 +51,7 @@ class AppUiState(
 
     /** 聊天页的右侧栏是否展开，以及当前标签与预览文件。 */
     var rightDrawerOpen by mutableStateOf(false)
-    var rightDrawerTab by mutableStateOf("files")
+    var rightDrawerTab by mutableStateOf("guide")
     var rightDrawerPreviewPath by mutableStateOf<String?>(null)
     var sessionInspectorOpen by mutableStateOf(false)
     var pendingAgentPreset by mutableStateOf<String?>(null)

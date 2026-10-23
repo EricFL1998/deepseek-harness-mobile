@@ -640,4 +640,15 @@
     <string name="plugin_toggle_restarting">Restarting Host to apply the plugin…</string>
     <string name="onboarding_key_failed">Could not save the API key. Check it and try again.</string>
     <string name="model_effort_unavailable">This model has no configurable reasoning level</string>
+    <string name="right_sidebar_tab_guide">Start</string>
+    <string name="right_guide_files_title">Workspace files</string>
+    <string name="right_guide_files_desc">Browse files in the session workspace</string>
+    <string name="right_guide_terminal_title">New terminal</string>
+    <string name="right_guide_terminal_desc">Run commands in the session workspace</string>
+    <string name="right_guide_browser_title">Browser</string>
+    <string name="right_guide_browser_desc">Browse the web</string>
+    <string name="agent_presets_custom_group">Custom</string>
+    <string name="agent_presets_create">Let the Agent create a preset for me</string>
+    <string name="agent_presets_create_hint">New chat opened in Creation mode. Describe the preset you want.</string>
+    <string name="right_guide_plugin_desc">Open plugin page</string>
 </resources>

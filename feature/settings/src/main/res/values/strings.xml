@@ -229,4 +229,6 @@
     <string name="settings_pane_models_custom_id_invalid">Use letters, digits, dots or dashes</string>
 <string name="settings_pane_general_upload_title">Session log upload</string>
     <string name="settings_pane_general_upload_desc">Upload session logs to DeepSeek to help improve the service.</string>
+    <string name="agent_presets_custom_group">Custom</string>
+    <string name="agent_presets_create">Let the Agent create a preset for me</string>
 </resources>

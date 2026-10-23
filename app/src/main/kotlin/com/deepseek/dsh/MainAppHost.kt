@@ -3215,6 +3215,17 @@ fun MainAppHost(
                             onCreateBackup = {
                                 scope.launch { backupAndDiag.createUserDataBackup() }
                             },
+                            onCreateAgentPreset = {
+                                // 官方「让 Agent 帮我创建预设模式」：新建创造模式会话。
+                                ui.pendingAgentPreset = "cordis"
+                                ui.selectedSessionId = null
+                                ui.activePage = ActivePage.CHAT
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.agent_presets_create_hint),
+                                    android.widget.Toast.LENGTH_LONG,
+                                ).show()
+                            },
                             onExportDiagnostics = {
                                 scope.launch { backupAndDiag.exportDiagnosticsZip() }
                             },

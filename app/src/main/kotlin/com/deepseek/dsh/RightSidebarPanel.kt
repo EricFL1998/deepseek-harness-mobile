@@ -1,5 +1,6 @@
 package com.deepseek.dsh
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -47,16 +50,17 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** 右侧栏标签（对应官方 sidebar.right.pane.tab 里手机端可实现的部分）。 */
-private val RIGHT_TABS = listOf("files", "document", "plan", "deliverables", "terminal", "schedule", "browser")
+private val RIGHT_TABS = listOf("guide", "files", "document", "plan", "deliverables", "terminal", "schedule", "browser")
 
 /** 单次预览读取上限。 */
 private const val PREVIEW_LIMIT_BYTES = 256 * 1024
 
 /**
- * 聊天页右侧栏：标签条就是面板顶部（跟官方一样没有独立标题栏），末尾挂关闭。
+ * 聊天页右侧栏（官方 SidebarRight 的 drawer 版）：顶部只有一个 tab 条，
+ * 没有独立标题栏；条尾是「+」（打开 guide）和收起按钮。不提供分栏。
  *
- * 文件/文档直接读手机工作区（Host 绑定的同一份目录）；计划与交付物来自官方
- * 会话投影；浏览器面板在手机端没有内核，给出明确说明。
+ * guide 页复刻官方 guide tab：居中一枚淡淡的指南针 + 工作区文件 / 新建终端 /
+ * 浏览器三个入口胶囊。
  */
 @Composable
 fun RightSidebarPanel(
@@ -75,36 +79,24 @@ fun RightSidebarPanel(
     onOpenDeliverable: (PresentedFileInfo) -> Unit,
     terminalContent: @Composable () -> Unit,
     scheduleContent: @Composable () -> Unit,
-    /** 插件注册的右侧栏标签（App 新增的 RIGHT_PANEL 落点 API）。 */
     pluginTabs: List<com.deepseek.dsh.plugin.nativehost.NativeRightPaneTab> = emptyList(),
-    /** 官方终端插件（@deepseek-ai/dsh-api-terminal-controller）启用时才显示终端标签。 */
     showTerminal: Boolean = false,
     onClose: () -> Unit,
 ) {
     val palette = dshPanelColors()
-    // 官方未启用终端插件时，右侧栏不出现终端标签（和电脑版一致）。
     val builtinTabs = if (showTerminal) RIGHT_TABS else RIGHT_TABS.filter { it != "terminal" }
-    // 选中的插件标签被卸载后回退到 Files，避免空白页。
     val knownTabs = builtinTabs + pluginTabs.map { "plugin:${it.key}" }
-    val effectiveTab = if (tab in knownTabs) tab else "files"
+    val effectiveTab = if (tab in knownTabs) tab else "guide"
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
-            .drawBehind {
-                // 与左侧内容分隔的发丝线，官方 dock 分隔线同款。
-                drawRect(
-                    color = palette.borderL2,
-                    topLeft = Offset(0f, 0f),
-                    size = androidx.compose.ui.geometry.Size(1f, size.height),
-                )
-            },
+            .statusBarsPadding(),
     ) {
-        // 顶部标签条：36dp 高、发丝下边框，选中项下划线，末尾关闭按钮。
+        // 官方 dock tab strip：36dp、发丝分隔、选中 chip 带关闭。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp),
+                .height(38.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
@@ -114,73 +106,55 @@ fun RightSidebarPanel(
                     .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                builtinTabs.forEach { id ->
-                    val selected = effectiveTab == id
-                    val label = stringResource(
-                        when (id) {
-                            "files" -> R.string.right_sidebar_tab_files
-                            "document" -> R.string.right_sidebar_tab_document
-                            "plan" -> R.string.right_sidebar_tab_plan
-                            "deliverables" -> R.string.right_sidebar_tab_deliverables
-                            "terminal" -> R.string.right_sidebar_tab_terminal
-                            "schedule" -> R.string.right_sidebar_tab_schedule
-                            else -> R.string.right_sidebar_tab_browser
-                        },
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .clickable { onTabChange(id) }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp,
-                            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                            color = if (selected) palette.labelPrimary else palette.labelSecondary,
-                        )
-                        if (selected) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .height(2.dp)
-                                    .background(palette.labelPrimary),
-                            )
-                        }
-                    }
-                }
-            }
-            pluginTabs.forEach { pluginTab ->
-                val id = "plugin:${pluginTab.key}"
-                val selected = effectiveTab == id
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .clickable { onTabChange(id) }
-                        .padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = pluginTab.title,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp,
-                        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                        color = if (selected) palette.labelPrimary else palette.labelSecondary,
-                        maxLines = 1,
-                    )
-                    if (selected) {
+                builtinTabs.forEachIndexed { index, id ->
+                    if (index > 0) {
                         Box(
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(2.dp)
-                                .background(palette.labelPrimary),
+                                .width(0.5.dp)
+                                .height(14.dp)
+                                .background(palette.borderL2),
                         )
                     }
+                    val selected = effectiveTab == id
+                    TabChip(
+                        label = stringResource(rightTabLabel(id)),
+                        selected = selected,
+                        onSelect = { onTabChange(id) },
+                        onClose = if (selected && id != "guide") {
+                            { onTabChange("guide") }
+                        } else null,
+                    )
                 }
+                pluginTabs.forEach { pluginTab ->
+                    val id = "plugin:${pluginTab.key}"
+                    Box(
+                        modifier = Modifier
+                            .width(0.5.dp)
+                            .height(14.dp)
+                            .background(palette.borderL2),
+                    )
+                    TabChip(
+                        label = pluginTab.title,
+                        selected = effectiveTab == id,
+                        onSelect = { onTabChange(id) },
+                        onClose = if (effectiveTab == id) { { onTabChange("guide") } } else null,
+                    )
+                }
+            }
+            // 「+」：官方 guide 的 add 控件。
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onTabChange("guide") },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_rs_plus),
+                    contentDescription = null,
+                    tint = palette.labelSecondary,
+                    modifier = Modifier.size(16.dp),
+                )
             }
             DshDialogCloseButton(onClick = onClose, label = "Close")
             Spacer(modifier = Modifier.width(2.dp))
@@ -193,6 +167,14 @@ fun RightSidebarPanel(
         )
         Box(modifier = Modifier.fillMaxSize()) {
             when (effectiveTab) {
+                "guide" -> RightGuideTab(
+                    showTerminal = showTerminal,
+                    pluginTabs = pluginTabs,
+                    onOpenFiles = { onTabChange("files") },
+                    onOpenTerminal = { onTabChange("terminal") },
+                    onOpenBrowser = { onTabChange("browser") },
+                    onOpenPlugin = { key -> onTabChange("plugin:$key") },
+                )
                 "files" -> RightFilesTab(
                     files = files,
                     currentPath = currentPath,
@@ -233,6 +215,174 @@ fun RightSidebarPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+/** 官方 tab 标签文案。 */
+private fun rightTabLabel(id: String): Int = when (id) {
+    "guide" -> R.string.right_sidebar_tab_guide
+    "files" -> R.string.right_sidebar_tab_files
+    "document" -> R.string.right_sidebar_tab_document
+    "plan" -> R.string.right_sidebar_tab_plan
+    "deliverables" -> R.string.right_sidebar_tab_deliverables
+    "terminal" -> R.string.right_sidebar_tab_terminal
+    "schedule" -> R.string.right_sidebar_tab_schedule
+    else -> R.string.right_sidebar_tab_browser
+}
+
+/** 一个 dock chip：图标 + 标题；选中时右侧出现关闭。 */
+@Composable
+private fun TabChip(
+    label: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onClose: (() -> Unit)?,
+) {
+    val palette = dshPanelColors()
+    Row(
+        modifier = Modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) palette.bgLayer2 else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable { onSelect() }
+            .padding(start = 10.dp, end = if (onClose != null) 4.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            color = if (selected) palette.labelPrimary else palette.labelSecondary,
+            maxLines = 1,
+        )
+        if (onClose != null) {
+            Spacer(modifier = Modifier.width(2.dp))
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(com.deepseek.dsh.core.designsystem.R.drawable.ic_close),
+                    contentDescription = null,
+                    tint = palette.labelTertiary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
+    }
+}
+
+/** 官方 guide tab：淡指南针 + 三个入口胶囊。 */
+@Composable
+private fun RightGuideTab(
+    showTerminal: Boolean,
+    pluginTabs: List<com.deepseek.dsh.plugin.nativehost.NativeRightPaneTab>,
+    onOpenFiles: () -> Unit,
+    onOpenTerminal: () -> Unit,
+    onOpenBrowser: () -> Unit,
+    onOpenPlugin: (String) -> Unit,
+) {
+    val palette = dshPanelColors()
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // 入口是列表：空间不够（或以后条目更多）时整块上下滚动，指南针跟着走。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_rs_compass),
+                contentDescription = null,
+                tint = palette.labelTertiary.copy(alpha = 0.45f),
+                modifier = Modifier.size(52.dp),
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            GuideEntry(
+                icon = com.deepseek.dsh.core.designsystem.R.drawable.ic_folder_open,
+                title = stringResource(R.string.right_guide_files_title),
+                description = stringResource(R.string.right_guide_files_desc),
+                onClick = onOpenFiles,
+            )
+            if (showTerminal) {
+                Spacer(modifier = Modifier.height(10.dp))
+                GuideEntry(
+                    icon = R.drawable.ic_rs_terminal,
+                    title = stringResource(R.string.right_guide_terminal_title),
+                    description = stringResource(R.string.right_guide_terminal_desc),
+                    onClick = onOpenTerminal,
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            GuideEntry(
+                icon = R.drawable.ic_rs_globe,
+                title = stringResource(R.string.right_guide_browser_title),
+                description = stringResource(R.string.right_guide_browser_desc),
+                onClick = onOpenBrowser,
+            )
+            // capsule 列表是 slot：插件注册的右侧栏页面在这里各占一枚入口。
+            pluginTabs.forEach { pluginTab ->
+                Spacer(modifier = Modifier.height(10.dp))
+                GuideEntry(
+                    icon = R.drawable.ic_rs_plus,
+                    title = pluginTab.title,
+                    description = stringResource(R.string.right_guide_plugin_desc),
+                    onClick = { onOpenPlugin(pluginTab.key) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideEntry(
+    icon: Int,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+) {
+    val palette = dshPanelColors()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(palette.bgLayer2)
+            .border(0.5.dp, palette.borderL2, RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = palette.menuIcon,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.labelPrimary,
+            )
+            Text(
+                text = description,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = palette.labelTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

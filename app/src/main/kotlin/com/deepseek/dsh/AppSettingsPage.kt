@@ -61,6 +61,7 @@ internal fun AppSettingsPage(
     onManageAccount: () -> Unit,
     onCreateBackup: () -> Unit,
     onExportDiagnostics: () -> Unit,
+    onCreateAgentPreset: () -> Unit,
     onClose: () -> Unit,
     pluginComponentRefresh: SharedFlow<String>?,
     pluginRpc: (suspend (String, JsonObject) -> Result<String>)?,
@@ -99,6 +100,7 @@ internal fun AppSettingsPage(
                 onCredentialsRaw = onCredentialsRaw,
             )
         },
+        onCreateAgentPreset = onCreateAgentPreset,
         onSaveModelProvider = { provider, key, baseUrl, models ->
             saveModelProvider(
                 scope = scope,

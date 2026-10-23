@@ -640,4 +640,15 @@
     <string name="plugin_toggle_restarting">正在重启 Host 以启用插件…</string>
     <string name="onboarding_key_failed">未能保存 API Key，请检查后重试。</string>
     <string name="model_effort_unavailable">当前模型没有可调的推理等级</string>
+    <string name="right_sidebar_tab_guide">开始</string>
+    <string name="right_guide_files_title">工作区文件</string>
+    <string name="right_guide_files_desc">浏览会话工作区的文件</string>
+    <string name="right_guide_terminal_title">新建终端</string>
+    <string name="right_guide_terminal_desc">在会话工作区运行命令</string>
+    <string name="right_guide_browser_title">浏览器</string>
+    <string name="right_guide_browser_desc">浏览网页</string>
+    <string name="agent_presets_custom_group">自定义</string>
+    <string name="agent_presets_create">让 Agent 帮我创建预设模式</string>
+    <string name="agent_presets_create_hint">已打开创造模式会话，描述你想要的预设即可。</string>
+    <string name="right_guide_plugin_desc">打开插件页面</string>
 </resources>
