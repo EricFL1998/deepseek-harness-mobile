@@ -33,15 +33,21 @@ class HostService : Service() {
             else -> {
                 val notification = buildForegroundNotification("DSH Agent 运行时保持后台运行")
                 startForeground(NOTIFICATION_ID, notification)
-                return START_STICKY
+                return START_NOT_STICKY
             }
         }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // 保留 Host：从最近任务划掉 App 后，前台服务继续持有 proot/Node，
-        // 下次打开直接复用已就绪的 Host（否则每次都要重新等 20s+ 启动）。
-        // 用户要停掉时走「设置 → 移动运行时」的正常停止流程。
+        // 用户从最近任务移除 App 属于正常退出：连同 Host 一起停掉，
+        // 不在后台留下 proot/Node 进程。
+        val manager = HostRuntimeHolder.manager
+        Thread {
+            if (manager != null) {
+                kotlinx.coroutines.runBlocking { runCatching { manager.stop() } }
+            }
+        }.start()
+        stopSelf()
         super.onTaskRemoved(rootIntent)
     }
 
