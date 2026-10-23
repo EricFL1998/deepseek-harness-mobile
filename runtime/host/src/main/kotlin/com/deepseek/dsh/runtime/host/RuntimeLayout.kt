@@ -144,6 +144,30 @@ data class RuntimeLayout(
         }
     }
 
+    /** profile 的用户 patch 文件（Host 的插件开关会往这里追加 `- id:` 行）。 */
+    val profilePatchFile: File
+        get() = File(rootfsDir, "root/.dsh/profiles/web/cordis.patch.yml")
+
+    /**
+     * 修复历史版本写坏的 profile patch。
+     *
+     * Host 的 setPluginEnabled 在空数组文件（内容是 `[]`）后面直接追加 `- id: ...`，
+     * 得到 `[]` 紧跟列表项的非法 YAML，下次启动会直接崩在 loadOverlayPatches。
+     * 只要文件里已经有列表项，就把单独成行的 `[]` 去掉；只有 `[]` 时保持原样。
+     */
+    fun repairProfilePatch() {
+        val file = profilePatchFile
+        if (!file.isFile) return
+        val text = runCatching { file.readText() }.getOrNull() ?: return
+        val lines = text.lines()
+        val hasListItems = lines.any { it.trimStart().startsWith("- ") }
+        if (!hasListItems) return
+        val fixed = lines.filterNot { it.trim() == "[]" }.joinToString("\n")
+        if (fixed != text) {
+            runCatching { file.writeText(fixed) }
+        }
+    }
+
     fun ensureIdentityOverlays() {
         runtimeMetaDir.mkdirs()
         passwdOverlay.parentFile?.mkdirs()
