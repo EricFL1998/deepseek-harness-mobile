@@ -201,6 +201,7 @@ data class BuiltInPluginInfo(
 data class AgentPresetGroupInfo(
     val id: String,
     val name: String,
+    val description: String? = null,
     val isDefault: Boolean = false,
     val broken: String? = null,
     val rows: List<BuiltInPluginInfo> = emptyList()

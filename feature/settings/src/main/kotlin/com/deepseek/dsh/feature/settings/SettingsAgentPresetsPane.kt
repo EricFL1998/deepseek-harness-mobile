@@ -65,16 +65,17 @@ internal fun SettingsAgentPresetsPane(
     val yesLabel = stringResource(R.string.agent_update_yes)
     val noLabel = stringResource(R.string.agent_update_no)
     val builtInPresets = builtInAgentPresets()
-    // 预设是否存在/名称由 Host 决定；说明文案是官方内置 i18n，仅按 id 匹配。
+    // 预设是否存在/名称/说明都由 Host 决定；官方内置 i18n 只补 id 对应的
+    // 详细文案（官方客户端同一套字符串）。
     val presets = presetGroups.map { group ->
-        builtInPresets.firstOrNull { it.id == group.id }
-            ?: AgentPreset(
-                id = group.id,
-                name = group.name,
-                description = "",
-                explanation = "",
-                usage = "",
-            )
+        val builtIn = builtInPresets.firstOrNull { it.id == group.id }
+        if (builtIn != null) builtIn else AgentPreset(
+            id = group.id,
+            name = group.name,
+            description = group.description.orEmpty(),
+            explanation = "",
+            usage = "",
+        )
     }
     LazyColumn(
         modifier = modifier.fillMaxSize(),

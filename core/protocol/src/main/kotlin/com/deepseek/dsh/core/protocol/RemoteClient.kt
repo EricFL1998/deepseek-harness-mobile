@@ -910,6 +910,7 @@ class RemoteClient(
                                 AgentPresetGroupInfo(
                                     id = id,
                                     name = name,
+                                    description = localizedJsonText(presetItem["description"] as? kotlinx.serialization.json.JsonObject),
                                     isDefault = isDefault,
                                     broken = broken,
                                     rows = rows
