@@ -2013,7 +2013,25 @@ class RemoteClient(
                 eventBus.tryEmit(RemoteEvent.ChangesAnnounced(sessionId, seq, turn))
             }
             "turn/start" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, true))
-            "turn/end" -> eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
+            "turn/end" -> {
+                eventBus.tryEmit(RemoteEvent.SessionRunning(sessionId, false))
+                // 模型/网络失败时 Host 只发 turn/end.reason.error，assistant 消息为空；
+                // 以前界面就只剩一个空白气泡。把错误原文落成一条可见的助手消息。
+                val reason = data["reason"] as? kotlinx.serialization.json.JsonObject
+                val error = reason?.get("error") as? kotlinx.serialization.json.JsonObject
+                val message = (error?.get("message")
+                    as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                if (!message.isNullOrBlank()) {
+                    emitDurableMessage(
+                        sessionId = sessionId,
+                        hostId = hostId,
+                        seq = seq,
+                        messageId = "error_turn_$seq",
+                        role = MessageRole.ASSISTANT,
+                        content = "⚠️ $message",
+                    )
+                }
+            }
             "assistant/message" -> {
                 val message = data["message"] as? kotlinx.serialization.json.JsonObject ?: return
                 val blocks = message["content"] as? kotlinx.serialization.json.JsonArray
