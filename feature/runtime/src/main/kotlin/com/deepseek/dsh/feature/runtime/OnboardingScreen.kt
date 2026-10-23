@@ -446,9 +446,9 @@ private fun AuthPage(
                     },
                 ),
                 contentDescription = stringResource(R.string.onb_brand),
-                modifier = Modifier.height(24.dp),
+                modifier = Modifier.height(30.dp),
             )
-            Spacer(Modifier.height(44.dp))
+            Spacer(Modifier.height(40.dp))
             OnboardingHeadline(prefix = stringResource(R.string.onb_welcome), centered = true)
             Spacer(Modifier.height(10.dp))
             OnboardingBody(text = stringResource(R.string.onb_welcome_desc), centered = true)
