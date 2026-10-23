@@ -27,6 +27,9 @@ interface DshDao {
     @Query("UPDATE sessions SET model = :model WHERE hostId = :hostId AND sessionId = :sessionId")
     suspend fun updateSessionModel(hostId: String, sessionId: String, model: String)
 
+    @Query("UPDATE sessions SET archived = :archived WHERE hostId = :hostId AND sessionId = :sessionId")
+    suspend fun updateSessionArchived(hostId: String, sessionId: String, archived: Int)
+
     @Query("UPDATE sessions SET updatedAt = :updatedAt WHERE hostId = :hostId AND sessionId = :sessionId")
     suspend fun touchSession(hostId: String, sessionId: String, updatedAt: Long)
 

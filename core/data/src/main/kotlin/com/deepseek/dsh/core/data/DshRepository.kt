@@ -1216,8 +1216,17 @@ class DshRepository(
         val args = buildJsonObject {
             put("request", buildJsonObject { put("sessionId", sessionId) })
         }
-        val ok = rpcRaw(hostId, method, args.toString()).isSuccess
-        if (ok) refreshSessions(hostId)
+        val res = rpcRaw(hostId, method, args.toString())
+        if (res.isFailure) {
+            android.util.Log.e("DSH_ARCHIVE", "$method failed: ${res.exceptionOrNull()?.message}")
+        }
+        val ok = res.isSuccess
+        if (ok) {
+            // Host 归档后 session/list 不再返回它；本地行必须同步标记，否则
+            // “隐藏已归档”过滤器看不到变化，按钮看起来像没反应。
+            dao.updateSessionArchived(hostId, sessionId, if (archived) 1 else 0)
+            refreshSessions(hostId)
+        }
         return ok
     }
 

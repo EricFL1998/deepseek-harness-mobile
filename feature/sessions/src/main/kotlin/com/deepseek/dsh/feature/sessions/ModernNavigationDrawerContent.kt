@@ -800,6 +800,23 @@ fun ModernNavigationDrawerContent(
                                     lineHeight = 16.sp,
                                     maxLines = 1
                                 )
+                                // 归档：不再藏在长按菜单里，行尾直接给一个按钮。
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onToggleArchiveSession(session) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        painter = androidx.compose.ui.res.painterResource(
+                                            com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive
+                                        ),
+                                        contentDescription = if (session.archived) "取消归档" else "归档会话",
+                                        tint = textMuted,
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                }
                             }
 
                             // 行操作菜单（原 hover 按钮）改为长按弹出
