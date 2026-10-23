@@ -803,6 +803,7 @@ class DefaultHostRuntimeManager(
         // 通用插件存储根：插件自行创建子目录。只建根目录，不按插件名适配。
         File(layout.rootfsDir, "root/.dsh/plugins").mkdirs()
         File(layout.rootfsDir, "root/.dsh/node-compile-cache").mkdirs()
+        File(layout.rootfsDir, "root/.dsh/cpu-prof").mkdirs()
         File(workspacePath).mkdirs()
         // proot 需要能 chdir 进 bind 目标；rootfs 内 /workspace 必须是可进入目录。
         File(layout.rootfsDir, "workspace").apply {

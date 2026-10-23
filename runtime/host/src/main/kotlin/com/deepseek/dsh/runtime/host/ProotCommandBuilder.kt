@@ -150,6 +150,11 @@ object ProotCommandBuilder {
         // 直接用 node 执行 dsh 的 bin.js：绕过 /opt/dsh/bin/dsh 包装脚本，
         // 保证 import.meta.url 指向真实安装目录（否则 profile bundle 解析锚点会错）。
         cmd.add("/usr/local/bin/node")
+        // 启动剖面：定位 Host 冷启动热点（--cpu-prof 只在调试构建开启）。
+        if (config.customEnv["DSH_CPU_PROFILE"] == "1") {
+            cmd.add("--cpu-prof")
+            cmd.add("--cpu-prof-dir=/root/.dsh/cpu-prof")
+        }
         // 引擎的 Loader/app-boot 通过 node-addon-require-builtin 读 Node internal
         // 模块；该原生插件在部分 rootfs 镜像里缺平台二进制时会直接让 Host 起不来
         // （Cannot find module .../node-addon-require-builtin/...）。暴露 internals
