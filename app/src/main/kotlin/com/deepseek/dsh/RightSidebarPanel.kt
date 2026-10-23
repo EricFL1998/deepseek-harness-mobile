@@ -254,16 +254,14 @@ private fun RightGuideTab(
                 description = stringResource(R.string.right_guide_files_desc),
                 onClick = onOpenFiles,
             )
-            if (showTerminal) {
-                Spacer(modifier = Modifier.height(10.dp))
-                GuideEntry(
-                    icon = R.drawable.ic_rs_terminal,
-                    title = stringResource(R.string.right_guide_terminal_title),
-                    description = stringResource(R.string.right_guide_terminal_desc),
-                        iconTint = dshPanelColors().labelPrimary,
-                    onClick = onOpenTerminal,
-                )
-            }
+            Spacer(modifier = Modifier.height(10.dp))
+            GuideEntry(
+                icon = R.drawable.ic_rs_terminal,
+                title = stringResource(R.string.right_guide_terminal_title),
+                description = stringResource(R.string.right_guide_terminal_desc),
+                iconTint = dshPanelColors().labelPrimary,
+                onClick = onOpenTerminal,
+            )
             Spacer(modifier = Modifier.height(10.dp))
             GuideEntry(
                 icon = R.drawable.ic_rs_globe,
