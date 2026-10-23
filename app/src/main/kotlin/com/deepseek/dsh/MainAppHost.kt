@@ -2164,12 +2164,7 @@ fun MainAppHost(
                     },
                     onToggleArchiveSession = { item ->
                         scope.launch {
-                            val ok = dshRepository.setSessionArchived(ui.activeHostId, item.sessionId, !item.archived)
-                            android.widget.Toast.makeText(
-                                context,
-                                if (ok) "已归档" else "归档失败：Host 未接受 workspace/archiveSession",
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
+                            dshRepository.setSessionArchived(ui.activeHostId, item.sessionId, !item.archived)
                         }
                     },
                     remoteSearchResults = runtimeUi.remoteSearchResults,
