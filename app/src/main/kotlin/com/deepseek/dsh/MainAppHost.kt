@@ -837,7 +837,9 @@ fun MainAppHost(
         ui.rightDrawerOpen,
         ui.rightDrawerTab,
     ) {
-        val sid = ui.selectedSessionId
+        // 终端不要求用户先选中会话：新会话页打开终端时回退到最近会话，
+        // 这样这枚胶囊点开就会自动 create/open，而不是停在“无会话”。
+        val sid = ui.selectedSessionId ?: sessions.firstOrNull()?.sessionId
         var job: kotlinx.coroutines.Job? = null
         val terminalVisible = ui.activePage == ActivePage.TERMINAL ||
             (ui.rightDrawerOpen && ui.rightDrawerTab == "terminal")
