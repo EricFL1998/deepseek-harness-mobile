@@ -1298,9 +1298,13 @@ export { Config, GLOB_MAX_RESULTS, GLOB_VCS_EXCLUDES, GREP_MAX_LINE_BYTES, GREP_
 function shq(value) { return JSON.stringify(String(value)); }
 async function androidBridgeShell(command, cwd, timeoutMs = 120000) {
 	const net = await import("node:net");
+	const fs = await import("node:fs");
 	const port = Number(process.env.DSH_ANDROID_BRIDGE_PORT);
 	if (!port) throw new Error("bridge port unavailable");
-	const payload = JSON.stringify({ jsonrpc: "2.0", id: String(Date.now()), method: "android_exec_shell", params: { command, cwd, timeoutMs } }) + "\n";
+	// 桥只接受带本地 token 的请求；token 由 App 每次启动 Host 时轮换并写入 guest 的 DSH_HOME。
+	const auth = String(fs.readFileSync("/root/.dsh/.bridge_token", "utf8")).trim();
+	if (!auth) throw new Error("bridge token unavailable");
+	const payload = JSON.stringify({ jsonrpc: "2.0", id: String(Date.now()), auth, method: "android_exec_shell", params: { command, cwd, timeoutMs } }) + "\n";
 	return await new Promise((resolve, reject) => {
 		const socket = net.connect({ host: "127.0.0.1", port }, () => socket.write(payload));
 		let buffer = "";

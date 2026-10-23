@@ -23,6 +23,16 @@ data class RuntimeLayout(
     val rootfsDir: File get() = File(baseDir, RootfsNaming.INSTALL_DIR)
     val optDshDir: File get() = File(rootfsDir, "opt/dsh")
     val dshHomeDir: File get() = File(rootfsDir, "root/.dsh")
+
+    /**
+     * 设备桥 token 文件。
+     *
+     * 与 guest 内的 `/root/.dsh/.bridge_token` 指向同一份字节；App 每次启动 Host
+     * 时轮换，Host 侧补丁按请求携带。文件位于应用私有目录，其他 Android 应用读不到，
+     * 因此无法连接宿主机的回环桥执行设备命令。
+     */
+    val bridgeTokenFile: File get() = File(dshHomeDir, BridgeTokenFileName)
+
     val runtimeMetaDir: File get() = File(baseDir, "runtime")
     val cacheDir: File get() = File(baseDir, "cache")
     val safDir: File get() = File(baseDir, "saf")
@@ -205,6 +215,11 @@ data class RuntimeLayout(
         backupsDir.mkdirs()
         ensureIdentityOverlays()
         ensureNodePatches()
+    }
+
+    private companion object {
+        /** 与 `BridgeAuth.TOKEN_FILE_NAME` 保持一致；host 模块不反向依赖 bridge 模块。 */
+        const val BridgeTokenFileName = ".bridge_token"
     }
 }
 

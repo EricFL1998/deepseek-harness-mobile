@@ -11,7 +11,16 @@ data class BridgeRequest(
     val jsonrpc: String = "2.0",
     val id: String,
     val method: String,
-    val params: JsonElement? = null
+    val params: JsonElement? = null,
+    /**
+     * 本地鉴权 token。
+     *
+     * 桥监听在 127.0.0.1，但 Android 上 loopback 不是「只有本应用能连」，
+     * 端口随机只能降低命中率；Host 侧补丁从 guest 的
+     * `/root/.dsh/.bridge_token` 读取并在每个请求里携带。缺失或错误的
+     * token 会被拒绝，不执行任何设备操作。
+     */
+    val auth: String? = null
 )
 
 @Serializable

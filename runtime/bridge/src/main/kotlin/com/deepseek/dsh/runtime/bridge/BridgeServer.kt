@@ -14,18 +14,26 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.io.PrintWriter
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.Executors
 
 /**
  * v4.0 设计文档 §10.2:
- * 本地回环 BridgeServer (127.0.0.1 随机端口)，承载 Node 容器侧 dsh-android-bridge 插件发来的 JSON-RPC
+ * 本地回环 BridgeServer (127.0.0.1 随机端口)，承载 Node 容器侧 dsh-android-bridge 插件发来的 JSON-RPC。
+ *
+ * 鉴权：每个请求必须携带 [BridgeRequest.auth]，其值由 [BridgeAuth] 在每次 Host
+ * 启动时轮换并写入 guest 的 `/root/.dsh/.bridge_token`。未配置 token 时拒绝所有
+ * 请求（fail closed），不允许退化成无鉴权模式。
  */
 class BridgeServer(
     private val context: Context,
+    private val tokenFile: File? = null,
     private val port: Int = 0 // 0 = 随机可用端口
 ) {
     private var serverSocket: ServerSocket? = null
@@ -33,13 +41,26 @@ class BridgeServer(
     private val json = Json { ignoreUnknownKeys = true }
     private var isRunning = false
 
+    /** 本次 Host 启动使用的 token；[start] 之前为 null，此时拒绝所有请求。 */
+    @Volatile
+    private var expectedToken: String? = null
+
     val localPort: Int get() = serverSocket?.localPort ?: 0
 
     @Synchronized
     fun start(): Int {
         if (isRunning) return localPort
 
-        val ss = ServerSocket(port)
+        // 每次 Host 启动轮换 token，并写到 guest 的 DSH_HOME。Host 侧补丁按请求
+        // 携带；没有 token 文件就拒绝服务，不能因为「忘了传 token」退化成无鉴权。
+        expectedToken = tokenFile?.let { file ->
+            BridgeAuth.newToken().also { BridgeAuth.writeTokenFile(file, it) }
+        }
+
+        // 显式绑定 127.0.0.1：ServerSocket(port) 默认绑定所有网卡，仅靠注释声称
+        // loopback 不成立；桥的能力是设备级命令，绝不能对局域网开放。
+        val ss = ServerSocket()
+        ss.bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), port))
         serverSocket = ss
         isRunning = true
 
@@ -78,6 +99,8 @@ class BridgeServer(
                     val request = json.decodeFromString<BridgeRequest>(reqStr)
                     val response = dispatchRequest(request)
                     writer.println(json.encodeToString(BridgeResponse.serializer(), response))
+                    // 鉴权失败直接断开，不给同一连接继续试 token 的机会。
+                    if (response.error?.code == BridgeAuth.UNAUTHORIZED_CODE) return
                 } catch (e: Exception) {
                     val err = BridgeResponse(
                         id = "error",
@@ -90,6 +113,15 @@ class BridgeServer(
     }
 
     fun dispatchRequest(request: BridgeRequest): BridgeResponse {
+        if (!BridgeAuth.verify(expectedToken, request.auth)) {
+            return BridgeResponse(
+                id = request.id,
+                error = BridgeError(
+                    code = BridgeAuth.UNAUTHORIZED_CODE,
+                    message = "bridge token missing or invalid",
+                ),
+            )
+        }
         return try {
             when (request.method) {
                 BridgeMethod.GET_DEVICE_INFO.methodName -> {

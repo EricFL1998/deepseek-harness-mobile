@@ -227,7 +227,9 @@ class DefaultHostRuntimeManager(
         // ATTACHMENT_WRITE_FAILED（它自己在 link 成功后还会 unlink staging）。
         // 37: subprocess 控制通道 fd7 恢复为真实管道（之前被改成 "ignore"，
         // 导致 workflow PTC worker 拿到 null control，卡在 reading 'on' of null）。
-        val patchRevision = "37"
+        // 38: bash / fs-search 的设备桥请求携带本地 token；桥按 fail-closed 鉴权，
+        // 阻止同机其他应用连回环端口执行设备命令。
+        val patchRevision = "38"
         if (patchMarker.isFile && patchMarker.readText().trim() == patchRevision) return
         val patches = mapOf(
             "rootfs-patches/dsh-app-boot-index.js" to
@@ -859,8 +861,9 @@ class DefaultHostRuntimeManager(
             ?.filter { it.name.startsWith(".credentials.yaml.lock") }
             ?.forEach { it.delete() }
 
-        // 1. 启动本地 BridgeServer 并获得 loopback 端口
-        val bridge = BridgeServer(context)
+        // 1. 启动本地 BridgeServer 并获得 loopback 端口；token 写入 guest 的 DSH_HOME，
+        // Host 侧补丁按请求携带（见 BridgeAuth）。
+        val bridge = BridgeServer(context, layout.bridgeTokenFile)
         val bridgePort = bridge.start()
         bridgeServer = bridge
 
