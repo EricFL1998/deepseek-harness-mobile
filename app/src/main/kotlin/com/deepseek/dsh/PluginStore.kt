@@ -350,15 +350,8 @@ private fun PluginStoreDetail(
     }
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "‹ " + stringResource(R.string.plugins_store_back),
-            color = colors.labelSecondary,
-            fontSize = 13.sp,
-            modifier = Modifier
-                .clickable(onClick = onBack)
-                .padding(vertical = 6.dp),
-        )
+        // 返回由 App 顶栏承载，详情页内不再重复画一条。
+        Spacer(Modifier.height(12.dp))
         Text(
             storeDisplayTitle(repo, installed?.name),
             color = colors.labelPrimary,
