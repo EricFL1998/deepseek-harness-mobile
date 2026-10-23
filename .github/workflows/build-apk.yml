@@ -34,13 +34,16 @@ jobs:
       # Signing material comes from repository secrets. Without them the workflow still
       # builds a debug APK, so forks and PRs keep working.
       - name: Decode signing material
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No signing secrets; building debug APK"
+            exit 0
+          fi
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > keystore.jks
           {
             echo "storeFile=keystore.jks"
