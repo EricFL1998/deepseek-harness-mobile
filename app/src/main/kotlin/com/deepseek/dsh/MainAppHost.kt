@@ -2604,6 +2604,7 @@ fun MainAppHost(
                                     scope.launch {
                                         try {
                                         var sid = ui.selectedSessionId
+                                        var createdSession = false
                                         // 官方语义：当前会话存在就一直复用它。liveSessionIds 只表示
                                         // “正在运行”，上一轮结束后就为空；以前用它判断会每发第二条
                                         // 消息就新建会话（于是看起来自动开新会话、没有回复）。
@@ -2629,16 +2630,23 @@ fun MainAppHost(
                                                     "rootfs/root/.dsh/sessions/${workspaceSessionDirName(runtimeUi.activeWorkspaceName)}/$sid"
                                                 ).mkdirs()
                                                 ui.selectedSessionId = sid
+                                                createdSession = true
                                             }
                                         }
                                         if (sid != null) {
                                             println("DSH_SEND session=$sid")
-                                            dshRepository.selectModel(
-                                                ui.activeHostId,
-                                                sid,
-                                                effectiveModelIdByName[currentModel] ?: currentModel,
-                                                if (accountState.hasApiKey) "deepseek-official" else "deepseek-account"
-                                            )
+                                            // 只有刚创建的会话需要把当前选择写入 modelSelection；
+                                            // 已有会话不能再覆盖（之前每次都按账号 provider 重选，
+                                            // Kimi/订阅模型的 provider 被改错，回复变空白）。
+                                            if (createdSession) {
+                                                dshRepository.selectModel(
+                                                    ui.activeHostId,
+                                                    sid,
+                                                    effectiveModelIdByName[currentModel] ?: currentModel,
+                                                    currentProviderGroup?.id
+                                                        ?: if (accountState.hasApiKey) "deepseek-official" else "deepseek-account",
+                                                )
+                                            }
                                             dshRepository.sendMessage(ui.activeHostId, sid, outgoingText, outgoingImages)
                                         } else {
                                             android.widget.Toast.makeText(
