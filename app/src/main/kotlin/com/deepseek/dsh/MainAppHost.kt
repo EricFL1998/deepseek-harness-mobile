@@ -1949,18 +1949,12 @@ fun MainAppHost(
     // 终端页跟随官方插件行：Host 的 Loader 里 `@deepseek-ai/dsh-api-terminal-controller`
     // 启用时才出现。这与官方插件页里那一行的开关是同一个事实源，客户端不加设置项。
     val terminalSupported = remember(bridgePluginCatalog) {
-        val bundles = bridgePluginCatalog.bundles
-        // 官方默认关闭：Host 没报任何 bundle 时也视为不支持，避免启动瞬间
-        // 或 bridge 未连时把终端页/标签露出来。
-        if (bundles.isEmpty()) {
-            false
-        } else {
-            bundles.any { bundle ->
-                bundle.enabled && bundle.rows.any { row ->
-                    row.moduleName == "@deepseek-ai/dsh-api-terminal-controller" &&
-                        row.enabled == true
-                }
-            }
+        // 官方终端的开关是可选 bundle「持久终端」(@deepseek-ai/dsh-experimental-terminal-
+        // bundle)：它默认关闭，用户在插件页打开后才安装/启用终端。之前按
+        // terminal-controller 行判断，而该行属于基础 bundle 且默认启用，导致移动端
+        // 默认就露出终端页/标签（电脑版没有）。
+        bridgePluginCatalog.bundles.any { bundle ->
+            bundle.name == "@deepseek-ai/dsh-experimental-terminal-bundle" && bundle.enabled
         }
     }
     LaunchedEffect(terminalSupported, ui.activePage) {
