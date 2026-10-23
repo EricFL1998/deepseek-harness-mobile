@@ -90,6 +90,7 @@ import com.deepseek.dsh.core.model.SessionInfo
 
 enum class WorkspaceGroupMode { WORKSPACE, TREE, SINGLE_LIST }
 enum class SessionSortMode { MANUAL, RECENT }
+enum class ArchiveFilter { HIDE_ARCHIVED, ALL, ONLY_ARCHIVED }
 
 data class SessionDisplayItem(
     val sessionId: String,
@@ -99,6 +100,7 @@ data class SessionDisplayItem(
     val isRunning: Boolean = false,
     val hasUnread: Boolean = false,
     val updatedAt: Long = 0L,
+    val archived: Boolean = false,
     val pinned: Boolean = false,
 )
 
@@ -134,6 +136,7 @@ fun ModernNavigationDrawerContent(
     /** 长按会话行的操作：重命名 / 置顶 / 归档。 */
     onRenameSession: (SessionDisplayItem) -> Unit = {},
     onTogglePinSession: (SessionDisplayItem) -> Unit = {},
+    onToggleArchiveSession: (SessionDisplayItem) -> Unit = {},
     onForkSession: (SessionDisplayItem) -> Unit = {},
     /** Host 内容搜索结果（sessionId + 命中片段）。 */
     remoteSearchResults: List<Pair<String, String>> = emptyList(),
@@ -193,6 +196,7 @@ fun ModernNavigationDrawerContent(
     var viewMenuOpen by remember { mutableStateOf(false) }
     var groupMode by remember { mutableStateOf(WorkspaceGroupMode.WORKSPACE) }
     var sortMode by remember { mutableStateOf(SessionSortMode.MANUAL) }
+    var archiveFilter by remember { mutableStateOf(ArchiveFilter.HIDE_ARCHIVED) }
     var searchQuery by remember { mutableStateOf("") }
     LaunchedEffect(searchOpen, searchQuery) {
         if (!searchOpen || searchQuery.isBlank()) {
@@ -456,8 +460,10 @@ fun ModernNavigationDrawerContent(
                     ViewOptionsMenu(
                         groupMode = groupMode,
                         sortMode = sortMode,
+                        archiveFilter = archiveFilter,
                         onGroupMode = { groupMode = it; viewMenuOpen = false },
                         onSortMode = { sortMode = it; viewMenuOpen = false },
+                        onArchiveFilter = { archiveFilter = it; viewMenuOpen = false },
                     )
                 }
             }
@@ -483,7 +489,7 @@ fun ModernNavigationDrawerContent(
         //    会话行 .sessionRow 高 32、圆角 12、起始缩进 20、标题 14/20、时间 10/16 三级色。
         val sessionListState = androidx.compose.foundation.lazy.rememberLazyListState()
         val scrubTitles = workspaces.flatMap { folder ->
-            folder.sessions.map { it.title }
+            folder.sessions.filterNot { it.archived }.map { it.title }
         }
         val remoteSearchTitle = stringResource(R.string.search_host_results)
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -497,15 +503,30 @@ fun ModernNavigationDrawerContent(
             val searching = searchOpen && searchQuery.isNotBlank()
             val filteredWorkspaces = workspaces.map { folder ->
                 val sessions = folder.sessions.filter { session ->
-                    !searching || session.title.contains(searchQuery, ignoreCase = true)
+                    val archiveOk = when (archiveFilter) {
+                        ArchiveFilter.HIDE_ARCHIVED -> !session.archived
+                        ArchiveFilter.ALL -> true
+                        ArchiveFilter.ONLY_ARCHIVED -> session.archived
+                    }
+                    val searchOk = !searching || session.title.contains(searchQuery, ignoreCase = true)
+                    archiveOk && searchOk
                 }.let { list ->
                     if (sortMode == SessionSortMode.RECENT) list.sortedByDescending { it.updatedAt } else list
                 }
                 folder.copy(sessions = sessions, isExpanded = true)
+            }.filter { folder ->
+                // 官方 groupByWorkspace：除「仅归档」外，空工作区也保留。
+                archiveFilter != ArchiveFilter.ONLY_ARCHIVED || folder.sessions.isNotEmpty()
             }
             val allMatching = workspaces.flatMap { folder -> folder.sessions }
                 .filter { session ->
-                    !searching || session.title.contains(searchQuery, ignoreCase = true)
+                    val archiveOk = when (archiveFilter) {
+                        ArchiveFilter.HIDE_ARCHIVED -> !session.archived
+                        ArchiveFilter.ALL -> true
+                        ArchiveFilter.ONLY_ARCHIVED -> session.archived
+                    }
+                    val searchOk = !searching || session.title.contains(searchQuery, ignoreCase = true)
+                    archiveOk && searchOk
                 }
                 .let { list ->
                     if (sortMode == SessionSortMode.RECENT) list.sortedByDescending { it.updatedAt } else list
@@ -789,6 +810,7 @@ fun ModernNavigationDrawerContent(
                                 onRename = { onRenameSession(session) },
                                 onFork = { onForkSession(session) },
                                 onTogglePin = { onTogglePinSession(session) },
+                                onToggleArchive = { onToggleArchiveSession(session) },
                             )
                         }
                     }
@@ -931,10 +953,10 @@ private fun AccountMenuRow(
     }
 }
 /**
- * 会话行长按菜单：置顶 / 重命名 / 复制 Session ID。
+ * 会话行长按菜单：置顶 / 重命名 / 归档 / 复制 Session ID。
  *
- * 每一项都直接落到官方 Remote（`workspace/pinSession`、`session/rename`，
- * `workspace/pinSession`、`session/rename`），手机端不显示桌面快捷键提示。
+ * 每一项都直接落到官方 Remote（`workspace/pinSession`、`session/rename`、
+ * `workspace/archiveSession`），手机端不显示桌面快捷键提示。
  */
 @Composable
 private fun SessionRowMenu(
@@ -944,6 +966,7 @@ private fun SessionRowMenu(
     onRename: () -> Unit,
     onFork: () -> Unit,
     onTogglePin: () -> Unit,
+    onToggleArchive: () -> Unit,
 ) {
     data class Entry(val labelResId: Int, val iconResId: Int, val action: () -> Unit)
 
@@ -961,6 +984,10 @@ private fun SessionRowMenu(
             R.string.row_fork,
             com.deepseek.dsh.core.designsystem.R.drawable.ic_row_branch,
         ) { onFork() },
+        Entry(
+            if (session.archived) R.string.row_unarchive else R.string.row_archive,
+            com.deepseek.dsh.core.designsystem.R.drawable.ic_row_archive,
+        ) { onToggleArchive() },
         Entry(
             R.string.row_session_id,
             com.deepseek.dsh.core.designsystem.R.drawable.ic_row_copy,
@@ -1084,8 +1111,10 @@ private fun DrawerScrollbarScrubber(
 private fun ViewOptionsMenu(
     groupMode: WorkspaceGroupMode,
     sortMode: SessionSortMode,
+    archiveFilter: ArchiveFilter,
     onGroupMode: (WorkspaceGroupMode) -> Unit,
     onSortMode: (SessionSortMode) -> Unit,
+    onArchiveFilter: (ArchiveFilter) -> Unit,
 ) {
     DshMenuSectionLabel("分组方式")
     GroupModeRow("按工作区", groupMode == WorkspaceGroupMode.WORKSPACE) { onGroupMode(WorkspaceGroupMode.WORKSPACE) }
@@ -1094,6 +1123,16 @@ private fun ViewOptionsMenu(
     DshMenuSectionLabel("排序方式")
     GroupModeRow("手动排序", sortMode == SessionSortMode.MANUAL) { onSortMode(SessionSortMode.MANUAL) }
     GroupModeRow("最近更新", sortMode == SessionSortMode.RECENT) { onSortMode(SessionSortMode.RECENT) }
+    DshMenuSectionLabel("筛选会话")
+    GroupModeRow("隐藏已归档", archiveFilter == ArchiveFilter.HIDE_ARCHIVED) {
+        onArchiveFilter(ArchiveFilter.HIDE_ARCHIVED)
+    }
+    GroupModeRow("全部对话（显示已归档）", archiveFilter == ArchiveFilter.ALL) {
+        onArchiveFilter(ArchiveFilter.ALL)
+    }
+    GroupModeRow("仅显示已归档", archiveFilter == ArchiveFilter.ONLY_ARCHIVED) {
+        onArchiveFilter(ArchiveFilter.ONLY_ARCHIVED)
+    }
 }
 
 @Composable
