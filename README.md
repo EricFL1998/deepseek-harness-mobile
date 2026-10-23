@@ -9,7 +9,7 @@ DSH 手机端不是“连到电脑的远程客户端”，也不是只保留聊�
 - **完整 DSH Host 在手机本地运行**：内置 Debian (glibc) + proot 用户空间与 Node 运行时，直接启动上游 DSH。会话、Agent、工具调用、审批、定时任务、Agent Team、插件加载全部由真实 Host 处理，不是重新实现的“手机版协议”。
 - **插件生态原样兼容**：Host 侧插件、bundle、`client-slots` 注册与 `bridge/v1` 协议全部保留。需要 DOM 的重型界面跑在 Web 岛，核心界面由原生 Compose 渲染，插件不需要为手机重写业务逻辑。
 - **伴生原生 UI**：APK 形式的伴随插件可以用 **DSH Native UI SDK** 以 Kotlin + Compose 编写真正的原生界面，并注册到聊天、设置、侧栏、输入栏等落点。
-- **真实工作区**：默认绑定手机共享目录 `Documents/DSH-Workspace`，在容器内挂载为 `/workspace`；系统文件管理器直接可见，产物无需导出。
+- **真实工作区**：默认工作区根目录是手机共享存储的 `/storage/emulated/0/Documents/DSH-Workspace`，在容器内挂载为 `/workspace`；系统文件管理器直接可见，产物无需导出。
 - **多 Host**：本地 Host 与远程私有网关 Host 并存、随时切换。
 
 ## 功能概览

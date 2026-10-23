@@ -9,7 +9,7 @@ DSH Mobile is not a thin remote client and not a chat-only shell. It puts the **
 - **Full DSH Host runs on the phone**: a bundled Debian (glibc) userland with proot and a Node runtime starts the upstream DSH directly. Sessions, agents, tool calls, approvals, schedules, Agent Team and plugin loading are handled by the real Host — not a re-implemented “mobile protocol”.
 - **Plugin ecosystem compatibility**: Host plugins, bundles, `client-slots` registrations and the `bridge/v1` protocol are preserved. DOM-heavy UI runs in a Web island; core UI is rendered natively with Compose, so plugins do not need a mobile fork.
 - **Companion native UI**: APK-delivered companion plugins can build **real native screens** with the **DSH Native UI SDK** (Kotlin + Compose) and register into chat, settings, sidebar and composer slots.
-- **Real workspace**: the default workspace is the phone’s shared `Documents/DSH-Workspace`, mounted as `/workspace` inside the container. Files are visible in the system file manager; no export step.
+- **Real workspace**: the default workspace root is `/storage/emulated/0/Documents/DSH-Workspace` in shared phone storage, mounted as `/workspace` inside the container. Files are visible in the system file manager; no export step.
 - **Multi-host**: local Host and remote private gateway Hosts coexist and can be switched at any time.
 
 ## Features
