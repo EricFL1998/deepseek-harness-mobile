@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="DSH Mobile — Full DeepSeek Harness on Android">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b16"/>
+      <stop offset="0.55" stop-color="#0b1224"/>
+      <stop offset="1" stop-color="#101a33"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9db3ff"/>
+      <stop offset="0.5" stop-color="#6d8cff"/>
+      <stop offset="1" stop-color="#36d6c3"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d8cff"/>
+      <stop offset="1" stop-color="#36d6c3"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.85" cy="0.1" r="0.7">
+      <stop offset="0" stop-color="#6d8cff" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#6d8cff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.05" cy="0.95" r="0.6">
+      <stop offset="0" stop-color="#36d6c3" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#36d6c3" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <rect width="1200" height="300" fill="url(#glow)"/>
+  <rect width="1200" height="300" fill="url(#glow2)"/>
+
+  <!-- brand mark -->
+  <rect x="70" y="58" width="58" height="58" rx="16" fill="url(#mark)"/>
+  <text x="99" y="98" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="30" font-weight="800" fill="#071018" text-anchor="middle">D</text>
+
+  <text x="146" y="83" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="700" fill="#f4f7ff">DSH Mobile</text>
+  <text x="146" y="108" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#a7b0c6">完整版 DeepSeek Harness · Android</text>
+
+  <!-- headline -->
+  <text x="70" y="196" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="46" font-weight="800" fill="#f4f7ff">把完整 DSH 装进手机</text>
+  <text x="70" y="236" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="18" fill="#a7b0c6">本机真实 Host · 插件生态兼容 · 伴生原生 UI · 真实工作区</text>
+
+  <!-- call to action -->
+  <a href="https://ericfl1998.github.io/deepseek-harness-mobile/">
+    <rect x="960" y="196" width="170" height="52" rx="14" fill="url(#mark)"/>
+    <text x="1045" y="229" font-family="ui-sans-serif, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#071018" text-anchor="middle">产品介绍页 →</text>
+  </a>
+
+  <text x="70" y="278" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5" fill="#727d96">ericfl1998.github.io/deepseek-harness-mobile</text>
+</svg>
