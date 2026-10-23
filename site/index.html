@@ -51,6 +51,9 @@
   .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, #6d8cff, #36d6c3); display: grid; place-items: center; color: #071018; font-size: 15px; font-weight: 900; }
   .nav-links { display: flex; align-items: center; gap: 24px; color: var(--ink-2); font-size: 14px; }
   .nav-links a:hover { color: var(--ink); }
+  .nav-actions { display: flex; align-items: center; gap: 12px; }
+  .lang { display: inline-flex; align-items: center; height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; }
+  .lang:hover { color: var(--ink); border-color: rgba(255,255,255,.22); }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; height: 44px; padding: 0 20px; border-radius: 12px; font-size: 14px; font-weight: 600; border: 1px solid transparent; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
   .btn:hover { transform: translateY(-1px); }
   .btn-primary { background: linear-gradient(135deg, #7d99ff, #5d7cf2); color: #081020; box-shadow: 0 12px 30px rgba(93, 124, 242, .28); }
@@ -160,8 +163,10 @@
       <a href="#download">下载</a>
       <a href="https://github.com/EricFL1998/deepseek-harness-mobile" target="_blank" rel="noreferrer">GitHub ↗</a>
     </nav>
-    <a href="en.html" style="color:var(--ink-2);font-size:13px;margin-right:14px">EN</a>
-    <a class="btn btn-primary" href="#download">获取 1.0</a>
+    <div class="nav-actions">
+      <a class="lang" href="en.html">EN</a>
+      <a class="btn btn-primary" href="#download"></a>
+    </div>
   </div>
 </header>
 
