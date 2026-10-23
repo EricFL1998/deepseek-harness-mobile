@@ -748,11 +748,7 @@ class DefaultHostRuntimeManager(
     }.getOrDefault(emptyList())
 
     override suspend fun start(workspacePath: String): Result<RuntimeStatus> = startMutex.withLock {
-        val startedAt = System.currentTimeMillis()
-        fun mark(label: String) {
-            android.util.Log.d("DSH_START", "$label +${System.currentTimeMillis() - startedAt}ms")
-        }
-        mark("begin")
+
         if (runner.isRunning()) return@withLock Result.success(runner.statusFlow.value)
         // NonCancellable：调用方的 scope 被取消（切页/重组/返回）时，不能把 runner
         // 丢在 STARTING 里。启动要么跑完、要么落到明确的 ERROR，由看门狗和超时兜底。
@@ -864,7 +860,6 @@ class DefaultHostRuntimeManager(
             ?.forEach { it.delete() }
 
         // 1. 启动本地 BridgeServer 并获得 loopback 端口
-        mark("dirs+patch")
         val bridge = BridgeServer(context)
         val bridgePort = bridge.start()
         bridgeServer = bridge
@@ -909,7 +904,6 @@ class DefaultHostRuntimeManager(
         logFile.appendText("[CMD] ${cmd.joinToString(" ")}\n")
         val endpointDeferred = CompletableDeferred<ProcessOutputParser.ParsedEndpoint>()
 
-        mark("bridge+service")
         val launchResult = runner.launchProcess(
             command = launchCmd,
             workingDir = layout.baseDir,
@@ -922,14 +916,12 @@ class DefaultHostRuntimeManager(
                 "LD_LIBRARY_PATH" to layout.nativeLibraryDir.absolutePath,
             ),
             onEndpointFound = { endpoint ->
-                mark("endpoint")
-                if (!endpointDeferred.isCompleted) {
+                        if (!endpointDeferred.isCompleted) {
                     endpointDeferred.complete(endpoint)
                 }
             }
         )
 
-        mark("launched")
         if (launchResult.isFailure) {
             bridge.stop()
             return@withContext Result.failure(launchResult.exceptionOrNull()!!)
