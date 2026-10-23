@@ -136,7 +136,10 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberOnboardingPalette()
-    var step by remember { mutableStateOf(if (authenticated) OnboardingStep.WELCOME else OnboardingStep.AUTH) }
+    // 官方 WelcomePage：每次首次引导都先展示授权页，即使用户本机已有登录态，
+    // 也必须显式选择「登录」或「添加 API Key」才进入后续 onboarding。
+    var step by remember { mutableStateOf(OnboardingStep.AUTH) }
+    var authAttempted by remember { mutableStateOf(false) }
     var purpose by remember { mutableStateOf<OnboardingPurpose?>(null) }
     var process by remember { mutableStateOf<OnboardingProcess?>(null) }
     var confirmation by remember { mutableStateOf<OnboardingConfirmation?>(null) }
@@ -154,9 +157,12 @@ fun OnboardingScreen(
         onComplete(OnboardingResult.of(purpose, process, skipped))
     }
 
-    // 授权完成后自动进入欢迎页（登录/添加 API Key 都是异步完成的）。
-    LaunchedEffect(authenticated) {
-        if (authenticated && step == OnboardingStep.AUTH) step = OnboardingStep.WELCOME
+    // 只有在用户点过「登录 / 添加 API Key」且授权状态就绪后才进入欢迎页；
+    // 已有登录态不会自动跳过授权页。
+    LaunchedEffect(authenticated, authAttempted) {
+        if (authAttempted && authenticated && step == OnboardingStep.AUTH) {
+            step = OnboardingStep.WELCOME
+        }
     }
 
     fun goBack() {
@@ -204,8 +210,14 @@ fun OnboardingScreen(
                 ) { current ->
                     when (current) {
                         OnboardingStep.AUTH -> AuthPage(
-                            onSignIn = onSignIn,
-                            onAddApiKey = onAddApiKey,
+                            onSignIn = {
+                                authAttempted = true
+                                onSignIn()
+                            },
+                            onAddApiKey = {
+                                authAttempted = true
+                                onAddApiKey()
+                            },
                         )
 
                         OnboardingStep.WELCOME -> WelcomePage(
@@ -437,11 +449,14 @@ private fun AuthPage(
         ) {
             androidx.compose.foundation.Image(
                 painter = androidx.compose.ui.res.painterResource(
-                    com.deepseek.dsh.core.designsystem.R.drawable.ic_brand_wordmark,
+                    if (com.deepseek.dsh.core.designsystem.LocalDshDarkTheme.current) {
+                        R.drawable.onb_brand_dark
+                    } else {
+                        R.drawable.onb_brand_light
+                    },
                 ),
                 contentDescription = stringResource(R.string.onb_brand),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(palette.labelPrimary),
-                modifier = Modifier.height(26.dp),
+                modifier = Modifier.height(20.dp),
             )
             Spacer(Modifier.height(56.dp))
             OnboardingHeadline(prefix = stringResource(R.string.onb_welcome), centered = true)
