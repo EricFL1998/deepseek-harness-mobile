@@ -651,4 +651,5 @@
     <string name="agent_presets_create">Let the Agent create a preset for me</string>
     <string name="agent_presets_create_hint">New chat opened in Creation mode. Describe the preset you want.</string>
     <string name="right_guide_plugin_desc">Open plugin page</string>
+    <string name="host_loading_data">Loading account and plugins…</string>
 </resources>

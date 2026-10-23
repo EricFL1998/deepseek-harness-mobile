@@ -83,6 +83,7 @@ class AppRuntimeUiState(
     var activeTerminalId by mutableStateOf("main")
     var terminalShells by mutableStateOf<List<Pair<String, String>>>(emptyList())
     var terminalConnection by mutableStateOf<TerminalConnection?>(null)
+    var accountHydrated by mutableStateOf(false)
     var localHostBound by mutableStateOf(false)
 
     // 工作区与各类对话框

@@ -651,4 +651,5 @@
     <string name="agent_presets_create">让 Agent 帮我创建预设模式</string>
     <string name="agent_presets_create_hint">已打开创造模式会话，描述你想要的预设即可。</string>
     <string name="right_guide_plugin_desc">打开插件页面</string>
+    <string name="host_loading_data">正在加载账号与插件…</string>
 </resources>

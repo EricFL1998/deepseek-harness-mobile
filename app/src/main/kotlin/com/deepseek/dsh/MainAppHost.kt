@@ -1181,6 +1181,18 @@ fun MainAppHost(
             runtimeUi.modelCredentialsRaw = dshRepository.rpcRaw(ui.activeHostId, "credentials/describe", refsJson).getOrNull()
             dshRepository.refreshModelCatalog(ui.activeHostId)
             dshRepository.refreshPluginInventory(ui.activeHostId)
+            // Host 一就绪就主动读一次账号：不要等 account/watch 的下一次推送，
+            // 否则首屏的账号/余额会空白几秒。
+            if (!runtimeUi.accountHydrated) {
+                val profile = runCatching {
+                    dshRepository.getAccountProfile(ui.activeHostId).getOrNull()
+                }.getOrNull()
+                val balance = runCatching {
+                    dshRepository.getAccountBalance(ui.activeHostId).getOrNull()
+                }.getOrNull()
+                if (profile != null) oauthManager.applyHostAccount(profile, balance)
+                runtimeUi.accountHydrated = true
+            }
             dshRepository.refreshAutomationTasks(ui.activeHostId)
             dshRepository.refreshTeamTasks(ui.activeHostId)
             val baseUrl = dshApplication.defaultClient.currentBaseUrl()
@@ -1387,6 +1399,31 @@ fun MainAppHost(
         return
     }
     // 首次打开引导：完全替代旧 Landing 页，完成后写入本地进度，仅首次展示。
+
+    // Host 端口就绪不等于数据就绪：账号与插件目录还要一次 RPC。首屏先停在
+    // 加载页，最多等 6 秒；拿到账号结果与插件快照后再放行，避免打开后界面
+    // 先空几秒再跳变。
+    var startupHydrated by remember { mutableStateOf(false) }
+    LaunchedEffect(runtimeUi.hostProgressReady, status.port, runtimeUi.accountHydrated, pluginSnapshot) {
+        if (!runtimeUi.hostProgressReady) {
+            startupHydrated = false
+            return@LaunchedEffect
+        }
+        val deadline = System.currentTimeMillis() + 6_000
+        while (System.currentTimeMillis() < deadline) {
+            if (runtimeUi.accountHydrated && pluginSnapshot != null) break
+            kotlinx.coroutines.delay(120)
+        }
+        startupHydrated = true
+    }
+    if (runtimeUi.hostProgressReady && !startupHydrated) {
+        HostStartupSplash(
+            phase = RuntimePhase.STARTING,
+            title = stringResource(R.string.host_loading_data),
+            onRetry = {},
+        )
+        return
+    }
 
     if (runtimeUi.showOnboarding) {
         val funded = accountState.wallets.any { (it.balance.toDoubleOrNull() ?: 0.0) > 0.0 } ||
