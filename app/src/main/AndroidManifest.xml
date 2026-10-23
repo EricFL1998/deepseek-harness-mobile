@@ -59,7 +59,7 @@
         <service
             android:name="com.deepseek.dsh.runtime.host.HostService"
             android:foregroundServiceType="specialUse"
-            android:stopWithTask="true"
+            android:stopWithTask="false"
             android:exported="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
