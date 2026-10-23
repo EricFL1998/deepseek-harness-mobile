@@ -2021,14 +2021,22 @@ class RemoteClient(
                 val error = reason?.get("error") as? kotlinx.serialization.json.JsonObject
                 val message = (error?.get("message")
                     as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                val code = (error?.get("code")
+                    as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
                 if (!message.isNullOrBlank()) {
+                    // 完整错误：message 全文 + code（不截断），在气泡里逐行显示。
+                    val full = buildString {
+                        append("⚠️ ")
+                        append(message)
+                        if (!code.isNullOrBlank()) append("\n\n错误码：").append(code)
+                    }
                     emitDurableMessage(
                         sessionId = sessionId,
                         hostId = hostId,
                         seq = seq,
                         messageId = "error_turn_$seq",
                         role = MessageRole.ASSISTANT,
-                        content = "⚠️ $message",
+                        content = full,
                     )
                 }
             }

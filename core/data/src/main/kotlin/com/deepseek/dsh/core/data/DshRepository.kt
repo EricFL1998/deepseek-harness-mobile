@@ -2124,7 +2124,7 @@ class DshRepository(
                             messageId = "msg_error_${System.currentTimeMillis()}",
                             role = MessageRole.ASSISTANT.name,
                             seq = 0L,
-                            contentJson = "发送失败：${result.message}",
+                            contentJson = "⚠️ 发送失败：${result.message}",
                             createdAt = System.currentTimeMillis(),
                             status = "error"
                         )

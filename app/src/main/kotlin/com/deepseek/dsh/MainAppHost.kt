@@ -2652,6 +2652,16 @@ fun MainAppHost(
                                             android.widget.Toast.makeText(
                                                 context, context.getString(R.string.session_create_failed), android.widget.Toast.LENGTH_LONG
                                             ).show()
+                                            pendingMessages.add(
+                                                ChatMessage(
+                                                    hostId = ui.activeHostId,
+                                                    sessionId = "pending",
+                                                    messageId = "local_error_${System.nanoTime()}",
+                                                    role = MessageRole.ASSISTANT,
+                                                    content = "⚠️ " + context.getString(R.string.session_create_failed),
+                                                    createdAt = System.currentTimeMillis(),
+                                                )
+                                            )
                                         }
                                         } finally {
                                             pendingMessages.removeAll { it.messageId == localId }

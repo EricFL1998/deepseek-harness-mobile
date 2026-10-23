@@ -21,7 +21,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -591,7 +595,7 @@ fun ModernChatScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .imePadding()
+            .windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))
     ) {
         // conversation.view：插件可以在会话视图整体位置增强（官方默认内容为空占位）。
         com.deepseek.dsh.plugin.nativehost.OfficialSlot(
@@ -698,7 +702,8 @@ fun ModernChatScreen(
                             )
                             // 官方 message-feedback：助手消息下方的赞/踩（可选备注）。
                             if (row.message.role == MessageRole.ASSISTANT &&
-                                row.message.content.isNotBlank()
+                                row.message.content.isNotBlank() &&
+                                !row.message.content.trimStart().startsWith("⚠️")
                             ) {
                                 MessageFeedbackActions(
                                     current = MessageFeedbackBridge.items[row.message.messageId],
@@ -2464,12 +2469,18 @@ fun ModernMessageItem(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-                // 正文里的 ```dsh-ui 围栏由 GenUI 插件产生；原生兜底已移除，
-                // 这类界面内容请在插件的完整 Web 界面查看。
-                MarkdownMessageText(
-                    text = contentParts.last(),
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
+                val answerText = contentParts.last()
+                if (answerText.trimStart().startsWith("⚠️")) {
+                    // 运行失败：错误原文（含 code）完整显示在错误气泡里，不截断。
+                    ErrorMessageBubble(text = answerText.trimStart().removePrefix("⚠️").trim())
+                } else {
+                    // 正文里的 ```dsh-ui 围栏由 GenUI 插件产生；原生兜底已移除，
+                    // 这类界面内容请在插件的完整 Web 界面查看。
+                    MarkdownMessageText(
+                        text = answerText,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
 
                 // conversation.chat.assistant-actions：原生插件在助手消息下的动作落点。
                 com.deepseek.dsh.plugin.nativehost.NativeSlot(
@@ -2484,6 +2495,33 @@ fun ModernMessageItem(
 
             }
         }
+    }
+}
+
+/** 运行时错误气泡：显示完整错误文本（含错误码），不折叠、不省略。 */
+@Composable
+private fun ErrorMessageBubble(text: String) {
+    val colors = com.deepseek.dsh.core.designsystem.dshPanelColors()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = if (colors.isDark) 0.35f else 0.6f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text = "运行失败",
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
     }
 }
 
