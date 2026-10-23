@@ -94,6 +94,7 @@ import com.deepseek.dsh.runtime.host.HostRuntimeManager
 import com.deepseek.dsh.runtime.host.RuntimeLayout
 import com.deepseek.dsh.runtime.host.RuntimePhase
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -1184,33 +1185,37 @@ fun MainAppHost(
             // Host 一就绪就主动读账号，且必须拿到一个明确的 signed-in /
             // signed-out 才标记 hydrated；读失败（Host 还没完全起来）继续重试，
             // 否则首屏会先显示“未登录”，一两秒后才跳成已登录。
-            if (!runtimeUi.accountHydrated) {
-                val deadline = System.currentTimeMillis() + 6_000
-                while (System.currentTimeMillis() < deadline) {
-                    val state = runCatching {
-                        dshRepository.getAccountState(ui.activeHostId).getOrNull()
-                    }.getOrNull()
-                    if (state != null) {
-                        if (state.status == "credential-stored") {
-                            val profile = runCatching {
-                                dshRepository.getAccountProfile(ui.activeHostId).getOrNull()
-                            }.getOrNull()
-                            val balance = runCatching {
-                                dshRepository.getAccountBalance(ui.activeHostId).getOrNull()
-                            }.getOrNull()
-                            oauthManager.applyHostAccount(profile, balance)
-                        } else if (state.status == "signed-out" && oauthManager.accountFlow.value.isSignedIn) {
-                            oauthManager.signOut()
+            // 与插件目录并行：两者互不依赖，串行只会把启动时间相加。
+            val accountHydrationJob = async {
+                if (!runtimeUi.accountHydrated) {
+                    val deadline = System.currentTimeMillis() + 4_000
+                    while (System.currentTimeMillis() < deadline) {
+                        val state = runCatching {
+                            dshRepository.getAccountState(ui.activeHostId).getOrNull()
+                        }.getOrNull()
+                        if (state != null) {
+                            if (state.status == "credential-stored") {
+                                val profile = runCatching {
+                                    dshRepository.getAccountProfile(ui.activeHostId).getOrNull()
+                                }.getOrNull()
+                                val balance = runCatching {
+                                    dshRepository.getAccountBalance(ui.activeHostId).getOrNull()
+                                }.getOrNull()
+                                oauthManager.applyHostAccount(profile, balance)
+                            } else if (state.status == "signed-out" && oauthManager.accountFlow.value.isSignedIn) {
+                                oauthManager.signOut()
+                            }
+                            runtimeUi.accountHydrated = true
+                            return@async
                         }
-                        runtimeUi.accountHydrated = true
-                        break
+                        kotlinx.coroutines.delay(150)
                     }
-                    kotlinx.coroutines.delay(200)
                 }
             }
             // 插件清单、bridge 目录、插件设置页都拿到后才算插件数据就绪。
             dshRepository.refreshBridgePluginCatalog()
             dshRepository.refreshPluginSettingsPages()
+            accountHydrationJob.await()
             runtimeUi.pluginsHydrated = true
             dshRepository.refreshAutomationTasks(ui.activeHostId)
             dshRepository.refreshTeamTasks(ui.activeHostId)
@@ -1224,11 +1229,7 @@ fun MainAppHost(
                 val appLanguage = context.resources.configuration.locales[0].language
                 dshRepository.syncHostLocale(ui.activeHostId, appLanguage)
             }
-            // bridge 必须在绑定之后才能读：Host 未就绪时桥没有地址，只会报
-            // "not bound"。这里重新拉一次，插件页才会用上官方分类与图形。
-            dshRepository.refreshBridgePluginCatalog()
-            dshRepository.refreshPluginSettingsPages()
-            // 账号态由 account/watch 的首个快照推送，这里不再主动 getState。
+            // 账号态之后由 account/watch 持续推送；首屏已主动拉过一次。
         }
     }
 
@@ -1428,7 +1429,7 @@ fun MainAppHost(
             startupHydrated = false
             return@LaunchedEffect
         }
-        val deadline = System.currentTimeMillis() + 8_000
+        val deadline = System.currentTimeMillis() + 6_000
         while (System.currentTimeMillis() < deadline) {
             if (runtimeUi.accountHydrated && runtimeUi.pluginsHydrated && pluginSnapshot != null) break
             kotlinx.coroutines.delay(120)
