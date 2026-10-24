@@ -2,6 +2,28 @@
 
 本文件记录 DSH 手机端（Android App）的版本变化。bridge 插件与 rootfs 镜像有各自的版本线，不在此文件里展开；发版顺序见 [RELEASING.md](RELEASING.md)。
 
+## 1.0.7 — 2026-10-24
+
+### 新增
+
+- **聊天附件**：加号菜单「文件」改为系统 SAF 文件选择器，支持多选图片/文件；文件复制进当前工作区 `attachments/`，输入卡片显示附件行，发送时以 `@attachments/...` 附给 Agent，也支持只发附件。
+- **计划模式**：加号菜单「计划」切换会话级计划模式，显示横幅与专用 placeholder，发送时要求 Agent 先输出计划、确认后再执行。
+- **斜杠命令本地化**：选择「目标 / 反馈 / 压缩 / 下载日志」后输入框显示 `/目标` 等 chip 与参数提示，发送时还原成 `/goal` 等 Host 命令。
+- **插件商店静态索引**：SDK 仓库 Action 定时生成 `store/index.json`，App 优先读静态索引并缓存，不再逐台设备请求 GitHub API；索引不可用时才回退。
+
+### 修复
+
+- **Host 启动门**：等待 `RuntimePhase.RUNNING`（Host 真正就绪）后再进入主界面，避免模型/插件接口未就绪时进入空状态；90 秒超时提供重试/诊断/仍然进入。
+- **Host 启动 `uv_cwd` 失败**：启动前重建并放开 `rootfs/root`，并确保进程 workingDir 存在，修复 `Node.js ... ENOSYS: uv_cwd` 导致的 Host 退出。
+- **伴生 APK 安装状态**：插件商店详情里的 APK 行在已安装时显示「已安装」，仓库有更新时显示「更新」。
+- **GitHub API 403 诊断**：商店 403 时显示限流剩余次数/响应体，并优先使用 10 分钟内缓存。
+
+### 工程
+
+- Java/Kotlin target 统一升到 21。
+- App 通过组合构建引用独立 Native UI SDK（DshPanel / DshButton 设计系统）。
+- CI 增加 SDK 仓库 checkout，修复 `Included build ... does not exist`；GitHub Actions 升到最新大版本。
+
 ## 1.0.6 — 2026-10-23
 
 ### 修复
