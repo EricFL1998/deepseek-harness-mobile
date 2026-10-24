@@ -75,6 +75,9 @@ class HostProcessRunner(
         }
 
         try {
+            // 进程 cwd 必须存在：被清理/迁移后的 baseDir 不存在时，proot 里的
+            // Node 启动会直接以 ENOSYS uv_cwd 失败。
+            if (!workingDir.isDirectory) workingDir.mkdirs()
             val pb = ProcessBuilder(command)
                 .directory(workingDir)
                 .redirectErrorStream(false)

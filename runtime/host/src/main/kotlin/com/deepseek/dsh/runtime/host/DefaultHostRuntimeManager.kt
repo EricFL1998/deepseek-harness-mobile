@@ -828,6 +828,19 @@ class DefaultHostRuntimeManager(
                 IllegalStateException("缺少 ${layout.prootBinary.name}：需把对应 ABI 的 proot 打包到 jniLibs")
             )
         }
+        // proot 以 `-w /root` 启动；rootfs 里的 /root 若缺失/被替换成悬空文件，
+        // Node 的 uv_cwd 会返回 ENOSYS，Host 直接退出。启动前修复目录并放开
+        // 进入权限（rootfs 由 App 解压，owner 就是 App 自己）。
+        val rootHome = File(layout.rootfsDir, "root")
+        if (!rootHome.isDirectory) {
+            // 断掉的符号链接 exists() 也是 false，必须直接删再建，否则 mkdirs 会失败。
+            runCatching { rootHome.delete() }
+            rootHome.mkdirs()
+        }
+        runCatching {
+            rootHome.setReadable(true, false)
+            rootHome.setExecutable(true, false)
+        }
         // proot 的 bind 目标需要存在；DSH 配置目录先创建，避免首次启动 mkdir 失败。
         File(layout.rootfsDir, "root/.dsh/profiles/web").mkdirs()
         // profile 需要从自身目录解析 @deepseek-ai/* bundle；链接到 rootfs 全局 node_modules。
